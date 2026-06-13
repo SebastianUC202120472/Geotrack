@@ -6,6 +6,7 @@ import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import Badge, { EstadoBadge } from "../components/ui/Badge";
 import { listarConductores, crearConductor } from "../services/api";
+import { validarNombre, validarCorreo, validarPassword, validarTelefono, validarDni, soloDigitos } from "../utils/validaciones";
 
 // Apartado de conductores: ficha completa (nombre, teléfono, DNI), vehículo
 // asignado y detalle en un modal. La cuenta (correo/contraseña) es la que el
@@ -16,6 +17,7 @@ export default function Conductores() {
   const [seleccionado, setSeleccionado] = useState(null);
 
   const [form, setForm] = useState({ nombre: "", correo: "", contrasena: "", telefono: "", dni: "" });
+  const [errores, setErrores] = useState({});
   const [aviso, setAviso] = useState(null);
   const [guardando, setGuardando] = useState(false);
 
@@ -34,11 +36,31 @@ export default function Conductores() {
     cargar();
   }, []);
 
-  const set = (campo) => (e) => setForm({ ...form, [campo]: e.target.value });
+  // Actualiza un campo y limpia su error mientras el usuario corrige.
+  const set = (campo, transform) => (e) => {
+    const valor = transform ? transform(e.target.value) : e.target.value;
+    setForm((f) => ({ ...f, [campo]: valor }));
+    setErrores((er) => ({ ...er, [campo]: "" }));
+  };
+
+  const validar = () => ({
+    nombre: validarNombre(form.nombre),
+    correo: validarCorreo(form.correo),
+    contrasena: validarPassword(form.contrasena),
+    telefono: validarTelefono(form.telefono),
+    dni: validarDni(form.dni),
+  });
 
   const registrar = async (e) => {
     e.preventDefault();
     setAviso(null);
+
+    const errs = validar();
+    if (Object.values(errs).some(Boolean)) {
+      setErrores(errs);
+      return;
+    }
+
     setGuardando(true);
     try {
       const c = await crearConductor({
@@ -65,13 +87,18 @@ export default function Conductores() {
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Formulario de alta */}
         <Card title="Registrar conductor" className="lg:col-span-1">
-          <form onSubmit={registrar} className="space-y-4">
-            <Input label="Nombre completo" required value={form.nombre} onChange={set("nombre")} placeholder="Ej. Juan Pérez" />
-            <Input label="Correo (acceso a la app)" type="email" required value={form.correo} onChange={set("correo")} placeholder="conductor@siol.com" />
-            <Input label="Contraseña inicial" type="password" required value={form.contrasena} onChange={set("contrasena")} placeholder="••••••••" />
+          <form onSubmit={registrar} noValidate className="space-y-4">
+            <Input label="Nombre completo" required value={form.nombre} onChange={set("nombre")}
+              placeholder="Ej. Juan Pérez" error={errores.nombre} hint="Al menos 3 caracteres" />
+            <Input label="Correo (acceso a la app)" type="email" required value={form.correo} onChange={set("correo")}
+              placeholder="conductor@siol.com" error={errores.correo} hint="Formato nombre@dominio.com" />
+            <Input label="Contraseña inicial" type="password" required value={form.contrasena} onChange={set("contrasena")}
+              placeholder="••••••••" error={errores.contrasena} hint="8+ caracteres, con mayúscula, minúscula y número" />
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Teléfono" value={form.telefono} onChange={set("telefono")} placeholder="999 888 777" />
-              <Input label="DNI" value={form.dni} onChange={set("dni")} placeholder="12345678" />
+              <Input label="Teléfono" inputMode="numeric" value={form.telefono} onChange={set("telefono", (v) => soloDigitos(v, 9))}
+                placeholder="987654321" error={errores.telefono} hint="9 dígitos (empieza en 9)" />
+              <Input label="DNI" inputMode="numeric" value={form.dni} onChange={set("dni", (v) => soloDigitos(v, 8))}
+                placeholder="12345678" error={errores.dni} hint="8 dígitos" />
             </div>
             <Button type="submit" icon={UserPlus} block disabled={guardando}>
               {guardando ? "Registrando…" : "Registrar conductor"}

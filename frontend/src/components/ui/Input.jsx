@@ -1,5 +1,6 @@
 // Campo de formulario con etiqueta asociada (accesibilidad: el label apunta al
-// input por id) y foco visible. Sirve para <input> y, con "as", para <select>.
+// input por id), foco visible y estado de error. Sirve para <input> y, con
+// "as", para <select>/<textarea>.
 import { useId } from "react";
 
 export default function Input({
@@ -7,11 +8,16 @@ export default function Input({
   as = "input",
   className = "",
   hint,
+  error,
   children,
   ...props
 }) {
   const id = useId();
   const Tag = as;
+
+  const borde = error
+    ? "border-danger focus:border-danger focus:ring-danger/30"
+    : "border-slate-200 focus:border-brand-500 focus:ring-brand-500/30";
 
   return (
     <div className="space-y-1.5">
@@ -22,12 +28,17 @@ export default function Input({
       )}
       <Tag
         id={id}
-        className={`w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 ${className}`}
+        aria-invalid={error ? "true" : undefined}
+        className={`w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:ring-2 ${borde} ${className}`}
         {...props}
       >
         {children}
       </Tag>
-      {hint && <p className="text-xs text-slate-400">{hint}</p>}
+      {error ? (
+        <p className="text-xs font-medium text-danger-strong">{error}</p>
+      ) : hint ? (
+        <p className="text-xs text-slate-400">{hint}</p>
+      ) : null}
     </div>
   );
 }
