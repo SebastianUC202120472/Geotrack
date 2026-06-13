@@ -5,6 +5,7 @@ import { loginAdmin } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import Logo from "../components/ui/Logo";
 import Input from "../components/ui/Input";
+import PasswordInput from "../components/ui/PasswordInput";
 import Button from "../components/ui/Button";
 
 export default function Login() {
@@ -81,9 +82,8 @@ export default function Login() {
                 onChange={(e) => setCorreo(e.target.value)}
                 placeholder="admin@siol.com"
               />
-              <Input
+              <PasswordInput
                 label="Contraseña"
-                type="password"
                 required
                 autoComplete="current-password"
                 value={password}

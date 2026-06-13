@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle } from "lucide-react";
+import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
+import PasswordInput from "../components/ui/PasswordInput";
 import Button from "../components/ui/Button";
 import Badge, { EstadoBadge } from "../components/ui/Badge";
 import { listarConductores, crearConductor } from "../services/api";
+import { validarNombre, validarCorreo, validarPassword, validarTelefono, validarDni, soloDigitos } from "../utils/validaciones";
 
 // Apartado de conductores: ficha completa (nombre, teléfono, DNI), vehículo
 // asignado y detalle en un modal. La cuenta (correo/contraseña) es la que el
@@ -16,6 +18,7 @@ export default function Conductores() {
   const [seleccionado, setSeleccionado] = useState(null);
 
   const [form, setForm] = useState({ nombre: "", correo: "", contrasena: "", telefono: "", dni: "" });
+  const [errores, setErrores] = useState({});
   const [aviso, setAviso] = useState(null);
   const [guardando, setGuardando] = useState(false);
 
@@ -34,11 +37,31 @@ export default function Conductores() {
     cargar();
   }, []);
 
-  const set = (campo) => (e) => setForm({ ...form, [campo]: e.target.value });
+  // Actualiza un campo y limpia su error mientras el usuario corrige.
+  const set = (campo, transform) => (e) => {
+    const valor = transform ? transform(e.target.value) : e.target.value;
+    setForm((f) => ({ ...f, [campo]: valor }));
+    setErrores((er) => ({ ...er, [campo]: "" }));
+  };
+
+  const validar = () => ({
+    nombre: validarNombre(form.nombre),
+    correo: validarCorreo(form.correo),
+    contrasena: validarPassword(form.contrasena),
+    telefono: validarTelefono(form.telefono),
+    dni: validarDni(form.dni),
+  });
 
   const registrar = async (e) => {
     e.preventDefault();
     setAviso(null);
+
+    const errs = validar();
+    if (Object.values(errs).some(Boolean)) {
+      setErrores(errs);
+      return;
+    }
+
     setGuardando(true);
     try {
       const c = await crearConductor({
@@ -65,13 +88,21 @@ export default function Conductores() {
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Formulario de alta */}
         <Card title="Registrar conductor" className="lg:col-span-1">
-          <form onSubmit={registrar} className="space-y-4">
-            <Input label="Nombre completo" required value={form.nombre} onChange={set("nombre")} placeholder="Ej. Juan Pérez" />
-            <Input label="Correo (acceso a la app)" type="email" required value={form.correo} onChange={set("correo")} placeholder="conductor@siol.com" />
-            <Input label="Contraseña inicial" type="password" required value={form.contrasena} onChange={set("contrasena")} placeholder="••••••••" />
+          <form onSubmit={registrar} noValidate className="space-y-4">
+            <Input label="Nombre completo" required value={form.nombre} onChange={set("nombre")}
+              placeholder="Ej. Juan Pérez" error={errores.nombre} hint="Al menos 3 caracteres" />
+            <Input label="Correo (acceso a la app)" type="email" required value={form.correo} onChange={set("correo")}
+              placeholder="conductor@siol.com" error={errores.correo} hint="Formato nombre@dominio.com" />
+            <div>
+              <PasswordInput label="Contraseña inicial" required value={form.contrasena} onChange={set("contrasena")}
+                placeholder="Escribe la contraseña" error={errores.contrasena} autoComplete="new-password" />
+              <RequisitosPassword value={form.contrasena} />
+            </div>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Teléfono" value={form.telefono} onChange={set("telefono")} placeholder="999 888 777" />
-              <Input label="DNI" value={form.dni} onChange={set("dni")} placeholder="12345678" />
+              <Input label="Teléfono" inputMode="numeric" value={form.telefono} onChange={set("telefono", (v) => soloDigitos(v, 9))}
+                placeholder="987654321" error={errores.telefono} hint="9 dígitos (empieza en 9)" />
+              <Input label="DNI" inputMode="numeric" value={form.dni} onChange={set("dni", (v) => soloDigitos(v, 8))}
+                placeholder="12345678" error={errores.dni} hint="8 dígitos" />
             </div>
             <Button type="submit" icon={UserPlus} block disabled={guardando}>
               {guardando ? "Registrando…" : "Registrar conductor"}
@@ -177,5 +208,29 @@ function Dato({ etiqueta, valor, icono: Icono }) {
         <p className="font-medium text-slate-700">{valor}</p>
       </div>
     </div>
+  );
+}
+
+// Lista de requisitos de la contraseña que se va marcando en vivo al escribir.
+function RequisitosPassword({ value }) {
+  if (!value) return null;
+  const reglas = [
+    { ok: value.length >= 8, texto: "Al menos 8 caracteres" },
+    { ok: /[A-Z]/.test(value), texto: "Una mayúscula" },
+    { ok: /[a-z]/.test(value), texto: "Una minúscula" },
+    { ok: /\d/.test(value), texto: "Un número" },
+    { ok: /[^A-Za-z0-9]/.test(value), texto: "Un carácter especial (!@#$…)" },
+  ];
+  return (
+    <ul className="mt-2 space-y-1">
+      {reglas.map((r) => (
+        <li key={r.texto} className={`flex items-center gap-2 text-xs ${r.ok ? "text-success-strong" : "text-slate-400"}`}>
+          <span className={`flex h-4 w-4 items-center justify-center rounded-full ${r.ok ? "bg-success-soft" : "bg-slate-100"}`}>
+            <Check size={11} />
+          </span>
+          {r.texto}
+        </li>
+      ))}
+    </ul>
   );
 }

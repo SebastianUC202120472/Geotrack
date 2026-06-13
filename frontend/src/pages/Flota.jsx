@@ -6,6 +6,7 @@ import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import { EstadoBadge } from "../components/ui/Badge";
 import { listarVehiculos, crearVehiculo, listarConductores } from "../services/api";
+import { validarPlaca, validarCapacidad } from "../utils/validaciones";
 
 // Registro de vehículos y su asignación a un conductor. El alta de conductores
 // vive en su propia sección (Conductores).
@@ -18,6 +19,7 @@ export default function Flota() {
   const [marca, setMarca] = useState("");
   const [capacidad, setCapacidad] = useState("");
   const [conductorId, setConductorId] = useState("");
+  const [errores, setErrores] = useState({});
   const [aviso, setAviso] = useState(null);
 
   const cargar = async () => {
@@ -43,6 +45,14 @@ export default function Flota() {
   const altaVehiculo = async (e) => {
     e.preventDefault();
     setAviso(null);
+
+    const errs = { placa: validarPlaca(placa), capacidad: validarCapacidad(capacidad) };
+    if (errs.placa || errs.capacidad) {
+      setErrores(errs);
+      return;
+    }
+    setErrores({});
+
     try {
       await crearVehiculo({
         placa,
@@ -64,11 +74,15 @@ export default function Flota() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card title="Registrar vehículo" subtitle="El conductor es opcional (vacío = de la empresa)." className="lg:col-span-1">
-          <form onSubmit={altaVehiculo} className="space-y-4">
-            <Input label="Placa" required value={placa} onChange={(e) => setPlaca(e.target.value)} placeholder="ABC-123" />
+          <form onSubmit={altaVehiculo} noValidate className="space-y-4">
+            <Input label="Placa" required value={placa}
+              onChange={(e) => { setPlaca(e.target.value.toUpperCase()); setErrores((er) => ({ ...er, placa: "" })); }}
+              placeholder="ABC-123" error={errores.placa} hint="3 letras y 3 dígitos (Perú)" />
             <div className="grid grid-cols-2 gap-4">
               <Input label="Marca" value={marca} onChange={(e) => setMarca(e.target.value)} placeholder="Toyota" />
-              <Input label="Capacidad (m³)" type="number" value={capacidad} onChange={(e) => setCapacidad(e.target.value)} placeholder="12" />
+              <Input label="Capacidad (m³)" type="number" min="0" step="0.1" value={capacidad}
+                onChange={(e) => { setCapacidad(e.target.value); setErrores((er) => ({ ...er, capacidad: "" })); }}
+                placeholder="12" error={errores.capacidad} hint="Mayor a 0 (máx. 100)" />
             </div>
             <Input as="select" label="Conductor asignado" value={conductorId} onChange={(e) => setConductorId(e.target.value)}>
               <option value="">Sin conductor (de la empresa)</option>
