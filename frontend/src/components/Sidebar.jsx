@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   FileSpreadsheet,
+  Package,
   Layers3,
   Route as RouteIcon,
   Mail,
@@ -22,6 +23,7 @@ const secciones = [
     items: [
       { icon: LayoutDashboard, label: "Dashboard", path: "/" },
       { icon: FileSpreadsheet, label: "Importar Pedidos", path: "/importar" },
+      { icon: Package, label: "Pedidos", path: "/pedidos" },
       { icon: Layers3, label: "Agrupación por Zonas", path: "/agrupacion" },
       { icon: RouteIcon, label: "Asignación de Rutas", path: "/asignacion-bloque" },
       { icon: Mail, label: "Bandeja de Solicitudes", path: "/bandeja" },

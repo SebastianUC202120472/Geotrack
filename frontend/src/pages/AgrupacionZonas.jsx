@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { RefreshCw, MapPinned, Package, Layers3 } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import StatCard from "../components/ui/StatCard";
@@ -8,6 +9,7 @@ import DistrictCard from "../components/DistrictCard";
 import { listarZonas } from "../services/api";
 
 export default function AgrupacionZonas() {
+  const navigate = useNavigate();
   const [zonas, setZonas] = useState([]);
   const [cargando, setCargando] = useState(true);
 
@@ -54,7 +56,12 @@ export default function AgrupacionZonas() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {zonas.map((z) => (
-              <DistrictCard key={z.distrito} distrito={z.distrito} pedidos={z.total_pedidos} />
+              <DistrictCard
+                key={z.distrito}
+                distrito={z.distrito}
+                pedidos={z.total_pedidos}
+                onClick={() => navigate(`/pedidos?distrito=${encodeURIComponent(z.distrito || "")}`)}
+              />
             ))}
           </div>
         )}

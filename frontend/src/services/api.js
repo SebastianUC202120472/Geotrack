@@ -91,7 +91,9 @@ export const subirPedidosExcel = (archivo) => {
   return request("/pedidos/upload", { method: "POST", body: formData });
 };
 
-export const listarPedidos = () => request("/pedidos/");
+// El backend limita a 100 por defecto; pedimos un tope alto para poder filtrar
+// y paginar del lado del cliente (suficiente para los volúmenes del MVP).
+export const listarPedidos = (limit = 1000) => request(`/pedidos/?limit=${limit}`);
 
 // Devuelve { zonas_operativas: [{ distrito, total_pedidos }] }
 export const listarZonas = () => request("/pedidos/zonas");
