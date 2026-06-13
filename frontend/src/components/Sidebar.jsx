@@ -10,21 +10,35 @@ import {
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import Logo from "./ui/Logo";
 
-// Menú del panel. Cada entrada apunta a una pantalla que consume un endpoint
-// real del backend del admin. Las funciones de la app móvil del conductor
-// (validación QR, evidencias, optimización con GPS) NO viven aquí.
-const menu = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-  { icon: FileSpreadsheet, label: "Importar Pedidos", path: "/importar" },
-  { icon: Layers3, label: "Agrupación por Zonas", path: "/agrupacion" },
-  { icon: RouteIcon, label: "Asignación de Rutas", path: "/asignacion-bloque" },
-  { icon: Truck, label: "Flota y Conductores", path: "/flota" },
-  { icon: Radar, label: "Seguimiento", path: "/seguimiento" },
-  { icon: Search, label: "Trazabilidad", path: "/trazabilidad" },
+// Menú agrupado por bloques de trabajo. Cada entrada apunta a una pantalla que
+// consume un endpoint real del admin. (Las funciones de la app móvil del
+// conductor no viven aquí.)
+const secciones = [
+  {
+    titulo: "Operación",
+    items: [
+      { icon: LayoutDashboard, label: "Dashboard", path: "/" },
+      { icon: FileSpreadsheet, label: "Importar Pedidos", path: "/importar" },
+      { icon: Layers3, label: "Agrupación por Zonas", path: "/agrupacion" },
+      { icon: RouteIcon, label: "Asignación de Rutas", path: "/asignacion-bloque" },
+    ],
+  },
+  {
+    titulo: "Flota",
+    items: [
+      { icon: Truck, label: "Flota y Conductores", path: "/flota" },
+      { icon: Radar, label: "Seguimiento", path: "/seguimiento" },
+    ],
+  },
+  {
+    titulo: "Consulta",
+    items: [{ icon: Search, label: "Trazabilidad", path: "/trazabilidad" }],
+  },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ onNavigate }) {
   const navigate = useNavigate();
   const { cerrarSesion } = useAuth();
 
@@ -34,37 +48,48 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-72 bg-slate-950 text-white flex flex-col border-r border-slate-800">
-      <div className="p-6 border-b border-slate-800">
-        <h1 className="text-3xl font-bold">GEOTRACK</h1>
-        <p className="text-slate-400 text-sm">SIOL - SAVA · Panel Admin</p>
+    <aside className="flex h-full w-72 flex-col border-r border-slate-800 bg-slate-900 text-slate-300">
+      <div className="px-6 py-5 border-b border-slate-800">
+        <Logo light />
       </div>
 
-      <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-        {menu.map(({ icon: Icon, label, path }) => (
-          <NavLink
-            key={path}
-            to={path}
-            end={path === "/"}
-            className={({ isActive }) =>
-              `flex items-center gap-3 p-3 rounded-xl transition-all ${
-                isActive ? "bg-blue-600" : "hover:bg-slate-800"
-              }`
-            }
-          >
-            <Icon size={20} />
-            <span>{label}</span>
-          </NavLink>
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+        {secciones.map((seccion) => (
+          <div key={seccion.titulo}>
+            <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              {seccion.titulo}
+            </p>
+            <div className="space-y-1">
+              {seccion.items.map(({ icon: Icon, label, path }) => (
+                <NavLink
+                  key={path}
+                  to={path}
+                  end={path === "/"}
+                  onClick={onNavigate}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                      isActive
+                        ? "bg-brand-600 text-white"
+                        : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                    }`
+                  }
+                >
+                  <Icon size={18} />
+                  <span>{label}</span>
+                </NavLink>
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 
-      <div className="p-4 border-t border-slate-800">
+      <div className="border-t border-slate-800 p-3">
         <button
           onClick={salir}
-          className="w-full flex items-center justify-center gap-2 bg-red-600 py-3 rounded-xl hover:bg-red-700 transition-colors"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-800 py-2.5 text-sm font-semibold text-slate-200 transition-colors hover:bg-danger hover:text-white"
         >
           <LogOut size={18} />
-          Cerrar Sesión
+          Cerrar sesión
         </button>
       </div>
     </aside>

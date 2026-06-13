@@ -1,1 +1,59 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
+
+/* ============================================================================
+   Sistema de diseño GeoTrack — tokens de marca, estados, radios y sombras.
+   Los neutros (gris humo / negro) se toman de la escala "slate" de Tailwind:
+     slate-50 #F8FAFC (canvas) · slate-200 #E2E8F0 (bordes) · slate-500 #64748B
+     (texto tenue) · slate-700 #334155 (texto) · slate-900 #0F172A (títulos/ink).
+   La base para un modo oscuro queda en estas variables (se podría mapear un
+   tema .dark más adelante sin tocar los componentes).
+============================================================================ */
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Azul de marca (acento / acciones) */
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb; /* primario */
+  --color-brand-700: #1d4ed8; /* hover / activo */
+  --color-brand-900: #1e3a8a;
+
+  /* Colores semánticos (fondo suave + texto fuerte para badges/avisos) */
+  --color-success: #16a34a;
+  --color-success-soft: #dcfce7;
+  --color-success-strong: #15803d;
+  --color-warning: #f59e0b;
+  --color-warning-soft: #fef3c7;
+  --color-warning-strong: #b45309;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fee2e2;
+  --color-danger-strong: #b91c1c;
+  --color-info: #0ea5e9;
+  --color-info-soft: #e0f2fe;
+  --color-info-strong: #0369a1;
+
+  /* Radios y sombras de tarjeta */
+  --radius-card: 0.875rem;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
+  --shadow-card-hover: 0 6px 16px rgba(15, 23, 42, 0.08);
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+  }
+  body {
+    background-color: #f8fafc; /* slate-50 / canvas */
+    color: #334155; /* slate-700 */
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  /* Números alineados en KPIs y tablas */
+  .nums {
+    font-variant-numeric: tabular-nums;
+  }
+}

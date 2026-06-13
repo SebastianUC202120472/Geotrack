@@ -1,124 +1,64 @@
 import { useEffect, useState } from "react";
-import {
-  Layers3,
-  RefreshCw,
-  MapPinned,
-  Package
-} from "lucide-react";
-
-import Header from "../components/Header";
+import { RefreshCw, MapPinned, Package, Layers3 } from "lucide-react";
+import PageHeader from "../components/ui/PageHeader";
+import StatCard from "../components/ui/StatCard";
+import Card from "../components/ui/Card";
+import Button from "../components/ui/Button";
 import DistrictCard from "../components/DistrictCard";
 import { listarZonas } from "../services/api";
 
 export default function AgrupacionZonas() {
-
   const [zonas, setZonas] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [cargando, setCargando] = useState(true);
 
-  useEffect(() => {
-    cargarZonas();
-  }, []);
-
-  const cargarZonas = async () => {
-    setLoading(true);
+  const cargar = async () => {
+    setCargando(true);
     try {
-      const response = await listarZonas();
-      setZonas(response.zonas_operativas || []);
-    } catch (error) {
-      console.error("Error al cargar zonas:", error);
-      alert("No se pudieron cargar las zonas");
+      const res = await listarZonas();
+      setZonas(res.zonas_operativas || []);
+    } catch (err) {
+      console.error("Error al cargar zonas:", err.message);
     } finally {
-      setLoading(false);
+      setCargando(false);
     }
   };
 
-  // Verificación de seguridad por si zonas está vacío
-  const totalPedidos = zonas.reduce(
-    (acc, zona) => acc + (zona.total_pedidos || 0),
-    0
-  );
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  const totalPedidos = zonas.reduce((acc, z) => acc + (z.total_pedidos || 0), 0);
 
   return (
-    <div className="flex h-full bg-slate-100">
-      <main className="flex-1 overflow-y-auto p-6 space-y-6">
-        <Header />
+    <div className="space-y-6 p-6 lg:p-8">
+      <PageHeader
+        titulo="Agrupación por Zonas"
+        subtitulo="Los pedidos geocodificados se organizan automáticamente por distrito."
+      >
+        <Button variant="secondary" icon={RefreshCw} onClick={cargar}>Actualizar</Button>
+      </PageHeader>
 
-        {loading ? (
-          <div className="bg-white rounded-2xl p-10 text-center shadow-sm">
-            Cargando agrupación automática...
-          </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard label="Distritos" value={zonas.length} icon={MapPinned} hint="Zonas detectadas" />
+        <StatCard label="Pedidos" value={totalPedidos} icon={Package} hint="Listos para enrutar" />
+        <StatCard label="Estado" value={zonas.length ? "Agrupado" : "—"} icon={Layers3} hint="Resultado del proceso" />
+      </div>
+
+      <Card title="Zonas operativas detectadas">
+        {cargando ? (
+          <p className="py-10 text-center text-sm text-slate-500">Cargando agrupación…</p>
+        ) : zonas.length === 0 ? (
+          <p className="py-10 text-center text-sm text-slate-400">
+            Aún no hay zonas. Importa pedidos para que se agrupen por distrito.
+          </p>
         ) : (
-          <>
-            {/* Encabezado */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h1 className="text-3xl font-bold text-slate-800">
-                    Agrupación Automática por Distritos
-                  </h1>
-                  <p className="text-slate-500 mt-2">
-                    Los pedidos importados han sido organizados automáticamente por distrito.
-                  </p>
-                </div>
-                <button
-                  onClick={cargarZonas}
-                  className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-3 rounded-xl hover:bg-indigo-700"
-                >
-                  <RefreshCw size={18} />
-                  Actualizar
-                </button>
-              </div>
-            </div>
-
-            {/* Cards de métricas */}
-            <div className="grid md:grid-cols-3 gap-5">
-              <div className="bg-white rounded-2xl p-6 border shadow-sm">
-                <div className="flex justify-between">
-                  <div>
-                    <p className="text-slate-500">Distritos</p>
-                    <h2 className="text-4xl font-bold">{zonas.length}</h2>
-                  </div>
-                  <MapPinned className="text-indigo-600" size={40} />
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl p-6 border shadow-sm">
-                <div className="flex justify-between">
-                  <div>
-                    <p className="text-slate-500">Pedidos</p>
-                    <h2 className="text-4xl font-bold">{totalPedidos}</h2>
-                  </div>
-                  <Package className="text-green-600" size={40} />
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl p-6 border shadow-sm">
-                <div className="flex justify-between">
-                  <div>
-                    <p className="text-slate-500">Estado</p>
-                    <h2 className="text-2xl font-bold text-green-600">Agrupado</h2>
-                  </div>
-                  <Layers3 className="text-blue-600" size={40} />
-                </div>
-              </div>
-            </div>
-
-            {/* Lista de Distritos */}
-            <div className="bg-white rounded-2xl border p-6 shadow-sm">
-              <h2 className="text-xl font-bold mb-5">Zonas Operativas Detectadas</h2>
-              <div className="grid lg:grid-cols-2 xl:grid-cols-3 gap-5">
-                {zonas.map((zona) => (
-                  <DistrictCard
-                    key={zona.distrito}
-                    distrito={zona.distrito}
-                    pedidos={zona.total_pedidos}
-                  />
-                ))}
-              </div>
-            </div>
-          </>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {zonas.map((z) => (
+              <DistrictCard key={z.distrito} distrito={z.distrito} pedidos={z.total_pedidos} />
+            ))}
+          </div>
         )}
-      </main>
+      </Card>
     </div>
   );
 }
