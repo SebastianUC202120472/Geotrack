@@ -1,16 +1,5 @@
 # app/services/router.py
-# ============================================================================
-# CAPA: SERVICIO (motor matemático) — Optimización de rutas / VRP (CUS-19)
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Decide EN QUÉ ORDEN visitar los pedidos para recorrer la menor
-#             distancia posible. Es el "cerebro" del enrutamiento.
-# ¿CÓMO?      Algoritmo del "Vecino Más Cercano" (greedy): desde el punto
-#             actual, siempre va al pedido más cercano que falte por visitar.
-#             La distancia se calcula con la fórmula de Haversine (distancia
-#             real sobre la superficie de la Tierra).
-# ¿CON QUÉ SE CONECTA?
-#   - Lo USA: services/ruta_service.py (función optimizar_ruta, CUS-19).
-# ============================================================================
+# Decide EN QUÉ ORDEN visitar los pedidos para recorrer la menor distancia posible.
 import math
 
 

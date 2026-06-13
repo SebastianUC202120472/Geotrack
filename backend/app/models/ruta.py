@@ -1,18 +1,5 @@
 # app/models/ruta.py
-# ============================================================================
-# CAPA: MODELO (tablas de base de datos) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Define DOS tablas relacionadas:
-#               - 'rutas': el recorrido de un conductor en un día.
-#               - 'ruta_detalles': tabla intermedia que conecta una Ruta con
-#                 cada Pedido, guardando su ORDEN (secuencia) y su estado.
-# ¿POR QUÉ una tabla intermedia?  Una ruta tiene muchos pedidos y cada pedido
-#             dentro de la ruta necesita su propio orden y estado de entrega.
-# ¿CON QUÉ SE CONECTA?
-#   - Hereda de 'Base' (db/database.py).
-#   - 'ruta_detalles' apunta con ForeignKey a 'rutas' y a 'pedidos'.
-#   - Las consultan: repositories/ruta_repository.py y services/ruta_service.py.
-# ============================================================================
+# Define DOS tablas relacionadas.
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime

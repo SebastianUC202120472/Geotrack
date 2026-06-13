@@ -1,15 +1,5 @@
 # app/repositories/usuario_repository.py
-# ============================================================================
-# CAPA: REPOSITORIO (acceso a datos) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Es la ÚNICA capa que habla directamente con la tabla 'usuarios'.
-#             Aquí viven los queries de SQLAlchemy (buscar, insertar...).
-# ¿CÓMO?      Recibe una sesión de base de datos (db) y ejecuta consultas.
-# ¿CON QUÉ SE CONECTA?
-#   - models/usuario.py  -> la tabla 'usuarios' que consulta.
-#   - db/database.py     -> de ahí viene la sesión 'db'.
-#   - Lo USA: services/usuario_service.py (la lógica de negocio).
-# ============================================================================
+# Es la ÚNICA capa que habla directamente con la tabla 'usuarios'.
 from typing import Optional
 from sqlalchemy.orm import Session
 

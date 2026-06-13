@@ -1,18 +1,5 @@
 # app/services/dashboard_service.py
-# ============================================================================
-# CAPA: SERVICIO (lógica de negocio) — Trazabilidad (Fase 4)
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  La inteligencia del panel de monitoreo del admin:
-#               - CUS-33: estado de la flota (avance de cada ruta) y KPIs globales.
-#               - CUS-35: arma la línea de tiempo (historial) de un paquete.
-# ¿CÓMO?      Lee datos con los repositorios y los resume en porcentajes y eventos.
-# ¿CON QUÉ SE CONECTA?
-#   - repositories/ruta_repository.py    -> rutas y sus detalles.
-#   - repositories/pedido_repository.py  -> conteos de pedidos y búsqueda por tracking.
-#   - repositories/usuario_repository.py -> correo del conductor de cada ruta.
-#   - schemas/dashboard.py               -> moldes de respuesta.
-#   - Lo USA: api/dashboard.py.
-# ============================================================================
+# La inteligencia del panel de monitoreo del admin.
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -38,6 +25,18 @@ DESCRIPCIONES_ESTADO = {
 }
 
 
+def _nombre_conductor(db: Session, conductor_id) -> str | None:
+    """Nombre del conductor (de su perfil) o su correo. Recibe: conductor_id o None."""
+    if not conductor_id:
+        return None
+    from app.models.conductor import PerfilConductor
+    perfil = db.query(PerfilConductor).filter(PerfilConductor.usuario_id == conductor_id).first()
+    if perfil and perfil.nombre:
+        return perfil.nombre
+    u = usuario_repository.obtener_por_id(db, conductor_id)
+    return u.correo if u else None
+
+
 def _contar_estados(detalles) -> tuple[int, int, int]:
     """Cuenta (entregadas, fallidas, pendientes) a partir de los detalles de una ruta."""
     entregadas = sum(1 for d, _ in detalles if d.estado_entrega == "ENTREGADO")
@@ -46,7 +45,7 @@ def _contar_estados(detalles) -> tuple[int, int, int]:
     return entregadas, fallidas, pendientes
 
 
-# ============ CUS-33: Seguimiento de la flota ============
+# CUS-33: Seguimiento de la flota
 def obtener_flota(db: Session) -> FlotaResponse:
     """Resume el avance de TODAS las rutas para el tablero de la flota."""
     rutas = ruta_repository.listar_rutas(db)
@@ -111,7 +110,7 @@ def obtener_resumen(db: Session) -> ResumenResponse:
     )
 
 
-# ============ CUS-35: Historial / línea de tiempo de un paquete ============
+# CUS-35: Historial / línea de tiempo de un paquete
 def obtener_historial(db: Session, codigo: str) -> HistorialPedidoResponse:
     """
     CUS-35: línea de tiempo REAL de un paquete (por su código PD-001), leída de
@@ -147,6 +146,7 @@ def obtener_historial(db: Session, codigo: str) -> HistorialPedidoResponse:
 
     # Datos complementarios desde la ruta/detalle (evidencia, motivo, parada).
     ruta_nombre = None
+    conductor_nombre = None
     secuencia = None
     url_evidencia = None
     motivo_fallo = None
@@ -158,6 +158,7 @@ def obtener_historial(db: Session, codigo: str) -> HistorialPedidoResponse:
         secuencia = detalle.secuencia
         url_evidencia = detalle.url_evidencia
         motivo_fallo = detalle.motivo_fallo
+        conductor_nombre = _nombre_conductor(db, ruta.conductor_id)
 
     return HistorialPedidoResponse(
         codigo=pedido.codigo,
@@ -166,6 +167,7 @@ def obtener_historial(db: Session, codigo: str) -> HistorialPedidoResponse:
         distrito=pedido.distrito,
         estado_actual=pedido.estado,
         ruta_asignada=ruta_nombre,
+        conductor_asignado=conductor_nombre,
         secuencia=secuencia,
         url_evidencia=url_evidencia,
         motivo_fallo=motivo_fallo,

@@ -1,14 +1,5 @@
 # app/schemas/ruta.py
-# ============================================================================
-# CAPA: SCHEMA (validación/serialización con Pydantic) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Define los "moldes" de datos de RUTAS para la API:
-#               - Fase 2: peticiones/respuestas de asignación y optimización.
-#               - Fase 3: ruta activa, manifiesto, navegación, validación QR,
-#                 gestión de paradas y cierre.
-# ¿CON QUÉ SE CONECTA?
-#   - Lo USAN: api/rutas.py, api/conductor.py y services/ruta_service.py.
-# ============================================================================
+# Define los "moldes" de datos de RUTAS para la API.
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, field_validator
@@ -71,7 +62,7 @@ class NavegacionResponse(BaseModel):
     paradas: List[ParadaNavegacion]
 
 
-# ============ FASE 3.2: Validación en almacén (CUS-22) ============
+# FASE 3.2: Validación en almacén (CUS-22)
 class ValidacionQRRequest(BaseModel):
     codigo: str  # el código PD-001 escaneado del QR
 
@@ -82,7 +73,7 @@ class ValidacionQRResponse(BaseModel):
     parada: Optional[ParadaManifiesto] = None
 
 
-# ============ FASE 3.3: Ejecución y evidencias (CUS-26 / CUS-29) ============
+# FASE 3.3: Ejecución y evidencias (CUS-26 / CUS-29)
 class ActualizarEstadoRequest(BaseModel):
     estado: str  # ENTREGADO | FALLIDO
     motivo_fallo: Optional[str] = None
@@ -107,7 +98,7 @@ class GestionParadaResponse(BaseModel):
     mensaje: str
 
 
-# ============ FASE 3.4: Cierre de operación (CUS-28) ============
+# FASE 3.4: Cierre de operación (CUS-28)
 class CierreRutaResponse(BaseModel):
     ruta_id: int
     codigo: Optional[str] = None  # RT-001
@@ -121,7 +112,7 @@ class CierreRutaResponse(BaseModel):
     mensaje: str
 
 
-# ============ FASE 2: Enrutamiento básico y VRP (CUS-18 / CUS-19) ============
+# FASE 2: Enrutamiento básico y VRP (CUS-18 / CUS-19)
 class AsignacionBloqueRequest(BaseModel):
     """ENTRADA (CUS-18): el admin pide armar una ruta con un bloque de pedidos."""
     nombre_ruta: str

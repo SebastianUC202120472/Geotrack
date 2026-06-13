@@ -1,18 +1,5 @@
 # app/main.py
-# ============================================================================
-# PUNTO DE ENTRADA de la aplicación FastAPI (SIOL-SAVA Backend)
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  - Crea la app FastAPI y configura CORS (permite que la Web y la
-#               App Móvil llamen a la API desde otro origen).
-#             - Al arrancar (lifespan): espera a PostgreSQL, crea las tablas y
-#               lanza una tarea de limpieza de usuarios de prueba.
-#             - Monta /media para servir las fotos POD (CUS-29).
-#             - Registra TODOS los routers (auth, pedidos, rutas, conductor).
-# ¿CON QUÉ SE CONECTA?
-#   - app/api/*.py   -> los routers de cada módulo.
-#   - app/db/*       -> engine/Base para crear las tablas.
-#   - app/models/*   -> se importan para que existan en Base.metadata.
-# ============================================================================
+# - Crea la app FastAPI y configura CORS (permite que la Web y la App Móvil llamen a la API desde otro origen).
 import asyncio
 import os
 from datetime import datetime, timedelta
@@ -36,6 +23,9 @@ from app.api.conductor import router as conductor_router
 from app.api.dashboard import router as dashboard_router  # Fase 4: trazabilidad
 from app.api.clientes import router as clientes_router    # Fase 4: clientes corporativos
 from app.api.vehiculos import router as vehiculos_router  # Fase 4: flota de vehículos
+from app.api.correos import router as correos_router      # Bandeja de solicitudes de recojo
+from app.api.conductores import router as conductores_router  # Gestión de conductores
+from app.api.reportes import router as reportes_router      # Reportes de incidencia
 
 
 async def tarea_limpieza_usuarios():
@@ -128,6 +118,9 @@ app.include_router(pedidos_router, prefix="/api/pedidos", tags=["Gestión de Ped
 app.include_router(rutas_router, prefix="/api/rutas", tags=["Enrutamiento y Flota"])
 app.include_router(conductor_router, prefix="/api/conductor", tags=["App Móvil - Conductor"])
 app.include_router(dashboard_router, prefix="/api/dashboard", tags=["Dashboard y Trazabilidad"])
+app.include_router(correos_router, prefix="/api/correos", tags=["Bandeja de Correos"])
+app.include_router(conductores_router, prefix="/api/conductores", tags=["Conductores"])
+app.include_router(reportes_router, prefix="/api/reportes", tags=["Reportes"])
 
 
 @app.get("/")

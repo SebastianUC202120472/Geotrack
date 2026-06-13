@@ -1,14 +1,5 @@
 # app/models/vehiculo.py
-# ============================================================================
-# CAPA: MODELO (tabla de base de datos) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Define la tabla 'vehiculos': la flota que realiza las entregas.
-#             Un vehículo puede ser del propio conductor o de la empresa.
-# ¿CON QUÉ SE CONECTA?
-#   - Hereda de 'Base' (db/database.py).
-#   - 'conductor_id' -> usuarios.id (dueño/asignado). Si es NULL = de la empresa.
-#   - La consultan: repositories/vehiculo_repository.py y vehiculo_service.py.
-# ============================================================================
+# Define la tabla 'vehiculos'.
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
 from app.db.database import Base

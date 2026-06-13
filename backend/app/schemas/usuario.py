@@ -1,15 +1,5 @@
 # app/schemas/usuario.py
-# ============================================================================
-# CAPA: SCHEMA (validación de datos con Pydantic) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Define los "moldes" de los datos que ENTRAN y SALEN por la API.
-#             Pydantic valida automáticamente tipos y formatos (ej. el correo).
-# ¿POR QUÉ separado del modelo?  El modelo es la tabla (BD); el schema es el
-#             contrato con el cliente. Así nunca exponemos campos sensibles
-#             (como el hash de la contraseña).
-# ¿CON QUÉ SE CONECTA?
-#   - Lo USAN: api/auth.py y services/usuario_service.py.
-# ============================================================================
+# Define los "moldes" de los datos que ENTRAN y SALEN por la API.
 from enum import Enum
 from typing import Optional
 from pydantic import BaseModel, EmailStr

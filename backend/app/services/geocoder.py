@@ -1,13 +1,5 @@
 # app/services/geocoder.py
-# ============================================================================
-# CAPA: SERVICIO (utilidad externa) — Inteligencia Geográfica (CUS-15)
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Convierte una dirección en texto ("Av. X, San Miguel") en
-#             coordenadas (latitud, longitud) usando el servicio Nominatim
-#             de OpenStreetMap (gratuito) a través de la librería geopy.
-# ¿CON QUÉ SE CONECTA?
-#   - Lo USA: services/pedido_service.py durante la geocodificación.
-# ============================================================================
+# Convierte una dirección en texto ("Av.
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
 import time

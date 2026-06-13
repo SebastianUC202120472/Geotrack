@@ -1,17 +1,5 @@
 # app/services/usuario_service.py
-# ============================================================================
-# CAPA: SERVICIO (lógica de negocio) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Contiene las REGLAS del registro y el login (CUS-01 y CUS-02):
-#             validar que el correo no exista, encriptar la contraseña,
-#             verificar credenciales y generar el token JWT.
-# ¿CÓMO?      Orquesta el repositorio (datos) con el módulo de seguridad (hash/JWT).
-# ¿CON QUÉ SE CONECTA?
-#   - repositories/usuario_repository.py -> para leer/crear usuarios.
-#   - core/security.py                   -> para encriptar y firmar el JWT.
-#   - schemas/usuario.py                 -> el "molde" de datos de entrada.
-#   - Lo USA: api/auth.py (los endpoints HTTP).
-# ============================================================================
+# Contiene las REGLAS del registro y el login (CUS-01 y CUS-02).
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 

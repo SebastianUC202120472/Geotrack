@@ -1,19 +1,11 @@
 # app/schemas/dashboard.py
-# ============================================================================
-# CAPA: SCHEMA (validación/serialización con Pydantic) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Define los "moldes" de salida del módulo de TRAZABILIDAD (Fase 4):
-#               - Seguimiento de flota y KPIs globales (CUS-33).
-#               - Línea de tiempo (historial) de un paquete (CUS-35).
-# ¿CON QUÉ SE CONECTA?
-#   - Lo USAN: api/dashboard.py (response_model) y services/dashboard_service.py.
-# ============================================================================
+# Define los "moldes" de salida del módulo de TRAZABILIDAD (Fase 4).
 from datetime import datetime
 from typing import Dict, List, Optional
 from pydantic import BaseModel
 
 
-# ============ CUS-33: Seguimiento en vivo de la flota ============
+# CUS-33: Seguimiento en vivo de la flota
 class RutaFlota(BaseModel):
     """Estado y avance de UNA ruta dentro del dashboard de flota."""
     ruta_id: int
@@ -46,7 +38,7 @@ class ResumenResponse(BaseModel):
     rutas_finalizadas: int
 
 
-# ============ CUS-35: Historial / línea de tiempo de un paquete ============
+# CUS-35: Historial / línea de tiempo de un paquete
 class EventoHistorial(BaseModel):
     """Un punto en la línea de tiempo del paquete (fila de historial_pedidos)."""
     evento: str                       # estado al que cambió (ej. "ENTREGADO")
@@ -63,6 +55,7 @@ class HistorialPedidoResponse(BaseModel):
     distrito: Optional[str] = None
     estado_actual: str
     ruta_asignada: Optional[str] = None
+    conductor_asignado: Optional[str] = None  # nombre del conductor de la ruta
     secuencia: Optional[int] = None
     url_evidencia: Optional[str] = None
     motivo_fallo: Optional[str] = None

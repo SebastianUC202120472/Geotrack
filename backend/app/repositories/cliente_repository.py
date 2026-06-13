@@ -1,13 +1,5 @@
 # app/repositories/cliente_repository.py
-# ============================================================================
-# CAPA: REPOSITORIO (acceso a datos) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Única capa que consulta/escribe en la tabla 'clientes_corporativos'.
-# ¿CON QUÉ SE CONECTA?
-#   - models/cliente.py -> la tabla.
-#   - Lo USAN: services/cliente_service.py y services/pedido_service.py
-#              (este último crea el cliente automáticamente al cargar el Excel).
-# ============================================================================
+# Única capa que consulta/escribe en la tabla 'clientes_corporativos'.
 from typing import List, Optional
 from sqlalchemy.orm import Session
 

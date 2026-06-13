@@ -1,235 +1,178 @@
-// src/services/api.js
+// Cliente HTTP del panel: URL base, token JWT y manejo de sesión.
+// La URL base viene de VITE_API_URL (en Docker es "/api", servido por Nginx).
 
 const API_URL = import.meta.env.VITE_API_URL;
+const TOKEN_KEY = "admin_token";
 
-/* ==========================================================
-   HELPERS (Configuración de autenticación)
-========================================================== */
+export const getToken = () => localStorage.getItem(TOKEN_KEY);
+export const guardarToken = (token) => localStorage.setItem(TOKEN_KEY, token);
+export const borrarToken = () => localStorage.removeItem(TOKEN_KEY);
 
-const getAuthHeaders = () => {
-  const token = localStorage.getItem("admin_token");
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
-};
+// Núcleo de las peticiones: adjunta el token y, si caducó (401), cierra sesión.
+async function request(ruta, { method = "GET", body, headers = {}, auth = true } = {}) {
+  const opciones = { method, headers: { ...headers } };
 
-/* ==========================================================
-   AUTH (Login y registro)
-========================================================== */
+  if (auth) {
+    const token = getToken();
+    if (token) opciones.headers.Authorization = `Bearer ${token}`;
+  }
 
+  // Si el body es FormData (subir Excel) dejamos que el navegador ponga el
+  // Content-Type con su boundary; si es objeto, lo mandamos como JSON.
+  if (body instanceof FormData) {
+    opciones.body = body;
+  } else if (body !== undefined) {
+    opciones.headers["Content-Type"] = "application/json";
+    opciones.body = JSON.stringify(body);
+  }
+
+  const respuesta = await fetch(`${API_URL}${ruta}`, opciones);
+
+  if (respuesta.status === 401) {
+    borrarToken();
+    if (window.location.pathname !== "/login") window.location.href = "/login";
+    throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
+  }
+
+  // Intentamos leer el cuerpo (puede venir vacío en algunos POST).
+  const texto = await respuesta.text();
+  const datos = texto ? JSON.parse(texto) : null;
+
+  if (!respuesta.ok) {
+    const detalle = datos?.detail || datos?.message || "Ocurrió un error en el servidor";
+    throw new Error(typeof detalle === "string" ? detalle : "Solicitud inválida");
+  }
+
+  return datos;
+}
+
+/* ============================================================
+   AUTENTICACIÓN
+============================================================ */
+
+// Login (CUS-02). El backend usa OAuth2: espera 'username' y 'password' como
+// formulario, no como JSON.
 export const loginAdmin = async (correo, contrasena) => {
-  const formData = new URLSearchParams();
-  formData.append("username", correo);
-  formData.append("password", contrasena);
+  const formulario = new URLSearchParams();
+  formulario.append("username", correo);
+  formulario.append("password", contrasena);
 
-  const response = await fetch(`${API_URL}/auth/login`, {
+  const respuesta = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: formData,
+    body: formulario,
   });
 
-  if (!response.ok) throw new Error("Credenciales inválidas");
-  const data = await response.json();
-  localStorage.setItem("admin_token", data.access_token);
-  return data;
+  if (!respuesta.ok) throw new Error("Correo o contraseña incorrectos");
+
+  const datos = await respuesta.json();
+  guardarToken(datos.access_token);
+  return datos;
 };
 
-/* ==========================================================
-   DASHBOARD (Resumen y métricas)
-========================================================== */
+// Conductores: listar (con ficha + vehículo asignado) y registrar (cuenta + datos).
+export const listarConductores = () => request("/conductores/");
 
-export const getDashboardResumen = async () => {
-  const response = await fetch(`${API_URL}/dashboard/resumen`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-  if (!response.ok) throw new Error("Error al cargar el dashboard");
-  return response.json();
-};
+export const crearConductor = (datos) =>
+  request("/conductores/", { method: "POST", body: datos });
 
-export const getFlotaStatus = async () => {
-  const response = await fetch(`${API_URL}/dashboard/flota`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-  if (!response.ok) throw new Error("Error al cargar la flota");
-  return response.json();
-};
+/* ============================================================
+   REPORTES DE INCIDENCIA  (el conductor reporta fallas; el admin responde)
+============================================================ */
 
-export const getHistorialPedido = async (codigo) => {
-  const response = await fetch(`${API_URL}/dashboard/pedidos/${codigo}/historial`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-  if (!response.ok) throw new Error("No se encontró el historial");
-  return response.json();
-};
+// estado opcional: "ABIERTO" | "RESUELTO".
+export const listarReportes = (estado) =>
+  request(`/reportes/${estado ? `?estado=${encodeURIComponent(estado)}` : ""}`);
 
-/* ==========================================================
-   PEDIDOS (Importación y geocodificación)
-========================================================== */
+export const responderReporte = (id, datos) =>
+  request(`/reportes/${id}/responder`, { method: "POST", body: datos });
 
-export const uploadPedidosExcel = async (file) => {
-  const token = localStorage.getItem("admin_token");
+/* ============================================================
+   PEDIDOS  (Inbound — CUS-13 / CUS-15 / CUS-16)
+============================================================ */
+
+export const subirPedidosExcel = (archivo) => {
   const formData = new FormData();
-  formData.append("file", file);
+  formData.append("file", archivo);
+  return request("/pedidos/upload", { method: "POST", body: formData });
+};
 
-  const response = await fetch(`${API_URL}/pedidos/upload`, {
+// El backend limita a 100 por defecto; pedimos un tope alto para poder filtrar
+// y paginar del lado del cliente (suficiente para los volúmenes del MVP).
+export const listarPedidos = (limit = 1000) => request(`/pedidos/?limit=${limit}`);
+
+// Devuelve un pedido FALLIDO a PENDIENTE para reasignarlo.
+export const reabrirPedido = (id) => request(`/pedidos/${id}/reabrir`, { method: "POST" });
+
+// Devuelve { zonas_operativas: [{ distrito, total_pedidos }] }
+export const listarZonas = () => request("/pedidos/zonas");
+
+/* ============================================================
+   VEHÍCULOS Y FLOTA  (gestión del admin)
+============================================================ */
+
+export const listarVehiculos = () => request("/vehiculos/");
+
+export const crearVehiculo = (datos) =>
+  request("/vehiculos/", { method: "POST", body: datos });
+
+/* ============================================================
+   ENRUTAMIENTO  (CUS-18)
+============================================================ */
+
+// conductor_id es el id del USUARIO conductor (no el del vehículo).
+export const asignarBloque = ({ nombre_ruta, distrito, conductor_id }) =>
+  request("/rutas/asignar-bloque", {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: formData,
+    body: { nombre_ruta, distrito, conductor_id },
   });
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.detail || "Error al importar pedidos");
-  }
-  return response.json();
-};
+/* ============================================================
+   DASHBOARD / TRAZABILIDAD  (CUS-33 / CUS-35)
+============================================================ */
 
-export const getPedidos = async () => {
-  const response = await fetch(`${API_URL}/pedidos`, {
-    method: "GET",
-    headers: getAuthHeaders(),
+export const obtenerResumen = () => request("/dashboard/resumen");
+
+// Estado y avance de todas las rutas de la flota.
+export const obtenerFlota = () => request("/dashboard/flota");
+
+// Línea de tiempo completa de un paquete por su código (PD-001).
+export const obtenerHistorial = (codigo) =>
+  request(`/dashboard/pedidos/${encodeURIComponent(codigo)}/historial`);
+
+/* ============================================================
+   BANDEJA DE CORREOS  (solicitudes de recojo)
+============================================================ */
+
+export const listarConversaciones = () => request("/correos/conversaciones");
+
+export const obtenerConversacion = (id) => request(`/correos/conversaciones/${id}`);
+
+// Lee la bandeja real por IMAP e importa los correos nuevos.
+export const sincronizarCorreos = () => request("/correos/sincronizar", { method: "POST" });
+
+// Envía una respuesta por SMTP y la guarda en el hilo.
+export const responderCorreo = (id, cuerpo) =>
+  request(`/correos/conversaciones/${id}/responder`, { method: "POST", body: { cuerpo } });
+
+export const marcarConversacion = (id, estado) =>
+  request(`/correos/conversaciones/${id}/estado?estado=${encodeURIComponent(estado)}`, { method: "PATCH" });
+
+// Descarga un adjunto (ej. el Excel del recojo) y dispara la descarga en el
+// navegador. Va con el token en el header, por eso no se usa un <a href> directo.
+export async function descargarAdjunto(id, nombre) {
+  const token = getToken();
+  const resp = await fetch(`${API_URL}/correos/adjuntos/${id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
-  if (!response.ok) throw new Error("Error al obtener pedidos");
-  return response.json();
-};
-
-export const procesarGeocodificacion = async () => {
-  const response = await fetch(`${API_URL}/pedidos/geocodificar`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-  });
-  if (!response.ok) throw new Error("Error en geocodificación");
-  return response.json();
-};
-
-/* ==========================================================
-   ENRUTAMIENTO Y ASIGNACIÓN (Bloques y optimización)
-========================================================== */
-
-// Lista las zonas basadas en pedidos
-export const getDistritos = async () => {
-  const res = await fetch(`${API_URL}/pedidos/zonas`, {
-    headers: getAuthHeaders(),
-  });
-  if (!res.ok) throw new Error("Error al obtener zonas");
-  return res.json();
-};
-
-// Lista vehículos (para asignar como conductores)
-export const getConductores = async () => {
-  const res = await fetch(`${API_URL}/vehiculos`, {
-    headers: getAuthHeaders(),
-  });
-  if (!res.ok) throw new Error("Error al obtener vehículos/conductores");
-  return res.json();
-};
-
-export const asignarBloquePedidos = async (data) => {
-  const response = await fetch(`${API_URL}/rutas/asignar-bloque`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ ...data, timestamp: new Date().toISOString() }),
-  });
-  if (!response.ok) {
-    const err = await response.json();
-    throw new Error(err.detail || "Error asignando bloque");
-  }
-  return response.json();
-};
-
-export const optimizarRutaConductor = async (data) => {
-  const response = await fetch(`${API_URL}/rutas/conductor/optimizar`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(data),
-  });
-  
-  const text = await response.text();
-  let result;
-  try { result = text ? JSON.parse(text) : {}; } catch { result = { message: text }; }
-
-  if (!response.ok) throw new Error(result.message || result.detail || "Error al optimizar");
-  return result;
-};
-
-/* ==========================================================
-   VEHÍCULOS (Gestión básica)
-========================================================== */
-
-export const getVehiculos = async () => {
-  const response = await fetch(`${API_URL}/vehiculos`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-  if (!response.ok) throw new Error("Error al obtener vehículos");
-  return response.json();
-};
-/* ==========================================================
-   CUS-21: GESTIÓN DE MANIFIESTOS Y APP MÓVIL
-========================================================== */
-
-// 1. Consultar la ruta que el conductor tiene activa actualmente
-export const getRutaActiva = async () => {
-  const response = await fetch(`${API_URL}/conductor/ruta-activa`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-  if (!response.ok) throw new Error("Error al obtener la ruta activa");
-  return response.json();
-};
-
-// 2. Obtener el manifiesto detallado de la ruta activa
-export const getManifiestoConductor = async () => {
-  const response = await fetch(`${API_URL}/conductor/ruta-activa/manifiesto`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-  if (!response.ok) throw new Error("Error al cargar el manifiesto");
-  return response.json();
-};
-
-// 3. Obtener datos para la navegación (Google Maps/Waze)
-export const getNavegacionRuta = async () => {
-  const response = await fetch(`${API_URL}/conductor/ruta-activa/navegacion`, {
-    method: "GET",
-    headers: getAuthHeaders(),
-  });
-  if (!response.ok) throw new Error("Error al cargar navegación");
-  return response.json();
-};
-
-// 4. Validar un paquete mediante QR
-export const validarPaqueteQR = async (qrData) => {
-  const response = await fetch(`${API_URL}/conductor/almacen/validar-qr`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ qr_code: qrData }),
-  });
-  if (!response.ok) throw new Error("Error al validar QR");
-  return response.json();
-};
-
-// 5. Actualizar estado de una parada (Entregado, Rechazado, etc)
-export const actualizarEstadoParada = async (pedido_id, nuevoEstado) => {
-  const response = await fetch(`${API_URL}/conductor/paradas/${pedido_id}/estado`, {
-    method: "PATCH",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ estado: nuevoEstado }),
-  });
-  if (!response.ok) throw new Error("Error al actualizar el estado");
-  return response.json();
-};
-
-// 6. Finalizar la ruta completa
-export const finalizarRuta = async () => {
-  const response = await fetch(`${API_URL}/conductor/ruta-activa/finalizar`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-  });
-  if (!response.ok) throw new Error("Error al finalizar la ruta");
-  return response.json();
-};
+  if (!resp.ok) throw new Error("No se pudo descargar el adjunto");
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombre || "adjunto";
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  URL.revokeObjectURL(url);
+}

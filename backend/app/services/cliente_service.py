@@ -1,14 +1,5 @@
 # app/services/cliente_service.py
-# ============================================================================
-# CAPA: SERVICIO (lógica de negocio) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Lógica del módulo de Clientes Corporativos: listar y registrar
-#             empresas cliente (evitando RUC duplicados).
-# ¿CON QUÉ SE CONECTA?
-#   - repositories/cliente_repository.py -> datos.
-#   - schemas/cliente.py                 -> moldes.
-#   - Lo USA: api/clientes.py.
-# ============================================================================
+# Lógica del módulo de Clientes Corporativos.
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 

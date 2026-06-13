@@ -1,53 +1,51 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 
-import Sidebar from "./components/Sidebar";
-import "leaflet/dist/leaflet.css";
-/* =========================
-   PAGES
-========================= */
+import LayoutAdmin from "./components/LayoutAdmin";
+import ProtectedRoute from "./components/ProtectedRoute";
+
+import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ImportarPedidos from "./pages/ImportarPedidos";
+import Pedidos from "./pages/Pedidos";
 import AgrupacionZonas from "./pages/AgrupacionZonas";
-import Geocodificacion from "./pages/Geocodificacion";
 import AsignacionBloque from "./pages/AsignacionBloque";
-import EjecucionEnrutamiento from "./pages/EjecucionEnrutamiento";
-import AdminManifiesto from './pages/AdminManifiesto';
+import Bandeja from "./pages/Bandeja";
 import Flota from "./pages/Flota";
-import Login from "./pages/Login";
+import Conductores from "./pages/Conductores";
+import Seguimiento from "./pages/Seguimiento";
+import Reportes from "./pages/Reportes";
+import Trazabilidad from "./pages/Trazabilidad";
 
+// Mapa de rutas del panel de administración.
+// /login va suelto (sin barra lateral). Todo lo demás cuelga del layout del
+// panel y está protegido: sin sesión, ProtectedRoute manda al login.
 export default function App() {
   return (
-    <div className="flex h-screen bg-slate-950">
+    <Routes>
+      <Route path="/login" element={<Login />} />
 
-      <Sidebar />
+      <Route
+        element={
+          <ProtectedRoute>
+            <LayoutAdmin />
+          </ProtectedRoute>
+        }
+      >
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/importar" element={<ImportarPedidos />} />
+        <Route path="/pedidos" element={<Pedidos />} />
+        <Route path="/agrupacion" element={<AgrupacionZonas />} />
+        <Route path="/asignacion-bloque" element={<AsignacionBloque />} />
+        <Route path="/bandeja" element={<Bandeja />} />
+        <Route path="/flota" element={<Flota />} />
+        <Route path="/conductores" element={<Conductores />} />
+        <Route path="/seguimiento" element={<Seguimiento />} />
+        <Route path="/reportes" element={<Reportes />} />
+        <Route path="/trazabilidad" element={<Trazabilidad />} />
+      </Route>
 
-      <div className="flex-1 overflow-y-auto">
-
-        <Routes>
-
-          {/* AUTH */}
-          <Route path="/login" element={<Login />} />
-
-          {/* DASHBOARD */}
-          <Route path="/" element={<Dashboard />} />
-
-          {/* CUS-15 / CUS-16 / CUS-17 */}
-          <Route path="/importar" element={<ImportarPedidos />} />
-          <Route path="/agrupacion" element={<AgrupacionZonas />} />
-          <Route path="/geocodificacion" element={<Geocodificacion />} />
-
-          {/* CUS-18 */}
-          <Route path="/asignacion-bloque" element={<AsignacionBloque />} />
-
-          {/* CUS-19 (VRP EJECUCIÓN) */}
-          <Route path="/vrp" element={<EjecucionEnrutamiento />} />
-          <Route path="/admin/manifiestos" element={<AdminManifiesto />} />
-          {/* FLOTA */}
-          <Route path="/flota" element={<Flota />} />
-
-        </Routes>
-
-      </div>
-    </div>
+      {/* Cualquier ruta desconocida vuelve al inicio. */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }

@@ -1,14 +1,5 @@
 # app/repositories/ruta_repository.py
-# ============================================================================
-# CAPA: REPOSITORIO (acceso a datos) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Única capa que consulta/escribe en las tablas 'rutas' y
-#             'ruta_detalles'. Reúne todos los queries de SQLAlchemy de rutas.
-# ¿CON QUÉ SE CONECTA?
-#   - models/ruta.py   -> tablas 'rutas' y 'ruta_detalles'.
-#   - models/pedido.py -> para unir cada detalle con su pedido (JOIN).
-#   - Lo USA: services/ruta_service.py (Fase 2 enrutamiento + Fase 3 operación).
-# ============================================================================
+# Única capa que consulta/escribe en las tablas 'rutas' y 'ruta_detalles'.
 from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 
@@ -99,6 +90,25 @@ def guardar_cambios(db: Session) -> None:
 def listar_rutas(db: Session) -> List[Ruta]:
     """Devuelve TODAS las rutas (para el dashboard de flota), las más nuevas primero."""
     return db.query(Ruta).order_by(Ruta.fecha_creacion.desc()).all()
+
+
+def mapa_ruta_por_pedidos(db: Session, pedido_ids: List[int]) -> dict:
+    """Para enriquecer la lista de pedidos: {pedido_id: (ruta_nombre, conductor_id)}.
+    Una sola consulta para todos los pedidos (evita N+1)."""
+    if not pedido_ids:
+        return {}
+    filas = (
+        db.query(RutaDetalle.pedido_id, Ruta.nombre, Ruta.conductor_id)
+        .join(Ruta, RutaDetalle.ruta_id == Ruta.id)
+        .filter(RutaDetalle.pedido_id.in_(pedido_ids))
+        .all()
+    )
+    return {pid: (nombre, conductor_id) for pid, nombre, conductor_id in filas}
+
+
+def eliminar_detalles_de_pedido(db: Session, pedido_id: int) -> None:
+    """Quita un pedido de cualquier ruta (al reabrirlo para reasignarlo)."""
+    db.query(RutaDetalle).filter(RutaDetalle.pedido_id == pedido_id).delete(synchronize_session=False)
 
 
 def obtener_detalle_y_ruta_por_pedido(

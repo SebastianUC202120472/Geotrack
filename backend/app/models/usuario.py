@@ -1,13 +1,5 @@
 # app/models/usuario.py
-# ============================================================================
-# CAPA: MODELO (tabla de base de datos) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Define la tabla 'usuarios' en PostgreSQL usando SQLAlchemy.
-#             Cada atributo de la clase = una columna de la tabla.
-# ¿CON QUÉ SE CONECTA?
-#   - Hereda de 'Base' (db/database.py) para que SQLAlchemy la reconozca.
-#   - La consultan: repositories/usuario_repository.py y api/deps.py.
-# ============================================================================
+# Define la tabla 'usuarios' en PostgreSQL usando SQLAlchemy.
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from app.db.database import Base

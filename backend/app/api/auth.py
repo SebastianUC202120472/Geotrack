@@ -1,18 +1,5 @@
 # app/api/auth.py
-# ============================================================================
-# CAPA: API / ROUTER (puerta de entrada HTTP) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Expone las URLs de autenticación que consumen la Web y la App:
-#               POST /api/auth/registro -> crear cuenta (CUS-01)
-#               POST /api/auth/login    -> iniciar sesión y recibir el JWT (CUS-02)
-# ¿CÓMO?      Son funciones "delgadas": reciben la petición, llaman al SERVICIO
-#             y devuelven la respuesta. NO contienen lógica de negocio.
-# ¿CON QUÉ SE CONECTA?
-#   - services/usuario_service.py -> donde está la lógica real.
-#   - schemas/usuario.py          -> moldes de entrada/salida (validación).
-#   - db/database.py (get_db)     -> inyecta la sesión de base de datos.
-#   - Lo registra: main.py con el prefijo /api/auth.
-# ============================================================================
+# Expone las URLs de autenticación que consumen la Web y la App.
 from fastapi import APIRouter, Depends
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session

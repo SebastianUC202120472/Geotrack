@@ -1,13 +1,5 @@
 # app/schemas/pedido.py
-# ============================================================================
-# CAPA: SCHEMA (validación/serialización con Pydantic) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Define los "moldes" de las respuestas del módulo de Pedidos
-#             (carga de Excel, geocodificación, listado y agrupación por zonas).
-# ¿CON QUÉ SE CONECTA?
-#   - Lo USAN: api/pedidos.py (response_model) y services/pedido_service.py.
-#   - PedidoResponse refleja las columnas del modelo models/pedido.py.
-# ============================================================================
+# Define los "moldes" de las respuestas del módulo de Pedidos (carga de Excel, geocodificación, listado y agrupación por zonas).
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel
@@ -33,16 +25,25 @@ class PedidoResponse(BaseModel):
     estado: str
     fecha_creacion: Optional[datetime] = None
     fecha_entrega: Optional[datetime] = None
+    # Asignación (se completan al listar; no son columnas del pedido)
+    ruta_nombre: Optional[str] = None
+    conductor_nombre: Optional[str] = None
 
     class Config:
         from_attributes = True  # se construye directo desde el objeto SQLAlchemy
 
 
 class CargaPedidosResponse(BaseModel):
-    """Resultado de la carga masiva por Excel (CUS-13)."""
+    """Resultado de la carga masiva por Excel (CUS-13).
+
+    La geocodificación (CUS-15) ahora corre dentro de la misma carga, por eso
+    también informamos cuántos pedidos quedaron con coordenadas y cuántos no.
+    """
     mensaje: str
     pedidos_nuevos: int
     total_filas_leidas: int
+    pedidos_geocodificados: int = 0
+    pedidos_fallidos: int = 0
 
 
 class GeocodificacionResponse(BaseModel):

@@ -1,26 +1,14 @@
 # app/api/conductor.py
-# ============================================================================
-# CAPA: API / ROUTER (puerta de entrada HTTP) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Expone los endpoints que consume EXCLUSIVAMENTE la App Móvil del
-#             conductor (toda la Fase 3): descargar ruta/manifiesto/navegación,
-#             validar QR en almacén, marcar entregas, subir fotos POD y cerrar.
-# ¿CÓMO?      Endpoints delgados que delegan en services/ruta_service.py.
-# SEGURIDAD:  TODOS exigen rol 'conductor' (Depends(get_current_conductor));
-#             el conductor se identifica por su JWT, nunca por parámetro.
-# ¿CON QUÉ SE CONECTA?
-#   - services/ruta_service.py -> la lógica real.
-#   - schemas/ruta.py          -> moldes de entrada/salida.
-#   - api/deps.py              -> control de acceso por rol.
-#   - Lo registra: main.py con el prefijo /api/conductor.
-# ============================================================================
+# Expone los endpoints que consume EXCLUSIVAMENTE la App Móvil del conductor (toda la Fase 3).
 from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.orm import Session
+
+from typing import List
 
 from app.db.database import get_db
 from app.api.deps import get_current_conductor
 from app.models.usuario import Usuario
-from app.services import ruta_service
+from app.services import ruta_service, reporte_service, conductor_service
 from app.schemas.ruta import (
     RutaActivaResponse,
     ManifiestoResponse,
@@ -31,8 +19,38 @@ from app.schemas.ruta import (
     GestionParadaResponse,
     CierreRutaResponse,
 )
+from app.schemas.reporte import ReporteCreate, ReporteResponse
+from app.schemas.conductor import ConductorResponse
 
 router = APIRouter()
+
+
+# --- Perfil del propio conductor (para el header/perfil de la app) ---
+@router.get("/perfil", response_model=ConductorResponse)
+def mi_perfil(
+    db: Session = Depends(get_db),
+    conductor: Usuario = Depends(get_current_conductor),
+):
+    return conductor_service.obtener_uno(db, conductor)
+
+
+# --- Reporta una falla de un pedido (incidencia) ---
+@router.post("/reportes", response_model=ReporteResponse)
+def crear_reporte(
+    datos: ReporteCreate,
+    db: Session = Depends(get_db),
+    conductor: Usuario = Depends(get_current_conductor),
+):
+    return reporte_service.crear(db, conductor.id, datos)
+
+
+# --- Lista los reportes del propio conductor (para ver la respuesta del admin) ---
+@router.get("/reportes", response_model=List[ReporteResponse])
+def mis_reportes(
+    db: Session = Depends(get_db),
+    conductor: Usuario = Depends(get_current_conductor),
+):
+    return reporte_service.listar_mios(db, conductor.id)
 
 
 # --- CUS-21: el conductor descarga/consulta su ruta activa ---

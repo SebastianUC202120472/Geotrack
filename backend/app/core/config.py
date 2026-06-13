@@ -1,19 +1,5 @@
 # app/core/config.py
-# ============================================================================
-# CAPA: CORE / CONFIGURACIÓN — Seguridad (gestión de secretos)
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Centraliza TODA la configuración sensible (clave del JWT,
-#             credenciales de la BD, orígenes CORS...) y la lee de VARIABLES DE
-#             ENTORNO. Así los secretos NO viven en el código (OWASP A02/A05).
-# ¿CÓMO?      Usa pydantic-settings: lee variables de entorno y, si existe, del
-#             archivo '.env' (que está en .gitignore, no se sube al repo).
-#             Si una variable no está definida, usa un valor por defecto SOLO
-#             apto para desarrollo (en producción se DEBE sobreescribir).
-# ¿CON QUÉ SE CONECTA?
-#   - core/security.py -> toma SECRET_KEY/ALGORITHM/expiración del token.
-#   - db/database.py   -> toma DATABASE_URL.
-#   - main.py          -> toma CORS_ORIGINS y el admin inicial.
-# ============================================================================
+# Centraliza TODA la configuración sensible (clave del JWT, credenciales de la BD, orígenes CORS...) y la lee de VARIABLES DE ENTORNO.
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -35,6 +21,33 @@ class Settings(BaseSettings):
     # --- Admin inicial (se crea al arrancar si no existe ningún admin) ---
     ADMIN_EMAIL: str = "admin@siol.com"
     ADMIN_PASSWORD: str = "admin123"  # nosec B105  (cambiar por variable de entorno en producción)
+
+    # --- Correo de la empresa (bandeja de solicitudes de recojo) ---
+    # Lee la bandeja por IMAP y envía respuestas por SMTP. Mientras MAIL_ENABLED
+    # sea False o falten credenciales, la bandeja funciona en modo "no configurado"
+    # (no rompe la app; solo avisa que falta conectar la cuenta).
+    # Para Gmail: activa la verificación en 2 pasos y usa una CONTRASEÑA DE APLICACIÓN.
+    MAIL_ENABLED: bool = False
+    MAIL_ADDRESS: str = ""        # correo base de la empresa (usuario IMAP/SMTP)
+    MAIL_PASSWORD: str = ""       # contraseña de aplicación  # nosec B105
+    IMAP_HOST: str = "imap.gmail.com"
+    IMAP_PORT: int = 993
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    MAIL_FOLDER: str = "INBOX"    # carpeta IMAP a leer
+
+    # Identidad corporativa de las respuestas que se envían desde el panel.
+    MAIL_FROM_NAME: str = "SAVA S.A.C."  # nombre visible del remitente
+    # Firma que se añade al final de cada respuesta. En .env puedes usar "\n"
+    # para los saltos de línea (se convierten al enviar).
+    MAIL_SIGNATURE: str = "Atentamente,\nEquipo de Logística\nSAVA S.A.C."
+
+    @property
+    def firma(self) -> str:
+        """Firma de las respuestas. Si la variable viene vacía, usa una por defecto.
+        Convierte los '\\n' (útil al definirla en una sola línea en el .env)."""
+        base = self.MAIL_SIGNATURE.strip() or "Atentamente,\nEquipo de Logística\nSAVA S.A.C."
+        return base.replace("\\n", "\n")
 
     @property
     def cors_origins_list(self) -> list[str]:

@@ -1,15 +1,5 @@
 # app/core/codigos.py
-# ============================================================================
-# CAPA: CORE / UTILIDAD — Códigos legibles de negocio
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Genera los códigos legibles tipo 'PD-001', 'RT-001'... que hacen
-#             la base de datos entendible y TRAZABLE a simple vista.
-# ¿CÓMO?      El 'id' entero (llave primaria interna) se mantiene para las
-#             relaciones; este código es un campo APARTE, derivado del id.
-#             Ej.: pedido con id=1 -> codigo 'PD-001'.
-# ¿CON QUÉ SE CONECTA?
-#   - Lo USAN: los repositorios, al crear cada registro (tras conocer su id).
-# ============================================================================
+# Genera los códigos legibles tipo 'PD-001', 'RT-001'.
 
 # Prefijos por tabla (qué letras lleva cada código).
 PREFIJO_CLIENTE = "CL"
