@@ -103,10 +103,17 @@ def cargar_pedidos_excel(db: Session, contenido: bytes, nombre_archivo: str, usu
             historial_repository.registrar(db, p.id, None, "PENDIENTE", usuario_id)
         db.commit()
 
+    # 6) Geocodificar de inmediato (CUS-15). Se hace por dentro, en la misma
+    #    carga, para que el admin no tenga que lanzar un paso manual aparte:
+    #    apenas sube el Excel, los pedidos ya quedan con coordenadas y distrito.
+    geo = procesar_geocodificacion(db, usuario_id) if nuevos else {}
+
     return {
         "mensaje": "Carga masiva exitosa",
         "pedidos_nuevos": len(nuevos),
         "total_filas_leidas": len(df),
+        "pedidos_geocodificados": geo.get("pedidos_exitosos", 0),
+        "pedidos_fallidos": geo.get("pedidos_fallidos", 0),
     }
 
 

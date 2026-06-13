@@ -6,7 +6,6 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import ImportarPedidos from "./pages/ImportarPedidos";
-import Geocodificacion from "./pages/Geocodificacion";
 import AgrupacionZonas from "./pages/AgrupacionZonas";
 import AsignacionBloque from "./pages/AsignacionBloque";
 import Flota from "./pages/Flota";
@@ -30,7 +29,6 @@ export default function App() {
       >
         <Route path="/" element={<Dashboard />} />
         <Route path="/importar" element={<ImportarPedidos />} />
-        <Route path="/geocodificacion" element={<Geocodificacion />} />
         <Route path="/agrupacion" element={<AgrupacionZonas />} />
         <Route path="/asignacion-bloque" element={<AsignacionBloque />} />
         <Route path="/flota" element={<Flota />} />

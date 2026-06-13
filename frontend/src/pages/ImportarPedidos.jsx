@@ -85,11 +85,15 @@ export default function ImportarPedidos() {
                     <CheckCircle className="text-green-600" size={32} />
                     <div>
                       <h2 className="font-bold text-green-800 text-lg">Importación exitosa</h2>
-                      <p className="text-green-600">Se han registrado los nuevos pedidos correctamente.</p>
+                      <p className="text-green-600">
+                        {resultado.pedidos_nuevos} pedidos registrados ·{" "}
+                        {resultado.pedidos_geocodificados} geocodificados automáticamente
+                        {resultado.pedidos_fallidos > 0 && ` · ${resultado.pedidos_fallidos} sin ubicar`}.
+                      </p>
                     </div>
                   </div>
-                  <button onClick={() => navigate("/geocodificacion")} className="bg-slate-900 text-white px-8 py-4 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-800 transition">
-                    Ir a Geocodificación <ArrowRight size={20} />
+                  <button onClick={() => navigate("/agrupacion")} className="bg-slate-900 text-white px-8 py-4 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-800 transition">
+                    Ver Agrupación por Zonas <ArrowRight size={20} />
                   </button>
                 </div>
               ) : (

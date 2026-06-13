@@ -1,7 +1,6 @@
 import {
   LayoutDashboard,
   FileSpreadsheet,
-  MapPinned,
   Layers3,
   Route as RouteIcon,
   Truck,
@@ -18,7 +17,6 @@ import { useAuth } from "../context/AuthContext";
 const menu = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: FileSpreadsheet, label: "Importar Pedidos", path: "/importar" },
-  { icon: MapPinned, label: "Geocodificación", path: "/geocodificacion" },
   { icon: Layers3, label: "Agrupación por Zonas", path: "/agrupacion" },
   { icon: RouteIcon, label: "Asignación de Rutas", path: "/asignacion-bloque" },
   { icon: Truck, label: "Flota y Conductores", path: "/flota" },

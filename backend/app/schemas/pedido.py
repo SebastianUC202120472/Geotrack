@@ -39,10 +39,16 @@ class PedidoResponse(BaseModel):
 
 
 class CargaPedidosResponse(BaseModel):
-    """Resultado de la carga masiva por Excel (CUS-13)."""
+    """Resultado de la carga masiva por Excel (CUS-13).
+
+    La geocodificación (CUS-15) ahora corre dentro de la misma carga, por eso
+    también informamos cuántos pedidos quedaron con coordenadas y cuántos no.
+    """
     mensaje: str
     pedidos_nuevos: int
     total_filas_leidas: int
+    pedidos_geocodificados: int = 0
+    pedidos_fallidos: int = 0
 
 
 class GeocodificacionResponse(BaseModel):

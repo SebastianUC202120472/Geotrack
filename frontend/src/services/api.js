@@ -93,9 +93,6 @@ export const subirPedidosExcel = (archivo) => {
 
 export const listarPedidos = () => request("/pedidos/");
 
-export const procesarGeocodificacion = () =>
-  request("/pedidos/geocodificar", { method: "POST" });
-
 // Devuelve { zonas_operativas: [{ distrito, total_pedidos }] }
 export const listarZonas = () => request("/pedidos/zonas");
 
