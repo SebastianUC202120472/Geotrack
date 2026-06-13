@@ -146,3 +146,22 @@ export const responderCorreo = (id, cuerpo) =>
 
 export const marcarConversacion = (id, estado) =>
   request(`/correos/conversaciones/${id}/estado?estado=${encodeURIComponent(estado)}`, { method: "PATCH" });
+
+// Descarga un adjunto (ej. el Excel del recojo) y dispara la descarga en el
+// navegador. Va con el token en el header, por eso no se usa un <a href> directo.
+export async function descargarAdjunto(id, nombre) {
+  const token = getToken();
+  const resp = await fetch(`${API_URL}/correos/adjuntos/${id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!resp.ok) throw new Error("No se pudo descargar el adjunto");
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombre || "adjunto";
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  URL.revokeObjectURL(url);
+}

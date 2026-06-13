@@ -50,6 +50,19 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     MAIL_FOLDER: str = "INBOX"    # carpeta IMAP a leer
 
+    # Identidad corporativa de las respuestas que se envían desde el panel.
+    MAIL_FROM_NAME: str = "SAVA S.A.C."  # nombre visible del remitente
+    # Firma que se añade al final de cada respuesta. En .env puedes usar "\n"
+    # para los saltos de línea (se convierten al enviar).
+    MAIL_SIGNATURE: str = "Atentamente,\nEquipo de Logística\nSAVA S.A.C."
+
+    @property
+    def firma(self) -> str:
+        """Firma de las respuestas. Si la variable viene vacía, usa una por defecto.
+        Convierte los '\\n' (útil al definirla en una sola línea en el .env)."""
+        base = self.MAIL_SIGNATURE.strip() or "Atentamente,\nEquipo de Logística\nSAVA S.A.C."
+        return base.replace("\\n", "\n")
+
     @property
     def cors_origins_list(self) -> list[str]:
         """Convierte 'a.com, b.com' en ['a.com', 'b.com']. '*' permite cualquiera."""

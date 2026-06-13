@@ -10,6 +10,16 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 
+class AdjuntoResponse(BaseModel):
+    id: int
+    nombre_archivo: str
+    content_type: Optional[str] = None
+    tamano: int = 0
+
+    class Config:
+        from_attributes = True
+
+
 class MensajeResponse(BaseModel):
     id: int
     direccion: str            # ENTRANTE | SALIENTE
@@ -19,6 +29,7 @@ class MensajeResponse(BaseModel):
     cuerpo: Optional[str] = None
     fecha: Optional[datetime] = None
     leido: bool
+    adjuntos: List[AdjuntoResponse] = []
 
     class Config:
         from_attributes = True

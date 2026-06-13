@@ -10,7 +10,7 @@
 #   - Lo USAN: repositories/correo_repository.py y services/correo_service.py.
 # ============================================================================
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, LargeBinary
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
@@ -56,3 +56,25 @@ class MensajeCorreo(Base):
     enviado_por = Column(Integer, nullable=True)                 # id del admin que respondió (salientes)
 
     conversacion = relationship("Conversacion", back_populates="mensajes")
+    adjuntos = relationship(
+        "MensajeAdjunto",
+        back_populates="mensaje",
+        cascade="all, delete-orphan",
+    )
+
+
+class MensajeAdjunto(Base):
+    """Archivo adjunto de un correo (ej. el Excel con los pedidos del recojo).
+
+    El contenido se guarda en la BD para que persista y solo se pueda descargar
+    con sesión de admin (no queda expuesto como archivo estático público)."""
+    __tablename__ = "correo_adjuntos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    mensaje_id = Column(Integer, ForeignKey("correo_mensajes.id"), nullable=False, index=True)
+    nombre_archivo = Column(String(255), nullable=False)
+    content_type = Column(String(120), nullable=True)
+    tamano = Column(Integer, default=0)          # bytes
+    contenido = Column(LargeBinary, nullable=False)
+
+    mensaje = relationship("MensajeCorreo", back_populates="adjuntos")

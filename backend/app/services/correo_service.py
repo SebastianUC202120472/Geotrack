@@ -89,6 +89,28 @@ def _cuerpo(msg) -> str:
     return ""
 
 
+def _adjuntos(msg):
+    """Devuelve los adjuntos del correo como [(nombre, content_type, bytes)]."""
+    encontrados = []
+    if not msg.is_multipart():
+        return encontrados
+    for parte in msg.walk():
+        if parte.get_content_maintype() == "multipart":
+            continue
+        nombre = parte.get_filename()
+        disposicion = str(parte.get("Content-Disposition") or "")
+        # Tomamos lo que tenga nombre de archivo o venga marcado como adjunto.
+        if nombre or "attachment" in disposicion.lower():
+            carga = parte.get_payload(decode=True)
+            if carga:
+                encontrados.append((
+                    _decodificar(nombre) or "adjunto",
+                    parte.get_content_type(),
+                    carga,
+                ))
+    return encontrados
+
+
 # ============ Lectura de la bandeja (IMAP) ============
 def sincronizar(db: Session) -> dict:
     """Revisa la bandeja por IMAP e importa los correos entrantes nuevos."""
@@ -126,7 +148,7 @@ def sincronizar(db: Session) -> dict:
                 asunto_normalizado=_normalizar_asunto(asunto),
                 nombre=_decodificar(nombre) or None,
             )
-            correo_repository.agregar_mensaje(
+            mensaje = correo_repository.agregar_mensaje(
                 db, conv,
                 direccion="ENTRANTE",
                 remitente=correo_origen or "desconocido",
@@ -138,6 +160,9 @@ def sincronizar(db: Session) -> dict:
                 in_reply_to=(msg.get("In-Reply-To") or "").strip() or None,
                 leido=False,
             )
+            # Guardamos los adjuntos (ej. el Excel con los pedidos del recojo).
+            for nombre_adj, tipo_adj, datos_adj in _adjuntos(msg):
+                correo_repository.agregar_adjunto(db, mensaje, nombre_adj, tipo_adj, datos_adj)
             conv.no_leidos = (conv.no_leidos or 0) + 1
             conv.estado = "PENDIENTE"
             nuevos += 1
@@ -169,14 +194,18 @@ def responder(db: Session, conversacion_id: int, cuerpo: str, admin_id: int | No
 
     asunto = conv.asunto if conv.asunto.lower().startswith("re:") else f"Re: {conv.asunto}"
 
+    # Añadimos la firma corporativa al final de la respuesta (lo que se envía y
+    # lo que se guarda en el hilo son lo mismo, para que coincidan).
+    cuerpo_final = f"{cuerpo.strip()}\n\n--\n{settings.firma}"
+
     # Enlazamos la respuesta al último mensaje entrante (hilo en el cliente de correo).
     ultimo_entrante = next(
         (m for m in reversed(conv.mensajes) if m.direccion == "ENTRANTE" and m.message_id), None
     )
     in_reply_to = ultimo_entrante.message_id if ultimo_entrante else None
 
-    mensaje = MIMEText(cuerpo, "plain", "utf-8")
-    mensaje["From"] = formataddr(("GeoTrack · SIOL-SAVA", settings.MAIL_ADDRESS))
+    mensaje = MIMEText(cuerpo_final, "plain", "utf-8")
+    mensaje["From"] = formataddr((settings.MAIL_FROM_NAME, settings.MAIL_ADDRESS))
     mensaje["To"] = conv.contraparte_email
     mensaje["Subject"] = asunto
     nuevo_id = make_msgid()
@@ -203,7 +232,7 @@ def responder(db: Session, conversacion_id: int, cuerpo: str, admin_id: int | No
         remitente=settings.MAIL_ADDRESS,
         destinatario=conv.contraparte_email,
         asunto=asunto,
-        cuerpo=cuerpo,
+        cuerpo=cuerpo_final,
         fecha=datetime.utcnow(),
         message_id=nuevo_id,
         in_reply_to=in_reply_to,
@@ -226,6 +255,13 @@ def obtener_detalle(db: Session, conversacion_id: int):
         raise HTTPException(status_code=404, detail="Conversación no encontrada")
     correo_repository.marcar_leida(db, conv)
     return conv
+
+
+def obtener_adjunto(db: Session, adjunto_id: int):
+    adjunto = correo_repository.obtener_adjunto(db, adjunto_id)
+    if not adjunto:
+        raise HTTPException(status_code=404, detail="Adjunto no encontrado")
+    return adjunto
 
 
 def cambiar_estado(db: Session, conversacion_id: int, estado: str):

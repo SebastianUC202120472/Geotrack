@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
-from app.models.correo import Conversacion, MensajeCorreo
+from app.models.correo import Conversacion, MensajeCorreo, MensajeAdjunto
 
 
 def listar_conversaciones(db: Session) -> List[Conversacion]:
@@ -64,9 +64,26 @@ def existe_mensaje(db: Session, message_id: str) -> bool:
 def agregar_mensaje(db: Session, conversacion: Conversacion, **datos) -> MensajeCorreo:
     mensaje = MensajeCorreo(conversacion_id=conversacion.id, **datos)
     db.add(mensaje)
+    db.flush()  # asigna el id para poder colgarle adjuntos
     # La actividad del hilo se mueve a la fecha del mensaje.
     conversacion.ultimo_mensaje_en = datos.get("fecha") or datetime.utcnow()
     return mensaje
+
+
+def agregar_adjunto(db: Session, mensaje: MensajeCorreo, nombre_archivo: str, content_type: str, contenido: bytes) -> MensajeAdjunto:
+    adjunto = MensajeAdjunto(
+        mensaje_id=mensaje.id,
+        nombre_archivo=nombre_archivo,
+        content_type=content_type,
+        tamano=len(contenido or b""),
+        contenido=contenido,
+    )
+    db.add(adjunto)
+    return adjunto
+
+
+def obtener_adjunto(db: Session, adjunto_id: int) -> Optional[MensajeAdjunto]:
+    return db.query(MensajeAdjunto).filter(MensajeAdjunto.id == adjunto_id).first()
 
 
 def marcar_leida(db: Session, conversacion: Conversacion) -> None:

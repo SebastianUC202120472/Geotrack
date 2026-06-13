@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { RefreshCw, Send, Mail, Inbox, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { RefreshCw, Send, Mail, Inbox, Loader2, CheckCircle2, AlertCircle, FileSpreadsheet, Download } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Badge, { EstadoBadge } from "../components/ui/Badge";
 import {
   listarConversaciones, obtenerConversacion, sincronizarCorreos,
-  responderCorreo, marcarConversacion,
+  responderCorreo, marcarConversacion, descargarAdjunto,
 } from "../services/api";
 
 const fmt = (f) => (f ? new Date(f).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "");
@@ -73,6 +73,14 @@ export default function Bandeja() {
       setAviso({ ok: false, texto: err.message });
     } finally {
       setEnviando(false);
+    }
+  };
+
+  const descargar = async (adj) => {
+    try {
+      await descargarAdjunto(adj.id, adj.nombre_archivo);
+    } catch (err) {
+      setAviso({ ok: false, texto: err.message });
     }
   };
 
@@ -172,6 +180,22 @@ export default function Bandeja() {
                           <span>{fmt(m.fecha)}</span>
                         </div>
                         <p className="whitespace-pre-wrap break-words">{m.cuerpo || "(sin contenido)"}</p>
+
+                        {m.adjuntos?.length > 0 && (
+                          <div className="mt-3 space-y-1.5 border-t border-white/20 pt-2">
+                            {m.adjuntos.map((adj) => (
+                              <button
+                                key={adj.id}
+                                onClick={() => descargar(adj)}
+                                className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors ${saliente ? "bg-white/15 hover:bg-white/25" : "bg-white hover:bg-slate-50 border border-slate-200"}`}
+                              >
+                                <FileSpreadsheet size={16} className={saliente ? "" : "text-success"} />
+                                <span className="flex-1 truncate">{adj.nombre_archivo}</span>
+                                <Download size={14} />
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

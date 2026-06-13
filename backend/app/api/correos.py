@@ -12,7 +12,7 @@
 # ¿CON QUÉ SE CONECTA?  services/correo_service.py ; schemas/correo.py.
 # ============================================================================
 from typing import List
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -57,3 +57,14 @@ def responder(conversacion_id: int, datos: ResponderRequest, db: Session = Depen
 def cambiar_estado(conversacion_id: int, estado: str, db: Session = Depends(get_db)):
     """Marca la conversación como ATENDIDA o PENDIENTE."""
     return correo_service.cambiar_estado(db, conversacion_id, estado)
+
+
+@router.get("/adjuntos/{adjunto_id}", dependencies=[Depends(get_current_admin)])
+def descargar_adjunto(adjunto_id: int, db: Session = Depends(get_db)):
+    """Descarga un adjunto (ej. el Excel del recojo) para subirlo luego en Importar Pedidos."""
+    adjunto = correo_service.obtener_adjunto(db, adjunto_id)
+    return Response(
+        content=adjunto.contenido,
+        media_type=adjunto.content_type or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{adjunto.nombre_archivo}"'},
+    )
