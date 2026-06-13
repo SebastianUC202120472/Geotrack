@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import ImportarPedidos from "./pages/ImportarPedidos";
 import AgrupacionZonas from "./pages/AgrupacionZonas";
 import AsignacionBloque from "./pages/AsignacionBloque";
+import Bandeja from "./pages/Bandeja";
 import Flota from "./pages/Flota";
 import Seguimiento from "./pages/Seguimiento";
 import Trazabilidad from "./pages/Trazabilidad";
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/importar" element={<ImportarPedidos />} />
         <Route path="/agrupacion" element={<AgrupacionZonas />} />
         <Route path="/asignacion-bloque" element={<AsignacionBloque />} />
+        <Route path="/bandeja" element={<Bandeja />} />
         <Route path="/flota" element={<Flota />} />
         <Route path="/seguimiento" element={<Seguimiento />} />
         <Route path="/trazabilidad" element={<Trazabilidad />} />

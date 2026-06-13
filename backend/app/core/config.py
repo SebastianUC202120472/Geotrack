@@ -36,6 +36,20 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str = "admin@siol.com"
     ADMIN_PASSWORD: str = "admin123"  # nosec B105  (cambiar por variable de entorno en producción)
 
+    # --- Correo de la empresa (bandeja de solicitudes de recojo) ---
+    # Lee la bandeja por IMAP y envía respuestas por SMTP. Mientras MAIL_ENABLED
+    # sea False o falten credenciales, la bandeja funciona en modo "no configurado"
+    # (no rompe la app; solo avisa que falta conectar la cuenta).
+    # Para Gmail: activa la verificación en 2 pasos y usa una CONTRASEÑA DE APLICACIÓN.
+    MAIL_ENABLED: bool = False
+    MAIL_ADDRESS: str = ""        # correo base de la empresa (usuario IMAP/SMTP)
+    MAIL_PASSWORD: str = ""       # contraseña de aplicación  # nosec B105
+    IMAP_HOST: str = "imap.gmail.com"
+    IMAP_PORT: int = 993
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    MAIL_FOLDER: str = "INBOX"    # carpeta IMAP a leer
+
     @property
     def cors_origins_list(self) -> list[str]:
         """Convierte 'a.com, b.com' en ['a.com', 'b.com']. '*' permite cualquiera."""

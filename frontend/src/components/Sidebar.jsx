@@ -3,6 +3,7 @@ import {
   FileSpreadsheet,
   Layers3,
   Route as RouteIcon,
+  Mail,
   Truck,
   Radar,
   Search,
@@ -23,6 +24,7 @@ const secciones = [
       { icon: FileSpreadsheet, label: "Importar Pedidos", path: "/importar" },
       { icon: Layers3, label: "Agrupación por Zonas", path: "/agrupacion" },
       { icon: RouteIcon, label: "Asignación de Rutas", path: "/asignacion-bloque" },
+      { icon: Mail, label: "Bandeja de Solicitudes", path: "/bandeja" },
     ],
   },
   {

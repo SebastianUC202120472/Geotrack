@@ -128,3 +128,21 @@ export const obtenerFlota = () => request("/dashboard/flota");
 // Línea de tiempo completa de un paquete por su código (PD-001).
 export const obtenerHistorial = (codigo) =>
   request(`/dashboard/pedidos/${encodeURIComponent(codigo)}/historial`);
+
+/* ============================================================
+   BANDEJA DE CORREOS  (solicitudes de recojo)
+============================================================ */
+
+export const listarConversaciones = () => request("/correos/conversaciones");
+
+export const obtenerConversacion = (id) => request(`/correos/conversaciones/${id}`);
+
+// Lee la bandeja real por IMAP e importa los correos nuevos.
+export const sincronizarCorreos = () => request("/correos/sincronizar", { method: "POST" });
+
+// Envía una respuesta por SMTP y la guarda en el hilo.
+export const responderCorreo = (id, cuerpo) =>
+  request(`/correos/conversaciones/${id}/responder`, { method: "POST", body: { cuerpo } });
+
+export const marcarConversacion = (id, estado) =>
+  request(`/correos/conversaciones/${id}/estado?estado=${encodeURIComponent(estado)}`, { method: "PATCH" });
