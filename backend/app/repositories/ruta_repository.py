@@ -92,6 +92,25 @@ def listar_rutas(db: Session) -> List[Ruta]:
     return db.query(Ruta).order_by(Ruta.fecha_creacion.desc()).all()
 
 
+def mapa_ruta_por_pedidos(db: Session, pedido_ids: List[int]) -> dict:
+    """Para enriquecer la lista de pedidos: {pedido_id: (ruta_nombre, conductor_id)}.
+    Una sola consulta para todos los pedidos (evita N+1)."""
+    if not pedido_ids:
+        return {}
+    filas = (
+        db.query(RutaDetalle.pedido_id, Ruta.nombre, Ruta.conductor_id)
+        .join(Ruta, RutaDetalle.ruta_id == Ruta.id)
+        .filter(RutaDetalle.pedido_id.in_(pedido_ids))
+        .all()
+    )
+    return {pid: (nombre, conductor_id) for pid, nombre, conductor_id in filas}
+
+
+def eliminar_detalles_de_pedido(db: Session, pedido_id: int) -> None:
+    """Quita un pedido de cualquier ruta (al reabrirlo para reasignarlo)."""
+    db.query(RutaDetalle).filter(RutaDetalle.pedido_id == pedido_id).delete(synchronize_session=False)
+
+
 def obtener_detalle_y_ruta_por_pedido(
     db: Session, pedido_id: int
 ) -> Optional[Tuple[RutaDetalle, Ruta]]:

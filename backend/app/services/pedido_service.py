@@ -6,7 +6,10 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.pedido import Pedido
-from app.repositories import pedido_repository, cliente_repository, historial_repository
+from app.models.conductor import PerfilConductor
+from app.repositories import (
+    pedido_repository, cliente_repository, historial_repository, ruta_repository, usuario_repository,
+)
 from app.services.geocoder import obtener_coordenadas
 from app.core.codigos import asignar_codigo, PREFIJO_PEDIDO
 
@@ -144,9 +147,48 @@ def procesar_geocodificacion(db: Session, usuario_id: int | None = None) -> dict
     }
 
 
+def _nombres_conductores(db: Session, ids: set[int]) -> dict:
+    """{usuario_id: nombre (o correo si no tiene perfil)} para un conjunto de conductores."""
+    if not ids:
+        return {}
+    nombres = {
+        p.usuario_id: p.nombre
+        for p in db.query(PerfilConductor).filter(PerfilConductor.usuario_id.in_(ids)).all()
+    }
+    for cid in ids:
+        if not nombres.get(cid):
+            u = usuario_repository.obtener_por_id(db, cid)
+            nombres[cid] = u.correo if u else None
+    return nombres
+
+
 def listar_pedidos(db: Session, skip: int, limit: int):
-    """Devuelve los pedidos paginados (panel web del admin)."""
-    return pedido_repository.listar(db, skip=skip, limit=limit)
+    """Devuelve los pedidos paginados, enriquecidos con su ruta y conductor asignados."""
+    pedidos = pedido_repository.listar(db, skip=skip, limit=limit)
+    mapa = ruta_repository.mapa_ruta_por_pedidos(db, [p.id for p in pedidos])
+    nombres = _nombres_conductores(db, {cid for (_, cid) in mapa.values() if cid})
+    for p in pedidos:
+        ruta_nombre, conductor_id = mapa.get(p.id, (None, None))
+        # Atributos extra que lee PedidoResponse (no se guardan en la BD).
+        p.ruta_nombre = ruta_nombre
+        p.conductor_nombre = nombres.get(conductor_id)
+    return pedidos
+
+
+def reabrir_pedido(db: Session, pedido_id: int, usuario_id: int | None = None) -> dict:
+    """Devuelve un pedido FALLIDO al estado PENDIENTE y lo saca de su ruta para
+    poder reasignarlo. Recibe: pedido_id (int) y el id del admin."""
+    pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+
+    estado_anterior = pedido.estado
+    ruta_repository.eliminar_detalles_de_pedido(db, pedido_id)
+    pedido.estado = "PENDIENTE"
+    pedido.fecha_entrega = None
+    historial_repository.registrar(db, pedido.id, estado_anterior, "PENDIENTE", usuario_id)
+    db.commit()
+    return {"mensaje": "Pedido reabierto. Ya puedes reasignarlo.", "codigo": pedido.codigo}
 
 
 def agrupar_por_zona(db: Session) -> dict:

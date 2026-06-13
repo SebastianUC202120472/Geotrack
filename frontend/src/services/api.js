@@ -77,6 +77,17 @@ export const crearConductor = (datos) =>
   request("/conductores/", { method: "POST", body: datos });
 
 /* ============================================================
+   REPORTES DE INCIDENCIA  (el conductor reporta fallas; el admin responde)
+============================================================ */
+
+// estado opcional: "ABIERTO" | "RESUELTO".
+export const listarReportes = (estado) =>
+  request(`/reportes/${estado ? `?estado=${encodeURIComponent(estado)}` : ""}`);
+
+export const responderReporte = (id, datos) =>
+  request(`/reportes/${id}/responder`, { method: "POST", body: datos });
+
+/* ============================================================
    PEDIDOS  (Inbound — CUS-13 / CUS-15 / CUS-16)
 ============================================================ */
 
@@ -89,6 +100,9 @@ export const subirPedidosExcel = (archivo) => {
 // El backend limita a 100 por defecto; pedimos un tope alto para poder filtrar
 // y paginar del lado del cliente (suficiente para los volúmenes del MVP).
 export const listarPedidos = (limit = 1000) => request(`/pedidos/?limit=${limit}`);
+
+// Devuelve un pedido FALLIDO a PENDIENTE para reasignarlo.
+export const reabrirPedido = (id) => request(`/pedidos/${id}/reabrir`, { method: "POST" });
 
 // Devuelve { zonas_operativas: [{ distrito, total_pedidos }] }
 export const listarZonas = () => request("/pedidos/zonas");

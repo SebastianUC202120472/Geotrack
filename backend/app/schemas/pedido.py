@@ -25,6 +25,9 @@ class PedidoResponse(BaseModel):
     estado: str
     fecha_creacion: Optional[datetime] = None
     fecha_entrega: Optional[datetime] = None
+    # Asignación (se completan al listar; no son columnas del pedido)
+    ruta_nombre: Optional[str] = None
+    conductor_nombre: Optional[str] = None
 
     class Config:
         from_attributes = True  # se construye directo desde el objeto SQLAlchemy

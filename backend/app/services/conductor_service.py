@@ -28,6 +28,11 @@ def listar(db: Session) -> list:
     return [_a_respuesta(db, u) for u in conductor_repository.listar_usuarios_conductores(db)]
 
 
+# Ficha del propio conductor (su perfil). Recibe: el Usuario del token.
+def obtener_uno(db: Session, usuario) -> dict:
+    return _a_respuesta(db, usuario)
+
+
 def crear(db: Session, datos: ConductorCreate) -> dict:
     if usuario_repository.obtener_por_correo(db, datos.correo):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El correo ya está registrado")
