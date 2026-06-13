@@ -5,7 +5,7 @@ import {
   CheckCircle
 } from "lucide-react";
 
-import { getDashboardResumen } from "../services/api";
+import { obtenerResumen } from "../services/api";
 
 export default function DashboardCards() {
 
@@ -17,7 +17,7 @@ export default function DashboardCards() {
 
   const cargarResumen = async () => {
     try {
-      const data = await getDashboardResumen();
+      const data = await obtenerResumen();
       setResumen(data);
     } catch (error) {
       console.log(error);

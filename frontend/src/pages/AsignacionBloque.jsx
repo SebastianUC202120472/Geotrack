@@ -1,116 +1,165 @@
 import { useEffect, useState } from "react";
-import { Truck, MapPin, User, Loader2, AlertCircle } from "lucide-react";
+import { Truck, MapPin, User, Loader2, AlertCircle, CheckCircle } from "lucide-react";
 import Header from "../components/Header";
-import { asignarBloquePedidos, getDistritos, getConductores } from "../services/api";
+import { asignarBloque, listarZonas, listarVehiculos } from "../services/api";
 
-export default function AsignacionBloquePro() {
-  const [distritos, setDistritos] = useState([]);
-  const [conductores, setConductores] = useState([]);
+// Asignación de un bloque de pedidos a un conductor (CUS-18).
+// IMPORTANTE: el backend asigna la ruta al USUARIO conductor (conductor_id),
+// no al vehículo. Por eso aquí solo se ofrecen los vehículos que tienen un
+// conductor vinculado, y se envía ese conductor_id (no el id del vehículo).
+export default function AsignacionBloque() {
+  const [zonas, setZonas] = useState([]);
+  const [vehiculos, setVehiculos] = useState([]);
+
   const [distrito, setDistrito] = useState("");
-  const [conductor, setConductor] = useState("");
+  const [vehiculoId, setVehiculoId] = useState("");
   const [nombreRuta, setNombreRuta] = useState("");
-  const [preview, setPreview] = useState(null);
-  const [loading, setLoading] = useState(false);
+
+  const [cargando, setCargando] = useState(false);
+  const [aviso, setAviso] = useState(null);
 
   useEffect(() => {
-    const load = async () => {
+    const cargar = async () => {
       try {
-        const [d, c] = await Promise.all([getDistritos(), getConductores()]);
-        setDistritos(d.zonas_operativas || []);
-        setConductores(Array.isArray(c) ? c : (c.vehiculos || []));
+        const [zonasRes, vehiculosRes] = await Promise.all([listarZonas(), listarVehiculos()]);
+        setZonas(zonasRes.zonas_operativas || []);
+        setVehiculos(vehiculosRes || []);
       } catch (err) {
-        console.error("Error al cargar datos:", err);
+        console.error("Error al cargar datos:", err.message);
       }
     };
-    load();
+    cargar();
   }, []);
 
-  const generarPreview = () => {
-    const zona = distritos.find((z) => z.distrito === distrito);
-    const cond = conductores.find((c) => String(c.id) === String(conductor));
-    if (!zona || !cond) return;
-    setPreview({ distrito: zona.distrito, conductor: cond.nombre || cond.placa, pedidos: zona.total_pedidos });
-  };
+  // Solo los vehículos con conductor asignado pueden recibir una ruta.
+  const vehiculosConConductor = vehiculos.filter((v) => v.conductor_id);
+
+  const zonaSeleccionada = zonas.find((z) => z.distrito === distrito);
+  const vehiculoSeleccionado = vehiculos.find((v) => String(v.id) === String(vehiculoId));
 
   const asignar = async () => {
-    if (!distrito || !conductor || !nombreRuta) return alert("Completa todos los campos");
-    setLoading(true);
+    if (!distrito || !vehiculoId || !nombreRuta.trim()) {
+      setAviso({ ok: false, texto: "Completa el nombre de la ruta, la zona y el vehículo." });
+      return;
+    }
+    setCargando(true);
+    setAviso(null);
     try {
-      const res = await asignarBloquePedidos({ distrito, conductor_id: Number(conductor), nombre_ruta: nombreRuta });
-      alert(`Ruta asignada: ${res.codigo || 'Correctamente'}`);
-      setNombreRuta(""); setPreview(null);
-    } catch (err) { alert(err.message); } finally { setLoading(false); }
+      const res = await asignarBloque({
+        nombre_ruta: nombreRuta.trim(),
+        distrito,
+        conductor_id: vehiculoSeleccionado.conductor_id,
+      });
+      setAviso({ ok: true, texto: `${res.mensaje} (ruta ${res.codigo || res.ruta_id}).` });
+      setNombreRuta("");
+      setDistrito("");
+      setVehiculoId("");
+    } catch (err) {
+      setAviso({ ok: false, texto: err.message });
+    } finally {
+      setCargando(false);
+    }
   };
 
   return (
-    // CAMBIO: Estructura flex para llenar toda la altura
-    <div className="min-h-screen w-full bg-slate-50 flex flex-col">
-      <Header />
+    <div className="min-h-screen w-full flex flex-col">
+      <Header titulo="Asignación de Rutas" subtitulo="Arma un bloque logístico y asígnalo a un conductor (CUS-18)" />
 
-      {/* CAMBIO: flex-grow permite que esta área se estire al máximo */}
       <main className="flex-grow w-full p-8">
-        <div className="max-w-7xl mx-auto w-full h-full flex flex-col space-y-8">
-          
-          {/* Header de la sección */}
-          <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-4 bg-blue-600 text-white rounded-2xl"><Truck size={28} /></div>
-            <div>
-              <h1 className="text-3xl font-extrabold text-slate-900">Asignación de Rutas</h1>
-              <p className="text-slate-500">Configuración de bloques logísticos y asignación de flota.</p>
+        <div className="max-w-6xl mx-auto w-full space-y-8">
+          {vehiculosConConductor.length === 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-center gap-3 text-amber-800">
+              <AlertCircle size={22} />
+              <span>
+                No hay vehículos con conductor asignado. Ve a <b>Flota y Conductores</b> para registrar un
+                conductor y vincularlo a un vehículo antes de asignar rutas.
+              </span>
             </div>
-          </div>
+          )}
 
-          {/* Grid que ocupa el espacio restante */}
-          <div className="grid md:grid-cols-2 gap-8 flex-grow">
-            
+          <div className="grid md:grid-cols-2 gap-8">
             {/* Formulario */}
-            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6 flex flex-col">
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
               <input
-                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Nombre de la nueva ruta"
                 value={nombreRuta}
                 onChange={(e) => setNombreRuta(e.target.value)}
               />
 
-              <select className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none" onChange={(e) => setDistrito(e.target.value)}>
+              <select
+                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none"
+                value={distrito}
+                onChange={(e) => setDistrito(e.target.value)}
+              >
                 <option value="">Selecciona zona operativa</option>
-                {distritos.map((d, i) => <option key={i} value={d.distrito}>{d.distrito} ({d.total_pedidos} pedidos)</option>)}
+                {zonas.map((z, i) => (
+                  <option key={i} value={z.distrito}>
+                    {z.distrito} ({z.total_pedidos} pedidos)
+                  </option>
+                ))}
               </select>
 
-              <select className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none" onChange={(e) => setConductor(e.target.value)}>
-                <option value="">Selecciona vehículo / conductor</option>
-                {conductores.map((c) => <option key={c.id} value={c.id}>{c.placa || c.nombre}</option>)}
+              <select
+                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none"
+                value={vehiculoId}
+                onChange={(e) => setVehiculoId(e.target.value)}
+              >
+                <option value="">Selecciona vehículo (con conductor)</option>
+                {vehiculosConConductor.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.placa} · conductor id {v.conductor_id}
+                  </option>
+                ))}
               </select>
 
-              <div className="flex gap-4 mt-auto">
-                <button onClick={generarPreview} className="flex-1 bg-slate-800 text-white p-4 rounded-2xl font-bold hover:bg-slate-900 transition">Vista previa</button>
-                <button onClick={asignar} disabled={loading} className="flex-1 bg-blue-600 text-white p-4 rounded-2xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200 flex justify-center">
-                  {loading ? <Loader2 className="animate-spin" /> : "Confirmar Asignación"}
-                </button>
-              </div>
+              <button
+                onClick={asignar}
+                disabled={cargando}
+                className="w-full bg-blue-600 text-white p-4 rounded-2xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-200 flex justify-center items-center gap-2 disabled:opacity-60"
+              >
+                {cargando ? <Loader2 className="animate-spin" /> : "Confirmar Asignación"}
+              </button>
+
+              {aviso && (
+                <div
+                  className={`flex items-center gap-2 p-3 rounded-xl text-sm ${
+                    aviso.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+                  }`}
+                >
+                  {aviso.ok ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+                  <span>{aviso.texto}</span>
+                </div>
+              )}
             </div>
 
-            {/* Panel de Vista Previa */}
+            {/* Vista previa del impacto */}
             <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm flex flex-col">
-              <h2 className="font-bold text-lg mb-6">Impacto Logístico</h2>
-              {preview ? (
-                <div className="space-y-6 flex-grow">
-                  <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
-                    <MapPin className="text-blue-600" /> <span>Zona: <b>{preview.distrito}</b></span>
+              <h2 className="font-bold text-lg mb-6 flex items-center gap-2">
+                <Truck className="text-blue-600" /> Impacto Logístico
+              </h2>
+
+              {zonaSeleccionada && vehiculoSeleccionado ? (
+                <div className="space-y-5 flex-grow">
+                  <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl">
+                    <MapPin className="text-blue-600" />
+                    <span>Zona: <b>{zonaSeleccionada.distrito}</b></span>
                   </div>
-                  <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
-                    <User className="text-blue-600" /> <span>Conductor: <b>{preview.conductor}</b></span>
+                  <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl">
+                    <User className="text-blue-600" />
+                    <span>Vehículo: <b>{vehiculoSeleccionado.placa}</b></span>
                   </div>
                   <div className="text-center py-6 border-t border-dashed mt-auto">
-                    <p className="text-sm text-slate-400">Total de carga</p>
-                    <p className="text-6xl font-extrabold text-blue-600 my-2">{preview.pedidos}</p>
-                    <p className="text-slate-500">pedidos en este bloque</p>
+                    <p className="text-sm text-slate-400">Pedidos a despachar</p>
+                    <p className="text-6xl font-extrabold text-blue-600 my-2">
+                      {zonaSeleccionada.total_pedidos}
+                    </p>
                   </div>
                 </div>
               ) : (
                 <div className="flex-grow flex flex-col items-center justify-center text-slate-400 border-2 border-dashed rounded-2xl">
                   <AlertCircle className="mb-2 opacity-50" />
-                  <p>Selecciona los parámetros y haz clic en Vista previa.</p>
+                  <p>Selecciona zona y vehículo para ver el resumen.</p>
                 </div>
               )}
             </div>

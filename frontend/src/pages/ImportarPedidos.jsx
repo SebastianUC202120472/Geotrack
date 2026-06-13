@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FileSpreadsheet, UploadCloud, CheckCircle, AlertCircle, Loader2, ArrowRight } from "lucide-react";
 import Header from "../components/Header";
-import { uploadPedidosExcel } from "../services/api";
+import { subirPedidosExcel } from "../services/api";
 
 export default function ImportarPedidos() {
   const navigate = useNavigate();
@@ -25,7 +25,7 @@ export default function ImportarPedidos() {
     setLoading(true);
     setError("");
     try {
-      const response = await uploadPedidosExcel(file);
+      const response = await subirPedidosExcel(file);
       setResultado(response);
     } catch (err) {
       setError(err.message || "Error al procesar el archivo");

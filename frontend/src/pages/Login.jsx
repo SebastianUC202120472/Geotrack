@@ -1,36 +1,41 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { loginAdmin } from "../services/api";
+import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { iniciarSesion } = useAuth();
 
-  const [email, setEmail] = useState("");
+  const [correo, setCorreo] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [cargando, setCargando] = useState(false);
+
+  // A dónde volver tras iniciar sesión (si llegó aquí por una ruta protegida).
+  const destino = location.state?.from?.pathname || "/";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     setError("");
-    setLoading(true);
+    setCargando(true);
 
     try {
-      await loginAdmin(email, password);
-      // Redirección fluida sin recarga completa
-      navigate("/", { replace: true });
+      const datos = await loginAdmin(correo, password);
+      iniciarSesion(datos.access_token);
+      navigate(destino, { replace: true });
     } catch (err) {
       setError(err.message || "No se pudo conectar con el servidor.");
     } finally {
-      setLoading(false);
+      setCargando(false);
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex min-h-screen items-center justify-center bg-linear-to-br from-slate-900 via-indigo-950 to-slate-950 px-4">
       <div className="w-full max-w-md transform overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/40 p-8 shadow-2xl backdrop-blur-xl transition-all duration-300">
-        
+
         {/* Logo */}
         <div className="text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-linear-to-tr from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/30">
@@ -43,14 +48,12 @@ export default function Login() {
           <p className="mt-2 text-sm text-slate-400">Panel de Administración SIOL-SAVA</p>
         </div>
 
-        {/* Error */}
         {error && (
-          <div className="mt-6 flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400 animate-pulse">
+          <div className="mt-6 flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400">
             <span>{error}</span>
           </div>
         )}
 
-        {/* Formulario */}
         <form onSubmit={handleSubmit} className="mt-6 space-y-5">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
@@ -61,9 +64,9 @@ export default function Login() {
               required
               autoFocus
               autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="ejemplo@geotrack.com"
+              value={correo}
+              onChange={(e) => setCorreo(e.target.value)}
+              placeholder="admin@siol.com"
               className="w-full rounded-xl border border-slate-800 bg-slate-950/50 px-4 py-3.5 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
@@ -85,10 +88,10 @@ export default function Login() {
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 py-3.5 text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+            disabled={cargando}
+            className="w-full rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 py-3.5 text-sm font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-60"
           >
-            {loading ? "Autenticando..." : "Iniciar Sesión"}
+            {cargando ? "Autenticando..." : "Iniciar Sesión"}
           </button>
         </form>
 

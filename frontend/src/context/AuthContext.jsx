@@ -1,39 +1,32 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useState } from "react";
+import { getToken, guardarToken, borrarToken } from "../services/api";
 
-const AuthContext = createContext();
+// Maneja el estado de sesión del admin en toda la app.
+// El token vive en localStorage (a través de los helpers de api.js) y aquí lo
+// mantenemos también en memoria para que React re-renderice al entrar o salir.
+const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
-  const [token, setToken] = useState(null);
+export function AuthProvider({ children }) {
+  const [token, setToken] = useState(() => getToken());
 
-  useEffect(() => {
-    const savedToken = localStorage.getItem("admin_token");
-    setToken(savedToken);
-  }, []);
-
-  const login = (newToken) => {
-    localStorage.setItem("admin_token", newToken);
-    setToken(newToken);
+  const iniciarSesion = (nuevoToken) => {
+    guardarToken(nuevoToken);
+    setToken(nuevoToken);
   };
 
-  const logout = () => {
-    localStorage.removeItem("admin_token");
+  const cerrarSesion = () => {
+    borrarToken();
     setToken(null);
   };
 
-  const isAuthenticated = !!token;
+  const valor = {
+    token,
+    autenticado: Boolean(token),
+    iniciarSesion,
+    cerrarSesion,
+  };
 
-  return (
-    <AuthContext.Provider
-      value={{
-        token,
-        isAuthenticated,
-        login,
-        logout,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
-};
+  return <AuthContext.Provider value={valor}>{children}</AuthContext.Provider>;
+}
 
 export const useAuth = () => useContext(AuthContext);

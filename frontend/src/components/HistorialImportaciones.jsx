@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getPedidos } from "../services/api";
+import { listarPedidos } from "../services/api";
 
 export default function HistorialImportaciones() {
 
@@ -12,7 +12,7 @@ export default function HistorialImportaciones() {
 
   const cargarPedidos = async () => {
     try {
-      const data = await getPedidos();
+      const data = await listarPedidos();
       setPedidos(data);
     } catch (error) {
       console.log(error);

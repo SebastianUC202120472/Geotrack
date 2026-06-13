@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FileUp, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { uploadPedidosExcel } from '../services/api';
+import { subirPedidosExcel } from '../services/api';
 
 export default function UploadPedidos() {
   const [file, setFile] = useState(null);
@@ -19,7 +19,7 @@ export default function UploadPedidos() {
     if (!file) return;
     setStatus('uploading');
     try {
-      await uploadPedidosExcel(file);
+      await subirPedidosExcel(file);
       setStatus('success');
       setMessage('¡Pedidos importados con éxito!');
     } catch (err) {

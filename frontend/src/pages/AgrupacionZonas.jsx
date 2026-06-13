@@ -8,8 +8,7 @@ import {
 
 import Header from "../components/Header";
 import DistrictCard from "../components/DistrictCard";
-// Importamos la función correcta que definimos en api.js
-import { getDistritos } from "../services/api";
+import { listarZonas } from "../services/api";
 
 export default function AgrupacionZonas() {
 
@@ -23,11 +22,8 @@ export default function AgrupacionZonas() {
   const cargarZonas = async () => {
     setLoading(true);
     try {
-      const response = await getDistritos();
-      // Ajustamos según la estructura que devuelva tu API. 
-      // Si response es un objeto { zonas_operativas: [...] }, úsalo así:
-      // Si response es un array directo, usa: setZonas(response);
-      setZonas(response.zonas_operativas || response || []);
+      const response = await listarZonas();
+      setZonas(response.zonas_operativas || []);
     } catch (error) {
       console.error("Error al cargar zonas:", error);
       alert("No se pudieron cargar las zonas");

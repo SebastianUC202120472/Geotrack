@@ -1,7 +1,7 @@
 import React from 'react';
 import { Bell, User, Settings, Search } from "lucide-react";
 
-const Header = ({ titulo, subtitulo }) => {
+const Header = ({ titulo = "Panel de Administración", subtitulo }) => {
   return (
     <header className="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-between shadow-sm">
       <div>
