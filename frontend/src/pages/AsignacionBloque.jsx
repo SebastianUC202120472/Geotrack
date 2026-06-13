@@ -4,7 +4,7 @@ import PageHeader from "../components/ui/PageHeader";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
-import { asignarBloque, listarZonas, listarVehiculos } from "../services/api";
+import { asignarBloque, listarZonas, listarVehiculos, listarConductores } from "../services/api";
 
 // Asignación de un bloque de pedidos a un conductor (CUS-18).
 // El backend asigna la ruta al USUARIO conductor (conductor_id), no al vehículo;
@@ -12,6 +12,7 @@ import { asignarBloque, listarZonas, listarVehiculos } from "../services/api";
 export default function AsignacionBloque() {
   const [zonas, setZonas] = useState([]);
   const [vehiculos, setVehiculos] = useState([]);
+  const [nombrePorId, setNombrePorId] = useState({});
   const [distrito, setDistrito] = useState("");
   const [vehiculoId, setVehiculoId] = useState("");
   const [nombreRuta, setNombreRuta] = useState("");
@@ -21,9 +22,10 @@ export default function AsignacionBloque() {
   useEffect(() => {
     const cargar = async () => {
       try {
-        const [z, v] = await Promise.all([listarZonas(), listarVehiculos()]);
+        const [z, v, c] = await Promise.all([listarZonas(), listarVehiculos(), listarConductores()]);
         setZonas(z.zonas_operativas || []);
         setVehiculos(v || []);
+        setNombrePorId(Object.fromEntries((c || []).map((x) => [x.usuario_id, x.nombre || x.codigo])));
       } catch (err) {
         console.error("Error al cargar datos:", err.message);
       }
@@ -89,7 +91,7 @@ export default function AsignacionBloque() {
             <Input as="select" label="Vehículo (con conductor)" value={vehiculoId} onChange={(e) => setVehiculoId(e.target.value)}>
               <option value="">Selecciona un vehículo</option>
               {vehiculosConConductor.map((v) => (
-                <option key={v.id} value={v.id}>{v.placa} · conductor id {v.conductor_id}</option>
+                <option key={v.id} value={v.id}>{v.placa} · {nombrePorId[v.conductor_id] || `conductor id ${v.conductor_id}`}</option>
               ))}
             </Input>
 

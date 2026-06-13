@@ -10,3 +10,4 @@ from .pedido import Pedido
 from .ruta import Ruta, RutaDetalle
 from .historial import HistorialPedido
 from .correo import Conversacion, MensajeCorreo, MensajeAdjunto
+from .conductor import PerfilConductor

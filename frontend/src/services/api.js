@@ -74,12 +74,11 @@ export const loginAdmin = async (correo, contrasena) => {
   return datos;
 };
 
-// Alta de usuario conductor (CUS-01). Solo un admin autenticado puede crearlos.
-export const registrarConductor = (correo, contrasena) =>
-  request("/auth/registro", {
-    method: "POST",
-    body: { correo, contrasena, rol: "conductor" },
-  });
+// Conductores: listar (con ficha + vehículo asignado) y registrar (cuenta + datos).
+export const listarConductores = () => request("/conductores/");
+
+export const crearConductor = (datos) =>
+  request("/conductores/", { method: "POST", body: datos });
 
 /* ============================================================
    PEDIDOS  (Inbound — CUS-13 / CUS-15 / CUS-16)

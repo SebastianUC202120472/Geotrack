@@ -11,6 +11,7 @@ import AgrupacionZonas from "./pages/AgrupacionZonas";
 import AsignacionBloque from "./pages/AsignacionBloque";
 import Bandeja from "./pages/Bandeja";
 import Flota from "./pages/Flota";
+import Conductores from "./pages/Conductores";
 import Seguimiento from "./pages/Seguimiento";
 import Trazabilidad from "./pages/Trazabilidad";
 
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="/asignacion-bloque" element={<AsignacionBloque />} />
         <Route path="/bandeja" element={<Bandeja />} />
         <Route path="/flota" element={<Flota />} />
+        <Route path="/conductores" element={<Conductores />} />
         <Route path="/seguimiento" element={<Seguimiento />} />
         <Route path="/trazabilidad" element={<Trazabilidad />} />
       </Route>

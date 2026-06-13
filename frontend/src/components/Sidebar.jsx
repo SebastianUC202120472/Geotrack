@@ -6,6 +6,7 @@ import {
   Route as RouteIcon,
   Mail,
   Truck,
+  Users,
   Radar,
   Search,
   LogOut,
@@ -32,7 +33,8 @@ const secciones = [
   {
     titulo: "Flota",
     items: [
-      { icon: Truck, label: "Flota y Conductores", path: "/flota" },
+      { icon: Truck, label: "Flota de Vehículos", path: "/flota" },
+      { icon: Users, label: "Conductores", path: "/conductores" },
       { icon: Radar, label: "Seguimiento", path: "/seguimiento" },
     ],
   },
