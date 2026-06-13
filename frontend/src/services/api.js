@@ -128,3 +128,40 @@ export const obtenerFlota = () => request("/dashboard/flota");
 // Línea de tiempo completa de un paquete por su código (PD-001).
 export const obtenerHistorial = (codigo) =>
   request(`/dashboard/pedidos/${encodeURIComponent(codigo)}/historial`);
+
+/* ============================================================
+   BANDEJA DE CORREOS  (solicitudes de recojo)
+============================================================ */
+
+export const listarConversaciones = () => request("/correos/conversaciones");
+
+export const obtenerConversacion = (id) => request(`/correos/conversaciones/${id}`);
+
+// Lee la bandeja real por IMAP e importa los correos nuevos.
+export const sincronizarCorreos = () => request("/correos/sincronizar", { method: "POST" });
+
+// Envía una respuesta por SMTP y la guarda en el hilo.
+export const responderCorreo = (id, cuerpo) =>
+  request(`/correos/conversaciones/${id}/responder`, { method: "POST", body: { cuerpo } });
+
+export const marcarConversacion = (id, estado) =>
+  request(`/correos/conversaciones/${id}/estado?estado=${encodeURIComponent(estado)}`, { method: "PATCH" });
+
+// Descarga un adjunto (ej. el Excel del recojo) y dispara la descarga en el
+// navegador. Va con el token en el header, por eso no se usa un <a href> directo.
+export async function descargarAdjunto(id, nombre) {
+  const token = getToken();
+  const resp = await fetch(`${API_URL}/correos/adjuntos/${id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!resp.ok) throw new Error("No se pudo descargar el adjunto");
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombre || "adjunto";
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  URL.revokeObjectURL(url);
+}
