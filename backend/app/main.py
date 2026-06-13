@@ -25,6 +25,7 @@ from app.api.clientes import router as clientes_router    # Fase 4: clientes cor
 from app.api.vehiculos import router as vehiculos_router  # Fase 4: flota de vehículos
 from app.api.correos import router as correos_router      # Bandeja de solicitudes de recojo
 from app.api.conductores import router as conductores_router  # Gestión de conductores
+from app.api.reportes import router as reportes_router      # Reportes de incidencia
 
 
 async def tarea_limpieza_usuarios():
@@ -119,6 +120,7 @@ app.include_router(conductor_router, prefix="/api/conductor", tags=["App Móvil 
 app.include_router(dashboard_router, prefix="/api/dashboard", tags=["Dashboard y Trazabilidad"])
 app.include_router(correos_router, prefix="/api/correos", tags=["Bandeja de Correos"])
 app.include_router(conductores_router, prefix="/api/conductores", tags=["Conductores"])
+app.include_router(reportes_router, prefix="/api/reportes", tags=["Reportes"])
 
 
 @app.get("/")

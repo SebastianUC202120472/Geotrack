@@ -7,10 +7,11 @@ import { Field } from "@/components/Field";
 import { Button } from "@/components/Button";
 import { useAuth } from "@/store/auth";
 import { mensajeDeError } from "@/api/client";
-import { colors, fontSize, spacing } from "@/theme";
+import { useTheme, fontSize, spacing, radius } from "@/theme";
 
 // Formulario de inicio de sesión. Sin inputs (es la pantalla raíz de auth).
 export default function LoginScreen() {
+  const { colors } = useTheme();
   const { iniciarSesion } = useAuth();
   const [correo, setCorreo] = useState("");
   const [contrasena, setContrasena] = useState("");
@@ -27,7 +28,6 @@ export default function LoginScreen() {
     setCargando(true);
     try {
       await iniciarSesion(correo.trim(), contrasena);
-      // El guardia del layout raíz redirige a la ruta al detectar la sesión.
     } catch (e) {
       setError(mensajeDeError(e));
     } finally {
@@ -37,38 +37,26 @@ export default function LoginScreen() {
 
   return (
     <Screen>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={estilos.contenedor}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={estilos.contenedor}>
         <View style={estilos.marca}>
-          <View style={estilos.logo}>
-            <Text style={estilos.logoTexto}>G</Text>
+          <View style={[estilos.logo, { backgroundColor: colors.brand }]}>
+            <Text style={[estilos.logoTexto, { color: colors.white }]}>G</Text>
           </View>
-          <Text style={estilos.titulo}>GeoTrack Conductor</Text>
-          <Text style={estilos.subtitulo}>Inicia sesión con las credenciales que te dieron</Text>
+          <Text style={[estilos.titulo, { color: colors.ink }]}>GeoTrack Conductor</Text>
+          <Text style={[estilos.subtitulo, { color: colors.muted }]}>
+            Inicia sesión con las credenciales que te dieron
+          </Text>
         </View>
 
-        {error ? <Text style={estilos.error}>{error}</Text> : null}
+        {error ? (
+          <Text style={[estilos.error, { backgroundColor: colors.dangerSoft, color: colors.danger }]}>{error}</Text>
+        ) : null}
 
         <View style={estilos.formulario}>
-          <Field
-            label="Correo"
-            value={correo}
-            onChangeText={setCorreo}
-            placeholder="conductor@siol.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-          />
-          <Field
-            label="Contraseña"
-            value={contrasena}
-            onChangeText={setContrasena}
-            placeholder="••••••••"
-            secureTextEntry
-            autoComplete="password"
-          />
+          <Field label="Correo" value={correo} onChangeText={setCorreo} placeholder="conductor@siol.com"
+            keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
+          <Field label="Contraseña" value={contrasena} onChangeText={setContrasena} placeholder="••••••••"
+            secureTextEntry autoComplete="password" />
           <Button titulo={cargando ? "Ingresando…" : "Iniciar sesión"} onPress={entrar} cargando={cargando} />
         </View>
       </KeyboardAvoidingView>
@@ -79,24 +67,10 @@ export default function LoginScreen() {
 const estilos = StyleSheet.create({
   contenedor: { flex: 1, justifyContent: "center", gap: spacing.xl },
   marca: { alignItems: "center", gap: spacing.sm },
-  logo: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
-    backgroundColor: colors.brand,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoTexto: { color: colors.white, fontSize: fontSize.display, fontWeight: "800" },
-  titulo: { fontSize: fontSize.title, fontWeight: "800", color: colors.ink },
-  subtitulo: { fontSize: fontSize.body, color: colors.muted, textAlign: "center" },
+  logo: { width: 64, height: 64, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  logoTexto: { fontSize: fontSize.display, fontWeight: "800" },
+  titulo: { fontSize: fontSize.title, fontWeight: "800" },
+  subtitulo: { fontSize: fontSize.body, textAlign: "center" },
   formulario: { gap: spacing.lg },
-  error: {
-    backgroundColor: colors.dangerSoft,
-    color: colors.danger,
-    padding: spacing.md,
-    borderRadius: 12,
-    fontSize: fontSize.body,
-    textAlign: "center",
-  },
+  error: { padding: spacing.md, borderRadius: radius.md, fontSize: fontSize.body, textAlign: "center" },
 });

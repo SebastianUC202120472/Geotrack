@@ -1,18 +1,22 @@
-// Tarjeta blanca con borde suave. Contenedor visual estándar.
+// Tarjeta con superficie y borde según el tema activo.
 import { StyleSheet, View, type ViewProps } from "react-native";
-import { colors, radius, spacing } from "@/theme";
+import { useTheme, radius, spacing } from "@/theme";
 
 // Recibe: las props normales de View (incluye children y style).
 export function Card({ style, ...props }: ViewProps) {
-  return <View style={[estilos.card, style]} {...props} />;
+  const { colors } = useTheme();
+  return (
+    <View
+      style={[
+        estilos.card,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+        style,
+      ]}
+      {...props}
+    />
+  );
 }
 
 const estilos = StyleSheet.create({
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
-  },
+  card: { borderRadius: radius.lg, borderWidth: 1, padding: spacing.lg },
 });

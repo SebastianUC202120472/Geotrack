@@ -7,7 +7,36 @@ import type {
   Navegacion,
   GestionParada,
   CierreRuta,
+  PerfilConductor,
+  Reporte,
 } from "@/types/api";
+
+// Perfil del propio conductor (nombre, teléfono, DNI, vehículo). GET /conductor/perfil.
+export async function obtenerPerfil(): Promise<PerfilConductor> {
+  const { data } = await api.get<PerfilConductor>("/conductor/perfil");
+  return data;
+}
+
+// Reporta la falla de un pedido. Recibe: pedidoId (number), motivo (string),
+// descripcion opcional (string). Devuelve: el Reporte creado.
+export async function crearReporte(
+  pedidoId: number,
+  motivo: string,
+  descripcion?: string
+): Promise<Reporte> {
+  const { data } = await api.post<Reporte>("/conductor/reportes", {
+    pedido_id: pedidoId,
+    motivo,
+    descripcion: descripcion ?? null,
+  });
+  return data;
+}
+
+// Lista los reportes del propio conductor (para ver la respuesta del admin).
+export async function obtenerMisReportes(): Promise<Reporte[]> {
+  const { data } = await api.get<Reporte[]>("/conductor/reportes");
+  return data;
+}
 
 // Resumen de la ruta activa. Devuelve: RutaActiva (lanza 404 si no tiene ruta).
 export async function obtenerRutaActiva(): Promise<RutaActiva> {

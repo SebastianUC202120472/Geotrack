@@ -9,6 +9,7 @@ import {
   Users,
   Radar,
   Search,
+  AlertTriangle,
   LogOut,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
@@ -40,7 +41,10 @@ const secciones = [
   },
   {
     titulo: "Consulta",
-    items: [{ icon: Search, label: "Trazabilidad", path: "/trazabilidad" }],
+    items: [
+      { icon: AlertTriangle, label: "Reportes", path: "/reportes" },
+      { icon: Search, label: "Trazabilidad", path: "/trazabilidad" },
+    ],
   },
 ];
 

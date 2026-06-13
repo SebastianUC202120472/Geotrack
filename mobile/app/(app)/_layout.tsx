@@ -1,48 +1,50 @@
-// Navegación interna (protegida). Stack con cabecera de marca y accesos a
-// Historial y cierre de sesión.
-import { Stack, useRouter } from "expo-router";
-import { Pressable, Text, StyleSheet } from "react-native";
-import { useAuth } from "@/store/auth";
-import { colors, fontSize, spacing } from "@/theme";
-
-// Botón de texto para la cabecera. Recibe: { titulo, onPress }.
-function BotonCabecera({ titulo, onPress }: { titulo: string; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={titulo} hitSlop={8}>
-      <Text style={estilos.boton}>{titulo}</Text>
-    </Pressable>
-  );
-}
+// Navegación interna (protegida) por pestañas: Ruta, Entregados y Perfil.
+// El detalle de parada (parada/[id]) es navegable pero no aparece como pestaña.
+import { Tabs } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { useTheme } from "@/theme";
 
 export default function AppLayout() {
-  const router = useRouter();
-  const { cerrarSesion } = useAuth();
+  const { colors } = useTheme();
 
   return (
-    <Stack
+    <Tabs
       screenOptions={{
         headerStyle: { backgroundColor: colors.ink },
         headerTintColor: colors.white,
         headerTitleStyle: { fontWeight: "700" },
-        contentStyle: { backgroundColor: colors.canvas },
+        tabBarActiveTintColor: colors.brand,
+        tabBarInactiveTintColor: colors.muted,
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
+        sceneStyle: { backgroundColor: colors.canvas },
       }}
     >
-      <Stack.Screen
+      <Tabs.Screen
         name="index"
         options={{
           title: "Mi ruta",
-          headerRight: () => (
-            <BotonCabecera titulo="Historial" onPress={() => router.push("/historial")} />
-          ),
-          headerLeft: () => <BotonCabecera titulo="Salir" onPress={cerrarSesion} />,
+          tabBarLabel: "Ruta",
+          tabBarIcon: ({ color, size }) => <Ionicons name="map" color={color} size={size} />,
         }}
       />
-      <Stack.Screen name="parada/[id]" options={{ title: "Entrega" }} />
-      <Stack.Screen name="historial" options={{ title: "Entregados" }} />
-    </Stack>
+      <Tabs.Screen
+        name="historial"
+        options={{
+          title: "Entregados",
+          tabBarLabel: "Historial",
+          tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-done" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="perfil"
+        options={{
+          title: "Mi perfil",
+          tabBarLabel: "Perfil",
+          tabBarIcon: ({ color, size }) => <Ionicons name="person" color={color} size={size} />,
+        }}
+      />
+      {/* Detalle de parada: navegable por push, oculto del tab bar. */}
+      <Tabs.Screen name="parada/[id]" options={{ href: null, title: "Entrega" }} />
+    </Tabs>
   );
 }
-
-const estilos = StyleSheet.create({
-  boton: { color: colors.white, fontSize: fontSize.body, fontWeight: "700", paddingHorizontal: spacing.sm },
-});

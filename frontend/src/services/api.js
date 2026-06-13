@@ -77,6 +77,17 @@ export const crearConductor = (datos) =>
   request("/conductores/", { method: "POST", body: datos });
 
 /* ============================================================
+   REPORTES DE INCIDENCIA  (el conductor reporta fallas; el admin responde)
+============================================================ */
+
+// estado opcional: "ABIERTO" | "RESUELTO".
+export const listarReportes = (estado) =>
+  request(`/reportes/${estado ? `?estado=${encodeURIComponent(estado)}` : ""}`);
+
+export const responderReporte = (id, datos) =>
+  request(`/reportes/${id}/responder`, { method: "POST", body: datos });
+
+/* ============================================================
    PEDIDOS  (Inbound — CUS-13 / CUS-15 / CUS-16)
 ============================================================ */
 

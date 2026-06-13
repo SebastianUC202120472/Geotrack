@@ -1,19 +1,23 @@
 // Campo de texto con etiqueta, accesible y de toque amplio.
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from "react-native";
-import { colors, fontSize, radius, spacing, touch } from "@/theme";
+import { useTheme, fontSize, radius, spacing, touch } from "@/theme";
 
 interface Props extends TextInputProps {
-  // Etiqueta visible encima del campo.
-  label: string;
+  label: string; // etiqueta visible encima del campo
 }
 
 // Recibe: { label, ...props de TextInput }.
 export function Field({ label, style, ...props }: Props) {
+  const { colors } = useTheme();
   return (
     <View style={estilos.grupo}>
-      <Text style={estilos.label}>{label}</Text>
+      <Text style={[estilos.label, { color: colors.text }]}>{label}</Text>
       <TextInput
-        style={[estilos.input, style]}
+        style={[
+          estilos.input,
+          { borderColor: colors.border, backgroundColor: colors.surface, color: colors.ink },
+          style,
+        ]}
         placeholderTextColor={colors.muted}
         accessibilityLabel={label}
         {...props}
@@ -24,15 +28,12 @@ export function Field({ label, style, ...props }: Props) {
 
 const estilos = StyleSheet.create({
   grupo: { gap: spacing.xs },
-  label: { fontSize: fontSize.body, fontWeight: "600", color: colors.text },
+  label: { fontSize: fontSize.body, fontWeight: "600" },
   input: {
     minHeight: touch.minTarget,
     borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.md,
-    backgroundColor: colors.surface,
     paddingHorizontal: spacing.lg,
     fontSize: fontSize.body,
-    color: colors.ink,
   },
 });

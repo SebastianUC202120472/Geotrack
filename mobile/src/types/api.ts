@@ -94,3 +94,29 @@ export interface Coordenadas {
   latitud: number;
   longitud: number;
 }
+
+// Perfil del conductor (GET /conductor/perfil).
+export interface PerfilConductor {
+  usuario_id: number;
+  codigo?: string | null;
+  correo: string;
+  nombre?: string | null;
+  telefono?: string | null;
+  dni?: string | null;
+  vehiculo?: { id: number; codigo?: string | null; placa: string } | null;
+}
+
+// Reporte de incidencia de un pedido.
+export interface Reporte {
+  id: number;
+  pedido_id: number;
+  pedido_codigo?: string | null;
+  direccion_destino?: string | null;
+  motivo: string;
+  descripcion?: string | null;
+  estado: string; // ABIERTO | RESUELTO
+  respuesta?: string | null;
+  accion?: string | null;
+  creado_en?: string | null;
+  respondido_en?: string | null;
+}

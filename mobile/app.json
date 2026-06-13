@@ -15,7 +15,11 @@
     },
     "android": {
       "package": "com.siolsava.geotrack",
-      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "CAMERA"],
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA"
+      ],
       "config": {
         "googleMaps": {
           "apiKey": ""

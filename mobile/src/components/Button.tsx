@@ -1,24 +1,20 @@
 // Botón grande y accesible (alto >= 48). Variantes de color y estado de carga.
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { colors, fontSize, radius, spacing, touch } from "@/theme";
+import { useTheme, spacing, fontSize, radius, touch } from "@/theme";
 
 type Variante = "primary" | "secondary" | "danger";
 
 interface Props {
-  // Texto del botón.
-  titulo: string;
-  // Acción al presionar.
-  onPress: () => void;
-  // Estilo de color (por defecto "primary").
-  variante?: Variante;
-  // Muestra spinner y deshabilita mientras true.
-  cargando?: boolean;
-  // Deshabilita el botón.
-  deshabilitado?: boolean;
+  titulo: string; // texto del botón
+  onPress: () => void; // acción al presionar
+  variante?: Variante; // estilo de color (por defecto "primary")
+  cargando?: boolean; // muestra spinner y deshabilita
+  deshabilitado?: boolean; // deshabilita el botón
 }
 
 // Botón táctil grande. Recibe: { titulo, onPress, variante?, cargando?, deshabilitado? }.
 export function Button({ titulo, onPress, variante = "primary", cargando, deshabilitado }: Props) {
+  const { colors } = useTheme();
   const inactivo = cargando || deshabilitado;
   const fondo =
     variante === "secondary" ? colors.surface : variante === "danger" ? colors.danger : colors.brand;
@@ -33,7 +29,7 @@ export function Button({ titulo, onPress, variante = "primary", cargando, deshab
       style={({ pressed }) => [
         estilos.base,
         { backgroundColor: fondo, opacity: inactivo ? 0.6 : pressed ? 0.85 : 1 },
-        variante === "secondary" && estilos.bordeSecundario,
+        variante === "secondary" && { borderWidth: 1, borderColor: colors.border },
       ]}
     >
       <View style={estilos.contenido}>
@@ -51,7 +47,6 @@ const estilos = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: spacing.lg,
   },
-  bordeSecundario: { borderWidth: 1, borderColor: colors.border },
   contenido: { flexDirection: "row", gap: spacing.sm, justifyContent: "center", alignItems: "center" },
   texto: { fontSize: fontSize.subtitle, fontWeight: "700" },
 });

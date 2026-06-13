@@ -1,7 +1,6 @@
 // Pantalla principal del conductor: su ruta activa con la secuencia de paradas,
 // el mapa del recorrido y los botones para iniciar (desde su ubicación) y
 // finalizar la ruta.
-import { useMemo } from "react";
 import { Alert, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Screen } from "@/components/Screen";
@@ -13,10 +12,11 @@ import { Cargando, ErrorVista, Vacio } from "@/components/Estados";
 import { useRutaActiva, useManifiesto, useNavegacion, useIniciarRuta, useFinalizarRuta } from "@/features/ruta/hooks";
 import { useUbicacionActual } from "@/hooks/useUbicacionActual";
 import { mensajeDeError } from "@/api/client";
-import { colors, fontSize, spacing } from "@/theme";
+import { useTheme, fontSize, spacing } from "@/theme";
 
 export default function RutaScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const ruta = useRutaActiva();
   const manifiesto = useManifiesto();
   const navegacion = useNavegacion();
@@ -68,36 +68,29 @@ export default function RutaScreen() {
   };
 
   // Cabecera de la lista: resumen, mapa y acciones.
-  const Cabecera = useMemo(
-    () => (
-      <View style={estilos.cabecera}>
-        {ruta.data && (
-          <Card>
-            <Text style={estilos.nombreRuta}>{ruta.data.nombre}</Text>
-            <Text style={estilos.codigo}>
-              {ruta.data.codigo ?? "—"} · {ruta.data.estado.replace("_", " ").toLowerCase()}
-            </Text>
-            <View style={estilos.contadores}>
-              <Contador valor={ruta.data.pendientes} etiqueta="Pendientes" color={colors.warning} />
-              <Contador valor={ruta.data.entregadas} etiqueta="Entregadas" color={colors.success} />
-              <Contador valor={ruta.data.fallidas} etiqueta="Fallidas" color={colors.danger} />
-            </View>
-          </Card>
-        )}
+  const Cabecera = (
+    <View style={estilos.cabecera}>
+      {ruta.data && (
+        <Card>
+          <Text style={[estilos.nombreRuta, { color: colors.ink }]}>{ruta.data.nombre}</Text>
+          <Text style={[estilos.codigo, { color: colors.muted }]}>
+            {ruta.data.codigo ?? "—"} · {ruta.data.estado.replace("_", " ").toLowerCase()}
+          </Text>
+          <View style={estilos.contadores}>
+            <Contador valor={ruta.data.pendientes} etiqueta="Pendientes" color={colors.warning} mutedColor={colors.muted} />
+            <Contador valor={ruta.data.entregadas} etiqueta="Entregadas" color={colors.success} mutedColor={colors.muted} />
+            <Contador valor={ruta.data.fallidas} etiqueta="Fallidas" color={colors.danger} mutedColor={colors.muted} />
+          </View>
+        </Card>
+      )}
 
-        <MapaRuta paradas={navegacion.data?.paradas ?? []} />
+      <MapaRuta paradas={navegacion.data?.paradas ?? []} />
 
-        <Button
-          titulo="Iniciar ruta desde mi ubicación"
-          onPress={iniciarRuta}
-          cargando={ubicacion.cargando || iniciar.isPending}
-        />
-        <Button titulo="Finalizar ruta" variante="secondary" onPress={finalizarRuta} cargando={finalizar.isPending} />
+      <Button titulo="Iniciar ruta desde mi ubicación" onPress={iniciarRuta} cargando={ubicacion.cargando || iniciar.isPending} />
+      <Button titulo="Finalizar ruta" variante="secondary" onPress={finalizarRuta} cargando={finalizar.isPending} />
 
-        <Text style={estilos.seccion}>Paradas ({paradas.length})</Text>
-      </View>
-    ),
-    [ruta.data, navegacion.data, paradas.length, ubicacion.cargando, iniciar.isPending, finalizar.isPending]
+      <Text style={[estilos.seccion, { color: colors.ink }]}>Paradas ({paradas.length})</Text>
+    </View>
   );
 
   if (ruta.isLoading || manifiesto.isLoading) return <Screen><Cargando /></Screen>;
@@ -105,20 +98,13 @@ export default function RutaScreen() {
   if (sinRuta) {
     return (
       <Screen>
-        <Vacio
-          titulo="No tienes una ruta asignada"
-          detalle="Cuando el administrador te asigne pedidos, aparecerán aquí."
-        />
+        <Vacio titulo="No tienes una ruta asignada" detalle="Cuando el administrador te asigne pedidos, aparecerán aquí." />
       </Screen>
     );
   }
 
   if (ruta.isError) {
-    return (
-      <Screen>
-        <ErrorVista mensaje={mensajeDeError(ruta.error)} onReintentar={refrescar} />
-      </Screen>
-    );
+    return <Screen><ErrorVista mensaje={mensajeDeError(ruta.error)} onReintentar={refrescar} /></Screen>;
   }
 
   return (
@@ -138,12 +124,12 @@ export default function RutaScreen() {
   );
 }
 
-// Contador compacto para el resumen. Recibe: { valor, etiqueta, color }.
-function Contador({ valor, etiqueta, color }: { valor: number; etiqueta: string; color: string }) {
+// Contador compacto para el resumen. Recibe: { valor, etiqueta, color, mutedColor }.
+function Contador({ valor, etiqueta, color, mutedColor }: { valor: number; etiqueta: string; color: string; mutedColor: string }) {
   return (
     <View style={estilos.contador}>
       <Text style={[estilos.contadorValor, { color }]}>{valor}</Text>
-      <Text style={estilos.contadorEtiqueta}>{etiqueta}</Text>
+      <Text style={[estilos.contadorEtiqueta, { color: mutedColor }]}>{etiqueta}</Text>
     </View>
   );
 }
@@ -151,11 +137,11 @@ function Contador({ valor, etiqueta, color }: { valor: number; etiqueta: string;
 const estilos = StyleSheet.create({
   lista: { padding: spacing.lg },
   cabecera: { gap: spacing.md, marginBottom: spacing.md },
-  nombreRuta: { fontSize: fontSize.title, fontWeight: "800", color: colors.ink },
-  codigo: { fontSize: fontSize.body, color: colors.muted, marginTop: 2, textTransform: "capitalize" },
+  nombreRuta: { fontSize: fontSize.title, fontWeight: "800" },
+  codigo: { fontSize: fontSize.body, marginTop: 2, textTransform: "capitalize" },
   contadores: { flexDirection: "row", justifyContent: "space-around", marginTop: spacing.lg },
   contador: { alignItems: "center" },
   contadorValor: { fontSize: fontSize.title, fontWeight: "800" },
-  contadorEtiqueta: { fontSize: fontSize.caption, color: colors.muted },
-  seccion: { fontSize: fontSize.subtitle, fontWeight: "700", color: colors.ink, marginTop: spacing.sm },
+  contadorEtiqueta: { fontSize: fontSize.caption },
+  seccion: { fontSize: fontSize.subtitle, fontWeight: "700", marginTop: spacing.sm },
 });
