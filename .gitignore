@@ -1,0 +1,33 @@
+# =============================================================================
+# .gitignore del MONOREPO GeoTrack
+# =============================================================================
+
+# --- Secretos / entorno (NUNCA subir) ---
+.env
+.env.*
+!.env.example
+
+# --- Backend (Python) ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+# Evidencias / archivos subidos en runtime (se sirven en /media)
+backend/uploads/
+
+# --- Frontend (Node / Vite) ---
+node_modules/
+dist/
+dist-ssr/
+*.local
+npm-debug.log*
+
+# --- Editores / SO ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.swp

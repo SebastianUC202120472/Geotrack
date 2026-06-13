@@ -1,0 +1,119 @@
+# .github/workflows/ci.yml
+# ============================================================================
+# CI/CD del MONOREPO GeoTrack — GitHub Actions
+# ----------------------------------------------------------------------------
+# ¿QUÉ HACE?  En cada push o Pull Request a develop/main, GitHub:
+#   - backend:   instala deps, verifica que la app importa y corre pytest.
+#   - seguridad: análisis estático (bandit) + vulnerabilidades de deps (pip-audit).
+#   - frontend:  instala deps (npm ci), corre lint y compila el build de Vite.
+#
+# IMPORTANTE (monorepo): el backend vive en ./backend y el frontend en ./frontend,
+# por eso cada job usa `working-directory` y los caches apuntan a su subcarpeta.
+# ============================================================================
+name: CI - GeoTrack (monorepo)
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  # ==========================================================================
+  # BACKEND — FastAPI (subcarpeta ./backend)
+  # ==========================================================================
+  backend:
+    name: Backend · instalar y testear (FastAPI)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Clonar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Verificar que la app arranca (import)
+        run: python -c "import app.main; print('App GeoTrack importada correctamente')"
+
+      - name: Ejecutar pruebas (pytest)
+        run: pytest -q
+
+  # ==========================================================================
+  # SEGURIDAD — análisis estático + CVEs de dependencias (sobre ./backend)
+  # ==========================================================================
+  seguridad:
+    name: Backend · seguridad (bandit + pip-audit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Clonar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Instalar dependencias + herramientas de seguridad
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install bandit pip-audit
+
+      - name: Bandit (análisis estático del código)
+        run: bandit -r app --severity-level medium --confidence-level medium
+
+      - name: pip-audit (vulnerabilidades en dependencias)
+        run: pip-audit
+        continue-on-error: true
+
+  # ==========================================================================
+  # FRONTEND — React 19 + Vite (subcarpeta ./frontend)
+  # ==========================================================================
+  frontend:
+    name: Frontend · lint y build (Vite)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Clonar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalar dependencias (npm ci)
+        run: npm ci
+
+      - name: Lint (ESLint)
+        run: npm run lint
+        continue-on-error: true   # informativo: no bloquea el build por warnings de estilo
+
+      - name: Compilar build de producción (Vite)
+        # Mismas rutas relativas que en docker-compose: el bundle pega contra Nginx.
+        env:
+          VITE_API_URL: /api
+          VITE_WS_URL: /
+        run: npm run build

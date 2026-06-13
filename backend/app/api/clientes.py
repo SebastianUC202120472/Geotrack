@@ -1,0 +1,36 @@
+# app/api/clientes.py
+# ============================================================================
+# CAPA: API / ROUTER (puerta de entrada HTTP) — Clean Architecture
+# ----------------------------------------------------------------------------
+# ¿QUÉ HACE?  El "apartado de clientes" del panel web del admin (Fase 4 / tesis):
+#               GET  /api/clientes   -> listar empresas cliente
+#               POST /api/clientes   -> registrar una empresa cliente
+# ¿CÓMO?      Endpoints delgados que delegan en services/cliente_service.py.
+# SEGURIDAD:  Exigen rol 'admin' (Depends(get_current_admin)).
+# ¿CON QUÉ SE CONECTA?
+#   - services/cliente_service.py -> lógica.
+#   - schemas/cliente.py          -> moldes.
+#   - Lo registra: main.py con el prefijo /api/clientes.
+# ============================================================================
+from typing import List
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
+from app.db.database import get_db
+from app.api.deps import get_current_admin
+from app.services import cliente_service
+from app.schemas.cliente import ClienteCreate, ClienteResponse
+
+router = APIRouter()
+
+
+@router.get("/", response_model=List[ClienteResponse], dependencies=[Depends(get_current_admin)])
+def listar_clientes(db: Session = Depends(get_db)):
+    """Lista las empresas cliente registradas."""
+    return cliente_service.listar_clientes(db)
+
+
+@router.post("/", response_model=ClienteResponse, dependencies=[Depends(get_current_admin)])
+def crear_cliente(datos: ClienteCreate, db: Session = Depends(get_db)):
+    """Registra una empresa cliente (también se crean solas al cargar el Excel)."""
+    return cliente_service.crear_cliente(db, datos)

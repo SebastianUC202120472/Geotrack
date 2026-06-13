@@ -1,0 +1,23 @@
+# Evita copiar basura al contexto de build y, sobre todo, evita que el .env
+# local (que apunta a http://localhost:8000) entre a la imagen y SOBRESCRIBA
+# los build args VITE_* que inyecta docker-compose.
+node_modules
+dist
+dist-ssr
+
+# Variables de entorno locales: NO deben entrar al build.
+.env
+.env.*
+
+# Control de versiones y metadatos
+.git
+.gitignore
+
+# Logs y temporales
+*.log
+npm-debug.log*
+.DS_Store
+
+# Artefactos de Docker (no se necesitan dentro del contexto de la imagen)
+Dockerfile
+.dockerignore

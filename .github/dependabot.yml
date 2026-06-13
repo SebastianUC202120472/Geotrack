@@ -1,0 +1,54 @@
+# .github/dependabot.yml
+# ============================================================================
+# Dependabot del MONOREPO GeoTrack — Gestión automática de vulnerabilidades
+# ----------------------------------------------------------------------------
+# Revisa semanalmente las dependencias de CADA subproyecto y abre Pull Requests
+# agrupados (un PR por ecosistema) si hay actualizaciones o fallos de seguridad.
+# Ignora saltos de versión MAYOR (suelen romper). Repo -> "Security" -> Dependabot.
+# ============================================================================
+version: 2
+updates:
+  # --- Backend: dependencias de Python (lee backend/requirements.txt) ---
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      dependencias-python:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # --- Frontend: dependencias de Node (lee frontend/package.json) ---
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      dependencias-frontend:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # --- GitHub Actions usadas en el CI ---
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  # --- Imágenes base de los Dockerfiles (backend y frontend) ---
+  - package-ecosystem: "docker"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"

@@ -1,0 +1,371 @@
+# app/services/ruta_service.py
+# ============================================================================
+# CAPA: SERVICIO (lógica de negocio) — Clean Architecture
+# ----------------------------------------------------------------------------
+# ¿QUÉ HACE?  Reúne la lógica de RUTAS en dos momentos del MVP:
+#               - FASE 2 (admin/web): armar una ruta con pedidos (CUS-18) y
+#                 optimizar matemáticamente su secuencia (CUS-19).
+#               - FASE 3 (app móvil): consultar ruta activa, manifiesto,
+#                 navegación, validar QR, registrar entregas/evidencias y cerrar.
+# ¿CÓMO?      Coordina los repositorios (datos) con el motor VRP (router.py).
+# ¿CON QUÉ SE CONECTA?
+#   - repositories/ruta_repository.py   -> datos de rutas y detalles.
+#   - repositories/pedido_repository.py -> pedidos pendientes de un distrito.
+#   - services/router.py                -> algoritmo de optimización (Vecino + Cercano).
+#   - schemas/ruta.py                   -> moldes de respuesta.
+#   - Lo USAN: api/rutas.py (Fase 2) y api/conductor.py (Fase 3).
+# ============================================================================
+import os
+from datetime import datetime
+
+from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
+
+from app.models.ruta import Ruta, RutaDetalle
+from app.models.pedido import Pedido
+from app.repositories import ruta_repository, pedido_repository, historial_repository
+from app.services.router import optimizar_secuencia_pedidos
+from app.schemas.ruta import (
+    RutaActivaResponse,
+    ManifiestoResponse,
+    ParadaManifiesto,
+    NavegacionResponse,
+    ParadaNavegacion,
+    ValidacionQRResponse,
+    GestionParadaResponse,
+    CierreRutaResponse,
+    AsignacionBloqueRequest,
+    OptimizacionRequest,
+)
+
+# Carpeta donde se guardan las fotos POD (CUS-29). Servida en /media.
+DIR_EVIDENCIAS = os.path.join("uploads", "evidencias")
+EXTENSIONES_IMAGEN = {".jpg", ".jpeg", ".png", ".webp"}
+
+
+def _construir_parada(detalle: RutaDetalle, pedido: Pedido) -> ParadaManifiesto:
+    return ParadaManifiesto(
+        secuencia=detalle.secuencia,
+        detalle_id=detalle.id,
+        pedido_id=pedido.id,
+        codigo=pedido.codigo,
+        cliente_origen=pedido.cliente_origen,
+        # Datos del destinatario: el conductor necesita saber a QUIÉN entrega.
+        nombre_destinatario=pedido.nombre_destinatario,
+        telefono_destinatario=pedido.telefono_destinatario,
+        direccion_destino=pedido.direccion_destino,
+        distrito=pedido.distrito,
+        latitud=pedido.latitud,
+        longitud=pedido.longitud,
+        peso_kg=pedido.peso_kg,
+        estado_entrega=detalle.estado_entrega,
+    )
+
+
+def _obtener_ruta_activa_o_404(db: Session, conductor_id: int) -> Ruta:
+    ruta = ruta_repository.obtener_ruta_activa_por_conductor(db, conductor_id)
+    if not ruta:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No tienes una ruta activa asignada",
+        )
+    return ruta
+
+
+def obtener_resumen_ruta_activa(db: Session, conductor_id: int) -> RutaActivaResponse:
+    """CUS-21: resumen de la ruta activa con contadores de avance."""
+    ruta = _obtener_ruta_activa_o_404(db, conductor_id)
+    detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
+
+    pendientes = sum(1 for d, _ in detalles if d.estado_entrega == "PENDIENTE")
+    entregadas = sum(1 for d, _ in detalles if d.estado_entrega == "ENTREGADO")
+    fallidas = sum(1 for d, _ in detalles if d.estado_entrega == "FALLIDO")
+
+    return RutaActivaResponse(
+        ruta_id=ruta.id,
+        codigo=ruta.codigo,
+        nombre=ruta.nombre,
+        estado=ruta.estado,
+        fecha_creacion=ruta.fecha_creacion,
+        vehiculo_placa=ruta.vehiculo_placa,
+        total_paradas=len(detalles),
+        pendientes=pendientes,
+        entregadas=entregadas,
+        fallidas=fallidas,
+    )
+
+
+def obtener_manifiesto(db: Session, conductor_id: int) -> ManifiestoResponse:
+    """CUS-24: manifiesto detallado y ordenado por secuencia de entrega."""
+    ruta = _obtener_ruta_activa_o_404(db, conductor_id)
+    detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
+
+    paradas = [_construir_parada(detalle, pedido) for detalle, pedido in detalles]
+
+    return ManifiestoResponse(
+        ruta_id=ruta.id,
+        codigo=ruta.codigo,
+        nombre=ruta.nombre,
+        estado=ruta.estado,
+        total_paradas=len(paradas),
+        paradas=paradas,
+    )
+
+
+def obtener_navegacion(db: Session, conductor_id: int) -> NavegacionResponse:
+    """CUS-25: waypoints (lat/lng) ordenados para alimentar el mapa de la App."""
+    ruta = _obtener_ruta_activa_o_404(db, conductor_id)
+    detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
+
+    paradas = [
+        ParadaNavegacion(
+            secuencia=detalle.secuencia,
+            pedido_id=pedido.id,
+            codigo=pedido.codigo,
+            latitud=pedido.latitud,
+            longitud=pedido.longitud,
+        )
+        for detalle, pedido in detalles
+        if pedido.latitud is not None and pedido.longitud is not None
+    ]
+
+    return NavegacionResponse(
+        ruta_id=ruta.id,
+        total_paradas=len(paradas),
+        paradas=paradas,
+    )
+
+
+# ============ FASE 3.2: Validación en almacén (CUS-22) ============
+def validar_paquete_qr(
+    db: Session, conductor_id: int, codigo: str
+) -> ValidacionQRResponse:
+    """Verifica si el paquete escaneado (código PD-001) pertenece a la ruta activa."""
+    ruta = _obtener_ruta_activa_o_404(db, conductor_id)
+
+    pedido = ruta_repository.obtener_pedido_por_codigo(db, codigo)
+    if not pedido:
+        return ValidacionQRResponse(
+            pertenece=False,
+            mensaje=f"El paquete '{codigo}' no existe en el sistema",
+        )
+
+    detalle = ruta_repository.obtener_detalle_de_ruta(db, ruta.id, pedido.id)
+    if not detalle:
+        return ValidacionQRResponse(
+            pertenece=False,
+            mensaje="Este paquete NO pertenece a tu ruta de hoy",
+        )
+
+    return ValidacionQRResponse(
+        pertenece=True,
+        mensaje="Paquete validado correctamente. Pertenece a tu ruta.",
+        parada=_construir_parada(detalle, pedido),
+    )
+
+
+# ============ FASE 3.3: Ejecución y evidencias (CUS-26 / CUS-29) ============
+def _obtener_detalle_de_mi_ruta(
+    db: Session, conductor_id: int, pedido_id: int
+) -> RutaDetalle:
+    """Recupera el detalle del pedido garantizando que pertenece a la ruta activa del conductor."""
+    ruta = _obtener_ruta_activa_o_404(db, conductor_id)
+    detalle = ruta_repository.obtener_detalle_de_ruta(db, ruta.id, pedido_id)
+    if not detalle:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Este pedido no pertenece a tu ruta activa",
+        )
+    return detalle
+
+
+def actualizar_estado_parada(
+    db: Session,
+    conductor_id: int,
+    pedido_id: int,
+    estado: str,
+    motivo_fallo: str | None,
+) -> GestionParadaResponse:
+    """CUS-26: marca un pedido como ENTREGADO o FALLIDO."""
+    if estado == "FALLIDO" and not (motivo_fallo and motivo_fallo.strip()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Debes indicar el motivo del fallo en una entrega fallida",
+        )
+
+    detalle = _obtener_detalle_de_mi_ruta(db, conductor_id, pedido_id)
+    pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
+
+    ahora = datetime.utcnow()
+    estado_anterior = pedido.estado
+    detalle.estado_entrega = estado
+    detalle.fecha_gestion = ahora
+    detalle.motivo_fallo = motivo_fallo if estado == "FALLIDO" else None
+
+    # Reflejamos el estado en el Pedido (trazabilidad para CUS-35)
+    pedido.estado = estado
+    pedido.fecha_entrega = ahora if estado == "ENTREGADO" else None
+
+    # La primera gestión arranca la ruta (CREADA -> EN_PROGRESO)
+    if detalle.ruta and detalle.ruta.estado == "CREADA":
+        detalle.ruta.estado = "EN_PROGRESO"
+
+    # Registramos el evento en el historial (quién = el conductor).
+    historial_repository.registrar(db, pedido.id, estado_anterior, estado, conductor_id)
+
+    db.commit()
+    db.refresh(detalle)
+
+    return GestionParadaResponse(
+        pedido_id=pedido.id,
+        codigo=pedido.codigo,
+        estado_entrega=detalle.estado_entrega,
+        motivo_fallo=detalle.motivo_fallo,
+        url_evidencia=detalle.url_evidencia,
+        fecha_gestion=detalle.fecha_gestion,
+        mensaje=f"Pedido marcado como {estado}",
+    )
+
+
+def guardar_evidencia(
+    db: Session,
+    conductor_id: int,
+    pedido_id: int,
+    contenido: bytes,
+    nombre_archivo: str,
+) -> GestionParadaResponse:
+    """CUS-29: guarda la foto POD y la asocia al detalle de la ruta."""
+    detalle = _obtener_detalle_de_mi_ruta(db, conductor_id, pedido_id)
+
+    _, extension = os.path.splitext(nombre_archivo.lower())
+    if extension not in EXTENSIONES_IMAGEN:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Formato no permitido. Usa: {', '.join(sorted(EXTENSIONES_IMAGEN))}",
+        )
+
+    os.makedirs(DIR_EVIDENCIAS, exist_ok=True)
+    nombre_final = f"pod_{detalle.ruta_id}_{pedido_id}{extension}"
+    ruta_fisica = os.path.join(DIR_EVIDENCIAS, nombre_final)
+    with open(ruta_fisica, "wb") as f:
+        f.write(contenido)
+
+    # URL pública servida por StaticFiles (montado en /media)
+    detalle.url_evidencia = f"/media/evidencias/{nombre_final}"
+    db.commit()
+    db.refresh(detalle)
+
+    pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
+    return GestionParadaResponse(
+        pedido_id=pedido.id,
+        codigo=pedido.codigo,
+        estado_entrega=detalle.estado_entrega,
+        motivo_fallo=detalle.motivo_fallo,
+        url_evidencia=detalle.url_evidencia,
+        fecha_gestion=detalle.fecha_gestion,
+        mensaje="Evidencia (POD) cargada correctamente",
+    )
+
+
+# ============ FASE 3.4: Cierre de operación (CUS-28) ============
+def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
+    """CUS-28: da por finalizada la ruta del día del conductor."""
+    ruta = _obtener_ruta_activa_o_404(db, conductor_id)
+    detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
+
+    pendientes = sum(1 for d, _ in detalles if d.estado_entrega == "PENDIENTE")
+    entregadas = sum(1 for d, _ in detalles if d.estado_entrega == "ENTREGADO")
+    fallidas = sum(1 for d, _ in detalles if d.estado_entrega == "FALLIDO")
+
+    ruta.estado = "FINALIZADA"
+    ruta.fecha_fin = datetime.utcnow()
+    db.commit()
+
+    mensaje = "Ruta finalizada correctamente"
+    if pendientes:
+        mensaje += f" (quedaron {pendientes} paradas sin gestionar)"
+
+    return CierreRutaResponse(
+        ruta_id=ruta.id,
+        codigo=ruta.codigo,
+        nombre=ruta.nombre,
+        estado=ruta.estado,
+        fecha_fin=ruta.fecha_fin,
+        total_paradas=len(detalles),
+        entregadas=entregadas,
+        fallidas=fallidas,
+        pendientes=pendientes,
+        mensaje=mensaje,
+    )
+
+
+# ============ FASE 2: Enrutamiento básico (CUS-18) ============
+def asignar_bloque(db: Session, datos: AsignacionBloqueRequest, usuario_id: int | None = None) -> dict:
+    """
+    CUS-18: el admin crea una ruta para un conductor con TODOS los pedidos
+    PENDIENTES de un distrito.
+    Pasos: buscar pedidos -> crear la ruta -> colgar cada pedido como detalle
+           (secuencia=0, aún sin optimizar) -> marcar pedidos como 'ASIGNADO'
+           -> registrar el evento en el historial.
+    """
+    pedidos = pedido_repository.obtener_pendientes_por_distrito(db, datos.distrito)
+    if not pedidos:
+        raise HTTPException(status_code=400, detail="No hay pedidos pendientes para esa zona")
+
+    ruta = ruta_repository.crear_ruta(db, nombre=datos.nombre_ruta, conductor_id=datos.conductor_id)
+
+    for pedido in pedidos:
+        ruta_repository.agregar_detalle(db, ruta_id=ruta.id, pedido_id=pedido.id, secuencia=0)
+        estado_anterior = pedido.estado
+        pedido.estado = "ASIGNADO"
+        historial_repository.registrar(db, pedido.id, estado_anterior, "ASIGNADO", usuario_id)
+
+    ruta_repository.guardar_cambios(db)
+
+    return {
+        "mensaje": f"{len(pedidos)} pedidos asignados a la ruta '{datos.nombre_ruta}'",
+        "ruta_id": ruta.id,
+        "codigo": ruta.codigo,
+    }
+
+
+# ============ FASE 2: Optimización VRP (CUS-19) ============
+def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -> dict:
+    """
+    CUS-19: el conductor optimiza el orden de entrega de SU ruta partiendo de
+    su posición actual. Usa el algoritmo del Vecino Más Cercano (router.py).
+    """
+    ruta = ruta_repository.obtener_ruta_por_id(db, datos.ruta_id)
+    if not ruta:
+        raise HTTPException(status_code=404, detail="Ruta no encontrada")
+
+    # Seguridad: un conductor solo puede optimizar su propia ruta.
+    if ruta.conductor_id != conductor_id:
+        raise HTTPException(status_code=403, detail="Esta ruta no está asignada a tu usuario")
+
+    # Tomamos los pedidos de la ruta que tienen coordenadas válidas.
+    detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
+    pedidos_validos = [pedido for _, pedido in detalles if pedido.latitud is not None]
+    if not pedidos_validos:
+        raise HTTPException(status_code=400, detail="La ruta no tiene pedidos válidos para optimizar")
+
+    # CEREBRO MATEMÁTICO: ordena los pedidos minimizando distancia (VRP greedy).
+    ordenados = optimizar_secuencia_pedidos(
+        pedidos_validos,
+        datos.latitud_actual_conductor,
+        datos.longitud_actual_conductor,
+    )
+
+    # Escribimos la secuencia final (1, 2, 3...) en cada detalle.
+    secuencia = 1
+    for pedido in ordenados:
+        detalle = ruta_repository.obtener_detalle_de_ruta(db, ruta.id, pedido.id)
+        detalle.secuencia = secuencia
+        estado_anterior = pedido.estado
+        pedido.estado = "EN_RUTA"
+        historial_repository.registrar(db, pedido.id, estado_anterior, "EN_RUTA", conductor_id)
+        secuencia += 1
+
+    ruta_repository.guardar_cambios(db)
+
+    return {"mensaje": "Ruta optimizada matemáticamente", "total_paradas": len(ordenados)}

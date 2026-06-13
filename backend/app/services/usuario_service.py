@@ -1,0 +1,76 @@
+# app/services/usuario_service.py
+# ============================================================================
+# CAPA: SERVICIO (lógica de negocio) — Clean Architecture
+# ----------------------------------------------------------------------------
+# ¿QUÉ HACE?  Contiene las REGLAS del registro y el login (CUS-01 y CUS-02):
+#             validar que el correo no exista, encriptar la contraseña,
+#             verificar credenciales y generar el token JWT.
+# ¿CÓMO?      Orquesta el repositorio (datos) con el módulo de seguridad (hash/JWT).
+# ¿CON QUÉ SE CONECTA?
+#   - repositories/usuario_repository.py -> para leer/crear usuarios.
+#   - core/security.py                   -> para encriptar y firmar el JWT.
+#   - schemas/usuario.py                 -> el "molde" de datos de entrada.
+#   - Lo USA: api/auth.py (los endpoints HTTP).
+# ============================================================================
+from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
+
+from app.repositories import usuario_repository
+from app.core.security import get_password_hash, verify_password, create_access_token
+from app.models.usuario import Usuario
+from app.schemas.usuario import UsuarioCreate
+
+
+def registrar_usuario(db: Session, datos: UsuarioCreate) -> Usuario:
+    """
+    CUS-01: registra un usuario nuevo.
+    1) Comprueba que el correo no esté ya en uso.
+    2) Encripta la contraseña (nunca se guarda en texto plano).
+    3) Pide al repositorio que lo guarde.
+    """
+    if usuario_repository.obtener_por_correo(db, datos.correo):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El correo ya está registrado",
+        )
+
+    hash_contrasena = get_password_hash(datos.contrasena)
+    # datos.rol es un Enum (RolUsuario); guardamos su valor de texto ('admin'/'conductor').
+    return usuario_repository.crear_usuario(
+        db, correo=datos.correo, hash_contrasena=hash_contrasena, rol=datos.rol.value
+    )
+
+
+def crear_admin_inicial(db: Session, correo: str, contrasena: str) -> None:
+    """
+    Crea un usuario admin "semilla" al arrancar SI no existe ya.
+    Esto resuelve el problema del huevo y la gallina: como el registro está
+    cerrado (solo admin), necesitamos un primer admin para poder entrar.
+    Sus credenciales vienen de variables de entorno (ADMIN_EMAIL/ADMIN_PASSWORD).
+    """
+    if not correo or not contrasena:
+        return
+    if usuario_repository.obtener_por_correo(db, correo):
+        return  # ya existe, no lo recreamos
+    usuario_repository.crear_usuario(
+        db, correo=correo, hash_contrasena=get_password_hash(contrasena), rol="admin"
+    )
+
+
+def autenticar_y_generar_token(db: Session, correo: str, contrasena: str) -> str:
+    """
+    CUS-02: valida las credenciales y devuelve un token JWT.
+    El token lleva 'sub' (correo) y 'rol', que luego usa deps.py para
+    saber quién pide cada endpoint y con qué permisos.
+    """
+    usuario = usuario_repository.obtener_por_correo(db, correo)
+
+    # Si el usuario no existe O la contraseña no coincide -> 401.
+    if not usuario or not verify_password(contrasena, usuario.hash_contrasena):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Correo o contraseña incorrectos",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return create_access_token(data={"sub": usuario.correo, "rol": usuario.rol})

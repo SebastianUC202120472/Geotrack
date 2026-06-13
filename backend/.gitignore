@@ -1,0 +1,23 @@
+# Entornos virtuales
+venv/
+env/
+
+# Caché de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Variables de entorno (¡Muy importante no subir esto!)
+.env
+
+# Archivos de SO y Editores
+.DS_Store
+.vscode/
+.idea/
+
+# Datos de Base de Datos local (si los tuvieras mapeados en una carpeta)
+postgres_data/
+
+# Evidencias POD subidas en runtime (CUS-29): versionamos la carpeta, no las fotos
+uploads/evidencias/*
+!uploads/evidencias/.gitkeep
