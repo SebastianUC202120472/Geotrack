@@ -41,7 +41,8 @@
           "photosPermission": "Necesitamos tu galería para adjuntar la foto de entrega (POD).",
           "cameraPermission": "Necesitamos la cámara para tomar la foto de entrega (POD)."
         }
-      ]
+      ],
+      "expo-font"
     ]
   }
 }

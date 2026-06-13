@@ -1,15 +1,17 @@
 // Pantalla principal del conductor: su ruta activa con la secuencia de paradas,
 // el mapa del recorrido y los botones para iniciar (desde su ubicación) y
 // finalizar la ruta.
+import { useCallback } from "react";
 import { Alert, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { MapaRuta } from "@/components/MapaRuta";
 import { ParadaItem } from "@/components/ParadaItem";
 import { Cargando, ErrorVista, Vacio } from "@/components/Estados";
-import { useRutaActiva, useManifiesto, useNavegacion, useIniciarRuta, useFinalizarRuta } from "@/features/ruta/hooks";
+import { useRutaActiva, useManifiesto, useNavegacion, useIniciarRuta, useFinalizarRuta, claves } from "@/features/ruta/hooks";
 import { useUbicacionActual } from "@/hooks/useUbicacionActual";
 import { mensajeDeError } from "@/api/client";
 import { useTheme, fontSize, spacing } from "@/theme";
@@ -23,6 +25,16 @@ export default function RutaScreen() {
   const ubicacion = useUbicacionActual();
   const iniciar = useIniciarRuta();
   const finalizar = useFinalizarRuta();
+  const qc = useQueryClient();
+
+  // Al volver a esta pestaña, vuelve a pedir los datos (se ven los cambios al instante).
+  useFocusEffect(
+    useCallback(() => {
+      qc.invalidateQueries({ queryKey: claves.rutaActiva });
+      qc.invalidateQueries({ queryKey: claves.manifiesto });
+      qc.invalidateQueries({ queryKey: claves.navegacion });
+    }, [qc])
+  );
 
   const paradas = manifiesto.data?.paradas ?? [];
   const sinRuta = (ruta.error as { response?: { status?: number } } | null)?.response?.status === 404;

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend,
@@ -31,8 +32,12 @@ const TENDENCIA_EJEMPLO = [
 ];
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [resumen, setResumen] = useState(null);
   const [pedidos, setPedidos] = useState([]);
+
+  // Lleva a la lista de Pedidos ya filtrada por ese estado (clic en la gráfica).
+  const irAEstado = (estadoRaw) => estadoRaw && navigate(`/pedidos?estado=${encodeURIComponent(estadoRaw)}`);
 
   useEffect(() => {
     obtenerResumen().then(setResumen).catch(() => {});
@@ -67,7 +72,7 @@ export default function Dashboard() {
 
       {/* Gráficos */}
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card title="Pedidos por estado" className="lg:col-span-2">
+        <Card title="Pedidos por estado" subtitle="Toca un estado para ver esos pedidos" className="lg:col-span-2">
           {datosEstado.length === 0 ? (
             <VacioGrafico />
           ) : (
@@ -77,7 +82,8 @@ export default function Dashboard() {
                 <XAxis dataKey="estado" tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={{ stroke: "#e2e8f0" }} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={false} />
                 <Tooltip cursor={{ fill: "#f1f5f9" }} contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13 }} />
-                <Bar dataKey="cantidad" radius={[6, 6, 0, 0]} maxBarSize={56}>
+                <Bar dataKey="cantidad" radius={[6, 6, 0, 0]} maxBarSize={56} cursor="pointer"
+                  onClick={(d) => irAEstado(d?.estadoRaw)}>
                   {datosEstado.map((d) => (
                     <Cell key={d.estadoRaw} fill={COLOR_ESTADO[d.estadoRaw] || "#2563eb"} />
                   ))}
@@ -93,7 +99,8 @@ export default function Dashboard() {
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <PieChart>
-                <Pie data={datosEstado} dataKey="cantidad" nameKey="estado" innerRadius={58} outerRadius={92} paddingAngle={2}>
+                <Pie data={datosEstado} dataKey="cantidad" nameKey="estado" innerRadius={58} outerRadius={92} paddingAngle={2}
+                  cursor="pointer" onClick={(d) => irAEstado(d?.estadoRaw)}>
                   {datosEstado.map((d) => (
                     <Cell key={d.estadoRaw} fill={COLOR_ESTADO[d.estadoRaw] || "#2563eb"} />
                   ))}

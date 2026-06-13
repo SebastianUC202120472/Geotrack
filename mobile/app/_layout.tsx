@@ -1,16 +1,21 @@
 // Layout raíz: tema + React Query + sesión, y protección de rutas (sin token no
 // se entra a las pantallas internas; con token no se vuelve al login).
 import { useEffect } from "react";
+import { AppState } from "react-native";
 import { Slot, useRouter, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
 import { ThemeProvider, useTheme } from "@/theme";
 import { AuthProvider, useAuth } from "@/store/auth";
 import { Cargando } from "@/components/Estados";
 
+// Datos "frescos" por poco tiempo: así al volver a la app o a una pantalla se
+// vuelven a pedir y la información se actualiza sola (sin cerrar sesión).
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } },
+  defaultOptions: {
+    queries: { staleTime: 5_000, refetchOnWindowFocus: true, refetchOnReconnect: true },
+  },
 });
 
 // Barra de estado adaptada al tema. No recibe props.
@@ -38,6 +43,14 @@ function Guardia() {
 
 // Punto de entrada de la navegación.
 export default function RootLayout() {
+  // React Query refresca al volver la app a primer plano (foco por AppState).
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (estado) => {
+      focusManager.setFocused(estado === "active");
+    });
+    return () => sub.remove();
+  }, []);
+
   return (
     <SafeAreaProvider>
       <ThemeProvider>

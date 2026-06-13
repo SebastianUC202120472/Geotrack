@@ -25,6 +25,18 @@ DESCRIPCIONES_ESTADO = {
 }
 
 
+def _nombre_conductor(db: Session, conductor_id) -> str | None:
+    """Nombre del conductor (de su perfil) o su correo. Recibe: conductor_id o None."""
+    if not conductor_id:
+        return None
+    from app.models.conductor import PerfilConductor
+    perfil = db.query(PerfilConductor).filter(PerfilConductor.usuario_id == conductor_id).first()
+    if perfil and perfil.nombre:
+        return perfil.nombre
+    u = usuario_repository.obtener_por_id(db, conductor_id)
+    return u.correo if u else None
+
+
 def _contar_estados(detalles) -> tuple[int, int, int]:
     """Cuenta (entregadas, fallidas, pendientes) a partir de los detalles de una ruta."""
     entregadas = sum(1 for d, _ in detalles if d.estado_entrega == "ENTREGADO")
@@ -134,6 +146,7 @@ def obtener_historial(db: Session, codigo: str) -> HistorialPedidoResponse:
 
     # Datos complementarios desde la ruta/detalle (evidencia, motivo, parada).
     ruta_nombre = None
+    conductor_nombre = None
     secuencia = None
     url_evidencia = None
     motivo_fallo = None
@@ -145,6 +158,7 @@ def obtener_historial(db: Session, codigo: str) -> HistorialPedidoResponse:
         secuencia = detalle.secuencia
         url_evidencia = detalle.url_evidencia
         motivo_fallo = detalle.motivo_fallo
+        conductor_nombre = _nombre_conductor(db, ruta.conductor_id)
 
     return HistorialPedidoResponse(
         codigo=pedido.codigo,
@@ -153,6 +167,7 @@ def obtener_historial(db: Session, codigo: str) -> HistorialPedidoResponse:
         distrito=pedido.distrito,
         estado_actual=pedido.estado,
         ruta_asignada=ruta_nombre,
+        conductor_asignado=conductor_nombre,
         secuencia=secuencia,
         url_evidencia=url_evidencia,
         motivo_fallo=motivo_fallo,

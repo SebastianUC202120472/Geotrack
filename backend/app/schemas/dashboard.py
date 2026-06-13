@@ -55,6 +55,7 @@ class HistorialPedidoResponse(BaseModel):
     distrito: Optional[str] = None
     estado_actual: str
     ruta_asignada: Optional[str] = None
+    conductor_asignado: Optional[str] = None  # nombre del conductor de la ruta
     secuencia: Optional[int] = None
     url_evidencia: Optional[str] = None
     motivo_fallo: Optional[str] = None
