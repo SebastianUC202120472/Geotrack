@@ -219,6 +219,7 @@ function RequisitosPassword({ value }) {
     { ok: /[A-Z]/.test(value), texto: "Una mayúscula" },
     { ok: /[a-z]/.test(value), texto: "Una minúscula" },
     { ok: /\d/.test(value), texto: "Un número" },
+    { ok: /[^A-Za-z0-9]/.test(value), texto: "Un carácter especial (!@#$…)" },
   ];
   return (
     <ul className="mt-2 space-y-1">

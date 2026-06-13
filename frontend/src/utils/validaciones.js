@@ -16,6 +16,7 @@ export const validarPassword = (v) => {
   if (!/[A-Z]/.test(v)) return "Debe incluir al menos una mayúscula";
   if (!/[a-z]/.test(v)) return "Debe incluir al menos una minúscula";
   if (!/\d/.test(v)) return "Debe incluir al menos un número";
+  if (!/[^A-Za-z0-9]/.test(v)) return "Debe incluir al menos un carácter especial";
   return "";
 };
 

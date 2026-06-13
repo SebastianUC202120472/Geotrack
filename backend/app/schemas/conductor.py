@@ -43,6 +43,8 @@ class ConductorCreate(BaseModel):
             raise ValueError("La contraseña debe incluir al menos una minúscula")
         if not re.search(r"\d", v):
             raise ValueError("La contraseña debe incluir al menos un número")
+        if not re.search(r"[^A-Za-z0-9]", v):
+            raise ValueError("La contraseña debe incluir al menos un carácter especial")
         return v
 
     @field_validator("telefono")
