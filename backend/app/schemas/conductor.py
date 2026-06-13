@@ -1,10 +1,5 @@
 # app/schemas/conductor.py
-# ============================================================================
-# CAPA: SCHEMA (Pydantic) — Conductores
-# ----------------------------------------------------------------------------
-# Moldes para registrar un conductor (con sus datos) y para listarlos junto al
-# vehículo que tienen asignado.
-# ============================================================================
+# Moldes para registrar un conductor (con sus datos) y para listarlos junto al vehículo que tienen asignado.
 import re
 from typing import Optional
 from pydantic import BaseModel, EmailStr, field_validator

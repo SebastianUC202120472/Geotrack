@@ -1,20 +1,5 @@
 # app/api/pedidos.py
-# ============================================================================
-# CAPA: API / ROUTER (puerta de entrada HTTP) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Expone las URLs del módulo Inbound (gestión de pedidos del admin):
-#               POST /api/pedidos/upload        -> cargar Excel (CUS-13)
-#               POST /api/pedidos/geocodificar  -> calcular coordenadas (CUS-15)
-#               GET  /api/pedidos/              -> listar pedidos
-#               GET  /api/pedidos/zonas         -> agrupar por distrito (CUS-16)
-# ¿CÓMO?      Endpoints delgados: validan permisos y delegan al SERVICIO.
-# SEGURIDAD:  TODOS exigen rol 'admin' (Depends(get_current_admin)).
-# ¿CON QUÉ SE CONECTA?
-#   - services/pedido_service.py -> la lógica real.
-#   - schemas/pedido.py          -> moldes de respuesta (response_model).
-#   - api/deps.py                -> control de acceso por rol.
-#   - Lo registra: main.py con el prefijo /api/pedidos.
-# ============================================================================
+# Expone las URLs del módulo Inbound (gestión de pedidos del admin).
 from fastapi import APIRouter, UploadFile, File, Depends
 from sqlalchemy.orm import Session
 

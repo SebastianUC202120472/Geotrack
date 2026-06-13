@@ -1,16 +1,5 @@
 # app/models/cliente.py
-# ============================================================================
-# CAPA: MODELO (tabla de base de datos) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Define la tabla 'clientes_corporativos': la EMPRESA que envía los
-#             paquetes (el cliente del operador logístico). Alinea el MVP con la
-#             propuesta de tesis, donde el cliente es una entidad propia y no un
-#             simple texto dentro del pedido.
-# ¿CON QUÉ SE CONECTA?
-#   - Hereda de 'Base' (db/database.py).
-#   - 'pedidos.cliente_id' apunta aquí (un cliente tiene muchos pedidos).
-#   - La consultan: repositories/cliente_repository.py y pedido_service.py.
-# ============================================================================
+# Define la tabla 'clientes_corporativos'.
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime
 from app.db.database import Base

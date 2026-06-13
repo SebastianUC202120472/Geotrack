@@ -1,18 +1,5 @@
 # app/services/dashboard_service.py
-# ============================================================================
-# CAPA: SERVICIO (lógica de negocio) — Trazabilidad (Fase 4)
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  La inteligencia del panel de monitoreo del admin:
-#               - CUS-33: estado de la flota (avance de cada ruta) y KPIs globales.
-#               - CUS-35: arma la línea de tiempo (historial) de un paquete.
-# ¿CÓMO?      Lee datos con los repositorios y los resume en porcentajes y eventos.
-# ¿CON QUÉ SE CONECTA?
-#   - repositories/ruta_repository.py    -> rutas y sus detalles.
-#   - repositories/pedido_repository.py  -> conteos de pedidos y búsqueda por tracking.
-#   - repositories/usuario_repository.py -> correo del conductor de cada ruta.
-#   - schemas/dashboard.py               -> moldes de respuesta.
-#   - Lo USA: api/dashboard.py.
-# ============================================================================
+# La inteligencia del panel de monitoreo del admin.
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -46,7 +33,7 @@ def _contar_estados(detalles) -> tuple[int, int, int]:
     return entregadas, fallidas, pendientes
 
 
-# ============ CUS-33: Seguimiento de la flota ============
+# CUS-33: Seguimiento de la flota
 def obtener_flota(db: Session) -> FlotaResponse:
     """Resume el avance de TODAS las rutas para el tablero de la flota."""
     rutas = ruta_repository.listar_rutas(db)
@@ -111,7 +98,7 @@ def obtener_resumen(db: Session) -> ResumenResponse:
     )
 
 
-# ============ CUS-35: Historial / línea de tiempo de un paquete ============
+# CUS-35: Historial / línea de tiempo de un paquete
 def obtener_historial(db: Session, codigo: str) -> HistorialPedidoResponse:
     """
     CUS-35: línea de tiempo REAL de un paquete (por su código PD-001), leída de

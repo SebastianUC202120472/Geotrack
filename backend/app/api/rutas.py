@@ -1,18 +1,5 @@
 # app/api/rutas.py
-# ============================================================================
-# CAPA: API / ROUTER (puerta de entrada HTTP) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Expone las URLs de enrutamiento (Fase 2):
-#               POST /api/rutas/asignar-bloque      -> admin arma la ruta (CUS-18)
-#               POST /api/rutas/conductor/optimizar -> conductor optimiza (CUS-19)
-# ¿CÓMO?      Endpoints delgados: validan permisos y delegan al SERVICIO.
-# SEGURIDAD:  asignar-bloque -> rol 'admin'; optimizar -> rol 'conductor'.
-# ¿CON QUÉ SE CONECTA?
-#   - services/ruta_service.py -> lógica de asignación y optimización.
-#   - schemas/ruta.py          -> moldes de entrada/salida.
-#   - api/deps.py              -> control de acceso por rol.
-#   - Lo registra: main.py con el prefijo /api/rutas.
-# ============================================================================
+# Expone las URLs de enrutamiento (Fase 2).
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 

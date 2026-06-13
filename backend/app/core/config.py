@@ -1,19 +1,5 @@
 # app/core/config.py
-# ============================================================================
-# CAPA: CORE / CONFIGURACIÓN — Seguridad (gestión de secretos)
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Centraliza TODA la configuración sensible (clave del JWT,
-#             credenciales de la BD, orígenes CORS...) y la lee de VARIABLES DE
-#             ENTORNO. Así los secretos NO viven en el código (OWASP A02/A05).
-# ¿CÓMO?      Usa pydantic-settings: lee variables de entorno y, si existe, del
-#             archivo '.env' (que está en .gitignore, no se sube al repo).
-#             Si una variable no está definida, usa un valor por defecto SOLO
-#             apto para desarrollo (en producción se DEBE sobreescribir).
-# ¿CON QUÉ SE CONECTA?
-#   - core/security.py -> toma SECRET_KEY/ALGORITHM/expiración del token.
-#   - db/database.py   -> toma DATABASE_URL.
-#   - main.py          -> toma CORS_ORIGINS y el admin inicial.
-# ============================================================================
+# Centraliza TODA la configuración sensible (clave del JWT, credenciales de la BD, orígenes CORS...) y la lee de VARIABLES DE ENTORNO.
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 

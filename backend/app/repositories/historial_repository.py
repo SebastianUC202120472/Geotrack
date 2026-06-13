@@ -1,13 +1,5 @@
 # app/repositories/historial_repository.py
-# ============================================================================
-# CAPA: REPOSITORIO (acceso a datos) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Única capa que escribe/lee la tabla 'historial_pedidos' (eventos).
-# ¿CON QUÉ SE CONECTA?
-#   - models/historial.py -> la tabla de eventos.
-#   - Lo USAN: pedido_service.py y ruta_service.py (registran cada cambio) y
-#              dashboard_service.py (lee la línea de tiempo para CUS-35).
-# ============================================================================
+# Única capa que escribe/lee la tabla 'historial_pedidos' (eventos).
 from typing import List, Optional
 from sqlalchemy.orm import Session
 

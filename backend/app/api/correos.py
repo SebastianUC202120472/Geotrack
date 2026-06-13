@@ -1,16 +1,5 @@
 # app/api/correos.py
-# ============================================================================
-# CAPA: API / ROUTER — Bandeja de correos (panel del admin)
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Expone la bandeja de solicitudes de recojo:
-#               GET   /api/correos/conversaciones            -> listado de hilos
-#               GET   /api/correos/conversaciones/{id}       -> hilo completo
-#               POST  /api/correos/sincronizar               -> leer la bandeja (IMAP)
-#               POST  /api/correos/conversaciones/{id}/responder -> responder (SMTP)
-#               PATCH /api/correos/conversaciones/{id}/estado -> marcar atendida/pendiente
-# SEGURIDAD:  rol 'admin'.
-# ¿CON QUÉ SE CONECTA?  services/correo_service.py ; schemas/correo.py.
-# ============================================================================
+# Expone la bandeja de solicitudes de recojo.
 from typing import List
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session

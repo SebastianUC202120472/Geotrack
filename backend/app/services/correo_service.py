@@ -1,18 +1,5 @@
 # app/services/correo_service.py
-# ============================================================================
-# CAPA: SERVICIO (lógica de negocio) — Bandeja de correos
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Conecta con el correo de la empresa:
-#               - IMAP: lee los correos entrantes (solicitudes de recojo) y los
-#                 guarda como mensajes dentro de su conversación.
-#               - SMTP: envía las respuestas del admin y las guarda en el hilo.
-#             Todo queda en BD para el historial/trazabilidad.
-# ¿CON QUÉ SE CONECTA?
-#   - core/config.py            -> credenciales del correo (variables de entorno).
-#   - repositories/correo_repository.py -> persistencia de hilos y mensajes.
-#   - Lo USA: api/correos.py.
-# NOTA: usa solo la librería estándar (imaplib/smtplib/email), sin dependencias extra.
-# ============================================================================
+# Conecta con el correo de la empresa.
 import imaplib
 import smtplib
 import re
@@ -111,7 +98,7 @@ def _adjuntos(msg):
     return encontrados
 
 
-# ============ Lectura de la bandeja (IMAP) ============
+# Lectura de la bandeja (IMAP)
 def sincronizar(db: Session) -> dict:
     """Revisa la bandeja por IMAP e importa los correos entrantes nuevos."""
     if not _configurado():
@@ -182,7 +169,7 @@ def sincronizar(db: Session) -> dict:
     return {"mensaje": f"Sincronización completa. {nuevos} correo(s) nuevo(s).", "nuevos": nuevos}
 
 
-# ============ Envío de respuestas (SMTP) ============
+# Envío de respuestas (SMTP)
 def responder(db: Session, conversacion_id: int, cuerpo: str, admin_id: int | None = None) -> dict:
     """Envía la respuesta del admin por SMTP y la guarda en el hilo."""
     _exigir_configurado()
@@ -244,7 +231,7 @@ def responder(db: Session, conversacion_id: int, cuerpo: str, admin_id: int | No
     return {"mensaje": "Respuesta enviada correctamente."}
 
 
-# ============ Lecturas para el panel ============
+# Lecturas para el panel
 def listar(db: Session):
     return correo_repository.listar_conversaciones(db)
 

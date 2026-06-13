@@ -1,18 +1,5 @@
 # app/api/deps.py
-# ============================================================================
-# CAPA: API / DEPENDENCIAS — Seguridad transversal (JWT por rol)
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Provee "porteros" reutilizables que protegen los endpoints:
-#               - get_current_user      -> exige un JWT válido (cualquier usuario).
-#               - get_current_conductor -> exige rol 'conductor' (App Móvil).
-#               - get_current_admin     -> exige rol 'admin' (Panel Web).
-# ¿CÓMO?      Lee el token del header Authorization, lo decodifica y busca al
-#             usuario. Si algo falla, corta con 401/403.
-# ¿CON QUÉ SE CONECTA?
-#   - core/security.py -> para decodificar el token.
-#   - models/usuario.py + db -> para recuperar al usuario.
-#   - Lo USAN (con Depends): casi todos los endpoints de api/*.py.
-# ============================================================================
+# Provee "porteros" reutilizables que protegen los endpoints.
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session

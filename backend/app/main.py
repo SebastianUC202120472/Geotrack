@@ -1,18 +1,5 @@
 # app/main.py
-# ============================================================================
-# PUNTO DE ENTRADA de la aplicación FastAPI (SIOL-SAVA Backend)
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  - Crea la app FastAPI y configura CORS (permite que la Web y la
-#               App Móvil llamen a la API desde otro origen).
-#             - Al arrancar (lifespan): espera a PostgreSQL, crea las tablas y
-#               lanza una tarea de limpieza de usuarios de prueba.
-#             - Monta /media para servir las fotos POD (CUS-29).
-#             - Registra TODOS los routers (auth, pedidos, rutas, conductor).
-# ¿CON QUÉ SE CONECTA?
-#   - app/api/*.py   -> los routers de cada módulo.
-#   - app/db/*       -> engine/Base para crear las tablas.
-#   - app/models/*   -> se importan para que existan en Base.metadata.
-# ============================================================================
+# - Crea la app FastAPI y configura CORS (permite que la Web y la App Móvil llamen a la API desde otro origen).
 import asyncio
 import os
 from datetime import datetime, timedelta

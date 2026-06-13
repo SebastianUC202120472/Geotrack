@@ -1,6 +1,4 @@
-// src/services/api.js
-// Cliente HTTP del panel de administración.
-// Centraliza la URL base, el envío del token JWT y el manejo de la sesión.
+// Cliente HTTP del panel: URL base, token JWT y manejo de sesión.
 // La URL base viene de VITE_API_URL (en Docker es "/api", servido por Nginx).
 
 const API_URL = import.meta.env.VITE_API_URL;
@@ -10,9 +8,7 @@ export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const guardarToken = (token) => localStorage.setItem(TOKEN_KEY, token);
 export const borrarToken = () => localStorage.removeItem(TOKEN_KEY);
 
-// Núcleo de todas las peticiones autenticadas.
-// Adjunta el token, parsea la respuesta y, si el token caducó (401), limpia la
-// sesión y manda al login para no dejar la pantalla en un estado roto.
+// Núcleo de las peticiones: adjunta el token y, si caducó (401), cierra sesión.
 async function request(ruta, { method = "GET", body, headers = {}, auth = true } = {}) {
   const opciones = { method, headers: { ...headers } };
 

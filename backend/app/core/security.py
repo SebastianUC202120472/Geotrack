@@ -1,15 +1,5 @@
 # app/core/security.py
-# ============================================================================
-# CAPA: CORE / SEGURIDAD — utilidades transversales
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Centraliza la criptografía del sistema:
-#               - Encriptar y verificar contraseñas (con Argon2).
-#               - Crear y decodificar tokens JWT (la "credencial" del usuario).
-# ¿CÓMO?      'passlib' hace el hash de contraseñas; 'jose' firma/verifica el JWT.
-# ¿CON QUÉ SE CONECTA?
-#   - Lo USAN: services/usuario_service.py (hash + crear token) y
-#              api/deps.py (decodificar token para identificar al usuario).
-# ============================================================================
+# Centraliza la criptografía del sistema.
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from jose import jwt

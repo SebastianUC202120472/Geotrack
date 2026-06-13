@@ -1,20 +1,5 @@
 # app/services/ruta_service.py
-# ============================================================================
-# CAPA: SERVICIO (lógica de negocio) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Reúne la lógica de RUTAS en dos momentos del MVP:
-#               - FASE 2 (admin/web): armar una ruta con pedidos (CUS-18) y
-#                 optimizar matemáticamente su secuencia (CUS-19).
-#               - FASE 3 (app móvil): consultar ruta activa, manifiesto,
-#                 navegación, validar QR, registrar entregas/evidencias y cerrar.
-# ¿CÓMO?      Coordina los repositorios (datos) con el motor VRP (router.py).
-# ¿CON QUÉ SE CONECTA?
-#   - repositories/ruta_repository.py   -> datos de rutas y detalles.
-#   - repositories/pedido_repository.py -> pedidos pendientes de un distrito.
-#   - services/router.py                -> algoritmo de optimización (Vecino + Cercano).
-#   - schemas/ruta.py                   -> moldes de respuesta.
-#   - Lo USAN: api/rutas.py (Fase 2) y api/conductor.py (Fase 3).
-# ============================================================================
+# Reúne la lógica de RUTAS en dos momentos del MVP.
 import os
 from datetime import datetime
 
@@ -136,7 +121,7 @@ def obtener_navegacion(db: Session, conductor_id: int) -> NavegacionResponse:
     )
 
 
-# ============ FASE 3.2: Validación en almacén (CUS-22) ============
+# FASE 3.2: Validación en almacén (CUS-22)
 def validar_paquete_qr(
     db: Session, conductor_id: int, codigo: str
 ) -> ValidacionQRResponse:
@@ -164,7 +149,7 @@ def validar_paquete_qr(
     )
 
 
-# ============ FASE 3.3: Ejecución y evidencias (CUS-26 / CUS-29) ============
+# FASE 3.3: Ejecución y evidencias (CUS-26 / CUS-29)
 def _obtener_detalle_de_mi_ruta(
     db: Session, conductor_id: int, pedido_id: int
 ) -> RutaDetalle:
@@ -267,7 +252,7 @@ def guardar_evidencia(
     )
 
 
-# ============ FASE 3.4: Cierre de operación (CUS-28) ============
+# FASE 3.4: Cierre de operación (CUS-28)
 def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
     """CUS-28: da por finalizada la ruta del día del conductor."""
     ruta = _obtener_ruta_activa_o_404(db, conductor_id)
@@ -299,7 +284,7 @@ def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
     )
 
 
-# ============ FASE 2: Enrutamiento básico (CUS-18) ============
+# FASE 2: Enrutamiento básico (CUS-18)
 def asignar_bloque(db: Session, datos: AsignacionBloqueRequest, usuario_id: int | None = None) -> dict:
     """
     CUS-18: el admin crea una ruta para un conductor con TODOS los pedidos
@@ -329,7 +314,7 @@ def asignar_bloque(db: Session, datos: AsignacionBloqueRequest, usuario_id: int 
     }
 
 
-# ============ FASE 2: Optimización VRP (CUS-19) ============
+# FASE 2: Optimización VRP (CUS-19)
 def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -> dict:
     """
     CUS-19: el conductor optimiza el orden de entrega de SU ruta partiendo de

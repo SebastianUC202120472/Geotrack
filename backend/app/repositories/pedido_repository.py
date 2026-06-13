@@ -1,14 +1,5 @@
 # app/repositories/pedido_repository.py
-# ============================================================================
-# CAPA: REPOSITORIO (acceso a datos) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Única capa que consulta/escribe en la tabla 'pedidos'.
-#             Reúne todos los queries de SQLAlchemy sobre pedidos.
-# ¿CON QUÉ SE CONECTA?
-#   - models/pedido.py -> la tabla 'pedidos'.
-#   - Lo USAN: services/pedido_service.py y services/ruta_service.py
-#              (este último necesita los pedidos pendientes de un distrito).
-# ============================================================================
+# Única capa que consulta/escribe en la tabla 'pedidos'.
 from typing import List, Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session

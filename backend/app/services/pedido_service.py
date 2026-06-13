@@ -1,19 +1,5 @@
 # app/services/pedido_service.py
-# ============================================================================
-# CAPA: SERVICIO (lógica de negocio) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  La inteligencia del módulo Inbound:
-#               - CUS-13: leer el Excel, crear/enlazar el CLIENTE, guardar el
-#                 DESTINATARIO y registrar el primer evento de trazabilidad.
-#               - CUS-15: geocodificar (dirección -> latitud/longitud).
-#               - CUS-16: agrupar pedidos por distrito.
-# ¿CON QUÉ SE CONECTA?
-#   - repositories/pedido_repository.py    -> lectura/escritura de pedidos.
-#   - repositories/cliente_repository.py   -> crea/enlaza la empresa cliente.
-#   - repositories/historial_repository.py -> registra eventos (CUS-35).
-#   - services/geocoder.py                 -> coordenadas desde la dirección.
-#   - Lo USA: api/pedidos.py.
-# ============================================================================
+# La inteligencia del módulo Inbound.
 import io
 import pandas as pd
 from fastapi import HTTPException, status

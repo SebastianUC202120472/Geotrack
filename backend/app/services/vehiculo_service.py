@@ -1,10 +1,5 @@
 # app/services/vehiculo_service.py
-# ============================================================================
-# CAPA: SERVICIO (lógica de negocio) — Vehículos
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Listar y registrar vehículos (evitando placas duplicadas).
-# ¿CON QUÉ SE CONECTA?  repositories/vehiculo_repository.py ; lo usa api/vehiculos.py.
-# ============================================================================
+# Listar y registrar vehículos (evitando placas duplicadas).
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 

@@ -1,16 +1,5 @@
 # app/services/conductor_service.py
-# ============================================================================
-# CAPA: SERVICIO (lógica de negocio) — Conductores
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  - Lista los conductores con su ficha (nombre/teléfono/DNI) y el
-#               vehículo que tienen asignado.
-#             - Da de alta un conductor: crea su cuenta (Usuario rol conductor)
-#               y su perfil de datos en una sola operación.
-# ¿CON QUÉ SE CONECTA?
-#   - repositories/conductor_repository.py y usuario_repository.py.
-#   - core/security.py (hash de la contraseña).
-#   - Lo USA: api/conductores.py.
-# ============================================================================
+# - Lista los conductores con su ficha (nombre/teléfono/DNI) y el vehículo que tienen asignado.
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 

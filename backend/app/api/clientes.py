@@ -1,17 +1,5 @@
 # app/api/clientes.py
-# ============================================================================
-# CAPA: API / ROUTER (puerta de entrada HTTP) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  El "apartado de clientes" del panel web del admin (Fase 4 / tesis):
-#               GET  /api/clientes   -> listar empresas cliente
-#               POST /api/clientes   -> registrar una empresa cliente
-# ¿CÓMO?      Endpoints delgados que delegan en services/cliente_service.py.
-# SEGURIDAD:  Exigen rol 'admin' (Depends(get_current_admin)).
-# ¿CON QUÉ SE CONECTA?
-#   - services/cliente_service.py -> lógica.
-#   - schemas/cliente.py          -> moldes.
-#   - Lo registra: main.py con el prefijo /api/clientes.
-# ============================================================================
+# El "apartado de clientes" del panel web del admin (Fase 4 / tesis).
 from typing import List
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session

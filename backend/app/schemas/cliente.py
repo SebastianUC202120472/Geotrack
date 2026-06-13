@@ -1,11 +1,5 @@
 # app/schemas/cliente.py
-# ============================================================================
-# CAPA: SCHEMA (validación/serialización con Pydantic) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Moldes de entrada/salida del módulo de Clientes Corporativos.
-# ¿CON QUÉ SE CONECTA?
-#   - Lo USAN: api/clientes.py y services/cliente_service.py.
-# ============================================================================
+# Moldes de entrada/salida del módulo de Clientes Corporativos.
 from typing import Optional
 from pydantic import BaseModel
 

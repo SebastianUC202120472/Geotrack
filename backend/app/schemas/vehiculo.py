@@ -1,10 +1,5 @@
 # app/schemas/vehiculo.py
-# ============================================================================
-# CAPA: SCHEMA (Pydantic) — Vehículos
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Moldes de entrada/salida del módulo de vehículos.
-# ¿CON QUÉ SE CONECTA?  api/vehiculos.py y services/vehiculo_service.py.
-# ============================================================================
+# Moldes de entrada/salida del módulo de vehículos.
 import re
 from typing import Optional
 from pydantic import BaseModel, field_validator

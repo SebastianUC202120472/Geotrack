@@ -1,14 +1,5 @@
 # app/models/correo.py
-# ============================================================================
-# CAPA: MODELO (tablas de base de datos) — Bandeja de correos
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Guarda las conversaciones por correo con los clientes (solicitudes
-#             de recojo) y cada mensaje del hilo. Persistir en BD da la
-#             trazabilidad/historial aunque la cuenta de correo cambie.
-# ¿CON QUÉ SE CONECTA?
-#   - Hereda de 'Base' (db/database.py).
-#   - Lo USAN: repositories/correo_repository.py y services/correo_service.py.
-# ============================================================================
+# Guarda las conversaciones por correo con los clientes (solicitudes de recojo) y cada mensaje del hilo.
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, LargeBinary
 from sqlalchemy.orm import relationship

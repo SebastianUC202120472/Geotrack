@@ -1,10 +1,5 @@
 # app/repositories/vehiculo_repository.py
-# ============================================================================
-# CAPA: REPOSITORIO (acceso a datos) — Vehículos
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Consultas/escritura de la tabla 'vehiculos'.
-# ¿CON QUÉ SE CONECTA?  models/vehiculo.py ; lo usa services/vehiculo_service.py.
-# ============================================================================
+# Consultas/escritura de la tabla 'vehiculos'.
 from typing import List, Optional
 from sqlalchemy.orm import Session
 

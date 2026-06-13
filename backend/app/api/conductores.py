@@ -1,13 +1,5 @@
 # app/api/conductores.py
-# ============================================================================
-# CAPA: API / ROUTER — Conductores (panel del admin)
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  GET  /api/conductores  -> lista de conductores con su ficha y el
-#                                       vehículo asignado.
-#             POST /api/conductores  -> registra un conductor (cuenta + datos).
-# SEGURIDAD:  rol 'admin'.
-# ¿CON QUÉ SE CONECTA?  services/conductor_service.py ; schemas/conductor.py.
-# ============================================================================
+# GET /api/conductores -> lista de conductores con su ficha y el vehículo asignado.
 from typing import List
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session

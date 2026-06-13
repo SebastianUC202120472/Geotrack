@@ -1,18 +1,5 @@
 # app/models/pedido.py
-# ============================================================================
-# CAPA: MODELO (tabla de base de datos) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Define la tabla 'pedidos': cada paquete que entra al sistema.
-# IDENTIFICADORES:
-#   - id        -> número interno (llave primaria, para las relaciones).
-#   - codigo    -> código LEGIBLE 'PD-001'. Es el identificador del paquete en
-#                  nuestro sistema y lo que se imprime/escanea en el QR (CUS-22).
-#   - referencia_externa -> el id que viene en el Excel del cliente (opcional);
-#                  solo sirve para cruzar datos, NO es nuestro tracking.
-# ¿CON QUÉ SE CONECTA?
-#   - Hereda de 'Base' (db/database.py). 'cliente_id' -> clientes_corporativos.id.
-#   - La consultan: repositories/pedido_repository.py y ruta_repository.py.
-# ============================================================================
+# Define la tabla 'pedidos'.
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
 from app.db.database import Base

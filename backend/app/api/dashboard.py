@@ -1,19 +1,5 @@
 # app/api/dashboard.py
-# ============================================================================
-# CAPA: API / ROUTER (puerta de entrada HTTP) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Expone el módulo de TRAZABILIDAD para el panel web del admin (Fase 4):
-#               GET /api/dashboard/resumen                      -> KPIs (CUS-33)
-#               GET /api/dashboard/flota                        -> avance de rutas (CUS-33)
-#               GET /api/dashboard/pedidos/{tracking}/historial -> línea de tiempo (CUS-35)
-# ¿CÓMO?      Endpoints delgados que delegan en services/dashboard_service.py.
-# SEGURIDAD:  TODOS exigen rol 'admin' (Depends(get_current_admin)).
-# ¿CON QUÉ SE CONECTA?
-#   - services/dashboard_service.py -> la lógica real.
-#   - schemas/dashboard.py          -> moldes de respuesta.
-#   - api/deps.py                   -> control de acceso por rol.
-#   - Lo registra: main.py con el prefijo /api/dashboard.
-# ============================================================================
+# Expone el módulo de TRAZABILIDAD para el panel web del admin (Fase 4).
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 

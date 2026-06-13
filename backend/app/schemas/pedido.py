@@ -1,13 +1,5 @@
 # app/schemas/pedido.py
-# ============================================================================
-# CAPA: SCHEMA (validación/serialización con Pydantic) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Define los "moldes" de las respuestas del módulo de Pedidos
-#             (carga de Excel, geocodificación, listado y agrupación por zonas).
-# ¿CON QUÉ SE CONECTA?
-#   - Lo USAN: api/pedidos.py (response_model) y services/pedido_service.py.
-#   - PedidoResponse refleja las columnas del modelo models/pedido.py.
-# ============================================================================
+# Define los "moldes" de las respuestas del módulo de Pedidos (carga de Excel, geocodificación, listado y agrupación por zonas).
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel

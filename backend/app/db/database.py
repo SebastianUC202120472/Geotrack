@@ -1,17 +1,5 @@
 # app/db/database.py
-# ============================================================================
-# CAPA: DB (conexión a la base de datos) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Configura la conexión a PostgreSQL y entrega "sesiones" para
-#             que el resto del código pueda leer/escribir en la BD.
-# ¿CÓMO?      - 'engine': el motor que conecta con PostgreSQL.
-#             - 'SessionLocal': fábrica de sesiones (una por petición).
-#             - 'Base': clase madre de la que heredan TODOS los modelos.
-#             - 'get_db()': dependencia que abre una sesión y la cierra sola.
-# ¿CON QUÉ SE CONECTA?
-#   - models/*.py heredan de 'Base'.
-#   - Todos los endpoints piden 'get_db' con Depends() para obtener 'db'.
-# ============================================================================
+# Configura la conexión a PostgreSQL y entrega "sesiones" para que el resto del código pueda leer/escribir en la BD.
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 

@@ -1,12 +1,5 @@
 # app/api/vehiculos.py
-# ============================================================================
-# CAPA: API / ROUTER — Vehículos (panel del admin)
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  GET  /api/vehiculos  -> listar la flota
-#             POST /api/vehiculos  -> registrar un vehículo
-# SEGURIDAD:  rol 'admin'.
-# ¿CON QUÉ SE CONECTA?  services/vehiculo_service.py ; schemas/vehiculo.py.
-# ============================================================================
+# GET /api/vehiculos -> listar la flota POST /api/vehiculos -> registrar un vehículo SEGURIDAD.
 from typing import List
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session

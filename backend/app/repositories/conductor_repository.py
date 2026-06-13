@@ -1,11 +1,5 @@
 # app/repositories/conductor_repository.py
-# ============================================================================
-# CAPA: REPOSITORIO (acceso a datos) — Conductores
-# ----------------------------------------------------------------------------
-# Lee/escribe el perfil del conductor y arma la lista de conductores cruzando
-# usuarios (rol conductor) + perfil + vehículo asignado.
-# La USA: services/conductor_service.py.
-# ============================================================================
+# Lee/escribe el perfil del conductor y arma la lista de conductores cruzando usuarios (rol conductor) + perfil + vehículo asignado. La USA.
 from typing import List, Optional
 from sqlalchemy.orm import Session
 

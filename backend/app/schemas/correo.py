@@ -1,10 +1,5 @@
 # app/schemas/correo.py
-# ============================================================================
-# CAPA: SCHEMA (Pydantic) — Bandeja de correos
-# ----------------------------------------------------------------------------
-# Moldes de entrada/salida de la bandeja: listado de conversaciones, detalle de
-# un hilo, envío de respuesta y resultado de la sincronización IMAP.
-# ============================================================================
+# Moldes de entrada/salida de la bandeja.
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel

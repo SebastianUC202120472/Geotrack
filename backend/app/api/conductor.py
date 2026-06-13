@@ -1,19 +1,5 @@
 # app/api/conductor.py
-# ============================================================================
-# CAPA: API / ROUTER (puerta de entrada HTTP) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Expone los endpoints que consume EXCLUSIVAMENTE la App Móvil del
-#             conductor (toda la Fase 3): descargar ruta/manifiesto/navegación,
-#             validar QR en almacén, marcar entregas, subir fotos POD y cerrar.
-# ¿CÓMO?      Endpoints delgados que delegan en services/ruta_service.py.
-# SEGURIDAD:  TODOS exigen rol 'conductor' (Depends(get_current_conductor));
-#             el conductor se identifica por su JWT, nunca por parámetro.
-# ¿CON QUÉ SE CONECTA?
-#   - services/ruta_service.py -> la lógica real.
-#   - schemas/ruta.py          -> moldes de entrada/salida.
-#   - api/deps.py              -> control de acceso por rol.
-#   - Lo registra: main.py con el prefijo /api/conductor.
-# ============================================================================
+# Expone los endpoints que consume EXCLUSIVAMENTE la App Móvil del conductor (toda la Fase 3).
 from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.orm import Session
 

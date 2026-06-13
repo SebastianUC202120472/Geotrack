@@ -1,14 +1,5 @@
 # app/repositories/ruta_repository.py
-# ============================================================================
-# CAPA: REPOSITORIO (acceso a datos) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Única capa que consulta/escribe en las tablas 'rutas' y
-#             'ruta_detalles'. Reúne todos los queries de SQLAlchemy de rutas.
-# ¿CON QUÉ SE CONECTA?
-#   - models/ruta.py   -> tablas 'rutas' y 'ruta_detalles'.
-#   - models/pedido.py -> para unir cada detalle con su pedido (JOIN).
-#   - Lo USA: services/ruta_service.py (Fase 2 enrutamiento + Fase 3 operación).
-# ============================================================================
+# Única capa que consulta/escribe en las tablas 'rutas' y 'ruta_detalles'.
 from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 

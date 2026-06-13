@@ -1,17 +1,5 @@
 # app/models/historial.py
-# ============================================================================
-# CAPA: MODELO (tabla de base de datos) — Clean Architecture
-# ----------------------------------------------------------------------------
-# ¿QUÉ HACE?  Define la tabla 'historial_pedidos': el REGISTRO DE EVENTOS de
-#             cada paquete. Es la columna vertebral de la TRAZABILIDAD (CUS-35):
-#             guarda cada cambio de estado, cuándo ocurrió y quién lo hizo.
-# ¿POR QUÉ?   Antes la línea de tiempo se "reconstruía" del estado actual; con
-#             esta tabla queda un rastro real e inmutable de todo el recorrido.
-# ¿CON QUÉ SE CONECTA?
-#   - Hereda de 'Base' (db/database.py).
-#   - 'pedido_id' -> pedidos.id ; 'usuario_id' -> usuarios.id (quién lo cambió).
-#   - La escribe: repositories/historial_repository.py (llamado desde los services).
-# ============================================================================
+# Define la tabla 'historial_pedidos'.
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from app.db.database import Base

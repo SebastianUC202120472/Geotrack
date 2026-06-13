@@ -1,10 +1,5 @@
 # app/repositories/correo_repository.py
-# ============================================================================
-# CAPA: REPOSITORIO (acceso a datos) — Bandeja de correos
-# ----------------------------------------------------------------------------
-# Única capa que consulta/escribe en las tablas de conversaciones y mensajes.
-# La USA: services/correo_service.py.
-# ============================================================================
+# Única capa que consulta/escribe en las tablas de conversaciones y mensajes. La USA.
 from datetime import datetime
 from typing import List, Optional
 from sqlalchemy.orm import Session

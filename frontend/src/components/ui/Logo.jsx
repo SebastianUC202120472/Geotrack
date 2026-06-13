@@ -1,10 +1,7 @@
 import { useState } from "react";
 
-// Logo de la empresa. Intenta cargar la imagen desde public/logo.png; si aún no
-// existe, muestra un monograma + wordmark como placeholder elegante.
-//   -> Coloca tu archivo en  frontend/public/logo.png  (o logo.svg y cambia src).
-//   -> Tamaño recomendado: alto ~40px, fondo transparente.
-// "light" = true cuando va sobre fondo oscuro (sidebar); el texto se aclara.
+// Logo de la empresa: carga public/logo.png y, si no existe, muestra un monograma.
+// "light" = true cuando va sobre fondo oscuro (sidebar).
 export default function Logo({ light = false, wordmark = true, className = "" }) {
   const [falla, setFalla] = useState(false);
 
