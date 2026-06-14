@@ -1,5 +1,5 @@
 # Usamos una versión ligera de Python
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 # Evita que Python genere archivos .pyc y fuerza a que la salida de consola sea en tiempo real
 ENV PYTHONDONTWRITEBYTECODE 1
