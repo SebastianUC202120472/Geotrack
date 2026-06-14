@@ -30,10 +30,11 @@
   --color-info-soft: #e0f2fe;
   --color-info-strong: #0369a1;
 
-  /* Radios y sombras de tarjeta */
+  /* Radios y sombras de tarjeta (profundidad en capas) */
   --radius-card: 0.875rem;
-  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
-  --shadow-card-hover: 0 6px 16px rgba(15, 23, 42, 0.08);
+  --radius-chip: 0.625rem;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 14px rgba(15, 23, 42, 0.05);
+  --shadow-card-hover: 0 10px 28px rgba(15, 23, 42, 0.12);
 }
 
 @layer base {
@@ -49,5 +50,28 @@
   /* Números alineados en KPIs y tablas */
   .nums {
     font-variant-numeric: tabular-nums;
+  }
+  /* Accesibilidad: sin animaciones si el usuario las desactiva en el SO */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Esqueleto de carga: barrido suave de izquierda a derecha */
+  @keyframes skeleton-shimmer {
+    100% {
+      background-position: -200% 0;
+    }
+  }
+  .skeleton {
+    background: linear-gradient(90deg, #e9eef4 25%, #f1f5f9 37%, #e9eef4 63%);
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.3s ease-in-out infinite;
   }
 }
