@@ -1,6 +1,8 @@
 // Fila de una parada: número de secuencia, destinatario, dirección y estado.
 // Táctil para abrir el detalle.
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import { useTheme, fontSize, radius, spacing } from "@/theme";
 import { EstadoBadge } from "./EstadoBadge";
 import type { ParadaManifiesto } from "@/types/api";
@@ -25,11 +27,20 @@ export function ParadaItem({ parada, onPress }: Props) {
         pressed && { opacity: 0.85 },
       ]}
     >
-      <View style={[estilos.numero, { backgroundColor: colors.brand }]}>
+      <LinearGradient
+        colors={[colors.brand, colors.brandPressed]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={estilos.numero}
+      >
         <Text style={[estilos.numeroTexto, { color: colors.white }]}>{parada.secuencia || "•"}</Text>
-      </View>
+      </LinearGradient>
       <View style={estilos.centro}>
         <Text style={[estilos.titulo, { color: colors.ink }]} numberOfLines={1}>{titulo}</Text>
+        <View style={estilos.lineaCliente}>
+          <Ionicons name="cube-outline" size={14} color={colors.muted} />
+          <Text style={[estilos.cliente, { color: colors.muted }]} numberOfLines={1}>{parada.cliente_origen}</Text>
+        </View>
         <Text style={[estilos.direccion, { color: colors.muted }]} numberOfLines={2}>{parada.direccion_destino}</Text>
         <EstadoBadge estado={parada.estado_entrega} />
       </View>
@@ -43,5 +54,7 @@ const estilos = StyleSheet.create({
   numeroTexto: { fontWeight: "800", fontSize: fontSize.body },
   centro: { flex: 1, gap: spacing.xs },
   titulo: { fontSize: fontSize.subtitle, fontWeight: "700" },
+  lineaCliente: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  cliente: { fontSize: fontSize.caption, flex: 1 },
   direccion: { fontSize: fontSize.body },
 });
