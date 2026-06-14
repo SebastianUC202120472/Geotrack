@@ -31,3 +31,16 @@ npm-debug.log*
 .DS_Store
 *.suo
 *.swp
+
+# --- Configuración local de herramientas (no compartir) ---
+.claude/
+.superpowers/
+docs/superpowers/
+CLAUDE.md
+.cursor/
+.cursorrules
+.aider*
+.continue/
+.github/copilot-instructions.md
+.windsurfrules
+*.local.md
