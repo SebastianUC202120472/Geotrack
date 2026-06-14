@@ -3,9 +3,9 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.repositories import conductor_repository, usuario_repository
+from app.repositories import conductor_repository, usuario_repository, ubicacion_repository
 from app.core.security import get_password_hash
-from app.schemas.conductor import ConductorCreate, ConductorUpdate
+from app.schemas.conductor import ConductorCreate, ConductorUpdate, UbicacionRequest
 
 
 def _a_respuesta(db: Session, usuario) -> dict:
@@ -61,6 +61,12 @@ def actualizar(db: Session, usuario_id: int, datos: ConductorUpdate) -> dict:
         db, usuario_id, nombre=datos.nombre, telefono=datos.telefono, dni=datos.dni
     )
     return _a_respuesta(db, usuario)
+
+
+def registrar_ubicacion(db: Session, conductor_id: int, datos: UbicacionRequest) -> dict:
+    """Guarda (upsert) la última posición del conductor que envía la app móvil."""
+    ubicacion_repository.upsert(db, conductor_id, datos.latitud, datos.longitud)
+    return {"mensaje": "Ubicación registrada"}
 
 
 def eliminar(db: Session, usuario_id: int) -> dict:

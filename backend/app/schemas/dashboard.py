@@ -38,6 +38,27 @@ class ResumenResponse(BaseModel):
     rutas_finalizadas: int
 
 
+# Mapa de flota en tiempo real
+class ParadaMapa(BaseModel):
+    """Una parada pendiente del conductor, para dibujarla en el mapa."""
+    latitud: float
+    longitud: float
+    destinatario: Optional[str] = None
+    secuencia: Optional[int] = None
+
+
+class ConductorUbicacion(BaseModel):
+    """Posición de un conductor con ruta activa y sus paradas pendientes."""
+    conductor_id: int
+    conductor: Optional[str] = None
+    ruta: Optional[str] = None
+    latitud: Optional[float] = None       # None si aún no envió señal
+    longitud: Optional[float] = None
+    actualizado_en: Optional[datetime] = None
+    en_linea: bool = False                # True si la última señal es reciente (< 2 min)
+    paradas: List[ParadaMapa] = []
+
+
 # Seguimiento de repartos agregado por empresa cliente (no por ruta).
 class ClienteSeguimiento(BaseModel):
     """Resumen de los pedidos de UNA empresa cliente, clasificados por grupo.

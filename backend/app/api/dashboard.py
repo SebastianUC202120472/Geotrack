@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.api.deps import get_current_admin
 from app.services import dashboard_service
-from app.schemas.dashboard import FlotaResponse, ResumenResponse, HistorialPedidoResponse, ClienteSeguimiento
+from app.schemas.dashboard import FlotaResponse, ResumenResponse, HistorialPedidoResponse, ClienteSeguimiento, ConductorUbicacion
 
 router = APIRouter()
 
@@ -29,6 +29,12 @@ def obtener_por_cliente(db: Session = Depends(get_db)):
     """Seguimiento de repartos agregado por empresa cliente (entregados / fallidos /
     pendientes / en proceso), no por ruta."""
     return dashboard_service.obtener_por_cliente(db)
+
+
+@router.get("/flota/ubicaciones", response_model=List[ConductorUbicacion], dependencies=[Depends(get_current_admin)])
+def obtener_ubicaciones_flota(db: Session = Depends(get_db)):
+    """Posición en vivo de cada conductor con ruta activa + sus paradas pendientes."""
+    return dashboard_service.obtener_ubicaciones_flota(db)
 
 
 @router.get(
