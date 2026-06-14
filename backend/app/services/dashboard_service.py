@@ -10,6 +10,7 @@ from app.schemas.dashboard import (
     ResumenResponse,
     EventoHistorial,
     HistorialPedidoResponse,
+    ClienteSeguimiento,
 )
 
 ESTADOS_RUTA_ACTIVA = ("CREADA", "EN_PROGRESO")
@@ -43,6 +44,32 @@ def _contar_estados(detalles) -> tuple[int, int, int]:
     fallidas = sum(1 for d, _ in detalles if d.estado_entrega == "FALLIDO")
     pendientes = sum(1 for d, _ in detalles if d.estado_entrega == "PENDIENTE")
     return entregadas, fallidas, pendientes
+
+
+# Seguimiento por cliente: agrega los pedidos por empresa y los clasifica en grupos.
+def obtener_por_cliente(db: Session) -> list[ClienteSeguimiento]:
+    """Agrupa los pedidos por empresa (cliente_origen) y los clasifica en
+    entregados / fallidos / pendientes / en proceso. Recibe: la sesión de BD.
+    Cada estado cae en exactamente un grupo, así los grupos suman el total."""
+    acum: dict[str, dict] = {}
+    for cliente_origen, estado, total in pedido_repository.agrupar_por_cliente(db):
+        nombre = cliente_origen or "Sin cliente"
+        fila = acum.setdefault(
+            nombre,
+            {"cliente": nombre, "total": 0, "entregados": 0, "fallidos": 0, "pendientes": 0, "en_proceso": 0},
+        )
+        fila["total"] += total
+        if estado == "ENTREGADO":
+            fila["entregados"] += total
+        elif estado in ("FALLIDO", "GEOCODIFICACION_FALLIDA"):
+            fila["fallidos"] += total
+        elif estado in ("ASIGNADO", "EN_RUTA"):
+            fila["en_proceso"] += total
+        else:  # PENDIENTE (y cualquier estado no clasificado)
+            fila["pendientes"] += total
+
+    filas = sorted(acum.values(), key=lambda f: f["total"], reverse=True)
+    return [ClienteSeguimiento(**f) for f in filas]
 
 
 # CUS-33: Seguimiento de la flota
