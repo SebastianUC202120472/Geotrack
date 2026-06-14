@@ -50,8 +50,20 @@ async function request(ruta, { method = "GET", body, headers = {}, auth = true }
    AUTENTICACIÓN
 ============================================================ */
 
-// Login (CUS-02). El backend usa OAuth2: espera 'username' y 'password' como
-// formulario, no como JSON.
+// Decodifica el payload de un JWT (base64url) para leer el rol sin librerías.
+// Entrada: token (string JWT). Salida: objeto payload, o null si no se puede leer.
+function leerPayload(token) {
+  try {
+    const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(decodeURIComponent(escape(atob(base64))));
+  } catch {
+    return null;
+  }
+}
+
+// Login del panel (CUS-02). El backend usa OAuth2: 'username' y 'password' como
+// formulario. Solo se permite el acceso a usuarios con rol 'admin' (la app móvil
+// es para conductores), así que validamos el rol antes de guardar el token.
 export const loginAdmin = async (correo, contrasena) => {
   const formulario = new URLSearchParams();
   formulario.append("username", correo);
@@ -66,6 +78,12 @@ export const loginAdmin = async (correo, contrasena) => {
   if (!respuesta.ok) throw new Error("Correo o contraseña incorrectos");
 
   const datos = await respuesta.json();
+
+  const payload = leerPayload(datos.access_token);
+  if (payload?.rol !== "admin") {
+    throw new Error("Esta cuenta no tiene acceso al panel de administración.");
+  }
+
   guardarToken(datos.access_token);
   return datos;
 };
