@@ -28,10 +28,16 @@ async function request(ruta, { method = "GET", body, headers = {}, auth = true }
 
   const respuesta = await fetch(`${API_URL}${ruta}`, opciones);
 
-  if (respuesta.status === 401) {
+  // 401 (token inválido/expirado) o 403 (la cuenta no tiene permisos de admin):
+  // cerramos sesión y mandamos a login para no quedar en un panel "colgado".
+  if (respuesta.status === 401 || respuesta.status === 403) {
     borrarToken();
     if (window.location.pathname !== "/login") window.location.href = "/login";
-    throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
+    throw new Error(
+      respuesta.status === 403
+        ? "Tu cuenta no tiene permisos para el panel. Inicia sesión como administrador."
+        : "Tu sesión expiró. Vuelve a iniciar sesión."
+    );
   }
 
   // Intentamos leer el cuerpo (puede venir vacío en algunos POST).
