@@ -13,6 +13,7 @@ import Bandeja from "./pages/Bandeja";
 import Flota from "./pages/Flota";
 import Conductores from "./pages/Conductores";
 import Seguimiento from "./pages/Seguimiento";
+import SeguimientoConductores from "./pages/SeguimientoConductores";
 import Reportes from "./pages/Reportes";
 import Trazabilidad from "./pages/Trazabilidad";
 
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="/flota" element={<Flota />} />
         <Route path="/conductores" element={<Conductores />} />
         <Route path="/seguimiento" element={<Seguimiento />} />
+        <Route path="/seguimiento-conductores" element={<SeguimientoConductores />} />
         <Route path="/reportes" element={<Reportes />} />
         <Route path="/trazabilidad" element={<Trazabilidad />} />
       </Route>

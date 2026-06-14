@@ -8,6 +8,7 @@ import {
   Truck,
   Users,
   Radar,
+  MapPin,
   Search,
   AlertTriangle,
   LogOut,
@@ -37,6 +38,7 @@ const secciones = [
       { icon: Truck, label: "Flota de Vehículos", path: "/flota" },
       { icon: Users, label: "Conductores", path: "/conductores" },
       { icon: Radar, label: "Seguimiento", path: "/seguimiento" },
+      { icon: MapPin, label: "Seguimiento de Conductores", path: "/seguimiento-conductores" },
     ],
   },
   {
