@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, Legend,
+  PieChart, Pie, Cell, LineChart, Line, Legend, LabelList,
 } from "recharts";
 import { Package, Truck, CircleCheck, Flag } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
@@ -10,6 +10,8 @@ import StatCard from "../components/ui/StatCard";
 import Card from "../components/ui/Card";
 import { EstadoBadge } from "../components/ui/Badge";
 import EstadoSistema from "../components/EstadoSistema";
+import { SkeletonStat } from "../components/ui/Skeleton";
+import { agruparPedidosPorDia } from "../utils/dashboard";
 import { obtenerResumen, listarPedidos } from "../services/api";
 
 // Color de marca para cada estado (gráficos).
@@ -24,13 +26,6 @@ const COLOR_ESTADO = {
   CREADA: "#94a3b8",
 };
 
-// Tendencia semanal de ejemplo (no hay endpoint histórico todavía).
-const TENDENCIA_EJEMPLO = [
-  { dia: "Lun", pedidos: 42 }, { dia: "Mar", pedidos: 55 }, { dia: "Mié", pedidos: 48 },
-  { dia: "Jue", pedidos: 67 }, { dia: "Vie", pedidos: 73 }, { dia: "Sáb", pedidos: 38 },
-  { dia: "Dom", pedidos: 21 },
-];
-
 export default function Dashboard() {
   const navigate = useNavigate();
   const [resumen, setResumen] = useState(null);
@@ -39,9 +34,13 @@ export default function Dashboard() {
   // Lleva a la lista de Pedidos ya filtrada por ese estado (clic en la gráfica).
   const irAEstado = (estadoRaw) => estadoRaw && navigate(`/pedidos?estado=${encodeURIComponent(estadoRaw)}`);
 
+  const [cargando, setCargando] = useState(true);
+
   useEffect(() => {
-    obtenerResumen().then(setResumen).catch(() => {});
-    listarPedidos().then(setPedidos).catch(() => {});
+    Promise.allSettled([
+      obtenerResumen().then(setResumen),
+      listarPedidos().then(setPedidos),
+    ]).finally(() => setCargando(false));
   }, []);
 
   const porEstado = resumen?.pedidos_por_estado || {};
@@ -53,22 +52,35 @@ export default function Dashboard() {
 
   const entregados = porEstado.ENTREGADO || 0;
   const recientes = [...pedidos].slice(-6).reverse();
+  const pedidosPorDia = agruparPedidosPorDia(pedidos, 7);
 
   return (
     <div className="space-y-6 p-6 lg:p-8">
       <PageHeader titulo="Dashboard" subtitulo="Resumen operativo de SIOL-SAVA" />
 
       {/* KPIs */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Pedidos totales" value={resumen?.total_pedidos ?? "—"} icon={Package}
-          hint="Acumulado en el sistema" />
-        <StatCard label="Rutas activas" value={resumen?.rutas_activas ?? "—"} icon={Truck}
-          hint={`de ${resumen?.total_rutas ?? 0} rutas`} />
-        <StatCard label="Entregados" value={entregados} icon={CircleCheck}
-          hint="Pedidos completados" />
-        <StatCard label="Rutas finalizadas" value={resumen?.rutas_finalizadas ?? "—"} icon={Flag}
-          hint="Operaciones cerradas" />
-      </div>
+      {cargando ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <SkeletonStat /><SkeletonStat /><SkeletonStat /><SkeletonStat />
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Pedidos totales" value={resumen?.total_pedidos ?? 0} icon={Package}
+            tone="brand" hint="Acumulado en el sistema" />
+          <StatCard label="Rutas activas" value={resumen?.rutas_activas ?? 0} icon={Truck}
+            tone="info"
+            progress={resumen?.total_rutas ? (resumen.rutas_activas / resumen.total_rutas) * 100 : 0}
+            progressLabel={`de ${resumen?.total_rutas ?? 0} rutas`} />
+          <StatCard label="Entregados" value={entregados} icon={CircleCheck}
+            tone="success"
+            progress={resumen?.total_pedidos ? (entregados / resumen.total_pedidos) * 100 : 0}
+            progressLabel={resumen?.total_pedidos ? `${Math.round((entregados / resumen.total_pedidos) * 100)}% del total` : "Sin pedidos"} />
+          <StatCard label="Rutas finalizadas" value={resumen?.rutas_finalizadas ?? 0} icon={Flag}
+            tone="warning"
+            progress={resumen?.total_rutas ? (resumen.rutas_finalizadas / resumen.total_rutas) * 100 : 0}
+            progressLabel="Operaciones cerradas" />
+        </div>
+      )}
 
       {/* Gráficos */}
       <div className="grid gap-6 lg:grid-cols-3">
@@ -83,7 +95,9 @@ export default function Dashboard() {
                 <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={false} />
                 <Tooltip cursor={{ fill: "#f1f5f9" }} contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13 }} />
                 <Bar dataKey="cantidad" radius={[6, 6, 0, 0]} maxBarSize={56} cursor="pointer"
+                  activeBar={{ opacity: 0.8 }}
                   onClick={(d) => irAEstado(d?.estadoRaw)}>
+                  <LabelList dataKey="cantidad" position="top" style={{ fontSize: 11, fontWeight: 700, fill: "#475569" }} />
                   {datosEstado.map((d) => (
                     <Cell key={d.estadoRaw} fill={COLOR_ESTADO[d.estadoRaw] || "#2563eb"} />
                   ))}
@@ -97,34 +111,39 @@ export default function Dashboard() {
           {datosEstado.length === 0 ? (
             <VacioGrafico />
           ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie data={datosEstado} dataKey="cantidad" nameKey="estado" innerRadius={58} outerRadius={92} paddingAngle={2}
-                  cursor="pointer" onClick={(d) => irAEstado(d?.estadoRaw)}>
-                  {datosEstado.map((d) => (
-                    <Cell key={d.estadoRaw} fill={COLOR_ESTADO[d.estadoRaw] || "#2563eb"} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13 }} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-              </PieChart>
-            </ResponsiveContainer>
+            <div className="relative">
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie data={datosEstado} dataKey="cantidad" nameKey="estado" innerRadius={58} outerRadius={92} paddingAngle={2}
+                    cursor="pointer" onClick={(d) => irAEstado(d?.estadoRaw)}>
+                    {datosEstado.map((d) => (
+                      <Cell key={d.estadoRaw} fill={COLOR_ESTADO[d.estadoRaw] || "#2563eb"} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13 }} />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="pointer-events-none absolute inset-x-0 top-[104px] text-center">
+                <p className="text-2xl font-bold text-slate-900 nums">{resumen?.total_pedidos ?? 0}</p>
+                <p className="text-xs text-slate-400">pedidos</p>
+              </div>
+            </div>
           )}
         </Card>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card
-          title="Tendencia de pedidos"
-          subtitle="Últimos 7 días"
+          title="Pedidos por día"
+          subtitle="Últimos 7 días (por fecha de creación)"
           className="lg:col-span-2"
-          action={<span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">datos de ejemplo</span>}
         >
           <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={TENDENCIA_EJEMPLO} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+            <LineChart data={pedidosPorDia} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef2f6" vertical={false} />
               <XAxis dataKey="dia" tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={{ stroke: "#e2e8f0" }} />
-              <YAxis tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={false} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={false} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13 }} />
               <Line type="monotone" dataKey="pedidos" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 3, fill: "#2563eb" }} activeDot={{ r: 5 }} />
             </LineChart>

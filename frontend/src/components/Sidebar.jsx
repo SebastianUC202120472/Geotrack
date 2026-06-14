@@ -77,9 +77,9 @@ export default function Sidebar({ onNavigate }) {
                   end={path === "/"}
                   onClick={onNavigate}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                    `group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
                       isActive
-                        ? "bg-brand-600 text-white"
+                        ? "bg-gradient-to-r from-brand-600 to-brand-700 text-white shadow-[0_4px_12px_rgba(37,99,235,0.35)]"
                         : "text-slate-300 hover:bg-slate-800 hover:text-white"
                     }`
                   }
