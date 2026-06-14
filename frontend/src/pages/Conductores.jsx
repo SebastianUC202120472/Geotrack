@@ -6,6 +6,7 @@ import Input from "../components/ui/Input";
 import PasswordInput from "../components/ui/PasswordInput";
 import Button from "../components/ui/Button";
 import Badge, { EstadoBadge } from "../components/ui/Badge";
+import Modal from "../components/ui/Modal";
 import { listarConductores, crearConductor } from "../services/api";
 import { validarNombre, validarCorreo, validarPassword, validarTelefono, validarDni, soloDigitos } from "../utils/validaciones";
 
@@ -82,7 +83,7 @@ export default function Conductores() {
   };
 
   return (
-    <div className="space-y-6 p-6 lg:p-8">
+    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
       <PageHeader titulo="Conductores" subtitulo="Registra y consulta a los conductores de reparto." />
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -141,9 +142,10 @@ export default function Conductores() {
                     <th className="pb-3 font-semibold">Estado</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {conductores.map((c) => (
-                    <tr key={c.usuario_id} className="cursor-pointer hover:bg-slate-50" onClick={() => setSeleccionado(c)}>
+                <tbody key={conductores.length} className="divide-y divide-slate-50">
+                  {conductores.map((c, i) => (
+                    <tr key={c.usuario_id} style={{ animationDelay: `${i * 30}ms` }}
+                      className="animate-fade-up cursor-pointer hover:bg-slate-50" onClick={() => setSeleccionado(c)}>
                       <td className="py-3 font-medium text-slate-800 nums">{c.codigo || "—"}</td>
                       <td className="py-3 text-slate-700">{c.nombre || "—"}</td>
                       <td className="py-3 text-slate-600 nums">{c.telefono || "—"}</td>
@@ -162,40 +164,39 @@ export default function Conductores() {
         </Card>
       </div>
 
-      {seleccionado && <DetalleConductor conductor={seleccionado} onCerrar={() => setSeleccionado(null)} />}
+      <Modal open={!!seleccionado} onClose={() => setSeleccionado(null)} variant="center">
+        {seleccionado && <DetalleConductor conductor={seleccionado} onCerrar={() => setSeleccionado(null)} />}
+      </Modal>
     </div>
   );
 }
 
 function DetalleConductor({ conductor: c, onCerrar }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/50" onClick={onCerrar} />
-      <div className="relative w-full max-w-md rounded-card bg-white p-6 shadow-xl">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 text-lg font-bold text-white">
-              {(c.nombre || "?").charAt(0).toUpperCase()}
-            </span>
-            <div>
-              <h2 className="font-bold text-slate-900">{c.nombre || "Conductor"}</h2>
-              <p className="text-sm text-slate-500 nums">{c.codigo}</p>
-            </div>
+    <>
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 text-lg font-bold text-white">
+            {(c.nombre || "?").charAt(0).toUpperCase()}
+          </span>
+          <div>
+            <h2 className="font-bold text-slate-900">{c.nombre || "Conductor"}</h2>
+            <p className="text-sm text-slate-500 nums">{c.codigo}</p>
           </div>
-          <button onClick={onCerrar} aria-label="Cerrar" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100">
-            <X size={20} />
-          </button>
         </div>
-
-        <div className="mt-6 space-y-3">
-          <Dato icono={Mail} etiqueta="Correo" valor={c.correo} />
-          <Dato icono={Phone} etiqueta="Teléfono" valor={c.telefono || "—"} />
-          <Dato icono={IdCard} etiqueta="DNI" valor={c.dni || "—"} />
-          <Dato icono={Truck} etiqueta="Vehículo asignado"
-            valor={c.vehiculo ? `${c.vehiculo.placa}${c.vehiculo.codigo ? ` (${c.vehiculo.codigo})` : ""}` : "Sin vehículo asignado"} />
-        </div>
+        <button onClick={onCerrar} aria-label="Cerrar" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100">
+          <X size={20} />
+        </button>
       </div>
-    </div>
+
+      <div className="mt-6 space-y-3">
+        <Dato icono={Mail} etiqueta="Correo" valor={c.correo} />
+        <Dato icono={Phone} etiqueta="Teléfono" valor={c.telefono || "—"} />
+        <Dato icono={IdCard} etiqueta="DNI" valor={c.dni || "—"} />
+        <Dato icono={Truck} etiqueta="Vehículo asignado"
+          valor={c.vehiculo ? `${c.vehiculo.placa}${c.vehiculo.codigo ? ` (${c.vehiculo.codigo})` : ""}` : "Sin vehículo asignado"} />
+      </div>
+    </>
   );
 }
 
