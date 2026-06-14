@@ -11,6 +11,8 @@ import { Button } from "@/components/Button";
 import { MapaRuta } from "@/components/MapaRuta";
 import { ParadaItem } from "@/components/ParadaItem";
 import { Cargando, ErrorVista, Vacio } from "@/components/Estados";
+import { GradientHeader } from "@/components/GradientHeader";
+import { Aparecer, ItemLista } from "@/components/Animations";
 import { useRutaActiva, useManifiesto, useNavegacion, useIniciarRuta, useFinalizarRuta, claves } from "@/features/ruta/hooks";
 import { useUbicacionActual } from "@/hooks/useUbicacionActual";
 import { useEnviarUbicacion } from "@/hooks/useEnviarUbicacion";
@@ -83,29 +85,34 @@ export default function RutaScreen() {
     ]);
   };
 
-  // Cabecera de la lista: resumen, mapa y acciones.
+  // Cabecera de la lista: degradado con resumen, mapa montado y acciones.
   const Cabecera = (
     <View style={estilos.cabecera}>
       {ruta.data && (
-        <Card>
-          <Text style={[estilos.nombreRuta, { color: colors.ink }]}>{ruta.data.nombre}</Text>
-          <Text style={[estilos.codigo, { color: colors.muted }]}>
+        <GradientHeader>
+          <Text style={estilos.saludo}>Hola 👋</Text>
+          <Text style={estilos.nombreRuta}>{ruta.data.nombre}</Text>
+          <Text style={estilos.codigo}>
             {ruta.data.codigo ?? "—"} · {ruta.data.estado.replace("_", " ").toLowerCase()}
           </Text>
           <View style={estilos.contadores}>
-            <Contador valor={ruta.data.pendientes} etiqueta="Pendientes" color={colors.warning} mutedColor={colors.muted} />
-            <Contador valor={ruta.data.entregadas} etiqueta="Entregadas" color={colors.success} mutedColor={colors.muted} />
-            <Contador valor={ruta.data.fallidas} etiqueta="Fallidas" color={colors.danger} mutedColor={colors.muted} />
+            <Contador valor={ruta.data.pendientes} etiqueta="Pendientes" />
+            <Contador valor={ruta.data.entregadas} etiqueta="Entregadas" />
+            <Contador valor={ruta.data.fallidas} etiqueta="Fallidas" />
           </View>
-        </Card>
+        </GradientHeader>
       )}
 
-      <MapaRuta paradas={navegacion.data?.paradas ?? []} />
+      <Aparecer style={estilos.secciones}>
+        <Card style={{ marginTop: -spacing.lg, padding: spacing.sm }}>
+          <MapaRuta paradas={navegacion.data?.paradas ?? []} />
+        </Card>
 
-      <Button titulo="Iniciar ruta desde mi ubicación" onPress={iniciarRuta} cargando={ubicacion.cargando || iniciar.isPending} />
-      <Button titulo="Finalizar ruta" variante="secondary" onPress={finalizarRuta} cargando={finalizar.isPending} />
+        <Button titulo="Iniciar ruta desde mi ubicación" onPress={iniciarRuta} cargando={ubicacion.cargando || iniciar.isPending} />
+        <Button titulo="Finalizar ruta" variante="secondary" onPress={finalizarRuta} cargando={finalizar.isPending} />
 
-      <Text style={[estilos.seccion, { color: colors.ink }]}>Paradas ({paradas.length})</Text>
+        <Text style={[estilos.seccion, { color: colors.ink }]}>Paradas ({paradas.length})</Text>
+      </Aparecer>
     </View>
   );
 
@@ -129,8 +136,10 @@ export default function RutaScreen() {
         data={paradas}
         keyExtractor={(p) => String(p.pedido_id)}
         ListHeaderComponent={Cabecera}
-        renderItem={({ item }) => (
-          <ParadaItem parada={item} onPress={() => router.push(`/parada/${item.pedido_id}`)} />
+        renderItem={({ item, index }) => (
+          <ItemLista index={index}>
+            <ParadaItem parada={item} onPress={() => router.push(`/parada/${item.pedido_id}`)} />
+          </ItemLista>
         )}
         contentContainerStyle={estilos.lista}
         ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
@@ -140,24 +149,28 @@ export default function RutaScreen() {
   );
 }
 
-// Contador compacto para el resumen. Recibe: { valor, etiqueta, color, mutedColor }.
-function Contador({ valor, etiqueta, color, mutedColor }: { valor: number; etiqueta: string; color: string; mutedColor: string }) {
+// Contador compacto para el resumen en degradado (texto blanco). Recibe: { valor, etiqueta }.
+function Contador({ valor, etiqueta }: { valor: number; etiqueta: string }) {
   return (
     <View style={estilos.contador}>
-      <Text style={[estilos.contadorValor, { color }]}>{valor}</Text>
-      <Text style={[estilos.contadorEtiqueta, { color: mutedColor }]}>{etiqueta}</Text>
+      <Text style={estilos.contadorValor}>{valor}</Text>
+      <Text style={estilos.contadorEtiqueta}>{etiqueta}</Text>
     </View>
   );
 }
 
+const BLANCO = "#FFFFFF";
+
 const estilos = StyleSheet.create({
-  lista: { padding: spacing.lg },
-  cabecera: { gap: spacing.md, marginBottom: spacing.md },
-  nombreRuta: { fontSize: fontSize.title, fontWeight: "800" },
-  codigo: { fontSize: fontSize.body, marginTop: 2, textTransform: "capitalize" },
-  contadores: { flexDirection: "row", justifyContent: "space-around", marginTop: spacing.lg },
+  lista: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
+  cabecera: { marginBottom: spacing.md, marginHorizontal: -spacing.lg },
+  secciones: { gap: spacing.md, paddingHorizontal: spacing.lg },
+  saludo: { color: BLANCO, fontSize: fontSize.body, opacity: 0.9, fontWeight: "600" },
+  nombreRuta: { color: BLANCO, fontSize: fontSize.display, fontWeight: "800", marginTop: 2 },
+  codigo: { color: BLANCO, fontSize: fontSize.body, marginTop: 2, opacity: 0.9, textTransform: "lowercase" },
+  contadores: { flexDirection: "row", justifyContent: "space-around", marginTop: spacing.xl },
   contador: { alignItems: "center" },
-  contadorValor: { fontSize: fontSize.title, fontWeight: "800" },
-  contadorEtiqueta: { fontSize: fontSize.caption },
+  contadorValor: { color: BLANCO, fontSize: fontSize.title, fontWeight: "800" },
+  contadorEtiqueta: { color: BLANCO, fontSize: fontSize.caption, opacity: 0.9 },
   seccion: { fontSize: fontSize.subtitle, fontWeight: "700", marginTop: spacing.sm },
 });
