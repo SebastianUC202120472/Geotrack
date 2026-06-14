@@ -101,6 +101,12 @@ class ConductorUpdate(BaseModel):
         return v
 
 
+class UbicacionRequest(BaseModel):
+    """ENTRADA: la app del conductor reporta su posición actual (foreground)."""
+    latitud: float
+    longitud: float
+
+
 class VehiculoAsignado(BaseModel):
     id: int
     codigo: Optional[str] = None

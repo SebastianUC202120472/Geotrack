@@ -3,7 +3,9 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.repositories import ruta_repository, pedido_repository, usuario_repository, historial_repository
+from datetime import datetime
+
+from app.repositories import ruta_repository, pedido_repository, usuario_repository, historial_repository, ubicacion_repository
 from app.schemas.dashboard import (
     RutaFlota,
     FlotaResponse,
@@ -11,9 +13,12 @@ from app.schemas.dashboard import (
     EventoHistorial,
     HistorialPedidoResponse,
     ClienteSeguimiento,
+    ConductorUbicacion,
+    ParadaMapa,
 )
 
 ESTADOS_RUTA_ACTIVA = ("CREADA", "EN_PROGRESO")
+UMBRAL_EN_LINEA_SEG = 120  # un conductor está "en línea" si su última señal tiene < 2 min
 
 # Texto legible para cada estado, usado en la línea de tiempo (CUS-35).
 DESCRIPCIONES_ESTADO = {
@@ -70,6 +75,55 @@ def obtener_por_cliente(db: Session) -> list[ClienteSeguimiento]:
 
     filas = sorted(acum.values(), key=lambda f: f["total"], reverse=True)
     return [ClienteSeguimiento(**f) for f in filas]
+
+
+# Mapa de flota en tiempo real: posición de cada conductor activo + sus paradas pendientes.
+def obtener_ubicaciones_flota(db: Session) -> list[ConductorUbicacion]:
+    """Por cada ruta activa con conductor: su última posición conocida (con marca de
+    'en línea') y las paradas aún pendientes (con coordenadas) para el mapa del panel.
+    Recibe: la sesión de BD."""
+    from app.models.ruta import Ruta, RutaDetalle
+    from app.models.pedido import Pedido
+
+    ahora = datetime.utcnow()
+    rutas = db.query(Ruta).filter(Ruta.estado.in_(ESTADOS_RUTA_ACTIVA), Ruta.conductor_id.isnot(None)).all()
+
+    salida: list[ConductorUbicacion] = []
+    for ruta in rutas:
+        ubicacion = ubicacion_repository.obtener(db, ruta.conductor_id)
+        en_linea = bool(ubicacion) and (ahora - ubicacion.actualizado_en).total_seconds() <= UMBRAL_EN_LINEA_SEG
+
+        # Paradas pendientes de esta ruta que tengan coordenadas.
+        detalles = (
+            db.query(RutaDetalle, Pedido)
+            .join(Pedido, RutaDetalle.pedido_id == Pedido.id)
+            .filter(RutaDetalle.ruta_id == ruta.id, RutaDetalle.estado_entrega == "PENDIENTE")
+            .all()
+        )
+        paradas = [
+            ParadaMapa(
+                latitud=pedido.latitud,
+                longitud=pedido.longitud,
+                destinatario=pedido.nombre_destinatario,
+                secuencia=detalle.secuencia,
+            )
+            for detalle, pedido in detalles
+            if pedido.latitud is not None and pedido.longitud is not None
+        ]
+
+        salida.append(
+            ConductorUbicacion(
+                conductor_id=ruta.conductor_id,
+                conductor=_nombre_conductor(db, ruta.conductor_id),
+                ruta=ruta.nombre,
+                latitud=ubicacion.latitud if ubicacion else None,
+                longitud=ubicacion.longitud if ubicacion else None,
+                actualizado_en=ubicacion.actualizado_en if ubicacion else None,
+                en_linea=en_linea,
+                paradas=paradas,
+            )
+        )
+    return salida
 
 
 # CUS-33: Seguimiento de la flota

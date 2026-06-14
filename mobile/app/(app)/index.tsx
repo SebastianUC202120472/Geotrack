@@ -13,6 +13,7 @@ import { ParadaItem } from "@/components/ParadaItem";
 import { Cargando, ErrorVista, Vacio } from "@/components/Estados";
 import { useRutaActiva, useManifiesto, useNavegacion, useIniciarRuta, useFinalizarRuta, claves } from "@/features/ruta/hooks";
 import { useUbicacionActual } from "@/hooks/useUbicacionActual";
+import { useEnviarUbicacion } from "@/hooks/useEnviarUbicacion";
 import { mensajeDeError } from "@/api/client";
 import { useTheme, fontSize, spacing } from "@/theme";
 
@@ -26,6 +27,9 @@ export default function RutaScreen() {
   const iniciar = useIniciarRuta();
   const finalizar = useFinalizarRuta();
   const qc = useQueryClient();
+
+  // Envía la posición del conductor mientras tenga una ruta activa (foreground).
+  useEnviarUbicacion(!!ruta.data && ruta.data.estado !== "FINALIZADA");
 
   // Al volver a esta pestaña, vuelve a pedir los datos (se ven los cambios al instante).
   useFocusEffect(
