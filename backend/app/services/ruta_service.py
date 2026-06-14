@@ -297,7 +297,11 @@ def asignar_bloque(db: Session, datos: AsignacionBloqueRequest, usuario_id: int 
     if not pedidos:
         raise HTTPException(status_code=400, detail="No hay pedidos pendientes para esa zona")
 
-    ruta = ruta_repository.crear_ruta(db, nombre=datos.nombre_ruta, conductor_id=datos.conductor_id)
+    # El nombre se deriva de la zona ("Ruta Miraflores"). Si llega un nombre
+    # explícito no vacío se respeta (override opcional); si no, se genera.
+    nombre = (datos.nombre_ruta or "").strip() or f"Ruta {datos.distrito or 'sin zona'}"
+
+    ruta = ruta_repository.crear_ruta(db, nombre=nombre, conductor_id=datos.conductor_id)
 
     for pedido in pedidos:
         ruta_repository.agregar_detalle(db, ruta_id=ruta.id, pedido_id=pedido.id, secuencia=0)
@@ -308,7 +312,7 @@ def asignar_bloque(db: Session, datos: AsignacionBloqueRequest, usuario_id: int 
     ruta_repository.guardar_cambios(db)
 
     return {
-        "mensaje": f"{len(pedidos)} pedidos asignados a la ruta '{datos.nombre_ruta}'",
+        "mensaje": f"{len(pedidos)} pedidos asignados a la ruta '{nombre}'",
         "ruta_id": ruta.id,
         "codigo": ruta.codigo,
     }
