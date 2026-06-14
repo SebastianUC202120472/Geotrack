@@ -20,21 +20,32 @@ export default function Modal({ open, onClose, variant = "center", className = "
   const [visible, setVisible] = useState(false);
   const [contenido, setContenido] = useState(children);
 
-  // Mientras está abierto recuerda el último contenido, para mostrarlo también
-  // durante la animación de salida (cuando el padre ya limpió su estado).
+  // Recuerda el último contenido mientras está abierto, para mostrarlo también
+  // durante la animación de salida (cuando el padre ya limpió su estado). Se
+  // actualiza dentro de un rAF (asíncrono) para no usar setState síncrono en
+  // un effect.
   useEffect(() => {
-    if (open) setContenido(children);
+    if (!open) return;
+    const r = requestAnimationFrame(() => setContenido(children));
+    return () => cancelAnimationFrame(r);
   }, [open, children]);
 
   useEffect(() => {
     if (open) {
-      setRender(true);
-      const r = requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
+      // Monta y, en el frame siguiente, activa la transición de entrada.
+      const r = requestAnimationFrame(() => {
+        setRender(true);
+        requestAnimationFrame(() => setVisible(true));
+      });
       return () => cancelAnimationFrame(r);
     }
-    setVisible(false);
+    // Cierre: dispara la transición de salida y desmonta al terminar.
+    const r = requestAnimationFrame(() => setVisible(false));
     const t = setTimeout(() => setRender(false), DURACION);
-    return () => clearTimeout(t);
+    return () => {
+      cancelAnimationFrame(r);
+      clearTimeout(t);
+    };
   }, [open]);
 
   useEffect(() => {
