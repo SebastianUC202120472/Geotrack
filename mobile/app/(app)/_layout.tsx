@@ -15,7 +15,21 @@ export default function AppLayout() {
         headerTitleStyle: { fontWeight: "700" },
         tabBarActiveTintColor: colors.brand,
         tabBarInactiveTintColor: colors.muted,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+          borderTopLeftRadius: 16,
+          borderTopRightRadius: 16,
+          height: 64,
+          paddingBottom: 8,
+          paddingTop: 8,
+          shadowColor: "#0F172A",
+          shadowOpacity: 0.06,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: -3 },
+          elevation: 8,
+        },
         sceneStyle: { backgroundColor: colors.canvas },
       }}
     >
