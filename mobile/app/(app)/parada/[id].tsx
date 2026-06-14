@@ -2,15 +2,17 @@
 // ENTREGADO adjuntando una foto (POD) o (b) reportar un problema (falla), que
 // el administrador verá en su panel de reportes.
 import { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { EstadoBadge } from "@/components/EstadoBadge";
 import { Cargando, Vacio } from "@/components/Estados";
+import { Aparecer } from "@/components/Animations";
 import { useManifiesto } from "@/features/ruta/hooks";
 import { useEntregarConEvidencia, useReportarFalla } from "@/features/entrega/hooks";
 import { mensajeDeError } from "@/api/client";
@@ -89,75 +91,98 @@ export default function ParadaScreen() {
   return (
     <Screen conPadding={false}>
       <ScrollView contentContainerStyle={estilos.contenido}>
-        <Card>
-          <View style={estilos.encabezado}>
-            <Text style={[estilos.codigo, { color: colors.ink }]}>{parada.codigo ?? `Pedido ${parada.pedido_id}`}</Text>
-            <EstadoBadge estado={parada.estado_entrega} />
-          </View>
-          <Dato etiqueta="Destinatario" valor={parada.nombre_destinatario || "—"} c={colors} />
-          <Dato etiqueta="Cliente" valor={parada.cliente_origen} c={colors} />
-          <Dato etiqueta="Dirección" valor={parada.direccion_destino} c={colors} />
-          <Dato etiqueta="Distrito" valor={parada.distrito || "—"} c={colors} />
-          {parada.telefono_destinatario ? <Dato etiqueta="Teléfono" valor={parada.telefono_destinatario} c={colors} /> : null}
-        </Card>
-
-        {gestionada ? (
-          <Card style={{ backgroundColor: parada.estado_entrega === "ENTREGADO" ? colors.successSoft : colors.dangerSoft }}>
-            <Text style={{ color: parada.estado_entrega === "ENTREGADO" ? colors.success : colors.danger, fontSize: fontSize.subtitle, fontWeight: "700", textAlign: "center" }}>
-              {parada.estado_entrega === "ENTREGADO" ? "Esta parada ya fue entregada." : "Esta parada fue reportada como fallida."}
-            </Text>
-          </Card>
-        ) : modoReporte ? (
+        <Aparecer style={estilos.grupo}>
           <Card>
-            <Text style={[estilos.titulo, { color: colors.ink }]}>Reportar problema</Text>
-            <Text style={[estilos.sub, { color: colors.muted }]}>Motivo de la falla</Text>
-            <View style={estilos.motivos}>
-              {MOTIVOS.map((m) => {
-                const activo = motivo === m;
-                return (
-                  <Pressable key={m} onPress={() => setMotivo(m)} accessibilityRole="button" accessibilityLabel={m}
-                    style={[estilos.motivoChip, { borderColor: activo ? colors.brand : colors.border, backgroundColor: activo ? colors.brandSoft : colors.surface }]}>
-                    <Text style={{ color: activo ? colors.brand : colors.text, fontWeight: "600" }}>{m}</Text>
-                  </Pressable>
-                );
-              })}
+            <View style={estilos.encabezado}>
+              <Text style={[estilos.codigo, { color: colors.muted }]}>{parada.codigo ?? `Pedido ${parada.pedido_id}`}</Text>
+              <EstadoBadge estado={parada.estado_entrega} />
             </View>
-            <TextInput
-              value={descripcion}
-              onChangeText={setDescripcion}
-              placeholder="Detalle (opcional)"
-              placeholderTextColor={colors.muted}
-              multiline
-              style={[estilos.area, { borderColor: colors.border, color: colors.ink, backgroundColor: colors.surface }]}
-            />
-            <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
-              <Button titulo={reportar.isPending ? "Enviando…" : "Enviar reporte"} variante="danger" onPress={enviarReporte} cargando={reportar.isPending} />
-              <Button titulo="Cancelar" variante="secondary" onPress={() => setModoReporte(false)} />
-            </View>
+
+            {/* Destacar a quién y de quién es el pedido */}
+            <Text style={[estilos.rol, { color: colors.muted }]}>Para</Text>
+            <Text style={[estilos.destacado, { color: colors.ink }]}>{parada.nombre_destinatario || "—"}</Text>
+
+            <Text style={[estilos.rol, { color: colors.muted, marginTop: spacing.md }]}>De</Text>
+            <Text style={[estilos.empresa, { color: colors.text }]}>{parada.cliente_origen}</Text>
+
+            <View style={[estilos.separador, { backgroundColor: colors.border }]} />
+
+            <Dato etiqueta="Dirección" valor={parada.direccion_destino} c={colors} />
+            <Dato etiqueta="Distrito" valor={parada.distrito || "—"} c={colors} />
+            {parada.telefono_destinatario ? (
+              <>
+                <Dato etiqueta="Teléfono" valor={parada.telefono_destinatario} c={colors} />
+                <Pressable
+                  onPress={() => Linking.openURL(`tel:${parada.telefono_destinatario}`)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Llamar al destinatario"
+                  style={[estilos.llamar, { backgroundColor: colors.brandSoft }]}
+                >
+                  <Ionicons name="call" size={18} color={colors.brand} />
+                  <Text style={[estilos.llamarTexto, { color: colors.brand }]}>Llamar</Text>
+                </Pressable>
+              </>
+            ) : null}
           </Card>
-        ) : (
-          <>
+
+          {gestionada ? (
+            <Card style={{ backgroundColor: parada.estado_entrega === "ENTREGADO" ? colors.successSoft : colors.dangerSoft }}>
+              <Text style={{ color: parada.estado_entrega === "ENTREGADO" ? colors.success : colors.danger, fontSize: fontSize.subtitle, fontWeight: "700", textAlign: "center" }}>
+                {parada.estado_entrega === "ENTREGADO" ? "Esta parada ya fue entregada." : "Esta parada fue reportada como fallida."}
+              </Text>
+            </Card>
+          ) : modoReporte ? (
             <Card>
-              <Text style={[estilos.titulo, { color: colors.ink }]}>Evidencia de entrega (foto)</Text>
-              {foto ? (
-                <Image source={{ uri: foto }} style={estilos.preview} contentFit="cover" />
-              ) : (
-                <View style={[estilos.placeholder, { borderColor: colors.border }]}>
-                  <Text style={{ color: colors.muted, fontSize: fontSize.body }}>Adjunta una foto como prueba de entrega</Text>
-                </View>
-              )}
-              <View style={estilos.botonesFoto}>
-                <View style={{ flex: 1 }}><Button titulo="Tomar foto" variante="secondary" onPress={tomarFoto} /></View>
-                <View style={{ flex: 1 }}><Button titulo="Galería" variante="secondary" onPress={elegirFoto} /></View>
+              <Text style={[estilos.titulo, { color: colors.ink }]}>Reportar problema</Text>
+              <Text style={[estilos.sub, { color: colors.muted }]}>Motivo de la falla</Text>
+              <View style={estilos.motivos}>
+                {MOTIVOS.map((m) => {
+                  const activo = motivo === m;
+                  return (
+                    <Pressable key={m} onPress={() => setMotivo(m)} accessibilityRole="button" accessibilityLabel={m}
+                      style={[estilos.motivoChip, { borderColor: activo ? colors.brand : colors.border, backgroundColor: activo ? colors.brandSoft : colors.surface }]}>
+                      <Text style={{ color: activo ? colors.brand : colors.text, fontWeight: "600" }}>{m}</Text>
+                    </Pressable>
+                  );
+                })}
               </View>
-              <View style={{ marginTop: spacing.lg }}>
-                <Button titulo={entregar.isPending ? "Registrando…" : "Marcar como entregado"} onPress={confirmarEntrega} cargando={entregar.isPending} deshabilitado={!foto} />
+              <TextInput
+                value={descripcion}
+                onChangeText={setDescripcion}
+                placeholder="Detalle (opcional)"
+                placeholderTextColor={colors.muted}
+                multiline
+                style={[estilos.area, { borderColor: colors.border, color: colors.ink, backgroundColor: colors.surface }]}
+              />
+              <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
+                <Button titulo={reportar.isPending ? "Enviando…" : "Enviar reporte"} variante="danger" onPress={enviarReporte} cargando={reportar.isPending} />
+                <Button titulo="Cancelar" variante="secondary" onPress={() => setModoReporte(false)} />
               </View>
             </Card>
+          ) : (
+            <>
+              <Card>
+                <Text style={[estilos.titulo, { color: colors.ink }]}>Evidencia de entrega (foto)</Text>
+                {foto ? (
+                  <Image source={{ uri: foto }} style={estilos.preview} contentFit="cover" />
+                ) : (
+                  <View style={[estilos.placeholder, { borderColor: colors.border }]}>
+                    <Text style={{ color: colors.muted, fontSize: fontSize.body }}>Adjunta una foto como prueba de entrega</Text>
+                  </View>
+                )}
+                <View style={estilos.botonesFoto}>
+                  <View style={{ flex: 1 }}><Button titulo="Tomar foto" variante="secondary" onPress={tomarFoto} /></View>
+                  <View style={{ flex: 1 }}><Button titulo="Galería" variante="secondary" onPress={elegirFoto} /></View>
+                </View>
+                <View style={{ marginTop: spacing.lg }}>
+                  <Button titulo={entregar.isPending ? "Registrando…" : "Marcar como entregado"} onPress={confirmarEntrega} cargando={entregar.isPending} deshabilitado={!foto} />
+                </View>
+              </Card>
 
-            <Button titulo="Reportar un problema" variante="danger" onPress={() => setModoReporte(true)} />
-          </>
-        )}
+              <Button titulo="Reportar un problema" variante="danger" onPress={() => setModoReporte(true)} />
+            </>
+          )}
+        </Aparecer>
       </ScrollView>
     </Screen>
   );
@@ -174,9 +199,16 @@ function Dato({ etiqueta, valor, c }: { etiqueta: string; valor: string; c: { mu
 }
 
 const estilos = StyleSheet.create({
-  contenido: { padding: spacing.lg, gap: spacing.lg },
+  contenido: { padding: spacing.lg },
+  grupo: { gap: spacing.lg },
   encabezado: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.md },
-  codigo: { fontSize: fontSize.title, fontWeight: "800" },
+  codigo: { fontSize: fontSize.body, fontWeight: "700" },
+  rol: { fontSize: fontSize.caption, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
+  destacado: { fontSize: fontSize.title, fontWeight: "800", marginTop: 2 },
+  empresa: { fontSize: fontSize.subtitle, fontWeight: "600", marginTop: 2 },
+  separador: { height: 1, marginVertical: spacing.md },
+  llamar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, marginTop: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.md },
+  llamarTexto: { fontSize: fontSize.body, fontWeight: "700" },
   dato: { marginTop: spacing.md },
   datoEtiqueta: { fontSize: fontSize.caption },
   datoValor: { fontSize: fontSize.body, fontWeight: "600" },
