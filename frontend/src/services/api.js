@@ -142,6 +142,9 @@ export const listarZonas = () => request("/pedidos/zonas");
 // Seguimiento de repartos agregado por empresa cliente (no por ruta).
 export const obtenerSeguimientoClientes = () => request("/dashboard/clientes");
 
+// Posición en vivo de cada conductor con ruta activa + sus paradas pendientes.
+export const obtenerUbicacionesFlota = () => request("/dashboard/flota/ubicaciones");
+
 /* ============================================================
    VEHÍCULOS Y FLOTA  (gestión del admin)
 ============================================================ */
