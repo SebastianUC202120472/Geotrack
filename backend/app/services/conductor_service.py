@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.repositories import conductor_repository, usuario_repository
 from app.core.security import get_password_hash
-from app.schemas.conductor import ConductorCreate
+from app.schemas.conductor import ConductorCreate, ConductorUpdate
 
 
 def _a_respuesta(db: Session, usuario) -> dict:
@@ -44,3 +44,35 @@ def crear(db: Session, datos: ConductorCreate) -> dict:
         db, usuario_id=usuario.id, nombre=datos.nombre, telefono=datos.telefono, dni=datos.dni
     )
     return _a_respuesta(db, usuario)
+
+
+def _conductor_activo(db: Session, usuario_id: int):
+    """Devuelve el usuario si es un conductor activo; si no, lanza 404."""
+    usuario = usuario_repository.obtener_por_id(db, usuario_id)
+    if usuario is None or usuario.rol != "conductor" or not usuario.estado:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conductor no encontrado")
+    return usuario
+
+
+def actualizar(db: Session, usuario_id: int, datos: ConductorUpdate) -> dict:
+    """Edita la ficha (nombre/teléfono/DNI) de un conductor activo."""
+    usuario = _conductor_activo(db, usuario_id)
+    conductor_repository.actualizar_perfil(
+        db, usuario_id, nombre=datos.nombre, telefono=datos.telefono, dni=datos.dni
+    )
+    return _a_respuesta(db, usuario)
+
+
+def eliminar(db: Session, usuario_id: int) -> dict:
+    """Soft-delete: desactiva al conductor (preserva su historial). Bloquea si
+    tiene una ruta activa y libera su vehículo."""
+    usuario = _conductor_activo(db, usuario_id)
+    if conductor_repository.tiene_ruta_activa(db, usuario_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se puede eliminar: el conductor tiene una ruta activa",
+        )
+    conductor_repository.desasignar_vehiculo(db, usuario_id)
+    usuario.estado = False
+    db.commit()
+    return {"mensaje": "Conductor eliminado"}
