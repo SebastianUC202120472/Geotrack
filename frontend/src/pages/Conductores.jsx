@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check } from "lucide-react";
+import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check, Pencil, Trash2 } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
@@ -7,7 +7,7 @@ import PasswordInput from "../components/ui/PasswordInput";
 import Button from "../components/ui/Button";
 import Badge, { EstadoBadge } from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
-import { listarConductores, crearConductor } from "../services/api";
+import { listarConductores, crearConductor, actualizarConductor, eliminarConductor } from "../services/api";
 import { validarNombre, validarCorreo, validarPassword, validarTelefono, validarDni, soloDigitos } from "../utils/validaciones";
 
 // Apartado de conductores: ficha completa (nombre, teléfono, DNI), vehículo
@@ -165,13 +165,74 @@ export default function Conductores() {
       </div>
 
       <Modal open={!!seleccionado} onClose={() => setSeleccionado(null)} variant="center">
-        {seleccionado && <DetalleConductor conductor={seleccionado} onCerrar={() => setSeleccionado(null)} />}
+        {seleccionado && (
+          <DetalleConductor
+            conductor={seleccionado}
+            onCerrar={() => setSeleccionado(null)}
+            onCambios={() => { setSeleccionado(null); cargar(); }}
+          />
+        )}
       </Modal>
     </div>
   );
 }
 
-function DetalleConductor({ conductor: c, onCerrar }) {
+// Detalle del conductor con tres modos: ver la ficha, editarla, o confirmar su
+// eliminación. `onCambios` se llama tras editar/eliminar (cierra + recarga lista).
+function DetalleConductor({ conductor: c, onCerrar, onCambios }) {
+  const [modo, setModo] = useState("ver"); // "ver" | "editar" | "confirmar"
+  const [form, setForm] = useState({ nombre: c.nombre || "", telefono: c.telefono || "", dni: c.dni || "" });
+  const [errores, setErrores] = useState({});
+  const [aviso, setAviso] = useState(null);
+  const [trabajando, setTrabajando] = useState(false);
+
+  // Actualiza un campo del formulario y limpia su error.
+  const set = (campo, transform) => (e) => {
+    const valor = transform ? transform(e.target.value) : e.target.value;
+    setForm((f) => ({ ...f, [campo]: valor }));
+    setErrores((er) => ({ ...er, [campo]: "" }));
+  };
+
+  // Valida y guarda la edición de la ficha.
+  const guardar = async () => {
+    const errs = {
+      nombre: validarNombre(form.nombre),
+      telefono: validarTelefono(form.telefono),
+      dni: validarDni(form.dni),
+    };
+    if (Object.values(errs).some(Boolean)) {
+      setErrores(errs);
+      return;
+    }
+    setTrabajando(true);
+    setAviso(null);
+    try {
+      await actualizarConductor(c.usuario_id, {
+        nombre: form.nombre,
+        telefono: form.telefono || null,
+        dni: form.dni || null,
+      });
+      onCambios();
+    } catch (err) {
+      setAviso({ texto: err.message });
+      setTrabajando(false);
+    }
+  };
+
+  // Elimina (desactiva) el conductor.
+  const eliminar = async () => {
+    setTrabajando(true);
+    setAviso(null);
+    try {
+      await eliminarConductor(c.usuario_id);
+      onCambios();
+    } catch (err) {
+      setAviso({ texto: err.message });
+      setTrabajando(false);
+      setModo("ver");
+    }
+  };
+
   return (
     <>
       <div className="flex items-start justify-between">
@@ -189,13 +250,56 @@ function DetalleConductor({ conductor: c, onCerrar }) {
         </button>
       </div>
 
-      <div className="mt-6 space-y-3">
-        <Dato icono={Mail} etiqueta="Correo" valor={c.correo} />
-        <Dato icono={Phone} etiqueta="Teléfono" valor={c.telefono || "—"} />
-        <Dato icono={IdCard} etiqueta="DNI" valor={c.dni || "—"} />
-        <Dato icono={Truck} etiqueta="Vehículo asignado"
-          valor={c.vehiculo ? `${c.vehiculo.placa}${c.vehiculo.codigo ? ` (${c.vehiculo.codigo})` : ""}` : "Sin vehículo asignado"} />
-      </div>
+      {aviso && (
+        <div className="mt-4 flex items-center gap-2 rounded-xl bg-danger-soft px-3.5 py-3 text-sm text-danger-strong">
+          <AlertCircle size={18} /> <span>{aviso.texto}</span>
+        </div>
+      )}
+
+      {modo === "ver" && (
+        <>
+          <div className="mt-6 space-y-3">
+            <Dato icono={Mail} etiqueta="Correo" valor={c.correo} />
+            <Dato icono={Phone} etiqueta="Teléfono" valor={c.telefono || "—"} />
+            <Dato icono={IdCard} etiqueta="DNI" valor={c.dni || "—"} />
+            <Dato icono={Truck} etiqueta="Vehículo asignado"
+              valor={c.vehiculo ? `${c.vehiculo.placa}${c.vehiculo.codigo ? ` (${c.vehiculo.codigo})` : ""}` : "Sin vehículo asignado"} />
+          </div>
+          <div className="mt-6 flex gap-2">
+            <Button variant="secondary" icon={Pencil} block onClick={() => { setAviso(null); setModo("editar"); }}>Editar</Button>
+            <Button variant="danger" icon={Trash2} block onClick={() => { setAviso(null); setModo("confirmar"); }}>Eliminar</Button>
+          </div>
+        </>
+      )}
+
+      {modo === "editar" && (
+        <div className="mt-6 space-y-4">
+          <Input label="Nombre completo" value={form.nombre} onChange={set("nombre")} error={errores.nombre} hint="Al menos 3 caracteres" />
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Teléfono" inputMode="numeric" value={form.telefono} onChange={set("telefono", (v) => soloDigitos(v, 9))}
+              error={errores.telefono} hint="9 dígitos" />
+            <Input label="DNI" inputMode="numeric" value={form.dni} onChange={set("dni", (v) => soloDigitos(v, 8))}
+              error={errores.dni} hint="8 dígitos" />
+          </div>
+          <div className="flex gap-2">
+            <Button variant="secondary" block onClick={() => { setModo("ver"); setErrores({}); }} disabled={trabajando}>Cancelar</Button>
+            <Button icon={Check} block onClick={guardar} disabled={trabajando}>{trabajando ? "Guardando…" : "Guardar"}</Button>
+          </div>
+        </div>
+      )}
+
+      {modo === "confirmar" && (
+        <div className="mt-6 space-y-4">
+          <div className="flex items-start gap-3 rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger-strong">
+            <AlertCircle size={20} className="shrink-0" />
+            <span>¿Eliminar a <b>{c.nombre || "este conductor"}</b>? Se quitará de la lista (su historial se conserva).</span>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="secondary" block onClick={() => setModo("ver")} disabled={trabajando}>Cancelar</Button>
+            <Button variant="danger" icon={Trash2} block onClick={eliminar} disabled={trabajando}>{trabajando ? "Eliminando…" : "Sí, eliminar"}</Button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

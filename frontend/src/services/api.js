@@ -100,6 +100,14 @@ export const listarConductores = () => request("/conductores/");
 export const crearConductor = (datos) =>
   request("/conductores/", { method: "POST", body: datos });
 
+// Editar la ficha (nombre/teléfono/DNI) de un conductor.
+export const actualizarConductor = (id, datos) =>
+  request(`/conductores/${id}`, { method: "PATCH", body: datos });
+
+// Eliminar (desactivar) un conductor; el backend preserva su historial.
+export const eliminarConductor = (id) =>
+  request(`/conductores/${id}`, { method: "DELETE" });
+
 /* ============================================================
    REPORTES DE INCIDENCIA  (el conductor reporta fallas; el admin responde)
 ============================================================ */
