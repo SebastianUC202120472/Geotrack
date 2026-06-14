@@ -262,13 +262,19 @@ def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
     entregadas = sum(1 for d, _ in detalles if d.estado_entrega == "ENTREGADO")
     fallidas = sum(1 for d, _ in detalles if d.estado_entrega == "FALLIDO")
 
+    # No se puede cerrar el día con paradas sin gestionar: cada parada debe estar
+    # entregada (con su evidencia) o reportada como fallida.
+    if pendientes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No puedes cerrar la ruta: quedan {pendientes} parada(s) pendiente(s) por gestionar.",
+        )
+
     ruta.estado = "FINALIZADA"
     ruta.fecha_fin = datetime.utcnow()
     db.commit()
 
     mensaje = "Ruta finalizada correctamente"
-    if pendientes:
-        mensaje += f" (quedaron {pendientes} paradas sin gestionar)"
 
     return CierreRutaResponse(
         ruta_id=ruta.id,
