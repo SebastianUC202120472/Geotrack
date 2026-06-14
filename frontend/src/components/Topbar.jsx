@@ -11,8 +11,24 @@ export default function Topbar() {
   const { cerrarSesion } = useAuth();
   const [enLinea, setEnLinea] = useState(null); // null = verificando
 
+  // Revisa la conexión al montar y luego cada 20 s (y al volver el foco), para que
+  // un arranque lento o un reinicio del backend se recupere solo sin recargar.
   useEffect(() => {
-    obtenerResumen().then(() => setEnLinea(true)).catch(() => setEnLinea(false));
+    let activo = true;
+    const comprobar = () =>
+      obtenerResumen()
+        .then(() => activo && setEnLinea(true))
+        .catch(() => activo && setEnLinea(false));
+
+    comprobar();
+    const id = setInterval(comprobar, 20000);
+    const alEnfocar = () => comprobar();
+    window.addEventListener("focus", alEnfocar);
+    return () => {
+      activo = false;
+      clearInterval(id);
+      window.removeEventListener("focus", alEnfocar);
+    };
   }, []);
 
   const salir = () => {
