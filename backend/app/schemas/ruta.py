@@ -114,8 +114,10 @@ class CierreRutaResponse(BaseModel):
 
 # FASE 2: Enrutamiento básico y VRP (CUS-18 / CUS-19)
 class AsignacionBloqueRequest(BaseModel):
-    """ENTRADA (CUS-18): el admin pide armar una ruta con un bloque de pedidos."""
-    nombre_ruta: str
+    """ENTRADA (CUS-18): el admin pide armar una ruta con un bloque de pedidos.
+    `nombre_ruta` es opcional: si no se envía, el backend lo genera a partir de la
+    zona (ej. "Ruta Miraflores")."""
+    nombre_ruta: Optional[str] = None
     distrito: str
     conductor_id: int
 
