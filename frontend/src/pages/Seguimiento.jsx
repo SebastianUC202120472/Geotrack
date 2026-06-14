@@ -1,29 +1,24 @@
 import { useEffect, useState } from "react";
-import { RefreshCw, Truck, CircleCheck, CircleX, Clock, Building2, Loader2, MapPin } from "lucide-react";
+import { RefreshCw, Truck, CircleCheck, CircleX, Clock, Building2, Loader2 } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import { EstadoBadge } from "../components/ui/Badge";
-import MapaFlota from "../components/MapaFlota";
-import { obtenerFlota, obtenerSeguimientoClientes, obtenerUbicacionesFlota } from "../services/api";
+import { obtenerFlota, obtenerSeguimientoClientes } from "../services/api";
 
-// Seguimiento de operaciones con tres vistas (pestañas):
+// Seguimiento de PEDIDOS con dos vistas (pestañas):
 //  - "Por ruta": avance de cada ruta (CUS-33, /dashboard/flota).
 //  - "Por cliente": repartos agregados por empresa (/dashboard/clientes).
-//  - "Mapa": posición en vivo de los conductores (/dashboard/flota/ubicaciones).
+// (El mapa con la ubicación de los conductores vive en "Seguimiento de Conductores".)
 const PESTANAS = [
   { id: "ruta", label: "Por ruta" },
   { id: "cliente", label: "Por cliente" },
-  { id: "mapa", label: "Mapa" },
 ];
-
-const REFRESCO_MAPA_MS = 15000; // el mapa se actualiza solo cada 15 s (polling)
 
 export default function Seguimiento() {
   const [tab, setTab] = useState("ruta");
   const [rutas, setRutas] = useState([]);
   const [clientes, setClientes] = useState([]);
-  const [ubicaciones, setUbicaciones] = useState([]);
   const [cargando, setCargando] = useState(true);
 
   // Carga los datos de la pestaña indicada (por defecto, la activa).
@@ -33,10 +28,8 @@ export default function Seguimiento() {
       if (cual === "ruta") {
         const data = await obtenerFlota();
         setRutas(data.rutas || []);
-      } else if (cual === "cliente") {
-        setClientes(await obtenerSeguimientoClientes());
       } else {
-        setUbicaciones(await obtenerUbicacionesFlota());
+        setClientes(await obtenerSeguimientoClientes());
       }
     } catch (err) {
       console.error("No se pudo cargar el seguimiento:", err.message);
@@ -49,19 +42,6 @@ export default function Seguimiento() {
   useEffect(() => {
     cargar(tab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
-
-  // En la pestaña "Mapa", refresca las posiciones cada 15 s sin spinner (polling).
-  useEffect(() => {
-    if (tab !== "mapa") return;
-    const id = setInterval(async () => {
-      try {
-        setUbicaciones(await obtenerUbicacionesFlota());
-      } catch {
-        // silencioso: el próximo ciclo reintenta
-      }
-    }, REFRESCO_MAPA_MS);
-    return () => clearInterval(id);
   }, [tab]);
 
   return (
@@ -93,17 +73,8 @@ export default function Seguimiento() {
         </Card>
       ) : tab === "ruta" ? (
         <VistaRutas rutas={rutas} />
-      ) : tab === "cliente" ? (
-        <VistaClientes clientes={clientes} />
-      ) : ubicaciones.length === 0 ? (
-        <Card>
-          <div className="py-12 text-center text-sm text-slate-400">
-            <MapPin className="mx-auto mb-3 opacity-40" size={36} />
-            <p>No hay conductores con ruta activa enviando su ubicación.</p>
-          </div>
-        </Card>
       ) : (
-        <MapaFlota conductores={ubicaciones} />
+        <VistaClientes clientes={clientes} />
       )}
     </div>
   );
