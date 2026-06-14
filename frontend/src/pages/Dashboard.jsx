@@ -26,13 +26,6 @@ const COLOR_ESTADO = {
   CREADA: "#94a3b8",
 };
 
-// Tendencia semanal de ejemplo (no hay endpoint histórico todavía).
-const TENDENCIA_EJEMPLO = [
-  { dia: "Lun", pedidos: 42 }, { dia: "Mar", pedidos: 55 }, { dia: "Mié", pedidos: 48 },
-  { dia: "Jue", pedidos: 67 }, { dia: "Vie", pedidos: 73 }, { dia: "Sáb", pedidos: 38 },
-  { dia: "Dom", pedidos: 21 },
-];
-
 export default function Dashboard() {
   const navigate = useNavigate();
   const [resumen, setResumen] = useState(null);
@@ -59,6 +52,7 @@ export default function Dashboard() {
 
   const entregados = porEstado.ENTREGADO || 0;
   const recientes = [...pedidos].slice(-6).reverse();
+  const pedidosPorDia = agruparPedidosPorDia(pedidos, 7);
 
   return (
     <div className="space-y-6 p-6 lg:p-8">
@@ -141,16 +135,15 @@ export default function Dashboard() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card
-          title="Tendencia de pedidos"
-          subtitle="Últimos 7 días"
+          title="Pedidos por día"
+          subtitle="Últimos 7 días (por fecha de creación)"
           className="lg:col-span-2"
-          action={<span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">datos de ejemplo</span>}
         >
           <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={TENDENCIA_EJEMPLO} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+            <LineChart data={pedidosPorDia} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef2f6" vertical={false} />
               <XAxis dataKey="dia" tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={{ stroke: "#e2e8f0" }} />
-              <YAxis tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={false} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={false} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13 }} />
               <Line type="monotone" dataKey="pedidos" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 3, fill: "#2563eb" }} activeDot={{ r: 5 }} />
             </LineChart>
