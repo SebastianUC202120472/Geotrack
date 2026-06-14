@@ -69,21 +69,26 @@ export default function RutaScreen() {
     );
   };
 
-  // Finaliza la ruta del día (con confirmación).
+  // Cierra el día (con confirmación). Solo disponible si no quedan pendientes.
   const finalizarRuta = () => {
-    Alert.alert("Finalizar ruta", "¿Seguro que quieres cerrar la ruta de hoy?", [
+    Alert.alert("Cerrar el día", "¿Cerrar la ruta de hoy? Ya gestionaste todas las paradas.", [
       { text: "Cancelar", style: "cancel" },
       {
-        text: "Finalizar",
+        text: "Cerrar",
         style: "destructive",
         onPress: () =>
           finalizar.mutate(undefined, {
-            onSuccess: (r) => Alert.alert("Ruta finalizada", r.mensaje),
-            onError: (e) => Alert.alert("Error", mensajeDeError(e)),
+            onSuccess: (r) => Alert.alert("Día cerrado", r.mensaje),
+            onError: (e) => Alert.alert("No se pudo cerrar", mensajeDeError(e)),
           }),
       },
     ]);
   };
+
+  // Total y pendientes de la ruta; solo se puede cerrar el día sin pendientes.
+  const totalParadas = ruta.data?.total_paradas ?? 0;
+  const pendientes = ruta.data?.pendientes ?? 0;
+  const puedeCerrar = !!ruta.data && totalParadas > 0 && pendientes === 0;
 
   // Cabecera de la lista: degradado con resumen, mapa montado y acciones.
   const Cabecera = (
@@ -109,12 +114,33 @@ export default function RutaScreen() {
         </Card>
 
         <Button titulo="Iniciar ruta desde mi ubicación" onPress={iniciarRuta} cargando={ubicacion.cargando || iniciar.isPending} />
-        <Button titulo="Finalizar ruta" variante="secondary" onPress={finalizarRuta} cargando={finalizar.isPending} />
 
         <Text style={[estilos.seccion, { color: colors.ink }]}>Paradas ({paradas.length})</Text>
       </Aparecer>
     </View>
   );
+
+  // Pie de la lista: cierre del día. El botón solo aparece cuando ya no hay
+  // paradas pendientes; mientras tanto, muestra el progreso que falta.
+  const Pie = ruta.data ? (
+    <Aparecer style={estilos.pie}>
+      <Card>
+        <Text style={[estilos.cierreTitulo, { color: colors.ink }]}>Cierre del día</Text>
+        {puedeCerrar ? (
+          <>
+            <Text style={[estilos.cierreTexto, { color: colors.muted }]}>
+              Todas las paradas están gestionadas. Ya puedes cerrar el día.
+            </Text>
+            <Button titulo="Cerrar el día" onPress={finalizarRuta} cargando={finalizar.isPending} />
+          </>
+        ) : (
+          <Text style={[estilos.cierreTexto, { color: colors.muted }]}>
+            Entrega o reporta todas las paradas para cerrar el día. Faltan {pendientes} de {totalParadas}.
+          </Text>
+        )}
+      </Card>
+    </Aparecer>
+  ) : null;
 
   if (ruta.isLoading || manifiesto.isLoading) return <Screen><Cargando /></Screen>;
 
@@ -136,6 +162,7 @@ export default function RutaScreen() {
         data={paradas}
         keyExtractor={(p) => String(p.pedido_id)}
         ListHeaderComponent={Cabecera}
+        ListFooterComponent={Pie}
         renderItem={({ item, index }) => (
           <ItemLista index={index}>
             <ParadaItem parada={item} onPress={() => router.push(`/parada/${item.pedido_id}`)} />
@@ -173,4 +200,7 @@ const estilos = StyleSheet.create({
   contadorValor: { color: BLANCO, fontSize: fontSize.title, fontWeight: "800" },
   contadorEtiqueta: { color: BLANCO, fontSize: fontSize.caption, opacity: 0.9 },
   seccion: { fontSize: fontSize.subtitle, fontWeight: "700", marginTop: spacing.sm },
+  pie: { marginTop: spacing.lg, gap: spacing.md },
+  cierreTitulo: { fontSize: fontSize.subtitle, fontWeight: "800", marginBottom: spacing.xs },
+  cierreTexto: { fontSize: fontSize.body, marginBottom: spacing.md },
 });
