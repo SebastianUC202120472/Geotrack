@@ -38,6 +38,18 @@ class ResumenResponse(BaseModel):
     rutas_finalizadas: int
 
 
+# Seguimiento de repartos agregado por empresa cliente (no por ruta).
+class ClienteSeguimiento(BaseModel):
+    """Resumen de los pedidos de UNA empresa cliente, clasificados por grupo.
+    Los cuatro grupos suman el total."""
+    cliente: str
+    total: int
+    entregados: int
+    fallidos: int
+    pendientes: int
+    en_proceso: int  # ASIGNADO + EN_RUTA
+
+
 # CUS-35: Historial / línea de tiempo de un paquete
 class EventoHistorial(BaseModel):
     """Un punto en la línea de tiempo del paquete (fila de historial_pedidos)."""
