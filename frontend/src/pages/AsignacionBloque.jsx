@@ -15,7 +15,6 @@ export default function AsignacionBloque() {
   const [nombrePorId, setNombrePorId] = useState({});
   const [distrito, setDistrito] = useState("");
   const [vehiculoId, setVehiculoId] = useState("");
-  const [nombreRuta, setNombreRuta] = useState("");
   const [cargando, setCargando] = useState(false);
   const [aviso, setAviso] = useState(null);
 
@@ -38,20 +37,20 @@ export default function AsignacionBloque() {
   const vehiculoSel = vehiculos.find((v) => String(v.id) === String(vehiculoId));
 
   const asignar = async () => {
-    if (!distrito || !vehiculoId || !nombreRuta.trim()) {
-      setAviso({ ok: false, texto: "Completa el nombre de la ruta, la zona y el vehículo." });
+    if (!distrito || !vehiculoId) {
+      setAviso({ ok: false, texto: "Selecciona la zona y el vehículo." });
       return;
     }
     setCargando(true);
     setAviso(null);
     try {
+      // El nombre de la ruta lo genera el backend a partir de la zona.
       const res = await asignarBloque({
-        nombre_ruta: nombreRuta.trim(),
         distrito,
         conductor_id: vehiculoSel.conductor_id,
       });
       setAviso({ ok: true, texto: `${res.mensaje} (ruta ${res.codigo || res.ruta_id}).` });
-      setNombreRuta(""); setDistrito(""); setVehiculoId("");
+      setDistrito(""); setVehiculoId("");
     } catch (err) {
       setAviso({ ok: false, texto: err.message });
     } finally {
@@ -78,15 +77,18 @@ export default function AsignacionBloque() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Configurar ruta">
           <div className="space-y-5">
-            <Input label="Nombre de la ruta" placeholder="Ej. Ruta Norte — Miraflores"
-              value={nombreRuta} onChange={(e) => setNombreRuta(e.target.value)} />
-
             <Input as="select" label="Zona operativa" value={distrito} onChange={(e) => setDistrito(e.target.value)}>
               <option value="">Selecciona una zona</option>
               {zonas.map((z, i) => (
                 <option key={i} value={z.distrito}>{z.distrito} ({z.total_pedidos} pedidos)</option>
               ))}
             </Input>
+
+            {distrito && (
+              <p className="rounded-xl bg-brand-50 px-3.5 py-2.5 text-sm text-brand-700">
+                Nombre automático: <b>Ruta {distrito}</b>
+              </p>
+            )}
 
             <Input as="select" label="Vehículo (con conductor)" value={vehiculoId} onChange={(e) => setVehiculoId(e.target.value)}>
               <option value="">Selecciona un vehículo</option>
