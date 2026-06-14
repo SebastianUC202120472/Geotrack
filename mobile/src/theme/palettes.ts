@@ -1,15 +1,14 @@
-// Paletas de color para modo claro y oscuro, y los acentos seleccionables.
-// Todas comparten las mismas claves para que los componentes no cambien.
-
+// Paletas de color para modo claro y oscuro. Acento azul de marca fijo
+// (coherente con el panel web). Mismas claves en ambas para no romper componentes.
 export interface Palette {
   brand: string;
   brandPressed: string;
   brandSoft: string;
-  ink: string; // texto fuerte / títulos
+  ink: string;
   text: string;
   muted: string;
-  surface: string; // tarjetas
-  canvas: string; // fondo
+  surface: string;
+  canvas: string;
   border: string;
   success: string;
   successSoft: string;
@@ -20,8 +19,9 @@ export interface Palette {
   white: string;
 }
 
-// Bases (sin el acento, que se inyecta aparte).
-const claro: Omit<Palette, "brand" | "brandPressed"> = {
+const claro: Palette = {
+  brand: "#2563EB",
+  brandPressed: "#1D4ED8",
   brandSoft: "#EFF6FF",
   ink: "#0F172A",
   text: "#334155",
@@ -38,7 +38,9 @@ const claro: Omit<Palette, "brand" | "brandPressed"> = {
   white: "#FFFFFF",
 };
 
-const oscuro: Omit<Palette, "brand" | "brandPressed"> = {
+const oscuro: Palette = {
+  brand: "#3B82F6",
+  brandPressed: "#2563EB",
   brandSoft: "#1E293B",
   ink: "#F1F5F9",
   text: "#CBD5E1",
@@ -56,19 +58,8 @@ const oscuro: Omit<Palette, "brand" | "brandPressed"> = {
 };
 
 export type Esquema = "light" | "dark";
-export type Acento = "azul" | "verde" | "naranja";
 
-// Color principal por acento { normal, presionado }.
-const acentos: Record<Acento, { brand: string; brandPressed: string }> = {
-  azul: { brand: "#2563EB", brandPressed: "#1D4ED8" },
-  verde: { brand: "#16A34A", brandPressed: "#15803D" },
-  naranja: { brand: "#EA580C", brandPressed: "#C2410C" },
-};
-
-// Construye la paleta final. Recibe: esquema (light/dark) y acento.
-export function construirPaleta(esquema: Esquema, acento: Acento): Palette {
-  const base = esquema === "dark" ? oscuro : claro;
-  return { ...base, ...acentos[acento] };
+// Construye la paleta final. Recibe: esquema (light/dark).
+export function construirPaleta(esquema: Esquema): Palette {
+  return esquema === "dark" ? oscuro : claro;
 }
-
-export const ACENTOS: Acento[] = ["azul", "verde", "naranja"];
