@@ -139,6 +139,9 @@ export const reabrirPedido = (id) => request(`/pedidos/${id}/reabrir`, { method:
 // Devuelve { zonas_operativas: [{ distrito, total_pedidos }] }
 export const listarZonas = () => request("/pedidos/zonas");
 
+// Seguimiento de repartos agregado por empresa cliente (no por ruta).
+export const obtenerSeguimientoClientes = () => request("/dashboard/clientes");
+
 /* ============================================================
    VEHÍCULOS Y FLOTA  (gestión del admin)
 ============================================================ */
