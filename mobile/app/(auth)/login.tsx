@@ -5,6 +5,8 @@ import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from "react-na
 import { Screen } from "@/components/Screen";
 import { Field } from "@/components/Field";
 import { Button } from "@/components/Button";
+import { GradientHeader } from "@/components/GradientHeader";
+import { Aparecer } from "@/components/Animations";
 import { useAuth } from "@/store/auth";
 import { mensajeDeError } from "@/api/client";
 import { useTheme, fontSize, spacing, radius } from "@/theme";
@@ -36,29 +38,32 @@ export default function LoginScreen() {
   };
 
   return (
-    <Screen>
+    <Screen conPadding={false}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={estilos.contenedor}>
-        <View style={estilos.marca}>
-          <View style={[estilos.logo, { backgroundColor: colors.brand }]}>
-            <Text style={[estilos.logoTexto, { color: colors.white }]}>G</Text>
+        <GradientHeader style={estilos.cabecera}>
+          <View style={estilos.marca}>
+            <View style={[estilos.logo, { backgroundColor: "rgba(255,255,255,0.18)" }]}>
+              <Text style={[estilos.logoTexto, { color: colors.white }]}>G</Text>
+            </View>
+            <Text style={[estilos.titulo, { color: colors.white }]}>GeoTrack</Text>
+            <Text style={[estilos.subtitulo, { color: colors.white }]}>App del conductor</Text>
           </View>
-          <Text style={[estilos.titulo, { color: colors.ink }]}>GeoTrack Conductor</Text>
-          <Text style={[estilos.subtitulo, { color: colors.muted }]}>
-            Inicia sesión con las credenciales que te dieron
-          </Text>
-        </View>
+        </GradientHeader>
 
-        {error ? (
-          <Text style={[estilos.error, { backgroundColor: colors.dangerSoft, color: colors.danger }]}>{error}</Text>
-        ) : null}
+        <Aparecer style={estilos.cuerpo}>
+          <View style={[estilos.tarjeta, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Field label="Correo" value={correo} onChangeText={setCorreo} placeholder="conductor@siol.com"
+              icono="mail-outline" keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
+            <Field label="Contraseña" value={contrasena} onChangeText={setContrasena} placeholder="••••••••"
+              icono="lock-closed-outline" secureTextEntry autoComplete="password" />
 
-        <View style={estilos.formulario}>
-          <Field label="Correo" value={correo} onChangeText={setCorreo} placeholder="conductor@siol.com"
-            keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
-          <Field label="Contraseña" value={contrasena} onChangeText={setContrasena} placeholder="••••••••"
-            secureTextEntry autoComplete="password" />
-          <Button titulo={cargando ? "Ingresando…" : "Iniciar sesión"} onPress={entrar} cargando={cargando} />
-        </View>
+            {error ? (
+              <Text style={[estilos.error, { backgroundColor: colors.dangerSoft, color: colors.danger }]}>{error}</Text>
+            ) : null}
+
+            <Button titulo={cargando ? "Ingresando…" : "Iniciar sesión"} onPress={entrar} cargando={cargando} />
+          </View>
+        </Aparecer>
       </KeyboardAvoidingView>
     </Screen>
   );
@@ -66,11 +71,13 @@ export default function LoginScreen() {
 
 const estilos = StyleSheet.create({
   contenedor: { flex: 1, justifyContent: "center", gap: spacing.xl },
+  cabecera: { paddingVertical: spacing.xxl },
   marca: { alignItems: "center", gap: spacing.sm },
   logo: { width: 64, height: 64, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   logoTexto: { fontSize: fontSize.display, fontWeight: "800" },
   titulo: { fontSize: fontSize.title, fontWeight: "800" },
-  subtitulo: { fontSize: fontSize.body, textAlign: "center" },
-  formulario: { gap: spacing.lg },
+  subtitulo: { fontSize: fontSize.body, textAlign: "center", opacity: 0.9 },
+  cuerpo: { paddingHorizontal: spacing.lg },
+  tarjeta: { borderRadius: radius.lg, borderWidth: 1, padding: spacing.lg, gap: spacing.lg, shadowColor: "#0F172A", shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
   error: { padding: spacing.md, borderRadius: radius.md, fontSize: fontSize.body, textAlign: "center" },
 });
