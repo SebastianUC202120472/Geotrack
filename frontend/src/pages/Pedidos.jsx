@@ -6,6 +6,7 @@ import Card from "../components/ui/Card";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import { EstadoBadge } from "../components/ui/Badge";
+import Modal from "../components/ui/Modal";
 import { listarPedidos, listarZonas, obtenerHistorial, reabrirPedido } from "../services/api";
 
 const POR_PAGINA = 12;
@@ -96,7 +97,7 @@ export default function Pedidos() {
   const hayFiltros = busqueda || distrito || estado || fecha !== "todos";
 
   return (
-    <div className="space-y-6 p-6 lg:p-8">
+    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
       <PageHeader titulo="Pedidos" subtitulo="Busca, filtra por zona/estado/fecha y abre la trazabilidad de cada pedido." />
 
       <Card>
@@ -167,9 +168,10 @@ export default function Pedidos() {
                     <th className="pb-3 font-semibold text-right">Ver</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {visibles.map((p) => (
-                    <tr key={p.id} className="cursor-pointer hover:bg-slate-50" onClick={() => setSeleccionado(p)}>
+                <tbody key={`${distrito}|${estado}|${fecha}|${busqueda}|${pagina}`} className="divide-y divide-slate-50">
+                  {visibles.map((p, i) => (
+                    <tr key={p.id} style={{ animationDelay: `${i * 30}ms` }}
+                      className="animate-fade-up cursor-pointer hover:bg-slate-50" onClick={() => setSeleccionado(p)}>
                       <td className="py-3 font-medium text-slate-800 nums">{p.codigo}</td>
                       <td className="py-3 text-slate-600">{p.nombre_destinatario || "—"}</td>
                       <td className="py-3 text-slate-600">{p.distrito || "—"}</td>
@@ -198,9 +200,15 @@ export default function Pedidos() {
         )}
       </Card>
 
-      {seleccionado && (
-        <DetallePedido pedido={seleccionado} onCerrar={() => setSeleccionado(null)} onReabierto={() => { setSeleccionado(null); cargar(); }} />
-      )}
+      <Modal open={!!seleccionado} onClose={() => setSeleccionado(null)} variant="right">
+        {seleccionado && (
+          <DetallePedido
+            pedido={seleccionado}
+            onCerrar={() => setSeleccionado(null)}
+            onReabierto={() => { setSeleccionado(null); cargar(); }}
+          />
+        )}
+      </Modal>
     </div>
   );
 }
@@ -234,60 +242,57 @@ function DetallePedido({ pedido, onCerrar, onReabierto }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-slate-900/50" onClick={onCerrar} />
-      <div className="relative flex h-full w-full max-w-md flex-col overflow-y-auto bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-          <div>
-            <h2 className="font-bold text-slate-900 nums">{pedido.codigo}</h2>
-            <EstadoBadge estado={pedido.estado} />
-          </div>
-          <button onClick={onCerrar} aria-label="Cerrar" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X size={20} /></button>
+    <>
+      <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div>
+          <h2 className="font-bold text-slate-900 nums">{pedido.codigo}</h2>
+          <EstadoBadge estado={pedido.estado} />
         </div>
+        <button onClick={onCerrar} aria-label="Cerrar" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X size={20} /></button>
+      </div>
 
-        <div className="space-y-4 px-6 py-5">
-          <Dato etiqueta="Cliente" valor={pedido.cliente_origen} />
-          <Dato etiqueta="Destinatario" valor={pedido.nombre_destinatario || "—"} />
-          <Dato etiqueta="Dirección" valor={pedido.direccion_destino} icono={MapPin} />
-          <Dato etiqueta="Distrito" valor={pedido.distrito || "—"} />
-          <Dato etiqueta="Ruta asignada" valor={historial?.ruta_asignada || "Sin asignar"} icono={Truck} />
-          <Dato etiqueta="Conductor" valor={historial?.conductor_asignado || "Sin asignar"} icono={User} />
+      <div className="space-y-4 px-6 py-5">
+        <Dato etiqueta="Cliente" valor={pedido.cliente_origen} />
+        <Dato etiqueta="Destinatario" valor={pedido.nombre_destinatario || "—"} />
+        <Dato etiqueta="Dirección" valor={pedido.direccion_destino} icono={MapPin} />
+        <Dato etiqueta="Distrito" valor={pedido.distrito || "—"} />
+        <Dato etiqueta="Ruta asignada" valor={historial?.ruta_asignada || "Sin asignar"} icono={Truck} />
+        <Dato etiqueta="Conductor" valor={historial?.conductor_asignado || "Sin asignar"} icono={User} />
 
-          {pedido.estado === "FALLIDO" && (
-            <div className="rounded-xl border border-warning/30 bg-warning-soft p-4">
-              <p className="text-sm text-warning-strong">Este pedido está fallido. Puedes reabrirlo para reasignarlo.</p>
-              <div className="mt-3">
-                <Button variant="secondary" icon={RotateCcw} onClick={reabrir} disabled={reabriendo}>
-                  {reabriendo ? "Reabriendo…" : "Reabrir → Pendiente"}
-                </Button>
-              </div>
+        {pedido.estado === "FALLIDO" && (
+          <div className="rounded-xl border border-warning/30 bg-warning-soft p-4">
+            <p className="text-sm text-warning-strong">Este pedido está fallido. Puedes reabrirlo para reasignarlo.</p>
+            <div className="mt-3">
+              <Button variant="secondary" icon={RotateCcw} onClick={reabrir} disabled={reabriendo}>
+                {reabriendo ? "Reabriendo…" : "Reabrir → Pendiente"}
+              </Button>
             </div>
-          )}
-
-          <div className="border-t border-slate-100 pt-4">
-            <h3 className="mb-3 text-sm font-semibold text-slate-700">Línea de tiempo</h3>
-            {cargando ? (
-              <p className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="animate-spin" size={16} /> Cargando…</p>
-            ) : error ? (
-              <p className="text-sm text-slate-400">{error}</p>
-            ) : historial?.eventos?.length ? (
-              <ol className="relative ml-2 space-y-5 border-l-2 border-slate-100">
-                {historial.eventos.map((ev, i) => (
-                  <li key={i} className="ml-5">
-                    <span className="absolute -left-[9px] h-4 w-4 rounded-full border-2 border-white bg-brand-600" />
-                    <p className="text-sm font-semibold text-slate-800">{ev.evento}</p>
-                    <p className="text-sm text-slate-500">{ev.descripcion}</p>
-                    <p className="mt-0.5 text-xs text-slate-400">{fmt(ev.fecha)}{ev.realizado_por ? ` · ${ev.realizado_por}` : ""}</p>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p className="text-sm text-slate-400">Sin eventos registrados.</p>
-            )}
           </div>
+        )}
+
+        <div className="border-t border-slate-100 pt-4">
+          <h3 className="mb-3 text-sm font-semibold text-slate-700">Línea de tiempo</h3>
+          {cargando ? (
+            <p className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="animate-spin" size={16} /> Cargando…</p>
+          ) : error ? (
+            <p className="text-sm text-slate-400">{error}</p>
+          ) : historial?.eventos?.length ? (
+            <ol className="relative ml-2 space-y-5 border-l-2 border-slate-100">
+              {historial.eventos.map((ev, i) => (
+                <li key={i} className="ml-5">
+                  <span className="absolute -left-[9px] h-4 w-4 rounded-full border-2 border-white bg-brand-600" />
+                  <p className="text-sm font-semibold text-slate-800">{ev.evento}</p>
+                  <p className="text-sm text-slate-500">{ev.descripcion}</p>
+                  <p className="mt-0.5 text-xs text-slate-400">{fmt(ev.fecha)}{ev.realizado_por ? ` · ${ev.realizado_por}` : ""}</p>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="text-sm text-slate-400">Sin eventos registrados.</p>
+          )}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

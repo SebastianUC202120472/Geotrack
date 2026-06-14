@@ -74,4 +74,20 @@
     background-size: 200% 100%;
     animation: skeleton-shimmer 1.3s ease-in-out infinite;
   }
+
+  /* Animaciones de entrada (la regla base de prefers-reduced-motion las desactiva) */
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out both;
+  }
+  .animate-fade-up {
+    animation: fade-up 0.35s ease-out both;
+  }
 }
