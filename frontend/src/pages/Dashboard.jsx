@@ -10,6 +10,8 @@ import StatCard from "../components/ui/StatCard";
 import Card from "../components/ui/Card";
 import { EstadoBadge } from "../components/ui/Badge";
 import EstadoSistema from "../components/EstadoSistema";
+import { SkeletonStat } from "../components/ui/Skeleton";
+import { agruparPedidosPorDia } from "../utils/dashboard";
 import { obtenerResumen, listarPedidos } from "../services/api";
 
 // Color de marca para cada estado (gráficos).
@@ -39,9 +41,13 @@ export default function Dashboard() {
   // Lleva a la lista de Pedidos ya filtrada por ese estado (clic en la gráfica).
   const irAEstado = (estadoRaw) => estadoRaw && navigate(`/pedidos?estado=${encodeURIComponent(estadoRaw)}`);
 
+  const [cargando, setCargando] = useState(true);
+
   useEffect(() => {
-    obtenerResumen().then(setResumen).catch(() => {});
-    listarPedidos().then(setPedidos).catch(() => {});
+    Promise.allSettled([
+      obtenerResumen().then(setResumen),
+      listarPedidos().then(setPedidos),
+    ]).finally(() => setCargando(false));
   }, []);
 
   const porEstado = resumen?.pedidos_por_estado || {};
@@ -59,16 +65,28 @@ export default function Dashboard() {
       <PageHeader titulo="Dashboard" subtitulo="Resumen operativo de SIOL-SAVA" />
 
       {/* KPIs */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Pedidos totales" value={resumen?.total_pedidos ?? "—"} icon={Package}
-          hint="Acumulado en el sistema" />
-        <StatCard label="Rutas activas" value={resumen?.rutas_activas ?? "—"} icon={Truck}
-          hint={`de ${resumen?.total_rutas ?? 0} rutas`} />
-        <StatCard label="Entregados" value={entregados} icon={CircleCheck}
-          hint="Pedidos completados" />
-        <StatCard label="Rutas finalizadas" value={resumen?.rutas_finalizadas ?? "—"} icon={Flag}
-          hint="Operaciones cerradas" />
-      </div>
+      {cargando ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <SkeletonStat /><SkeletonStat /><SkeletonStat /><SkeletonStat />
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Pedidos totales" value={resumen?.total_pedidos ?? 0} icon={Package}
+            tone="brand" hint="Acumulado en el sistema" />
+          <StatCard label="Rutas activas" value={resumen?.rutas_activas ?? 0} icon={Truck}
+            tone="info"
+            progress={resumen?.total_rutas ? (resumen.rutas_activas / resumen.total_rutas) * 100 : 0}
+            progressLabel={`de ${resumen?.total_rutas ?? 0} rutas`} />
+          <StatCard label="Entregados" value={entregados} icon={CircleCheck}
+            tone="success"
+            progress={resumen?.total_pedidos ? (entregados / resumen.total_pedidos) * 100 : 0}
+            progressLabel={resumen?.total_pedidos ? `${Math.round((entregados / resumen.total_pedidos) * 100)}% del total` : "Sin pedidos"} />
+          <StatCard label="Rutas finalizadas" value={resumen?.rutas_finalizadas ?? 0} icon={Flag}
+            tone="warning"
+            progress={resumen?.total_rutas ? (resumen.rutas_finalizadas / resumen.total_rutas) * 100 : 0}
+            progressLabel="Operaciones cerradas" />
+        </div>
+      )}
 
       {/* Gráficos */}
       <div className="grid gap-6 lg:grid-cols-3">
