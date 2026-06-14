@@ -3,6 +3,7 @@ import { Outlet } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import Sidebar from "./Sidebar";
 import Logo from "./ui/Logo";
+import Topbar from "./Topbar";
 
 // Estructura del panel: barra lateral fija en escritorio y, en móvil/tablet,
 // un cajón (drawer) que se abre con el botón de menú. El contenido de cada
@@ -49,6 +50,9 @@ export default function LayoutAdmin() {
           </button>
           <Logo />
         </header>
+
+        {/* Barra superior de escritorio */}
+        <Topbar />
 
         <main className="flex-1 overflow-y-auto">
           <Outlet />
