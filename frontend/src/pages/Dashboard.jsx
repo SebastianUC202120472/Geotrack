@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, Legend,
+  PieChart, Pie, Cell, LineChart, Line, Legend, LabelList,
 } from "recharts";
 import { Package, Truck, CircleCheck, Flag } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
@@ -101,7 +101,9 @@ export default function Dashboard() {
                 <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={false} />
                 <Tooltip cursor={{ fill: "#f1f5f9" }} contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13 }} />
                 <Bar dataKey="cantidad" radius={[6, 6, 0, 0]} maxBarSize={56} cursor="pointer"
+                  activeBar={{ opacity: 0.8 }}
                   onClick={(d) => irAEstado(d?.estadoRaw)}>
+                  <LabelList dataKey="cantidad" position="top" style={{ fontSize: 11, fontWeight: 700, fill: "#475569" }} />
                   {datosEstado.map((d) => (
                     <Cell key={d.estadoRaw} fill={COLOR_ESTADO[d.estadoRaw] || "#2563eb"} />
                   ))}
@@ -115,18 +117,24 @@ export default function Dashboard() {
           {datosEstado.length === 0 ? (
             <VacioGrafico />
           ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie data={datosEstado} dataKey="cantidad" nameKey="estado" innerRadius={58} outerRadius={92} paddingAngle={2}
-                  cursor="pointer" onClick={(d) => irAEstado(d?.estadoRaw)}>
-                  {datosEstado.map((d) => (
-                    <Cell key={d.estadoRaw} fill={COLOR_ESTADO[d.estadoRaw] || "#2563eb"} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13 }} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-              </PieChart>
-            </ResponsiveContainer>
+            <div className="relative">
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie data={datosEstado} dataKey="cantidad" nameKey="estado" innerRadius={58} outerRadius={92} paddingAngle={2}
+                    cursor="pointer" onClick={(d) => irAEstado(d?.estadoRaw)}>
+                    {datosEstado.map((d) => (
+                      <Cell key={d.estadoRaw} fill={COLOR_ESTADO[d.estadoRaw] || "#2563eb"} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13 }} />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="pointer-events-none absolute inset-x-0 top-[104px] text-center">
+                <p className="text-2xl font-bold text-slate-900 nums">{resumen?.total_pedidos ?? 0}</p>
+                <p className="text-xs text-slate-400">pedidos</p>
+              </div>
+            </div>
           )}
         </Card>
       </div>
