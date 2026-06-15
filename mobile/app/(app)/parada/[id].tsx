@@ -13,6 +13,7 @@ import { Button } from "@/components/Button";
 import { EstadoBadge } from "@/components/EstadoBadge";
 import { Cargando, Vacio } from "@/components/Estados";
 import { Aparecer } from "@/components/Animations";
+import { abrirNavegacion } from "@/services/navegacion";
 import { useManifiesto } from "@/features/ruta/hooks";
 import { useEntregarConEvidencia, useReportarFalla } from "@/features/entrega/hooks";
 import { mensajeDeError } from "@/api/client";
@@ -123,6 +124,18 @@ export default function ParadaScreen() {
                 </Pressable>
               </>
             ) : null}
+
+            {parada.latitud != null && parada.longitud != null && (
+              <Pressable
+                onPress={() => abrirNavegacion(parada.latitud as number, parada.longitud as number, parada.direccion_destino)}
+                accessibilityRole="button"
+                accessibilityLabel="Navegar a la dirección"
+                style={[estilos.navegar, { backgroundColor: colors.brand }]}
+              >
+                <Ionicons name="navigate" size={18} color={colors.white} />
+                <Text style={[estilos.navegarTexto, { color: colors.white }]}>Navegar (Google Maps / Waze)</Text>
+              </Pressable>
+            )}
           </Card>
 
           {gestionada ? (
@@ -209,6 +222,8 @@ const estilos = StyleSheet.create({
   separador: { height: 1, marginVertical: spacing.md },
   llamar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, marginTop: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.md },
   llamarTexto: { fontSize: fontSize.body, fontWeight: "700" },
+  navegar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, marginTop: spacing.md, paddingVertical: spacing.md, borderRadius: radius.md },
+  navegarTexto: { fontSize: fontSize.body, fontWeight: "700" },
   dato: { marginTop: spacing.md },
   datoEtiqueta: { fontSize: fontSize.caption },
   datoValor: { fontSize: fontSize.body, fontWeight: "600" },
