@@ -8,7 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
-import { DiagramaRuta } from "@/components/DiagramaRuta";
+import { MapaWeb } from "@/components/MapaWeb";
 import { ParadaItem } from "@/components/ParadaItem";
 import { Cargando, ErrorVista, Vacio } from "@/components/Estados";
 import { GradientHeader } from "@/components/GradientHeader";
@@ -110,7 +110,7 @@ export default function RutaScreen() {
 
       <Aparecer style={estilos.secciones}>
         <Card style={{ marginTop: -spacing.lg, padding: spacing.sm }}>
-          <DiagramaRuta paradas={manifiesto.data?.paradas ?? []} />
+          <MapaWeb paradas={manifiesto.data?.paradas ?? []} />
         </Card>
 
         <Button titulo="Iniciar ruta desde mi ubicación" onPress={iniciarRuta} cargando={ubicacion.cargando || iniciar.isPending} />
