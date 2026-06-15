@@ -1,7 +1,7 @@
 // Mapa con la secuencia de paradas (marcadores numerados), la línea del
 // recorrido y la ubicación del conductor.
 import { Platform, StyleSheet, Text, View } from "react-native";
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
+import MapView, { Marker, Polyline, UrlTile, PROVIDER_GOOGLE } from "react-native-maps";
 import { useTheme, fontSize, radius } from "@/theme";
 import type { ParadaNavegacion } from "@/types/api";
 
@@ -40,7 +40,10 @@ export function MapaRuta({ paradas, alto = 240 }: Props) {
     );
   }
 
-  const provider = Platform.OS === "android" ? PROVIDER_GOOGLE : undefined;
+  // Con clave de Google usamos el mapa nativo (Google en Android). Sin clave,
+  // superponemos tiles de OpenStreetMap como respaldo (igual que el panel web).
+  const hayClaveGoogle = !!process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY;
+  const provider = hayClaveGoogle && Platform.OS === "android" ? PROVIDER_GOOGLE : undefined;
   const coordenadas = paradas.map((p) => ({ latitude: p.latitud, longitude: p.longitud }));
 
   return (
@@ -51,6 +54,10 @@ export function MapaRuta({ paradas, alto = 240 }: Props) {
       showsUserLocation
       showsMyLocationButton
     >
+      {/* Respaldo OpenStreetMap cuando no hay clave de Google (street de fondo). */}
+      {!hayClaveGoogle && (
+        <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} />
+      )}
       <Polyline coordinates={coordenadas} strokeColor={colors.brand} strokeWidth={4} />
       {paradas.map((p) => (
         <Marker key={p.pedido_id} coordinate={{ latitude: p.latitud, longitude: p.longitud }}>
