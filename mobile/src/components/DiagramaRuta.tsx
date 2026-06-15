@@ -21,11 +21,12 @@ function proyectar(paradas: ParadaManifiesto[], W: number, H: number) {
   const lngs = paradas.map((p) => p.longitud as number);
   const minLat = Math.min(...lats), maxLat = Math.max(...lats);
   const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
-  const dLat = maxLat - minLat || 1;
-  const dLng = maxLng - minLng || 1;
+  const dLat = maxLat - minLat;
+  const dLng = maxLng - minLng;
+  // Si un eje es degenerado (un solo punto o todos alineados), se centra en ese eje.
   return paradas.map((p) => ({
-    x: P + ((p.longitud as number) - minLng) / dLng * (W - 2 * P),
-    y: P + (maxLat - (p.latitud as number)) / dLat * (H - 2 * P),
+    x: dLng === 0 ? W / 2 : P + ((p.longitud as number) - minLng) / dLng * (W - 2 * P),
+    y: dLat === 0 ? H / 2 : P + (maxLat - (p.latitud as number)) / dLat * (H - 2 * P),
     parada: p,
   }));
 }
@@ -76,7 +77,7 @@ export function DiagramaRuta({ paradas, alto = 220 }: Props) {
                 <Fragment key={pt.parada.pedido_id}>
                   <Circle cx={pt.x} cy={pt.y} r={r} fill={fondo} stroke={colors.white} strokeWidth={2} />
                   <SvgText x={pt.x} y={pt.y + 4} fontSize={11} fontWeight="bold" fill={colors.white} textAnchor="middle">
-                    {pt.parada.secuencia}
+                    {pt.parada.secuencia || i + 1}
                   </SvgText>
                 </Fragment>
               );
