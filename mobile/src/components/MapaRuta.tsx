@@ -43,20 +43,28 @@ export function MapaRuta({ paradas, alto = 240 }: Props) {
   // Con clave de Google usamos el mapa nativo (Google en Android). Sin clave,
   // superponemos tiles de OpenStreetMap como respaldo (igual que el panel web).
   const hayClaveGoogle = !!process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY;
+  const usarOSM = !hayClaveGoogle; // sin clave de Google → respaldo OpenStreetMap
   const provider = hayClaveGoogle && Platform.OS === "android" ? PROVIDER_GOOGLE : undefined;
   const coordenadas = paradas.map((p) => ({ latitude: p.latitud, longitude: p.longitud }));
 
   return (
     <MapView
       provider={provider}
+      // En Android ocultamos la base de Google (que sale beige sin clave) para que
+      // se vean los tiles de OSM; en iOS, el tile reemplaza la base de Apple.
+      mapType={usarOSM && Platform.OS === "android" ? "none" : "standard"}
       style={[estilos.mapa, { height: alto }]}
       initialRegion={regionQueEncuadra(paradas)}
       showsUserLocation
       showsMyLocationButton
     >
       {/* Respaldo OpenStreetMap cuando no hay clave de Google (street de fondo). */}
-      {!hayClaveGoogle && (
-        <UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} />
+      {usarOSM && (
+        <UrlTile
+          urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maximumZ={19}
+          shouldReplaceMapContent
+        />
       )}
       <Polyline coordinates={coordenadas} strokeColor={colors.brand} strokeWidth={4} />
       {paradas.map((p) => (
