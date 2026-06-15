@@ -52,7 +52,21 @@ Credenciales del admin inicial (definidas en `.env`): **admin@siol.com / admin12
 - `ADMIN_EMAIL`, `ADMIN_PASSWORD` — admin inicial.
 - `MAIL_*` — bandeja de correos (IMAP/SMTP). Con `MAIL_ENABLED=false` queda inactiva
   sin romper nada. Para Gmail usa una **contraseña de aplicación**.
-- `VITE_GOOGLE_MAPS_KEY` — clave de Google Maps del frontend.
+- `VITE_GOOGLE_MAPS_KEY` — clave de Google Maps del panel. Vacía = OpenStreetMap; con
+  clave = Google Maps (ver abajo).
+
+### Google Maps (opcional)
+Los mapas funcionan **sin** Google Maps (panel con OpenStreetMap; móvil con la clave de
+Expo en Expo Go). Para usar tu propia clave de Google Maps:
+1. En **Google Cloud Console** crea un proyecto, activa **facturación** y habilita
+   **Maps JavaScript API** (panel) y **Maps SDK for Android/iOS** (app).
+2. Crea una **clave de API** y restríngela (referentes HTTP para el panel; paquete
+   `com.siolsava.geotrack` + SHA-1 para Android).
+3. Pega la clave donde corresponda y reconstruye:
+   - **Panel:** `VITE_GOOGLE_MAPS_KEY` en `.env` → `docker compose up -d --build frontend`.
+   - **App móvil:** `EXPO_PUBLIC_GOOGLE_MAPS_KEY` en `mobile/.env` (se inyecta vía
+     `app.config.js`; aplica en `eas build`).
+Si dejas la clave vacía, todo sigue funcionando con los mapas gratuitos.
 
 ## 2) Correr la app móvil del conductor
 
