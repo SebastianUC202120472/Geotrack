@@ -1,8 +1,8 @@
 // Diagrama de ruta SIN mapa de tiles: dibuja las paradas (en orden de secuencia)
 // conectadas por la línea del recorrido, coloreadas por su estado, y resalta la
 // siguiente parada pendiente. Siempre se ve (no depende de Google/OSM ni de claves).
-import { Fragment } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Fragment, useState } from "react";
+import { StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import Svg, { Circle, Polyline, Text as SvgText } from "react-native-svg";
 import { useTheme, fontSize, radius, spacing } from "@/theme";
 import type { ParadaManifiesto } from "@/types/api";
@@ -12,13 +12,11 @@ interface Props {
   alto?: number; // alto del lienzo en píxeles (por defecto 220)
 }
 
-// Lienzo virtual donde se proyectan las coordenadas.
-const W = 300;
-const P = 26; // margen interno
+const P = 26; // margen interno del lienzo
 
 // Proyecta lat/lng a coordenadas x,y del lienzo (norte hacia arriba). Si todos los
-// puntos coinciden, los centra. Recibe: paradas con coords y el alto del lienzo.
-function proyectar(paradas: ParadaManifiesto[], H: number) {
+// puntos coinciden, los centra. Recibe: paradas, ancho y alto del lienzo.
+function proyectar(paradas: ParadaManifiesto[], W: number, H: number) {
   const lats = paradas.map((p) => p.latitud as number);
   const lngs = paradas.map((p) => p.longitud as number);
   const minLat = Math.min(...lats), maxLat = Math.max(...lats);
@@ -35,6 +33,10 @@ function proyectar(paradas: ParadaManifiesto[], H: number) {
 // Diagrama de la ruta. Recibe: { paradas, alto? }.
 export function DiagramaRuta({ paradas, alto = 220 }: Props) {
   const { colors } = useTheme();
+  // Ancho real del contenedor (react-native-svg necesita un ancho numérico; un
+  // width="100%" deja el lienzo en blanco). Lo medimos con onLayout.
+  const [ancho, setAncho] = useState(0);
+  const medir = (e: LayoutChangeEvent) => setAncho(e.nativeEvent.layout.width);
 
   const conCoords = paradas
     .filter((p) => p.latitud != null && p.longitud != null)
@@ -51,36 +53,37 @@ export function DiagramaRuta({ paradas, alto = 220 }: Props) {
     );
   }
 
-  const puntos = proyectar(conCoords, alto);
-  const linea = puntos.map((pt) => `${pt.x},${pt.y}`).join(" ");
-  // La "siguiente" parada = primera pendiente en orden de secuencia.
-  const idxSiguiente = conCoords.findIndex((p) => p.estado_entrega === "PENDIENTE");
-
   const colorEstado = (estado: string) =>
     estado === "ENTREGADO" ? colors.success : estado === "FALLIDO" ? colors.danger : colors.warning;
+  const idxSiguiente = conCoords.findIndex((p) => p.estado_entrega === "PENDIENTE");
+
+  const puntos = ancho > 0 ? proyectar(conCoords, ancho, alto) : [];
+  const linea = puntos.map((pt) => `${pt.x},${pt.y}`).join(" ");
 
   return (
     <View style={[estilos.caja, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <Svg width="100%" height={alto} viewBox={`0 0 ${W} ${alto}`}>
-        {/* Línea del recorrido */}
-        {puntos.length > 1 && (
-          <Polyline points={linea} fill="none" stroke={colors.brand} strokeWidth={3} strokeLinejoin="round" />
+      <View onLayout={medir} style={{ height: alto }}>
+        {ancho > 0 && (
+          <Svg width={ancho} height={alto}>
+            {puntos.length > 1 && (
+              <Polyline points={linea} fill="none" stroke={colors.brand} strokeWidth={3} strokeLinejoin="round" />
+            )}
+            {puntos.map((pt, i) => {
+              const esSiguiente = i === idxSiguiente;
+              const r = esSiguiente ? 14 : 11;
+              const fondo = esSiguiente ? colors.brand : colorEstado(pt.parada.estado_entrega);
+              return (
+                <Fragment key={pt.parada.pedido_id}>
+                  <Circle cx={pt.x} cy={pt.y} r={r} fill={fondo} stroke={colors.white} strokeWidth={2} />
+                  <SvgText x={pt.x} y={pt.y + 4} fontSize={11} fontWeight="bold" fill={colors.white} textAnchor="middle">
+                    {pt.parada.secuencia}
+                  </SvgText>
+                </Fragment>
+              );
+            })}
+          </Svg>
         )}
-        {/* Nodos de cada parada */}
-        {puntos.map((pt, i) => {
-          const esSiguiente = i === idxSiguiente;
-          const r = esSiguiente ? 14 : 11;
-          const fondo = esSiguiente ? colors.brand : colorEstado(pt.parada.estado_entrega);
-          return (
-            <Fragment key={pt.parada.pedido_id}>
-              <Circle cx={pt.x} cy={pt.y} r={r} fill={fondo} stroke={colors.white} strokeWidth={2} />
-              <SvgText x={pt.x} y={pt.y + 4} fontSize={11} fontWeight="bold" fill={colors.white} textAnchor="middle">
-                {pt.parada.secuencia}
-              </SvgText>
-            </Fragment>
-          );
-        })}
-      </Svg>
+      </View>
       <Text style={[estilos.leyenda, { color: colors.muted }]}>
         Ruta de referencia · 🔵 siguiente · 🟠 pendiente · 🟢 entregada · 🔴 fallida
       </Text>
