@@ -21,9 +21,19 @@ interface PuntoWeb {
   dir: string;
 }
 
+// Vuelve seguro el JSON de datos para incrustarlo dentro de un <script>: escapa
+// "<" (evita cerrar la etiqueta) y los separadores de línea Unicode U+2028/U+2029
+// (que romperían el literal del script). Recibe los puntos; devuelve un string JSON seguro.
+function jsonSeguro(puntos: PuntoWeb[]): string {
+  return JSON.stringify(puntos)
+    .replace(/</g, "\\u003c")
+    .split(String.fromCharCode(0x2028)).join("\\u2028")
+    .split(String.fromCharCode(0x2029)).join("\\u2029");
+}
+
 // HTML con Leaflet + OSM. Los datos de la ruta se inyectan reemplazando __DATOS__.
 function construirHtml(puntos: PuntoWeb[]): string {
-  const datos = JSON.stringify(puntos);
+  const datos = jsonSeguro(puntos);
   return `<!DOCTYPE html><html><head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -35,6 +45,8 @@ function construirHtml(puntos: PuntoWeb[]): string {
   integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
 <script>
   var paradas = __DATOS__;
+  // Escapa texto para mostrarlo en el popup como TEXTO, no como HTML (anti-XSS).
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   var map = L.map('map', { zoomControl: true });
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
   var pts = [], siguienteUsada = false;
@@ -49,14 +61,14 @@ function construirHtml(puntos: PuntoWeb[]): string {
       html: '<div style="background:' + color + ';width:' + size + 'px;height:' + size + 'px;border-radius:50%;border:2px solid #fff;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.3)">' + (p.sec || (i + 1)) + '</div>',
       iconSize: [size, size], iconAnchor: [size / 2, size / 2]
     });
-    L.marker([p.lat, p.lng], { icon: icon }).addTo(map).bindPopup('<b>' + (p.dest || 'Parada') + '</b><br>' + (p.dir || ''));
+    L.marker([p.lat, p.lng], { icon: icon }).addTo(map).bindPopup('<b>' + esc(p.dest || 'Parada') + '</b><br>' + esc(p.dir || ''));
     pts.push([p.lat, p.lng]);
   });
   if (pts.length > 1) { L.polyline(pts, { color: '#2563eb', weight: 4 }).addTo(map); map.fitBounds(pts, { padding: [40, 40] }); }
   else if (pts.length === 1) { map.setView(pts[0], 15); }
   else { map.setView([-12.046, -77.043], 12); }
 </script>
-</body></html>`.replace("__DATOS__", datos);
+</body></html>`.replace("__DATOS__", () => datos);
 }
 
 // Mapa de calles de la ruta. Recibe: { paradas, alto? }.
