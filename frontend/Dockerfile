@@ -28,7 +28,7 @@ COPY . .
 RUN npm run build
 
 # ---------- Etapa 2: runtime (Nginx) ----------
-FROM nginx:1.27-alpine
+FROM nginx:1.31-alpine
 
 # Configuración de Nginx: SPA + reverse proxy hacia el servicio "backend".
 COPY nginx.conf /etc/nginx/conf.d/default.conf
