@@ -1,8 +1,17 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { UploadCloud, CheckCircle2, AlertCircle, Loader2, ArrowRight, FileSpreadsheet } from "lucide-react";
+import {
+  UploadCloud,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  ArrowRight,
+  FileSpreadsheet,
+  FileX2,
+} from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
-import Card from "../components/ui/Card";
+import SectionCard from "../components/ui/SectionCard";
+import EmptyState from "../components/ui/EmptyState";
 import Button from "../components/ui/Button";
 
 import { subirPedidosExcel } from "../services/api";
@@ -14,6 +23,7 @@ export default function ImportarPedidos() {
   const [resultado, setResultado] = useState(null);
   const [error, setError] = useState("");
 
+  // Guarda el archivo seleccionado y limpia estados previos
   const elegirArchivo = (e) => {
     const archivo = e.target.files[0];
     if (archivo) {
@@ -23,6 +33,7 @@ export default function ImportarPedidos() {
     }
   };
 
+  // Envía el archivo al backend y almacena el resultado o el error
   const subir = async () => {
     if (!file) return;
     setCargando(true);
@@ -38,54 +49,129 @@ export default function ImportarPedidos() {
 
   return (
     <div className="space-y-6 p-6 lg:p-8">
-      <PageHeader
-        titulo="Importar Pedidos"
-        subtitulo="Carga un Excel (.xlsx); los pedidos se geocodifican automáticamente al subir."
-      />
+      {/* Cabecera de la página */}
+      <div className="animate-fade-up">
+        <PageHeader
+          titulo="Importar Pedidos"
+          subtitulo="Carga un Excel (.xlsx); los pedidos se geocodifican automáticamente al subir."
+        />
+      </div>
 
-      <Card>
-        <div className="rounded-xl border-2 border-dashed border-slate-200 p-10 text-center transition-colors hover:border-brand-400">
-          <input id="excel" type="file" accept=".xlsx,.xls" className="hidden" onChange={elegirArchivo} />
-          <label htmlFor="excel" className="cursor-pointer">
-            <UploadCloud className={`mx-auto ${file ? "text-brand-600" : "text-slate-400"}`} size={56} />
-            <p className="mt-4 text-lg font-semibold text-slate-800">
-              {file ? file.name : "Selecciona o arrastra tu archivo"}
-            </p>
-            <p className="mt-1 text-sm text-slate-500">Formatos permitidos: XLSX, XLS</p>
-          </label>
-        </div>
+      {/* Zona de carga de archivo */}
+      <div className="animate-fade-up" style={{ animationDelay: "60ms" }}>
+        <SectionCard
+          title="Archivo de pedidos"
+          subtitle="Formatos permitidos: XLSX, XLS"
+        >
+          {/* Input oculto para selección de archivo */}
+          <input
+            id="excel"
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={elegirArchivo}
+          />
 
-        <Button onClick={subir} disabled={!file || cargando} size="lg" block icon={cargando ? undefined : FileSpreadsheet} className="mt-6">
-          {cargando ? (<><Loader2 className="animate-spin" size={20} /> Procesando carga…</>) : "Importar datos"}
-        </Button>
-      </Card>
+          {/* Estado vacío: aún no se eligió archivo */}
+          {!file ? (
+            <label htmlFor="excel" className="block cursor-pointer">
+              <EmptyState
+                icon={UploadCloud}
+                title="Selecciona o arrastra tu archivo"
+                description="Haz clic aquí para elegir un archivo Excel con los pedidos a importar."
+              />
+            </label>
+          ) : (
+            /* Archivo seleccionado: preview con nombre */
+            <label
+              htmlFor="excel"
+              className="block cursor-pointer rounded-xl border-2 border-dashed border-brand-300 bg-brand-50 p-8 text-center transition-colors hover:border-brand-400 hover:bg-brand-100/60"
+            >
+              <FileSpreadsheet
+                className="mx-auto text-brand-600"
+                size={48}
+              />
+              <p className="mt-3 text-base font-semibold text-slate-800">
+                {file.name}
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Haz clic para cambiar el archivo
+              </p>
+            </label>
+          )}
 
+          {/* Botón de importación */}
+          <Button
+            onClick={subir}
+            disabled={!file || cargando}
+            size="lg"
+            block
+            icon={cargando ? undefined : FileSpreadsheet}
+            className="mt-5"
+          >
+            {cargando ? (
+              <>
+                <Loader2 className="animate-spin" size={20} />
+                Procesando carga…
+              </>
+            ) : (
+              "Importar datos"
+            )}
+          </Button>
+        </SectionCard>
+      </div>
+
+      {/* Resultado exitoso */}
       {resultado && (
-        <Card className="border-success/30">
-          <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-4">
-              <span className="rounded-full bg-success-soft p-3 text-success"><CheckCircle2 size={26} /></span>
-              <div>
-                <h3 className="text-base font-semibold text-slate-900">Importación exitosa</h3>
-                <p className="text-sm text-slate-500">
-                  {resultado.pedidos_nuevos} pedidos registrados · {resultado.pedidos_geocodificados} geocodificados
-                  {resultado.pedidos_fallidos > 0 && ` · ${resultado.pedidos_fallidos} sin ubicar`}.
-                </p>
+        <div className="animate-fade-up" style={{ animationDelay: "80ms" }}>
+          <div className="rounded-card border border-emerald-200 bg-emerald-50 p-5 shadow-card">
+            <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+              <div className="flex items-center gap-4">
+                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                  <CheckCircle2 size={24} />
+                </span>
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">
+                    Importación exitosa
+                  </h3>
+                  <p className="text-sm text-slate-600">
+                    {resultado.pedidos_nuevos} pedidos registrados ·{" "}
+                    {resultado.pedidos_geocodificados} geocodificados
+                    {resultado.pedidos_fallidos > 0 &&
+                      ` · ${resultado.pedidos_fallidos} sin ubicar`}
+                    .
+                  </p>
+                </div>
               </div>
+              <Button
+                variant="secondary"
+                icon={ArrowRight}
+                onClick={() => navigate("/agrupacion")}
+              >
+                Ver agrupación por zonas
+              </Button>
             </div>
-            <Button variant="secondary" icon={ArrowRight} onClick={() => navigate("/agrupacion")}>
-              Ver agrupación por zonas
-            </Button>
           </div>
-        </Card>
+        </div>
       )}
 
+      {/* Error de importación */}
       {error && (
-        <Card className="border-danger/30">
-          <div className="flex items-center gap-3 text-danger-strong">
-            <AlertCircle size={22} /> <span className="font-medium">{error}</span>
+        <div className="animate-fade-up" style={{ animationDelay: "80ms" }}>
+          <div className="rounded-card border border-red-200 bg-red-50 p-5 shadow-card">
+            <div className="flex items-start gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+                <FileX2 size={20} />
+              </span>
+              <div>
+                <h3 className="text-sm font-semibold text-red-800">
+                  Error al procesar el archivo
+                </h3>
+                <p className="mt-0.5 text-sm text-red-700">{error}</p>
+              </div>
+            </div>
           </div>
-        </Card>
+        </div>
       )}
     </div>
   );
