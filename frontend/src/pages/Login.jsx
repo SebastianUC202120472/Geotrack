@@ -4,6 +4,7 @@ import { LogIn } from "lucide-react";
 import { loginAdmin } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import Logo from "../components/ui/Logo";
+import EscenaReparto from "../components/EscenaReparto";
 import Input from "../components/ui/Input";
 import PasswordInput from "../components/ui/PasswordInput";
 import Button from "../components/ui/Button";
@@ -38,18 +39,22 @@ export default function Login() {
   return (
     <div className="min-h-screen w-full lg:grid lg:grid-cols-2">
       {/* Panel de marca (solo escritorio) */}
-      <div className="relative hidden flex-col justify-between bg-slate-900 p-12 text-white lg:flex">
-        <Logo light />
-        <div>
+      <div
+        className="relative hidden flex-col justify-between overflow-hidden p-12 text-white lg:flex"
+        style={{ background: "radial-gradient(130% 130% at 0% 0%, #2b3545 0%, #161c26 65%)" }}
+      >
+        <EscenaReparto />
+        <div className="relative z-10"><Logo light /></div>
+        <div className="relative z-10">
           <h2 className="text-3xl font-bold leading-tight">
-            Gestión logística de principio a fin.
+            En ruta, en tiempo real.
           </h2>
           <p className="mt-4 max-w-md text-slate-400">
             Importa pedidos, arma rutas, asigna conductores y haz seguimiento de
             tu flota en tiempo real desde un solo panel.
           </p>
         </div>
-        <p className="text-xs text-slate-500">© SIOL · SAVA — GeoTrack</p>
+        <p className="relative z-10 text-xs text-slate-500">© SIOL · SAVA — GeoTrack</p>
       </div>
 
       {/* Formulario */}
