@@ -8,7 +8,7 @@ export default function Card({ title, subtitle, action, hover = false, className
     : "";
   return (
     <section
-      className={`bg-white border border-slate-200 rounded-card shadow-card ${interaccion} ${className}`}
+      className={`bg-white border border-warm-200 rounded-card shadow-card ${interaccion} ${className}`}
     >
       {(title || action) && (
         <header className="flex items-center justify-between gap-4 px-6 py-4 border-b border-slate-100">
