@@ -44,11 +44,17 @@ export default function Topbar() {
       : { txt: "Sin conexión", cls: "bg-danger-soft text-danger-strong", dot: "bg-danger" };
 
   return (
-    <header className="hidden lg:flex items-center justify-end gap-3 border-b border-slate-200 bg-white px-8 py-3">
-      <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${estado.cls}`}>
-        <span className={`h-2 w-2 rounded-full ${estado.dot}`} />
-        {estado.txt}
-      </span>
+    <header className="hidden lg:flex items-center justify-end gap-3 border-b border-warm-200 bg-white px-8 py-3">
+      {enLinea === null ? (
+        <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
+          Actualizando <span className="updating-bar h-2 w-12 rounded-full" />
+        </span>
+      ) : (
+        <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${estado.cls}`}>
+          <span className={`h-2 w-2 rounded-full ${estado.dot} ${enLinea ? "live-dot text-success" : ""}`} />
+          {estado.txt}
+        </span>
+      )}
       <button
         onClick={salir}
         className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"

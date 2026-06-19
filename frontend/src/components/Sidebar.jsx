@@ -60,8 +60,8 @@ export default function Sidebar({ onNavigate }) {
   };
 
   return (
-    <aside className="flex h-full w-72 flex-col border-r border-slate-800 bg-slate-900 text-slate-300">
-      <div className="px-6 py-5 border-b border-slate-800">
+    <aside className="flex h-full w-72 flex-col border-r border-[#222b38] bg-[#1f2733] text-slate-300">
+      <div className="px-6 py-5 border-b border-[#2b3543]">
         <Logo light />
       </div>
 
