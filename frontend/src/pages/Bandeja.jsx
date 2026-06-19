@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { RefreshCw, Send, Mail, Inbox, Loader2, CheckCircle2, AlertCircle, FileSpreadsheet, Download } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
-import Card from "../components/ui/Card";
+import SectionCard from "../components/ui/SectionCard";
+import EmptyState from "../components/ui/EmptyState";
 import Button from "../components/ui/Button";
 import Badge, { EstadoBadge } from "../components/ui/Badge";
 import {
@@ -96,7 +97,7 @@ export default function Bandeja() {
   };
 
   return (
-    <div className="space-y-6 p-6 lg:p-8">
+    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
       <PageHeader titulo="Bandeja de Solicitudes" subtitulo="Correos de clientes para solicitar el recojo de pedidos.">
         <Button variant="secondary" icon={RefreshCw} onClick={sincronizar} disabled={sincronizando}>
           {sincronizando ? "Revisando…" : "Revisar bandeja"}
@@ -104,23 +105,23 @@ export default function Bandeja() {
       </PageHeader>
 
       {aviso && (
-        <div className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm ${aviso.ok ? "bg-success-soft text-success-strong" : "bg-danger-soft text-danger-strong"}`}>
+        <div className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm animate-fade-up ${aviso.ok ? "bg-success-soft text-success-strong" : "bg-danger-soft text-danger-strong"}`}>
           {aviso.ok ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
           <span>{aviso.texto}</span>
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
         {/* Lista de conversaciones */}
-        <Card className="lg:col-span-1" title="Conversaciones">
+        <SectionCard title="Conversaciones" className="lg:col-span-1">
           {conversaciones.length === 0 ? (
-            <div className="py-10 text-center text-sm text-slate-400">
-              <Inbox className="mx-auto mb-2 opacity-40" size={28} />
-              <p>No hay solicitudes todavía.</p>
-              <p className="text-xs">Pulsa “Revisar bandeja” para traer los correos nuevos.</p>
-            </div>
+            <EmptyState
+              icon={Inbox}
+              title="No hay solicitudes todavía"
+              description='Pulsa "Revisar bandeja" para traer los correos nuevos.'
+            />
           ) : (
-            <ul className="-m-2 divide-y divide-slate-50">
+            <ul className="-mx-1 divide-y divide-slate-50">
               {conversaciones.map((c) => (
                 <li key={c.id}>
                   <button
@@ -145,22 +146,28 @@ export default function Bandeja() {
               ))}
             </ul>
           )}
-        </Card>
+        </SectionCard>
 
         {/* Hilo seleccionado */}
-        <Card className="lg:col-span-2" title={detalle ? detalle.asunto : "Conversación"}
+        <SectionCard
+          className="lg:col-span-2"
+          title={detalle ? detalle.asunto : "Conversación"}
           action={detalle && (
             <Button variant="ghost" size="sm" onClick={alternarEstado}>
               {detalle.estado === "ATENDIDA" ? "Marcar pendiente" : "Marcar atendida"}
             </Button>
-          )}>
+          )}
+        >
           {!selId ? (
-            <div className="py-16 text-center text-sm text-slate-400">
-              <Mail className="mx-auto mb-2 opacity-40" size={32} />
-              <p>Selecciona una conversación para ver el hilo.</p>
-            </div>
+            <EmptyState
+              icon={Mail}
+              title="Selecciona una conversación"
+              description="El hilo completo de mensajes aparecerá aquí."
+            />
           ) : !detalle ? (
-            <p className="py-16 text-center text-sm text-slate-500">Cargando conversación…</p>
+            <div className="flex items-center justify-center py-16 text-sm text-slate-500">
+              <Loader2 className="animate-spin mr-2" size={18} /> Cargando conversación…
+            </div>
           ) : (
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -220,7 +227,7 @@ export default function Bandeja() {
               </form>
             </div>
           )}
-        </Card>
+        </SectionCard>
       </div>
     </div>
   );
