@@ -30,7 +30,7 @@ export default function StatCard({
   const ancho = Math.max(0, Math.min(100, progress ?? 0));
 
   return (
-    <div className="bg-white border border-slate-200 rounded-card shadow-card p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover">
+    <div className="bg-white border border-warm-200 rounded-card shadow-card p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover">
       <div className="flex items-start justify-between">
         <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
           {label}
