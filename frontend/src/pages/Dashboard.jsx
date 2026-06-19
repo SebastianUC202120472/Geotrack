@@ -13,6 +13,9 @@ import EstadoSistema from "../components/EstadoSistema";
 import { SkeletonStat } from "../components/ui/Skeleton";
 import { agruparPedidosPorDia } from "../utils/dashboard";
 import { obtenerResumen, listarPedidos } from "../services/api";
+import DataTable from "../components/ui/DataTable";
+import EmptyState from "../components/ui/EmptyState";
+import LiveBadge from "../components/ui/LiveBadge";
 
 // Color de marca para cada estado (gráficos).
 const COLOR_ESTADO = {
@@ -30,17 +33,49 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [resumen, setResumen] = useState(null);
   const [pedidos, setPedidos] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  // Indica si hay un refresco silencioso en curso (no bloquea la pantalla).
+  const [actualizando, setActualizando] = useState(false);
 
   // Lleva a la lista de Pedidos ya filtrada por ese estado (clic en la gráfica).
   const irAEstado = (estadoRaw) => estadoRaw && navigate(`/pedidos?estado=${encodeURIComponent(estadoRaw)}`);
 
-  const [cargando, setCargando] = useState(true);
+  // Carga (o refresca silenciosamente) el resumen y los pedidos.
+  // silencioso=true: no toca `cargando`; usa `actualizando` en su lugar.
+  const cargar = (silencioso) => {
+    if (silencioso) {
+      setActualizando(true);
+    }
+    Promise.allSettled([
+      obtenerResumen().then(setResumen),
+      listarPedidos().then(setPedidos),
+    ]).finally(() => {
+      if (silencioso) {
+        setActualizando(false);
+      } else {
+        setCargando(false);
+      }
+    });
+  };
 
   useEffect(() => {
+    // Carga inicial: setState solo dentro del .then/.finally (no en el cuerpo del effect).
     Promise.allSettled([
       obtenerResumen().then(setResumen),
       listarPedidos().then(setPedidos),
     ]).finally(() => setCargando(false));
+
+    // Auto-refresco cada 20 segundos (silencioso, fuera del cuerpo del effect).
+    const intervalo = setInterval(() => cargar(true), 20000);
+
+    // Refresco al recuperar el foco (silencioso, en un callback).
+    const alFoco = () => cargar(true);
+    window.addEventListener("focus", alFoco);
+
+    return () => {
+      clearInterval(intervalo);
+      window.removeEventListener("focus", alFoco);
+    };
   }, []);
 
   const porEstado = resumen?.pedidos_por_estado || {};
@@ -56,37 +91,47 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 p-6 lg:p-8">
-      <PageHeader titulo="Dashboard" subtitulo="Resumen operativo de SIOL-SAVA" />
+      {/* Cabecera con indicador "en vivo" y chip de actualización */}
+      <PageHeader titulo="Dashboard" subtitulo="Resumen operativo de SIOL-SAVA">
+        <LiveBadge tone="success">En vivo</LiveBadge>
+        {actualizando && (
+          <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
+            Actualizando <span className="updating-bar h-2 w-10 rounded-full" />
+          </span>
+        )}
+      </PageHeader>
 
-      {/* KPIs */}
-      {cargando ? (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <SkeletonStat /><SkeletonStat /><SkeletonStat /><SkeletonStat />
-        </div>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="Pedidos totales" value={resumen?.total_pedidos ?? 0} icon={Package}
-            tone="brand" hint="Acumulado en el sistema" />
-          <StatCard label="Rutas activas" value={resumen?.rutas_activas ?? 0} icon={Truck}
-            tone="info"
-            progress={resumen?.total_rutas ? (resumen.rutas_activas / resumen.total_rutas) * 100 : 0}
-            progressLabel={`de ${resumen?.total_rutas ?? 0} rutas`} />
-          <StatCard label="Entregados" value={entregados} icon={CircleCheck}
-            tone="success"
-            progress={resumen?.total_pedidos ? (entregados / resumen.total_pedidos) * 100 : 0}
-            progressLabel={resumen?.total_pedidos ? `${Math.round((entregados / resumen.total_pedidos) * 100)}% del total` : "Sin pedidos"} />
-          <StatCard label="Rutas finalizadas" value={resumen?.rutas_finalizadas ?? 0} icon={Flag}
-            tone="warning"
-            progress={resumen?.total_rutas ? (resumen.rutas_finalizadas / resumen.total_rutas) * 100 : 0}
-            progressLabel="Operaciones cerradas" />
-        </div>
-      )}
+      {/* KPIs — bloque 1, entrada animada */}
+      <div className="animate-fade-up" style={{ animationDelay: "0ms" }}>
+        {cargando ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <SkeletonStat /><SkeletonStat /><SkeletonStat /><SkeletonStat />
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard label="Pedidos totales" value={resumen?.total_pedidos ?? 0} icon={Package}
+              tone="brand" hint="Acumulado en el sistema" />
+            <StatCard label="Rutas activas" value={resumen?.rutas_activas ?? 0} icon={Truck}
+              tone="info"
+              progress={resumen?.total_rutas ? (resumen.rutas_activas / resumen.total_rutas) * 100 : 0}
+              progressLabel={`de ${resumen?.total_rutas ?? 0} rutas`} />
+            <StatCard label="Entregados" value={entregados} icon={CircleCheck}
+              tone="success"
+              progress={resumen?.total_pedidos ? (entregados / resumen.total_pedidos) * 100 : 0}
+              progressLabel={resumen?.total_pedidos ? `${Math.round((entregados / resumen.total_pedidos) * 100)}% del total` : "Sin pedidos"} />
+            <StatCard label="Rutas finalizadas" value={resumen?.rutas_finalizadas ?? 0} icon={Flag}
+              tone="warning"
+              progress={resumen?.total_rutas ? (resumen.rutas_finalizadas / resumen.total_rutas) * 100 : 0}
+              progressLabel="Operaciones cerradas" />
+          </div>
+        )}
+      </div>
 
-      {/* Gráficos */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      {/* Gráficos de barras y tarta — bloque 2, entrada animada */}
+      <div className="animate-fade-up grid gap-6 lg:grid-cols-3" style={{ animationDelay: "80ms" }}>
         <Card title="Pedidos por estado" subtitle="Toca un estado para ver esos pedidos" className="lg:col-span-2">
           {datosEstado.length === 0 ? (
-            <VacioGrafico />
+            <EmptyState icon={Package} title="Aún no hay datos" description="Importa un Excel de pedidos para ver los gráficos." />
           ) : (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={datosEstado} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
@@ -109,7 +154,7 @@ export default function Dashboard() {
 
         <Card title="Distribución de estados">
           {datosEstado.length === 0 ? (
-            <VacioGrafico />
+            <EmptyState icon={Package} title="Aún no hay datos" description="Importa un Excel de pedidos para ver los gráficos." />
           ) : (
             <div className="relative">
               <ResponsiveContainer width="100%" height={280}>
@@ -133,7 +178,8 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      {/* Línea de tendencia + EstadoSistema — bloque 3, entrada animada */}
+      <div className="animate-fade-up grid gap-6 lg:grid-cols-3" style={{ animationDelay: "160ms" }}>
         <Card
           title="Pedidos por día"
           subtitle="Últimos 7 días (por fecha de creación)"
@@ -153,47 +199,24 @@ export default function Dashboard() {
         <EstadoSistema />
       </div>
 
-      {/* Actividad reciente */}
-      <Card title="Actividad reciente" subtitle="Últimos pedidos registrados">
-        {recientes.length === 0 ? (
-          <p className="py-8 text-center text-sm text-slate-400">No hay pedidos registrados todavía.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
-                  <th className="pb-3 font-semibold">Código</th>
-                  <th className="pb-3 font-semibold">Cliente</th>
-                  <th className="pb-3 font-semibold">Destinatario</th>
-                  <th className="pb-3 font-semibold">Distrito</th>
-                  <th className="pb-3 font-semibold">Estado</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {recientes.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50">
-                    <td className="py-3 font-medium text-slate-800 nums">{p.codigo}</td>
-                    <td className="py-3 text-slate-600">{p.cliente_origen}</td>
-                    <td className="py-3 text-slate-600">{p.nombre_destinatario || "—"}</td>
-                    <td className="py-3 text-slate-600">{p.distrito || "—"}</td>
-                    <td className="py-3"><EstadoBadge estado={p.estado} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-    </div>
-  );
-}
-
-function VacioGrafico() {
-  return (
-    <div className="flex h-[280px] flex-col items-center justify-center text-center text-sm text-slate-400">
-      <Package size={32} className="mb-2 opacity-40" />
-      <p>Aún no hay pedidos para graficar.</p>
-      <p className="text-xs">Importa un Excel para ver los datos aquí.</p>
+      {/* Actividad reciente — bloque 4, entrada animada */}
+      <div className="animate-fade-up" style={{ animationDelay: "240ms" }}>
+        <Card title="Actividad reciente" subtitle="Últimos pedidos registrados">
+          <DataTable
+            columns={[
+              { key: "codigo", header: "Código", className: "font-medium text-slate-800 nums" },
+              { key: "cliente_origen", header: "Cliente" },
+              { key: "destinatario", header: "Destinatario", render: (p) => p.nombre_destinatario || "—" },
+              { key: "distrito", header: "Distrito", render: (p) => p.distrito || "—" },
+              { key: "estado", header: "Estado", render: (p) => <EstadoBadge estado={p.estado} /> },
+            ]}
+            rows={recientes}
+            rowKey={(p) => p.id}
+            loading={cargando}
+            empty={{ icon: Package, title: "Sin pedidos", description: "Aún no hay pedidos registrados." }}
+          />
+        </Card>
+      </div>
     </div>
   );
 }
