@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import Sidebar from "./Sidebar";
 import Logo from "./ui/Logo";
@@ -10,9 +10,10 @@ import Topbar from "./Topbar";
 // página se pinta en el Outlet sobre el fondo "canvas".
 export default function LayoutAdmin() {
   const [abierto, setAbierto] = useState(false);
+  const { pathname } = useLocation();
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-canvas">
       {/* Sidebar de escritorio */}
       <div className="hidden lg:block">
         <Sidebar />
@@ -54,8 +55,10 @@ export default function LayoutAdmin() {
         {/* Barra superior de escritorio */}
         <Topbar />
 
-        <main className="flex-1 overflow-y-auto">
-          <Outlet />
+        <main className="flex-1 overflow-y-auto bg-canvas">
+          <div key={pathname} className="animate-fade-up">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
