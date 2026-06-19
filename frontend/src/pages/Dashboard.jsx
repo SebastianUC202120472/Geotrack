@@ -4,20 +4,19 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend, LabelList,
 } from "recharts";
-import { Package, Truck, CircleCheck, Flag } from "lucide-react";
-import PageHeader from "../components/ui/PageHeader";
+import { Package, Truck, CircleCheck, Flag, MapPin, Upload } from "lucide-react";
 import StatCard from "../components/ui/StatCard";
 import Card from "../components/ui/Card";
+import Button from "../components/ui/Button";
 import { EstadoBadge } from "../components/ui/Badge";
 import EstadoSistema from "../components/EstadoSistema";
 import { SkeletonStat } from "../components/ui/Skeleton";
-import { agruparPedidosPorDia } from "../utils/dashboard";
-import { obtenerResumen, listarPedidos } from "../services/api";
-import DataTable from "../components/ui/DataTable";
 import EmptyState from "../components/ui/EmptyState";
 import LiveBadge from "../components/ui/LiveBadge";
+import { agruparPedidosPorDia } from "../utils/dashboard";
+import { obtenerResumen, listarPedidos } from "../services/api";
 
-// Color de marca para cada estado (gráficos).
+// Color de marca para cada estado (gráficos y puntos de la línea de tiempo).
 const COLOR_ESTADO = {
   PENDIENTE: "#f59e0b",
   ASIGNADO: "#2563eb",
@@ -37,8 +36,9 @@ export default function Dashboard() {
   // Indica si hay un refresco silencioso en curso (no bloquea la pantalla).
   const [actualizando, setActualizando] = useState(false);
 
-  // Lleva a la lista de Pedidos ya filtrada por ese estado (clic en la gráfica).
+  // Lleva a la lista de Pedidos ya filtrada (clic en gráfica/zona).
   const irAEstado = (estadoRaw) => estadoRaw && navigate(`/pedidos?estado=${encodeURIComponent(estadoRaw)}`);
+  const irAZona = (distrito) => navigate(`/pedidos?distrito=${encodeURIComponent(distrito)}&estado=PENDIENTE`);
 
   // Carga (o refresca silenciosamente) el resumen y los pedidos.
   // silencioso=true: no toca `cargando`; usa `actualizando` en su lugar.
@@ -65,13 +65,10 @@ export default function Dashboard() {
       listarPedidos().then(setPedidos),
     ]).finally(() => setCargando(false));
 
-    // Auto-refresco cada 20 segundos (silencioso, fuera del cuerpo del effect).
+    // Auto-refresco cada 20 s (silencioso) + al recuperar el foco.
     const intervalo = setInterval(() => cargar(true), 20000);
-
-    // Refresco al recuperar el foco (silencioso, en un callback).
     const alFoco = () => cargar(true);
     window.addEventListener("focus", alFoco);
-
     return () => {
       clearInterval(intervalo);
       window.removeEventListener("focus", alFoco);
@@ -89,20 +86,48 @@ export default function Dashboard() {
   const recientes = [...pedidos].slice(-6).reverse();
   const pedidosPorDia = agruparPedidosPorDia(pedidos, 7);
 
+  // Zonas con pendientes: agrupa los pedidos por distrito contando los que
+  // aún no están entregados/fallidos. Datos reales, top 6.
+  const PEND = ["PENDIENTE", "ASIGNADO", "EN_RUTA", "EN_PROGRESO", "CREADA"];
+  const zonasPendientes = Object.entries(
+    pedidos.reduce((acc, p) => {
+      if (p.distrito && PEND.includes(p.estado)) acc[p.distrito] = (acc[p.distrito] || 0) + 1;
+      return acc;
+    }, {}),
+  )
+    .map(([distrito, cantidad]) => ({ distrito, cantidad }))
+    .sort((a, b) => b.cantidad - a.cantidad)
+    .slice(0, 6);
+  const maxZona = Math.max(1, ...zonasPendientes.map((z) => z.cantidad));
+
+  // Fecha legible en español (se calcula en el cliente, en cada render).
+  const fecha = new Date().toLocaleDateString("es-PE", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+  });
+
   return (
     <div className="space-y-6 p-6 lg:p-8">
-      {/* Cabecera con indicador "en vivo" y chip de actualización */}
-      <PageHeader titulo="Dashboard" subtitulo="Resumen operativo de SIOL-SAVA">
-        <LiveBadge tone="success">En vivo</LiveBadge>
-        {actualizando && (
-          <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
-            Actualizando <span className="updating-bar h-2 w-10 rounded-full" />
-          </span>
-        )}
-      </PageHeader>
+      {/* Cabecera tipo "hero": saludo, fecha y acciones */}
+      <div className="animate-fade-up flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Resumen operativo</h1>
+          <p className="mt-1 text-sm capitalize text-slate-500">{fecha}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <LiveBadge tone="success">En vivo</LiveBadge>
+          {actualizando && (
+            <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
+              Actualizando <span className="updating-bar h-2 w-10 rounded-full" />
+            </span>
+          )}
+          <Button size="sm" icon={Upload} onClick={() => navigate("/importar")}>
+            Importar
+          </Button>
+        </div>
+      </div>
 
-      {/* KPIs — bloque 1, entrada animada */}
-      <div className="animate-fade-up" style={{ animationDelay: "0ms" }}>
+      {/* KPIs */}
+      <div className="animate-fade-up" style={{ animationDelay: "60ms" }}>
         {cargando ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <SkeletonStat /><SkeletonStat /><SkeletonStat /><SkeletonStat />
@@ -127,8 +152,8 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Gráficos de barras y tarta — bloque 2, entrada animada */}
-      <div className="animate-fade-up grid gap-6 lg:grid-cols-3" style={{ animationDelay: "80ms" }}>
+      {/* Gráficos: barras + dona */}
+      <div className="animate-fade-up grid gap-6 lg:grid-cols-3" style={{ animationDelay: "120ms" }}>
         <Card title="Pedidos por estado" subtitle="Toca un estado para ver esos pedidos" className="lg:col-span-2">
           {datosEstado.length === 0 ? (
             <EmptyState icon={Package} title="Aún no hay datos" description="Importa un Excel de pedidos para ver los gráficos." />
@@ -178,13 +203,9 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Línea de tendencia + EstadoSistema — bloque 3, entrada animada */}
-      <div className="animate-fade-up grid gap-6 lg:grid-cols-3" style={{ animationDelay: "160ms" }}>
-        <Card
-          title="Pedidos por día"
-          subtitle="Últimos 7 días (por fecha de creación)"
-          className="lg:col-span-2"
-        >
+      {/* Tendencia por día + estado del sistema */}
+      <div className="animate-fade-up grid gap-6 lg:grid-cols-3" style={{ animationDelay: "180ms" }}>
+        <Card title="Pedidos por día" subtitle="Últimos 7 días (por fecha de creación)" className="lg:col-span-2">
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={pedidosPorDia} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef2f6" vertical={false} />
@@ -199,22 +220,51 @@ export default function Dashboard() {
         <EstadoSistema />
       </div>
 
-      {/* Actividad reciente — bloque 4, entrada animada */}
-      <div className="animate-fade-up" style={{ animationDelay: "240ms" }}>
+      {/* Zonas con pendientes + Actividad reciente (línea de tiempo) */}
+      <div className="animate-fade-up grid gap-6 lg:grid-cols-2" style={{ animationDelay: "240ms" }}>
+        <Card title="Zonas con pendientes" subtitle="Carga por distrito · toca para ver">
+          {zonasPendientes.length === 0 ? (
+            <EmptyState icon={MapPin} title="Sin pendientes" description="No hay pedidos pendientes por zona." />
+          ) : (
+            <div className="space-y-3.5">
+              {zonasPendientes.map((z) => (
+                <button
+                  key={z.distrito}
+                  onClick={() => irAZona(z.distrito)}
+                  className="flex w-full items-center gap-3 text-left transition-colors hover:opacity-90"
+                >
+                  <span className="w-28 truncate text-sm font-medium text-slate-700">{z.distrito}</span>
+                  <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                    <span className="block h-full rounded-full bg-brand-600 transition-[width] duration-700"
+                      style={{ width: `${(z.cantidad / maxZona) * 100}%` }} />
+                  </span>
+                  <span className="w-8 text-right text-sm font-bold text-slate-700 nums">{z.cantidad}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </Card>
+
         <Card title="Actividad reciente" subtitle="Últimos pedidos registrados">
-          <DataTable
-            columns={[
-              { key: "codigo", header: "Código", className: "font-medium text-slate-800 nums" },
-              { key: "cliente_origen", header: "Cliente" },
-              { key: "destinatario", header: "Destinatario", render: (p) => p.nombre_destinatario || "—" },
-              { key: "distrito", header: "Distrito", render: (p) => p.distrito || "—" },
-              { key: "estado", header: "Estado", render: (p) => <EstadoBadge estado={p.estado} /> },
-            ]}
-            rows={recientes}
-            rowKey={(p) => p.id}
-            loading={cargando}
-            empty={{ icon: Package, title: "Sin pedidos", description: "Aún no hay pedidos registrados." }}
-          />
+          {recientes.length === 0 ? (
+            <EmptyState icon={Package} title="Sin pedidos" description="Aún no hay pedidos registrados." />
+          ) : (
+            <div className="space-y-4">
+              {recientes.map((p) => (
+                <div key={p.id} className="flex items-start gap-3">
+                  <span className="mt-1.5 h-2.5 w-2.5 flex-none rounded-full"
+                    style={{ background: COLOR_ESTADO[p.estado] || "#94a3b8" }} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-slate-800">
+                      <span className="nums">{p.codigo}</span> · {p.cliente_origen}
+                    </p>
+                    <p className="text-xs text-slate-400">{p.distrito || "—"}</p>
+                  </div>
+                  <EstadoBadge estado={p.estado} />
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
       </div>
     </div>
