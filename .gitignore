@@ -32,6 +32,16 @@ npm-debug.log*
 *.suo
 *.swp
 
+# --- design-sync (sincronización con claude.ai/design) ---
+# Scratch regenerable (NO subir). Lo durable de .design-sync/ (config.json,
+# NOTES.md, conventions.md, previews/, ds-entry.jsx) SÍ es versionable.
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
+frontend/.ds-dist/
+
 # --- Configuración local de herramientas (no compartir) ---
 .claude/
 .superpowers/
