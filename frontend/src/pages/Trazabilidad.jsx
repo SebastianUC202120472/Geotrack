@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Search, Package, MapPin, Loader2, AlertCircle } from "lucide-react";
+import { Search, Package, MapPin, Loader2, AlertCircle, Clock } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
-import Card from "../components/ui/Card";
-import Input from "../components/ui/Input";
+import SectionCard from "../components/ui/SectionCard";
+import EmptyState from "../components/ui/EmptyState";
 import Button from "../components/ui/Button";
 import { EstadoBadge } from "../components/ui/Badge";
 import { obtenerHistorial } from "../services/api";
@@ -14,6 +14,7 @@ export default function Trazabilidad() {
   const [historial, setHistorial] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
+  const [buscado, setBuscado] = useState(false);
 
   const buscar = async (e) => {
     e.preventDefault();
@@ -21,6 +22,7 @@ export default function Trazabilidad() {
     setCargando(true);
     setError("");
     setHistorial(null);
+    setBuscado(true);
     try {
       setHistorial(await obtenerHistorial(codigo.trim()));
     } catch (err) {
@@ -31,35 +33,60 @@ export default function Trazabilidad() {
   };
 
   return (
-    <div className="space-y-6 p-6 lg:p-8">
+    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
       <PageHeader titulo="Trazabilidad de Paquetes" subtitulo="Consulta la línea de tiempo de un pedido (CUS-35)." />
 
-      <Card>
+      {/* Buscador con Input estilizado */}
+      <div className="rounded-card border border-slate-200 bg-white p-5 shadow-card animate-fade-up">
         <form onSubmit={buscar} className="flex flex-col gap-3 sm:flex-row">
-          <input
-            value={codigo}
-            onChange={(e) => setCodigo(e.target.value)}
-            placeholder="Código del paquete (ej. PD-001)"
-            aria-label="Código del paquete"
-            className="flex-1 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
-          />
+          <div className="relative flex-1">
+            <Search size={18} className="pointer-events-none absolute left-3.5 top-3 text-slate-400" />
+            <input
+              value={codigo}
+              onChange={(e) => setCodigo(e.target.value)}
+              placeholder="Código del paquete (ej. PD-001)"
+              aria-label="Código del paquete"
+              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
+            />
+          </div>
           <Button type="submit" icon={cargando ? undefined : Search} disabled={cargando}>
             {cargando ? <Loader2 className="animate-spin" size={18} /> : "Buscar"}
           </Button>
         </form>
-      </Card>
+      </div>
 
+      {/* Estado de carga */}
+      {cargando && (
+        <div className="flex items-center justify-center py-8 text-sm text-slate-500 animate-fade-up">
+          <Loader2 className="animate-spin mr-2" size={18} /> Buscando paquete…
+        </div>
+      )}
+
+      {/* Error de búsqueda */}
       {error && (
-        <Card className="border-danger/30">
+        <div className="rounded-card border border-danger/30 bg-white p-5 shadow-card animate-fade-up">
           <div className="flex items-center gap-3 text-danger-strong">
             <AlertCircle size={22} /> {error}
           </div>
-        </Card>
+        </div>
       )}
 
+      {/* Estado vacío: aún no se ha buscado nada */}
+      {!buscado && !cargando && (
+        <div className="animate-fade-up" style={{ animationDelay: "80ms" }}>
+          <EmptyState
+            icon={Search}
+            title="Ingresa el código de un paquete"
+            description="Escribe el código (ej. PD-001) en el campo de arriba y pulsa Buscar para ver su trazabilidad completa."
+          />
+        </div>
+      )}
+
+      {/* Resultados */}
       {historial && (
-        <div className="grid gap-6 lg:grid-cols-3">
-          <Card title="Ficha del pedido">
+        <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
+          {/* Ficha del pedido */}
+          <SectionCard title="Ficha del pedido">
             <div className="mb-4 flex items-center gap-3">
               <span className="rounded-xl bg-brand-600 p-3 text-white"><Package size={22} /></span>
               <div>
@@ -80,15 +107,20 @@ export default function Trazabilidad() {
                 </a>
               )}
             </div>
-          </Card>
+          </SectionCard>
 
-          <Card title="Línea de tiempo" className="lg:col-span-2">
+          {/* Línea de tiempo */}
+          <SectionCard title="Línea de tiempo" className="lg:col-span-2">
             {historial.eventos.length === 0 ? (
-              <p className="text-sm text-slate-400">Este paquete aún no tiene eventos registrados.</p>
+              <EmptyState
+                icon={Clock}
+                title="Sin eventos registrados"
+                description="Este paquete aún no tiene eventos en su línea de tiempo."
+              />
             ) : (
               <ol className="relative ml-2 space-y-6 border-l-2 border-slate-100">
                 {historial.eventos.map((ev, i) => (
-                  <li key={i} className="ml-6">
+                  <li key={i} className="ml-6 animate-fade-up" style={{ animationDelay: `${i * 40}ms` }}>
                     <span className="absolute -left-[9px] h-4 w-4 rounded-full border-2 border-white bg-brand-600" />
                     <p className="font-semibold text-slate-800">{ev.evento}</p>
                     <p className="text-sm text-slate-500">{ev.descripcion}</p>
@@ -100,7 +132,7 @@ export default function Trazabilidad() {
                 ))}
               </ol>
             )}
-          </Card>
+          </SectionCard>
         </div>
       )}
     </div>

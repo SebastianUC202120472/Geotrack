@@ -1,12 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check, Pencil, Trash2 } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
-import Card from "../components/ui/Card";
+import KpiCard from "../components/ui/KpiCard";
+import DataTable from "../components/ui/DataTable";
 import Input from "../components/ui/Input";
 import PasswordInput from "../components/ui/PasswordInput";
 import Button from "../components/ui/Button";
 import Badge, { EstadoBadge } from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
+import SectionCard from "../components/ui/SectionCard";
 import { listarConductores, crearConductor, actualizarConductor, eliminarConductor } from "../services/api";
 import { validarNombre, validarCorreo, validarPassword, validarTelefono, validarDni, soloDigitos } from "../utils/validaciones";
 
@@ -37,6 +39,15 @@ export default function Conductores() {
   useEffect(() => {
     cargar();
   }, []);
+
+  // KPIs calculados desde el array ya cargado (sin petición extra).
+  const kpis = useMemo(() => {
+    const total = conductores.length;
+    const activos = conductores.filter((c) => c.estado).length;
+    const sinVehiculo = conductores.filter((c) => c.estado && !c.vehiculo).length;
+    const inactivos = conductores.filter((c) => !c.estado).length;
+    return { total, activos, sinVehiculo, inactivos };
+  }, [conductores]);
 
   // Actualiza un campo y limpia su error mientras el usuario corrige.
   const set = (campo, transform) => (e) => {
@@ -82,13 +93,56 @@ export default function Conductores() {
     }
   };
 
+  // Columnas para DataTable
+  const columnas = [
+    {
+      key: "codigo",
+      header: "Código",
+      render: (c) => <span className="font-medium text-slate-800 nums">{c.codigo || "—"}</span>,
+    },
+    {
+      key: "nombre",
+      header: "Nombre",
+      render: (c) => <span className="text-slate-700">{c.nombre || "—"}</span>,
+    },
+    {
+      key: "telefono",
+      header: "Teléfono",
+      render: (c) => <span className="text-slate-600 nums">{c.telefono || "—"}</span>,
+    },
+    {
+      key: "vehiculo",
+      header: "Vehículo",
+      render: (c) =>
+        c.vehiculo
+          ? <Badge tono="info"><Truck size={13} className="inline mr-1" />{c.vehiculo.placa}</Badge>
+          : <span className="text-slate-400">Sin vehículo</span>,
+    },
+    {
+      key: "estado",
+      header: "Estado",
+      render: (c) => <EstadoBadge estado={c.estado ? "DISPONIBLE" : "INACTIVO"} />,
+    },
+  ];
+
   return (
     <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
-      <PageHeader titulo="Conductores" subtitulo="Registra y consulta a los conductores de reparto." />
+      <PageHeader
+        titulo="Conductores"
+        subtitulo="Registra y consulta a los conductores de reparto."
+      />
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      {/* KPIs derivados de la lista cargada */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 animate-fade-up">
+        <KpiCard label="Total" value={kpis.total} icon={Users} tone="brand" />
+        <KpiCard label="Activos" value={kpis.activos} icon={Users} tone="success" />
+        <KpiCard label="Sin vehículo" value={kpis.sinVehiculo} icon={Truck} tone="warning" />
+        <KpiCard label="Inactivos" value={kpis.inactivos} icon={Users} tone="danger" />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
         {/* Formulario de alta */}
-        <Card title="Registrar conductor" className="lg:col-span-1">
+        <SectionCard title="Registrar conductor" className="lg:col-span-1">
           <form onSubmit={registrar} noValidate className="space-y-4">
             <Input label="Nombre completo" required value={form.nombre} onChange={set("nombre")}
               placeholder="Ej. Juan Pérez" error={errores.nombre} hint="Al menos 3 caracteres" />
@@ -115,53 +169,23 @@ export default function Conductores() {
               </div>
             )}
           </form>
-        </Card>
+        </SectionCard>
 
-        {/* Lista */}
-        <Card
-          title="Conductores registrados"
-          className="lg:col-span-2"
-          action={<span className="text-sm text-slate-400 nums">{conductores.length}</span>}
-        >
-          {cargando ? (
-            <p className="py-10 text-center text-sm text-slate-500">Cargando…</p>
-          ) : conductores.length === 0 ? (
-            <div className="py-12 text-center text-sm text-slate-400">
-              <Users className="mx-auto mb-2 opacity-40" size={32} />
-              <p>Aún no hay conductores registrados.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
-                    <th className="pb-3 font-semibold">Código</th>
-                    <th className="pb-3 font-semibold">Nombre</th>
-                    <th className="pb-3 font-semibold">Teléfono</th>
-                    <th className="pb-3 font-semibold">Vehículo</th>
-                    <th className="pb-3 font-semibold">Estado</th>
-                  </tr>
-                </thead>
-                <tbody key={conductores.length} className="divide-y divide-slate-50">
-                  {conductores.map((c, i) => (
-                    <tr key={c.usuario_id} style={{ animationDelay: `${i * 30}ms` }}
-                      className="animate-fade-up cursor-pointer hover:bg-slate-50" onClick={() => setSeleccionado(c)}>
-                      <td className="py-3 font-medium text-slate-800 nums">{c.codigo || "—"}</td>
-                      <td className="py-3 text-slate-700">{c.nombre || "—"}</td>
-                      <td className="py-3 text-slate-600 nums">{c.telefono || "—"}</td>
-                      <td className="py-3">
-                        {c.vehiculo
-                          ? <Badge tono="info"><Truck size={13} /> {c.vehiculo.placa}</Badge>
-                          : <span className="text-slate-400">Sin vehículo</span>}
-                      </td>
-                      <td className="py-3"><EstadoBadge estado={c.estado ? "DISPONIBLE" : "INACTIVO"} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
+        {/* Tabla de conductores */}
+        <div className="lg:col-span-2">
+          <DataTable
+            columns={columnas}
+            rows={conductores}
+            rowKey={(c) => c.usuario_id}
+            loading={cargando}
+            empty={{
+              icon: Users,
+              title: "Aún no hay conductores registrados",
+              description: "Usa el formulario de la izquierda para añadir el primer conductor.",
+            }}
+            onRowClick={(c) => setSeleccionado(c)}
+          />
+        </div>
       </div>
 
       <Modal open={!!seleccionado} onClose={() => setSeleccionado(null)} variant="center">
