@@ -35,6 +35,21 @@
   --radius-chip: 0.625rem;
   --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 14px rgba(15, 23, 42, 0.05);
   --shadow-card-hover: 0 10px 28px rgba(15, 23, 42, 0.12);
+
+  /* Neutros cálidos (canvas y superficies) — complementan la escala slate */
+  --color-canvas: #faf9f7;
+  --color-warm-50: #faf9f7;
+  --color-warm-100: #f4f1ec;
+  --color-warm-200: #ece9e4;
+  --color-warm-300: #d8d3ca;
+
+  /* Acento ámbar (destacados / detalles de marca) */
+  --color-accent: #f59e0b;
+  --color-accent-soft: #fef3c7;
+  --color-accent-strong: #b45309;
+
+  /* Sombra "pop" para overlays/menús */
+  --shadow-pop: 0 18px 44px rgba(15, 23, 42, 0.18);
 }
 
 @layer base {
@@ -90,4 +105,34 @@
   .animate-fade-up {
     animation: fade-up 0.35s ease-out both;
   }
+
+  /* Entrada escalonada (la activa useReveal añadiendo .is-revealed) */
+  .reveal { opacity: 0; transform: translateY(12px); }
+  .reveal.is-revealed { animation: fade-up 0.45s ease-out forwards; }
+
+  /* Pulso "en vivo": anillo que late (para indicadores de estado) */
+  @keyframes live-ring {
+    0% { transform: scale(0.8); opacity: 0.6; }
+    70% { transform: scale(2.4); opacity: 0; }
+    100% { opacity: 0; }
+  }
+  .live-dot { position: relative; display: inline-block; }
+  .live-dot::after {
+    content: ""; position: absolute; inset: 0; border-radius: 9999px;
+    background: currentColor; animation: live-ring 1.9s ease-out infinite;
+  }
+
+  /* Brillo "actualizando" */
+  @keyframes shimmer-sweep { 100% { background-position: -200% 0; } }
+  .updating-bar {
+    background: linear-gradient(90deg, #dbeafe 25%, #eff6ff 37%, #dbeafe 63%);
+    background-size: 200% 100%; animation: shimmer-sweep 1.3s ease-in-out infinite;
+  }
+
+  /* Conducción del camión del login (reinicio fuera de pantalla = sin cortes) */
+  @keyframes town-scroll { from { transform: translateX(0); } to { transform: translateX(-380px); } }
+  @keyframes wheel-spin { to { transform: rotate(360deg); } }
+  @keyframes truck-bob { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-2px); } }
+  @keyframes road-dash { from { background-position: 0 0; } to { background-position: -40px 0; } }
+  @keyframes window-twinkle { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
 }
