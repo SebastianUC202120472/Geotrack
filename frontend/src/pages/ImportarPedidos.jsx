@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import {
   UploadCloud,
   CheckCircle2,
-  AlertCircle,
   Loader2,
   ArrowRight,
   FileSpreadsheet,
