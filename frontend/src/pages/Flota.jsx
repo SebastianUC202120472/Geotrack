@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Truck, Plus, CheckCircle2, AlertCircle } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
-import Card from "../components/ui/Card";
+import KpiCard from "../components/ui/KpiCard";
+import DataTable from "../components/ui/DataTable";
+import SectionCard from "../components/ui/SectionCard";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import { EstadoBadge } from "../components/ui/Badge";
@@ -42,6 +44,15 @@ export default function Flota() {
   // Mapa id de conductor -> nombre, para mostrarlo en la tabla.
   const nombrePorId = Object.fromEntries(conductores.map((c) => [c.usuario_id, c.nombre || c.codigo]));
 
+  // KPIs calculados desde los vehículos cargados (sin petición extra).
+  const kpis = useMemo(() => {
+    const total = vehiculos.length;
+    const conConductor = vehiculos.filter((v) => v.conductor_id).length;
+    const disponibles = vehiculos.filter((v) => v.estado === "DISPONIBLE").length;
+    const enRuta = vehiculos.filter((v) => v.estado === "EN_RUTA").length;
+    return { total, conConductor, disponibles, enRuta };
+  }, [vehiculos]);
+
   const altaVehiculo = async (e) => {
     e.preventDefault();
     setAviso(null);
@@ -68,12 +79,62 @@ export default function Flota() {
     }
   };
 
-  return (
-    <div className="space-y-6 p-6 lg:p-8">
-      <PageHeader titulo="Flota de Vehículos" subtitulo="Registra los vehículos y asígnalos a un conductor." />
+  // Columnas para DataTable
+  const columnas = [
+    {
+      key: "codigo",
+      header: "Código",
+      render: (v) => <span className="font-medium text-slate-800 nums">{v.codigo || "—"}</span>,
+    },
+    {
+      key: "placa",
+      header: "Placa",
+      render: (v) => <span className="font-semibold text-slate-700">{v.placa}</span>,
+    },
+    {
+      key: "marca",
+      header: "Marca",
+      render: (v) => <span className="text-slate-600">{v.marca || "—"}</span>,
+    },
+    {
+      key: "capacidad_volumetrica",
+      header: "Capacidad (m³)",
+      render: (v) => <span className="text-slate-600 nums">{v.capacidad_volumetrica ?? "—"}</span>,
+    },
+    {
+      key: "conductor",
+      header: "Conductor",
+      render: (v) => (
+        <span className="text-slate-600">
+          {v.conductor_id ? (nombrePorId[v.conductor_id] || `id ${v.conductor_id}`) : "Empresa"}
+        </span>
+      ),
+    },
+    {
+      key: "estado",
+      header: "Estado",
+      render: (v) => <EstadoBadge estado={v.estado} />,
+    },
+  ];
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card title="Registrar vehículo" subtitle="El conductor es opcional (vacío = de la empresa)." className="lg:col-span-1">
+  return (
+    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
+      <PageHeader
+        titulo="Flota de Vehículos"
+        subtitulo="Registra los vehículos y asígnalos a un conductor."
+      />
+
+      {/* KPIs derivados de los vehículos cargados */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 animate-fade-up">
+        <KpiCard label="Total" value={kpis.total} icon={Truck} tone="brand" />
+        <KpiCard label="Con conductor" value={kpis.conConductor} icon={Truck} tone="info" />
+        <KpiCard label="Disponibles" value={kpis.disponibles} icon={Truck} tone="success" />
+        <KpiCard label="En ruta" value={kpis.enRuta} icon={Truck} tone="warning" />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
+        {/* Formulario de alta */}
+        <SectionCard title="Registrar vehículo" subtitle="El conductor es opcional (vacío = de la empresa)." className="lg:col-span-1">
           <form onSubmit={altaVehiculo} noValidate className="space-y-4">
             <Input label="Placa" required value={placa}
               onChange={(e) => { setPlaca(e.target.value.toUpperCase()); setErrores((er) => ({ ...er, placa: "" })); }}
@@ -100,49 +161,22 @@ export default function Flota() {
               </div>
             )}
           </form>
-        </Card>
+        </SectionCard>
 
-        <Card
-          title="Flota registrada"
-          className="lg:col-span-2"
-          action={<span className="text-sm text-slate-400 nums">{vehiculos.length} vehículos</span>}
-        >
-          {cargando ? (
-            <p className="py-10 text-center text-sm text-slate-500">Cargando flota…</p>
-          ) : vehiculos.length === 0 ? (
-            <div className="py-12 text-center text-sm text-slate-400">
-              <Truck className="mx-auto mb-2 opacity-40" size={28} />
-              <p>Aún no hay vehículos registrados.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
-                    <th className="pb-3 font-semibold">Código</th>
-                    <th className="pb-3 font-semibold">Placa</th>
-                    <th className="pb-3 font-semibold">Marca</th>
-                    <th className="pb-3 font-semibold">Capacidad (m³)</th>
-                    <th className="pb-3 font-semibold">Conductor</th>
-                    <th className="pb-3 font-semibold">Estado</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {vehiculos.map((v) => (
-                    <tr key={v.id} className="hover:bg-slate-50">
-                      <td className="py-3 font-medium text-slate-800 nums">{v.codigo || "—"}</td>
-                      <td className="py-3 text-slate-700">{v.placa}</td>
-                      <td className="py-3 text-slate-600">{v.marca || "—"}</td>
-                      <td className="py-3 text-slate-600 nums">{v.capacidad_volumetrica ?? "—"}</td>
-                      <td className="py-3 text-slate-600">{v.conductor_id ? (nombrePorId[v.conductor_id] || `id ${v.conductor_id}`) : "Empresa"}</td>
-                      <td className="py-3"><EstadoBadge estado={v.estado} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
+        {/* Tabla de vehículos */}
+        <div className="lg:col-span-2">
+          <DataTable
+            columns={columnas}
+            rows={vehiculos}
+            rowKey={(v) => v.id}
+            loading={cargando}
+            empty={{
+              icon: Truck,
+              title: "Aún no hay vehículos registrados",
+              description: "Usa el formulario de la izquierda para dar de alta el primer vehículo.",
+            }}
+          />
+        </div>
       </div>
     </div>
   );
