@@ -3,7 +3,7 @@
 
 const variantes = {
   primary:
-    "bg-brand-600 text-white hover:bg-brand-700 focus-visible:ring-brand-600",
+    "bg-brand-600 text-white shadow-[0_6px_16px_rgba(37,99,235,0.25)] hover:bg-brand-700 hover:shadow-[0_8px_20px_rgba(37,99,235,0.32)] focus-visible:ring-brand-600",
   secondary:
     "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 focus-visible:ring-brand-600",
   ghost:
