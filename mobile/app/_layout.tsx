@@ -6,6 +6,7 @@ import { Slot, useRouter, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
+import { ThemeProvider as NavThemeProvider, DefaultTheme as NavLight, DarkTheme as NavDark } from "@react-navigation/native";
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from "@expo-google-fonts/inter";
 import { ThemeProvider, useTheme } from "@/theme";
 import { AuthProvider, useAuth } from "@/store/auth";
@@ -28,8 +29,24 @@ function Barra() {
 // Redirige según la sesión y espera a que Inter cargue. No recibe props.
 function Guardia() {
   const { token, cargando } = useAuth();
+  const { colors, esquema } = useTheme();
   const segmentos = useSegments();
   const router = useRouter();
+
+  // Tema de React Navigation alineado a nuestra paleta. Sin esto, el navegador usa
+  // su tema claro por defecto y en modo oscuro asoman bordes/fondos blancos.
+  const baseNav = esquema === "dark" ? NavDark : NavLight;
+  const temaNav = {
+    ...baseNav,
+    colors: {
+      ...baseNav.colors,
+      background: colors.canvas,
+      card: colors.surface,
+      border: colors.border,
+      primary: colors.brand,
+      text: colors.ink,
+    },
+  };
 
   // Carga las variantes de Inter; si falla (errorFuentes) la app sigue con fuente del sistema.
   const [fuentesListas, errorFuentes] = useFonts({
@@ -50,7 +67,11 @@ function Guardia() {
 
   // Mientras no esté listo, pantalla de carga con el camión (todavía sin <Slot/> montado).
   if (!listo) return <CamionCargando texto="Iniciando…" />;
-  return <Slot />;
+  return (
+    <NavThemeProvider value={temaNav}>
+      <Slot />
+    </NavThemeProvider>
+  );
 }
 
 // Punto de entrada de la navegación.
