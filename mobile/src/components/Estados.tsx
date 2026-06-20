@@ -10,7 +10,7 @@ export function Cargando({ texto = "Cargando…" }: { texto?: string }) {
   return (
     <View style={estilos.centro}>
       <ActivityIndicator size="large" color={colors.brand} />
-      <Texto variante="body" color={colors.muted}>{texto}</Texto>
+      <Texto variante="body" color={colors.muted} style={{ textAlign: "center" }}>{texto}</Texto>
     </View>
   );
 }
@@ -20,8 +20,8 @@ export function ErrorVista({ mensaje, onReintentar }: { mensaje: string; onReint
   const { colors } = useTheme();
   return (
     <View style={estilos.centro}>
-      <Texto variante="subtitle" color={colors.ink}>Algo salió mal</Texto>
-      <Texto variante="body" color={colors.muted}>{mensaje}</Texto>
+      <Texto variante="subtitle" color={colors.ink} style={{ textAlign: "center" }}>Algo salió mal</Texto>
+      <Texto variante="body" color={colors.muted} style={{ textAlign: "center" }}>{mensaje}</Texto>
       {onReintentar && (
         <View style={estilos.accion}>
           <Button titulo="Reintentar" variante="secondary" onPress={onReintentar} />
@@ -36,8 +36,8 @@ export function Vacio({ titulo, detalle }: { titulo: string; detalle?: string })
   const { colors } = useTheme();
   return (
     <View style={estilos.centro}>
-      <Texto variante="subtitle" color={colors.ink}>{titulo}</Texto>
-      {detalle && <Texto variante="body" color={colors.muted}>{detalle}</Texto>}
+      <Texto variante="subtitle" color={colors.ink} style={{ textAlign: "center" }}>{titulo}</Texto>
+      {detalle && <Texto variante="body" color={colors.muted} style={{ textAlign: "center" }}>{detalle}</Texto>}
     </View>
   );
 }
