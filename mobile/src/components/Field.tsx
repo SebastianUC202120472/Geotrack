@@ -39,7 +39,6 @@ export function Field({ label, icono, style, ...props }: Props) {
 
 const estilos = StyleSheet.create({
   grupo: { gap: spacing.xs },
-  label: {},
   inputWrapper: { position: "relative", justifyContent: "center" },
   iconoContenedor: { position: "absolute", left: spacing.md, zIndex: 1 },
   input: {
