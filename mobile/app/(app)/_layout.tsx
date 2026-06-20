@@ -14,9 +14,11 @@ export default function AppLayout() {
       initialRouteName="index"
       screenOptions={{
         headerShown: false, // las pestañas usan <Cabecera>; los detalles activan la nativa
-        headerStyle: { backgroundColor: colors.ink },
-        headerTintColor: colors.white,
-        headerTitleStyle: { fontFamily: fuentes.bold },
+        // El header nativo (Perfil/Ajustes/Notificaciones/detalle) usa surface+ink
+        // para verse bien en claro Y oscuro (ink es texto, no fondo).
+        headerStyle: { backgroundColor: colors.surface },
+        headerTintColor: colors.ink,
+        headerTitleStyle: { fontFamily: fuentes.bold, color: colors.ink },
         animation: "shift", // transición suave al cambiar de pestaña
         tabBarActiveTintColor: colors.brand,
         tabBarInactiveTintColor: colors.muted,

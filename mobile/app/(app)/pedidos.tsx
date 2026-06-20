@@ -1,7 +1,7 @@
 // Apartado "Pedidos": TODOS los pedidos asignados al conductor, en orden de
 // enrutamiento (secuencia), con un resumen cuantitativo arriba. Aquí cada pedido
 // refleja su estado; la entrega se realiza desde "Ruta" / el detalle de la parada.
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -37,9 +37,15 @@ export default function PedidosScreen() {
   // Todas las paradas, ordenadas por secuencia de enrutamiento.
   const paradas = [...(manifiesto.data?.paradas ?? [])].sort((a, b) => a.secuencia - b.secuencia);
 
-  const refrescar = () => {
-    ruta.refetch();
-    manifiesto.refetch();
+  // Pull-to-refresh manual (no atado a isFetching para no mostrar el spinner al enfocar).
+  const [refrescando, setRefrescando] = useState(false);
+  const refrescar = async () => {
+    setRefrescando(true);
+    try {
+      await Promise.all([ruta.refetch(), manifiesto.refetch()]);
+    } finally {
+      setRefrescando(false);
+    }
   };
 
   if (ruta.isLoading || manifiesto.isLoading) {
@@ -84,7 +90,7 @@ export default function PedidosScreen() {
         )}
         contentContainerStyle={estilos.lista}
         ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
-        refreshControl={<RefreshControl refreshing={manifiesto.isFetching} onRefresh={refrescar} />}
+        refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refrescar} />}
       />
     </Screen>
   );
