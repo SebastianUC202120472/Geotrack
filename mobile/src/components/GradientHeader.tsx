@@ -14,5 +14,5 @@ export function GradientHeader({ style, children, ...props }: ViewProps) {
 }
 
 const estilos = StyleSheet.create({
-  cab: { paddingTop: spacing.xl, paddingBottom: spacing.xl, paddingHorizontal: spacing.lg, borderBottomLeftRadius: radius.lg, borderBottomRightRadius: radius.lg },
+  cab: { paddingTop: spacing.xl, paddingBottom: spacing.xl, paddingHorizontal: spacing.lg, borderBottomLeftRadius: radius.xl, borderBottomRightRadius: radius.xl },
 });
