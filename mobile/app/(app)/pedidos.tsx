@@ -13,8 +13,7 @@ import { Cabecera } from "@/components/Cabecera";
 import { DeslizarPestanas } from "@/components/DeslizarPestanas";
 import { ParadaItem } from "@/components/ParadaItem";
 import { ResumenPedidos } from "@/components/ResumenPedidos";
-import { CamionCargando } from "@/components/CamionCargando";
-import { Vacio } from "@/components/Estados";
+import { Cargando, Vacio } from "@/components/Estados";
 import { ItemLista } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
 import { useRutaActiva, useManifiesto, claves } from "@/features/ruta/hooks";
@@ -76,7 +75,7 @@ export default function PedidosScreen() {
     return (
       <Screen conPadding={false}>
         <Cabecera titulo="Pedidos" />
-        <CamionCargando texto="Cargando tus pedidos…" />
+        <Cargando />
       </Screen>
     );
   }

@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
-import { CamionCargando } from "@/components/CamionCargando";
+import { Cargando } from "@/components/Estados";
 import { Aparecer } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
 import { obtenerPerfil, obtenerMisReportes } from "@/api/conductor";
@@ -21,7 +21,7 @@ export default function PerfilScreen() {
   const perfil = useQuery({ queryKey: ["perfil"], queryFn: obtenerPerfil, refetchInterval: 10_000, refetchOnMount: "always" });
   const reportes = useQuery({ queryKey: ["mis-reportes"], queryFn: obtenerMisReportes, refetchInterval: 10_000, refetchOnMount: "always" });
 
-  if (perfil.isLoading) return <Screen><CamionCargando texto="Cargando tu perfil…" /></Screen>;
+  if (perfil.isLoading) return <Screen><Cargando /></Screen>;
 
   const p = perfil.data;
   const inicial = (p?.nombre || p?.correo || "?").charAt(0).toUpperCase();
