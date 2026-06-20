@@ -11,14 +11,15 @@ export const radius = { sm: 8, md: 12, lg: 16, xl: 20, pill: 999 } as const;
 export const fontSize = { caption: 13, body: 16, subtitle: 18, title: 22, display: 28 } as const;
 export const touch = { minTarget: 48, primaryButton: 56 } as const;
 
-// Estilo de sombra coherente con el tema. Recibe: la paleta activa.
+// Estilo de sombra coherente con el tema (más marcada = más profundidad).
+// Recibe: la paleta activa.
 export function sombra(colors: Palette) {
   return {
     shadowColor: colors.shadow,
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 5,
   } as const;
 }
 
