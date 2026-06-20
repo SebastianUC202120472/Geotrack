@@ -1,12 +1,14 @@
-// Apartado "Pedidos": TODOS los pedidos asignados al conductor, en orden de
-// enrutamiento (secuencia), con un resumen cuantitativo arriba. Aquí cada pedido
-// refleja su estado; la entrega se realiza desde "Ruta" / el detalle de la parada.
-import { useCallback, useState } from "react";
-import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
+// Apartado "Pedidos": TODOS los pedidos asignados (en orden de enrutamiento), con
+// resumen cuantitativo, buscador preciso, filtro por distrito y la evidencia de
+// entrega (foto) en los pedidos ya entregados. Reemplaza también al antiguo
+// "Historial" (los entregados se ven aquí). La entrega se hace desde el detalle.
+import { useCallback, useMemo, useState } from "react";
+import { FlatList, RefreshControl, ScrollView, StyleSheet, TextInput, Pressable, View } from "react-native";
+import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Screen } from "@/components/Screen";
-import { Card } from "@/components/Card";
 import { Cabecera } from "@/components/Cabecera";
 import { ParadaItem } from "@/components/ParadaItem";
 import { ResumenPedidos } from "@/components/ResumenPedidos";
@@ -15,7 +17,8 @@ import { Vacio } from "@/components/Estados";
 import { ItemLista } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
 import { useRutaActiva, useManifiesto, claves } from "@/features/ruta/hooks";
-import { useTheme, spacing } from "@/theme";
+import { obtenerEvidencia } from "@/store/evidenciaCache";
+import { useTheme, spacing, radius, fuentes } from "@/theme";
 import type { ParadaManifiesto } from "@/types/api";
 
 export default function PedidosScreen() {
@@ -25,7 +28,10 @@ export default function PedidosScreen() {
   const manifiesto = useManifiesto();
   const qc = useQueryClient();
 
-  // Al enfocar la pestaña, refresca los datos.
+  const [busqueda, setBusqueda] = useState("");
+  const [distrito, setDistrito] = useState<string | null>(null);
+  const [refrescando, setRefrescando] = useState(false);
+
   useFocusEffect(
     useCallback(() => {
       qc.invalidateQueries({ queryKey: claves.rutaActiva });
@@ -34,11 +40,28 @@ export default function PedidosScreen() {
   );
 
   const sinRuta = (ruta.error as { response?: { status?: number } } | null)?.response?.status === 404;
-  // Todas las paradas, ordenadas por secuencia de enrutamiento.
-  const paradas = [...(manifiesto.data?.paradas ?? [])].sort((a, b) => a.secuencia - b.secuencia);
 
-  // Pull-to-refresh manual (no atado a isFetching para no mostrar el spinner al enfocar).
-  const [refrescando, setRefrescando] = useState(false);
+  // Todas las paradas en orden de enrutamiento.
+  const todas = useMemo(
+    () => [...(manifiesto.data?.paradas ?? [])].sort((a, b) => a.secuencia - b.secuencia),
+    [manifiesto.data]
+  );
+  // Distritos presentes (para el filtro).
+  const distritos = useMemo(
+    () => Array.from(new Set(todas.map((p) => p.distrito).filter(Boolean))) as string[],
+    [todas]
+  );
+  // Lista filtrada por distrito + búsqueda precisa (código, destinatario, cliente, dirección).
+  const filtradas = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    return todas.filter((p) => {
+      if (distrito && p.distrito !== distrito) return false;
+      if (!q) return true;
+      return [p.codigo, p.nombre_destinatario, p.cliente_origen, p.direccion_destino, p.distrito]
+        .some((v) => (v ?? "").toLowerCase().includes(q));
+    });
+  }, [todas, busqueda, distrito]);
+
   const refrescar = async () => {
     setRefrescando(true);
     try {
@@ -57,7 +80,7 @@ export default function PedidosScreen() {
     );
   }
 
-  if (sinRuta || paradas.length === 0) {
+  if (sinRuta || todas.length === 0) {
     return (
       <Screen conPadding={false}>
         <Cabecera titulo="Pedidos" />
@@ -66,12 +89,42 @@ export default function PedidosScreen() {
     );
   }
 
-  // Cabecera de la lista: el resumen cuantitativo de los pedidos.
+  // Encabezado de la lista: resumen + buscador + filtro por distrito + conteo.
   const Encabezado = (
     <View style={estilos.encabezado}>
       {ruta.data && <ResumenPedidos ruta={ruta.data} />}
-      <Texto variante="subtitle" color={colors.ink} style={{ marginTop: spacing.lg }}>
-        Todos los pedidos ({paradas.length})
+
+      {/* Buscador preciso */}
+      <View style={[estilos.buscador, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Ionicons name="search" size={18} color={colors.muted} />
+        <TextInput
+          value={busqueda}
+          onChangeText={setBusqueda}
+          placeholder="Buscar por código, cliente o dirección"
+          placeholderTextColor={colors.muted}
+          style={[estilos.buscadorInput, { color: colors.ink }]}
+          returnKeyType="search"
+          autoCapitalize="none"
+        />
+        {busqueda.length > 0 && (
+          <Pressable onPress={() => setBusqueda("")} hitSlop={8} accessibilityLabel="Limpiar búsqueda">
+            <Ionicons name="close-circle" size={18} color={colors.muted} />
+          </Pressable>
+        )}
+      </View>
+
+      {/* Filtro por distrito */}
+      {distritos.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={estilos.chips}>
+          <ChipDistrito etiqueta="Todos" activo={distrito === null} onPress={() => setDistrito(null)} c={colors} />
+          {distritos.map((d) => (
+            <ChipDistrito key={d} etiqueta={d} activo={distrito === d} onPress={() => setDistrito(d)} c={colors} />
+          ))}
+        </ScrollView>
+      )}
+
+      <Texto variante="subtitle" color={colors.ink} style={{ marginTop: spacing.md }}>
+        {filtradas.length} {filtradas.length === 1 ? "pedido" : "pedidos"}
       </Texto>
     </View>
   );
@@ -80,14 +133,22 @@ export default function PedidosScreen() {
     <Screen conPadding={false}>
       <Cabecera titulo="Pedidos" />
       <FlatList
-        data={paradas}
+        data={filtradas}
         keyExtractor={(p) => String(p.pedido_id)}
         ListHeaderComponent={Encabezado}
-        renderItem={({ item, index }: { item: ParadaManifiesto; index: number }) => (
-          <ItemLista index={index}>
-            <ParadaItem parada={item} onPress={() => router.push(`/parada/${item.pedido_id}`)} />
-          </ItemLista>
-        )}
+        keyboardShouldPersistTaps="handled"
+        ListEmptyComponent={<Texto variante="body" color={colors.muted} style={estilos.vacioFiltro}>Sin resultados para tu búsqueda.</Texto>}
+        renderItem={({ item, index }: { item: ParadaManifiesto; index: number }) => {
+          const evidencia = item.estado_entrega === "ENTREGADO" ? obtenerEvidencia(item.pedido_id) : undefined;
+          return (
+            <ItemLista index={index}>
+              <ParadaItem parada={item} onPress={() => router.push(`/parada/${item.pedido_id}`)} />
+              {evidencia && (
+                <Image source={{ uri: evidencia }} style={[estilos.evidencia, { borderColor: colors.border }]} contentFit="cover" transition={200} />
+              )}
+            </ItemLista>
+          );
+        }}
         contentContainerStyle={estilos.lista}
         ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
         refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refrescar} />}
@@ -96,7 +157,27 @@ export default function PedidosScreen() {
   );
 }
 
+// Chip de filtro por distrito. Recibe: { etiqueta, activo, onPress, c (paleta) }.
+function ChipDistrito({ etiqueta, activo, onPress, c }: { etiqueta: string; activo: boolean; onPress: () => void; c: { brand: string; brandSoft: string; surface: string; border: string; text: string } }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Filtrar por ${etiqueta}`}
+      style={[estilos.chip, { backgroundColor: activo ? c.brandSoft : c.surface, borderColor: activo ? c.brand : c.border }]}
+    >
+      <Texto variante="label" color={activo ? c.brand : c.text}>{etiqueta}</Texto>
+    </Pressable>
+  );
+}
+
 const estilos = StyleSheet.create({
   encabezado: { marginBottom: spacing.md },
   lista: { padding: spacing.lg },
+  buscador: { flexDirection: "row", alignItems: "center", gap: spacing.sm, borderWidth: 1, borderRadius: radius.md, paddingHorizontal: spacing.md, marginTop: spacing.md, minHeight: 48 },
+  buscadorInput: { flex: 1, fontFamily: fuentes.regular, fontSize: 16 },
+  chips: { gap: spacing.sm, paddingVertical: spacing.md, paddingRight: spacing.lg },
+  chip: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.pill, borderWidth: 1 },
+  evidencia: { width: "100%", height: 150, borderRadius: radius.md, borderWidth: 1, marginTop: spacing.sm },
+  vacioFiltro: { textAlign: "center", paddingVertical: spacing.xl },
 });

@@ -3,12 +3,10 @@
 // (ajustes.tsx). Pantalla navegable desde la foto de la cabecera (con back).
 import { ScrollView, StyleSheet, View } from "react-native";
 import { Image } from "expo-image";
-import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
-import { Button } from "@/components/Button";
 import { CamionCargando } from "@/components/CamionCargando";
 import { Aparecer } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
@@ -20,7 +18,6 @@ import type { Reporte } from "@/types/api";
 
 export default function PerfilScreen() {
   const { colors } = useTheme();
-  const router = useRouter();
   const perfil = useQuery({ queryKey: ["perfil"], queryFn: obtenerPerfil, refetchInterval: 10_000, refetchOnMount: "always" });
   const reportes = useQuery({ queryKey: ["mis-reportes"], queryFn: obtenerMisReportes, refetchInterval: 10_000, refetchOnMount: "always" });
 
@@ -80,10 +77,6 @@ export default function PerfilScreen() {
               })
             )}
           </Card>
-        </Aparecer>
-
-        <Aparecer delay={180}>
-          <Button titulo="Ajustes" variante="secondary" onPress={() => router.push("/ajustes")} />
         </Aparecer>
       </ScrollView>
     </Screen>
