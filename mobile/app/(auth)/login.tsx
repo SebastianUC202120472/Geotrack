@@ -39,7 +39,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <Screen conPadding={false}>
+    <Screen conPadding={false} topInset>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={estilos.contenedor}>
         <GradientHeader style={estilos.cabecera}>
           <View style={estilos.marca}>
