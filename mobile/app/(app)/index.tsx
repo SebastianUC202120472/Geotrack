@@ -10,8 +10,10 @@ import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { MapaWeb } from "@/components/MapaWeb";
 import { ParadaItem } from "@/components/ParadaItem";
-import { Cargando, ErrorVista, Vacio } from "@/components/Estados";
+import { ErrorVista, Vacio } from "@/components/Estados";
 import { GradientHeader } from "@/components/GradientHeader";
+import { Cabecera } from "@/components/Cabecera";
+import { CamionCargando } from "@/components/CamionCargando";
 import { Aparecer, ItemLista, BarraProgreso, Contador, IndicadorEnVivo } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
 import { useRutaActiva, useManifiesto, useNavegacion, useIniciarRuta, useFinalizarRuta, claves } from "@/features/ruta/hooks";
@@ -91,8 +93,8 @@ export default function RutaScreen() {
   const pendientes = ruta.data?.pendientes ?? 0;
   const puedeCerrar = !!ruta.data && totalParadas > 0 && pendientes === 0;
 
-  // Cabecera de la lista: degradado con resumen, mapa montado y acciones.
-  const Cabecera = (
+  // Encabezado de la lista: degradado con resumen, mapa montado y acciones.
+  const Encabezado = (
     <View style={estilos.cabecera}>
       {ruta.data && (
         <GradientHeader>
@@ -156,26 +158,40 @@ export default function RutaScreen() {
     </Aparecer>
   ) : null;
 
-  if (ruta.isLoading || manifiesto.isLoading) return <Screen><Cargando /></Screen>;
+  if (ruta.isLoading || manifiesto.isLoading) {
+    return (
+      <Screen conPadding={false}>
+        <Cabecera titulo="Ruta" />
+        <CamionCargando texto="Cargando tu ruta…" />
+      </Screen>
+    );
+  }
 
   if (sinRuta) {
     return (
-      <Screen>
+      <Screen conPadding={false}>
+        <Cabecera titulo="Ruta" />
         <Vacio titulo="No tienes una ruta asignada" detalle="Cuando el administrador te asigne pedidos, aparecerán aquí." />
       </Screen>
     );
   }
 
   if (ruta.isError) {
-    return <Screen><ErrorVista mensaje={mensajeDeError(ruta.error)} onReintentar={refrescar} /></Screen>;
+    return (
+      <Screen conPadding={false}>
+        <Cabecera titulo="Ruta" />
+        <ErrorVista mensaje={mensajeDeError(ruta.error)} onReintentar={refrescar} />
+      </Screen>
+    );
   }
 
   return (
     <Screen conPadding={false}>
+      <Cabecera titulo="Ruta" />
       <FlatList
         data={paradas}
         keyExtractor={(p) => String(p.pedido_id)}
-        ListHeaderComponent={Cabecera}
+        ListHeaderComponent={Encabezado}
         ListFooterComponent={Pie}
         renderItem={({ item, index }) => (
           <View style={{ paddingHorizontal: spacing.lg }}>
