@@ -1,9 +1,10 @@
 // Botón grande y accesible (alto >= 56). Primario con degradado de marca y leve
 // escala al presionar. Variantes: primary | secondary | danger.
 import { useRef } from "react";
-import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Animated, Pressable, StyleSheet, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useTheme, spacing, fontSize, radius, touch } from "@/theme";
+import { useTheme, spacing, radius, touch } from "@/theme";
+import { Texto } from "@/components/Texto";
 
 type Variante = "primary" | "secondary" | "danger";
 
@@ -26,7 +27,7 @@ export function Button({ titulo, onPress, variante = "primary", cargando, deshab
   const Contenido = (
     <View style={estilos.contenido}>
       {cargando && <ActivityIndicator color={colorTexto} />}
-      <Text style={[estilos.texto, { color: colorTexto }]}>{titulo}</Text>
+      <Texto variante="subtitle" color={colorTexto}>{titulo}</Texto>
     </View>
   );
 
@@ -61,5 +62,4 @@ const estilos = StyleSheet.create({
   base: { minHeight: touch.primaryButton, borderRadius: radius.md, justifyContent: "center", overflow: "hidden" },
   gradiente: { minHeight: touch.primaryButton, justifyContent: "center", paddingHorizontal: spacing.lg },
   contenido: { flexDirection: "row", gap: spacing.sm, justifyContent: "center", alignItems: "center", paddingHorizontal: spacing.lg },
-  texto: { fontSize: fontSize.subtitle, fontWeight: "700" },
 });
