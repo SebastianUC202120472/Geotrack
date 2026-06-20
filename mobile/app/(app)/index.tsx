@@ -132,7 +132,7 @@ export default function RutaScreen() {
   // Pie de la lista: cierre del día. El botón solo aparece cuando ya no hay
   // paradas pendientes; mientras tanto, muestra el progreso que falta.
   const Pie = ruta.data ? (
-    <Aparecer style={{ paddingHorizontal: spacing.lg, ...estilos.pie }}>
+    <Aparecer style={{ ...estilos.pie, paddingHorizontal: spacing.lg }}>
       <Card>
         <Texto variante="subtitle" color={colors.ink} style={estilos.cierreTitulo}>Cierre del día</Texto>
         {puedeCerrar ? (
