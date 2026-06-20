@@ -20,6 +20,7 @@ def _a_respuesta(db: Session, usuario) -> dict:
         "nombre": perfil.nombre if perfil else None,
         "telefono": perfil.telefono if perfil else None,
         "dni": perfil.dni if perfil else None,
+        "foto_url": perfil.foto_url if perfil else None,
         "vehiculo": vehiculo,
     }
 
