@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from "@expo-google-fonts/inter";
 import { ThemeProvider, useTheme } from "@/theme";
 import { AuthProvider, useAuth } from "@/store/auth";
-import { Cargando } from "@/components/Estados";
+import { CamionCargando } from "@/components/CamionCargando";
 
 // Datos "frescos" por poco tiempo: así al volver a la app o a una pantalla se
 // vuelven a pedir y la información se actualiza sola (sin cerrar sesión).
@@ -48,8 +48,8 @@ function Guardia() {
     else if (token && enLogin) router.replace("/");
   }, [listo, token, segmentos]);
 
-  // Mientras no esté listo, indicador de carga (todavía sin <Slot/> montado).
-  if (!listo) return <Cargando texto="Iniciando…" />;
+  // Mientras no esté listo, pantalla de carga con el camión (todavía sin <Slot/> montado).
+  if (!listo) return <CamionCargando texto="Iniciando…" />;
   return <Slot />;
 }
 
