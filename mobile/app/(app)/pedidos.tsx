@@ -10,6 +10,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Screen } from "@/components/Screen";
 import { Cabecera } from "@/components/Cabecera";
+import { DeslizarPestanas } from "@/components/DeslizarPestanas";
 import { ParadaItem } from "@/components/ParadaItem";
 import { ResumenPedidos } from "@/components/ResumenPedidos";
 import { CamionCargando } from "@/components/CamionCargando";
@@ -132,6 +133,7 @@ export default function PedidosScreen() {
   return (
     <Screen conPadding={false}>
       <Cabecera titulo="Pedidos" />
+      <DeslizarPestanas>
       <FlatList
         data={filtradas}
         keyExtractor={(p) => String(p.pedido_id)}
@@ -153,6 +155,7 @@ export default function PedidosScreen() {
         ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
         refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refrescar} />}
       />
+      </DeslizarPestanas>
     </Screen>
   );
 }
