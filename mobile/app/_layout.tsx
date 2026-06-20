@@ -36,15 +36,20 @@ function Guardia() {
     Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold,
   });
 
+  // "Listo" = sesión cargada Y fuentes resueltas (o su carga falló). Solo cuando
+  // está listo se monta el <Slot/>; por eso la navegación debe esperar lo mismo:
+  // navegar antes de montar el layout dispara "navigate before mounting Root Layout".
+  const listo = !cargando && (fuentesListas || !!errorFuentes);
+
   useEffect(() => {
-    if (cargando) return;
+    if (!listo) return;
     const enLogin = segmentos[0] === "(auth)";
     if (!token && !enLogin) router.replace("/login");
     else if (token && enLogin) router.replace("/");
-  }, [token, cargando, segmentos]);
+  }, [listo, token, segmentos]);
 
-  // Muestra el indicador de carga mientras la sesión o las fuentes no están listas.
-  if (cargando || (!fuentesListas && !errorFuentes)) return <Cargando texto="Iniciando…" />;
+  // Mientras no esté listo, indicador de carga (todavía sin <Slot/> montado).
+  if (!listo) return <Cargando texto="Iniciando…" />;
   return <Slot />;
 }
 
