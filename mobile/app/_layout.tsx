@@ -1,6 +1,6 @@
 // Layout raíz: tema + React Query + sesión, y protección de rutas (sin token no
 // se entra a las pantallas internas; con token no se vuelve al login).
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AppState } from "react-native";
 import { Slot, useRouter, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -53,10 +53,18 @@ function Guardia() {
     Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold,
   });
 
+  // El camión se muestra como splash AL INICIAR la app durante 3 s (y nada más;
+  // los cambios de pantalla ya no muestran el camión).
+  const [splashMin, setSplashMin] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSplashMin(true), 3000);
+    return () => clearTimeout(t);
+  }, []);
+
   // "Listo" = sesión cargada Y fuentes resueltas (o su carga falló). Solo cuando
   // está listo se monta el <Slot/>; por eso la navegación debe esperar lo mismo:
   // navegar antes de montar el layout dispara "navigate before mounting Root Layout".
-  const listo = !cargando && (fuentesListas || !!errorFuentes);
+  const listo = !cargando && (fuentesListas || !!errorFuentes) && splashMin;
 
   useEffect(() => {
     if (!listo) return;

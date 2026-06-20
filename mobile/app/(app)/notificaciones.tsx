@@ -5,8 +5,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
-import { CamionCargando } from "@/components/CamionCargando";
-import { Vacio } from "@/components/Estados";
+import { Cargando, Vacio } from "@/components/Estados";
 import { Aparecer } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
 import { useRutaActiva } from "@/features/ruta/hooks";
@@ -18,7 +17,7 @@ export default function NotificacionesScreen() {
 
   const sinRuta = (ruta.error as { response?: { status?: number } } | null)?.response?.status === 404;
 
-  if (ruta.isLoading) return <Screen><CamionCargando texto="Cargando notificaciones…" /></Screen>;
+  if (ruta.isLoading) return <Screen><Cargando /></Screen>;
 
   if (sinRuta || !ruta.data) {
     return <Screen><Vacio titulo="Sin notificaciones" detalle="Te avisaremos aquí cuando te asignen pedidos." /></Screen>;

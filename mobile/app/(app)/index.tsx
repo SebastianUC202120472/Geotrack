@@ -10,10 +10,9 @@ import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { MapaWeb } from "@/components/MapaWeb";
 import { ParadaItem } from "@/components/ParadaItem";
-import { ErrorVista, Vacio } from "@/components/Estados";
+import { Cargando, ErrorVista, Vacio } from "@/components/Estados";
 import { GradientHeader } from "@/components/GradientHeader";
 import { Cabecera } from "@/components/Cabecera";
-import { CamionCargando } from "@/components/CamionCargando";
 import { DeslizarPestanas } from "@/components/DeslizarPestanas";
 import { Aparecer, ItemLista, BarraProgreso, Contador, IndicadorEnVivo } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
@@ -182,7 +181,7 @@ export default function RutaScreen() {
     return (
       <Screen conPadding={false}>
         <Cabecera titulo="Ruta" />
-        <CamionCargando texto="Cargando tu ruta…" />
+        <Cargando />
       </Screen>
     );
   }
