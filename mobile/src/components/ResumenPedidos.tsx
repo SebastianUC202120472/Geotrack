@@ -27,7 +27,7 @@ export function ResumenPedidos({ ruta }: { ruta: RutaActiva }) {
       </View>
 
       <View style={{ marginTop: spacing.md }}>
-        <BarraProgreso valor={ruta.entregadas} total={total} color={colors.brand} fondo={colors.border} />
+        <BarraProgreso valor={ruta.entregadas} total={total} fondo={colors.border} porEstado />
       </View>
     </Card>
   );

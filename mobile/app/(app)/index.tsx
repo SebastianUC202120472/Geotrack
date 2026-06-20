@@ -1,7 +1,7 @@
 // Pantalla principal del conductor: su ruta activa con la secuencia de paradas,
 // el mapa del recorrido y los botones para iniciar (desde su ubicación) y
 // finalizar la ruta.
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { Alert, FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -48,11 +48,18 @@ export default function RutaScreen() {
   const paradas = manifiesto.data?.paradas ?? [];
   const sinRuta = (ruta.error as { response?: { status?: number } } | null)?.response?.status === 404;
 
+  // Estado del pull-to-refresh manual. Se mantiene aparte de isFetching para que el
+  // spinner NO aparezca en cada refresco automático/de foco (eso parecía "recargar").
+  const [refrescando, setRefrescando] = useState(false);
+
   // Refresca las tres consultas a la vez (pull-to-refresh).
-  const refrescar = () => {
-    ruta.refetch();
-    manifiesto.refetch();
-    navegacion.refetch();
+  const refrescar = async () => {
+    setRefrescando(true);
+    try {
+      await Promise.all([ruta.refetch(), manifiesto.refetch(), navegacion.refetch()]);
+    } finally {
+      setRefrescando(false);
+    }
   };
 
   // Inicia la ruta: toma la ubicación actual y pide la optimización al backend.
@@ -108,7 +115,7 @@ export default function RutaScreen() {
           </Texto>
 
           <View style={{ marginTop: spacing.lg }}>
-            <BarraProgreso valor={ruta.data.entregadas} total={ruta.data.total_paradas} />
+            <BarraProgreso valor={ruta.data.entregadas} total={ruta.data.total_paradas} porEstado />
           </View>
 
           <View style={estilos.contadores}>
@@ -147,7 +154,7 @@ export default function RutaScreen() {
         ) : (
           <>
             <View style={{ marginBottom: spacing.sm }}>
-              <BarraProgreso valor={ruta.data.entregadas} total={totalParadas} color={colors.brand} fondo={colors.border} />
+              <BarraProgreso valor={ruta.data.entregadas} total={totalParadas} fondo={colors.border} porEstado />
             </View>
             <Texto variante="body" color={colors.muted} style={estilos.cierreTexto}>
               Entrega o reporta todas las paradas para cerrar el día. Faltan {pendientes} de {totalParadas}.
@@ -202,7 +209,7 @@ export default function RutaScreen() {
         )}
         contentContainerStyle={estilos.lista}
         ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
-        refreshControl={<RefreshControl refreshing={manifiesto.isFetching} onRefresh={refrescar} />}
+        refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refrescar} />}
       />
     </Screen>
   );

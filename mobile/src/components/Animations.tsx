@@ -55,8 +55,9 @@ export function ItemLista({ index = 0, ...props }: AparecerProps & { index?: num
   return <Aparecer delay={Math.min(index, 8) * 50} {...props} />;
 }
 
-// Barra que anima su ancho según valor/total. Entrada: { valor, total, color?, fondo? }.
-export function BarraProgreso({ valor, total, color, fondo }: { valor: number; total: number; color?: string; fondo?: string }) {
+// Barra que anima su ancho según valor/total. Entrada: { valor, total, color?, fondo?, porEstado? }.
+// Con porEstado, el color del relleno cambia por avance: <33% rojo, 33–79% ámbar, ≥80% verde.
+export function BarraProgreso({ valor, total, color, fondo, porEstado }: { valor: number; total: number; color?: string; fondo?: string; porEstado?: boolean }) {
   const { colors } = useTheme();
   const reducir = useReducirMovimiento();
   const pct = total > 0 ? Math.min(1, valor / total) : 0;
@@ -66,9 +67,12 @@ export function BarraProgreso({ valor, total, color, fondo }: { valor: number; t
     Animated.timing(anim, { toValue: pct, duration: 600, useNativeDriver: false }).start();
   }, [pct, reducir, anim]);
   const ancho = anim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] });
+  // Color por estado de avance (umbral) si se pide; si no, el color recibido o blanco.
+  const colorEstado = pct >= 0.8 ? colors.success : pct >= 0.33 ? colors.warning : colors.danger;
+  const colorRelleno = porEstado ? colorEstado : color ?? colors.white;
   return (
     <View style={[estilosAnim.pista, { backgroundColor: fondo ?? colors.overlay }]}>
-      <Animated.View style={[estilosAnim.relleno, { width: ancho, backgroundColor: color ?? colors.white }]} />
+      <Animated.View style={[estilosAnim.relleno, { width: ancho, backgroundColor: colorRelleno }]} />
     </View>
   );
 }
