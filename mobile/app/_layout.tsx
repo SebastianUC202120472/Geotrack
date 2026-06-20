@@ -6,6 +6,7 @@ import { Slot, useRouter, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
+import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold } from "@expo-google-fonts/inter";
 import { ThemeProvider, useTheme } from "@/theme";
 import { AuthProvider, useAuth } from "@/store/auth";
 import { Cargando } from "@/components/Estados";
@@ -24,11 +25,16 @@ function Barra() {
   return <StatusBar style={esquema === "dark" ? "light" : "dark"} />;
 }
 
-// Redirige según la sesión. No recibe props; usa el contexto de auth.
+// Redirige según la sesión y espera a que Inter cargue. No recibe props.
 function Guardia() {
   const { token, cargando } = useAuth();
   const segmentos = useSegments();
   const router = useRouter();
+
+  // Carga las variantes de Inter; si falla (errorFuentes) la app sigue con fuente del sistema.
+  const [fuentesListas, errorFuentes] = useFonts({
+    Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold,
+  });
 
   useEffect(() => {
     if (cargando) return;
@@ -37,7 +43,8 @@ function Guardia() {
     else if (token && enLogin) router.replace("/");
   }, [token, cargando, segmentos]);
 
-  if (cargando) return <Cargando texto="Iniciando…" />;
+  // Muestra el indicador de carga mientras la sesión o las fuentes no están listas.
+  if (cargando || (!fuentesListas && !errorFuentes)) return <Cargando texto="Iniciando…" />;
   return <Slot />;
 }
 
