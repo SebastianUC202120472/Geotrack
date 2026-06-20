@@ -7,8 +7,10 @@ import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
+import { Cabecera } from "@/components/Cabecera";
+import { CamionCargando } from "@/components/CamionCargando";
 import { ItemLista } from "@/components/Animations";
-import { Cargando, Vacio } from "@/components/Estados";
+import { Vacio } from "@/components/Estados";
 import { Texto } from "@/components/Texto";
 import { useManifiesto } from "@/features/ruta/hooks";
 import { obtenerEvidencia } from "@/store/evidenciaCache";
@@ -20,14 +22,27 @@ export default function HistorialScreen() {
   const manifiesto = useManifiesto();
   const entregadas = (manifiesto.data?.paradas ?? []).filter((p: ParadaManifiesto) => p.estado_entrega === "ENTREGADO");
 
-  if (manifiesto.isLoading) return <Screen><Cargando /></Screen>;
+  if (manifiesto.isLoading) {
+    return (
+      <Screen conPadding={false}>
+        <Cabecera titulo="Historial" />
+        <CamionCargando texto="Cargando tu historial…" />
+      </Screen>
+    );
+  }
 
   if (entregadas.length === 0) {
-    return <Screen><Vacio titulo="Aún no hay entregas" detalle="Tus pedidos entregados aparecerán aquí." /></Screen>;
+    return (
+      <Screen conPadding={false}>
+        <Cabecera titulo="Historial" />
+        <Vacio titulo="Aún no hay entregas" detalle="Tus pedidos entregados aparecerán aquí." />
+      </Screen>
+    );
   }
 
   return (
     <Screen conPadding={false}>
+      <Cabecera titulo="Historial" />
       <FlatList
         data={entregadas}
         keyExtractor={(p) => String(p.pedido_id)}
