@@ -1,5 +1,8 @@
 # app/services/conductor_service.py
 # - Lista los conductores con su ficha (nombre/teléfono/DNI) y el vehículo que tienen asignado.
+import os
+import time
+import glob
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -83,3 +86,39 @@ def eliminar(db: Session, usuario_id: int) -> dict:
     usuario.estado = False
     db.commit()
     return {"mensaje": "Conductor eliminado"}
+
+
+# Carpeta de fotos de conductores (servida en /media). Mismos formatos que el POD.
+DIR_FOTOS = os.path.join("uploads", "conductores")
+EXTENSIONES_IMAGEN = {".jpg", ".jpeg", ".png", ".webp"}
+
+
+def guardar_foto(db: Session, usuario_id: int, contenido: bytes, nombre_archivo: str) -> dict:
+    """Guarda/reemplaza la foto de un conductor activo. Recibe: id, bytes y nombre
+    original del archivo. Devuelve: la ficha del conductor con la nueva foto_url."""
+    usuario = _conductor_activo(db, usuario_id)
+
+    _, extension = os.path.splitext((nombre_archivo or "").lower())
+    if extension not in EXTENSIONES_IMAGEN:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Formato no permitido. Usa: {', '.join(sorted(EXTENSIONES_IMAGEN))}",
+        )
+
+    os.makedirs(DIR_FOTOS, exist_ok=True)
+    # Borra cualquier foto previa del conductor (evita huérfanos al cambiar de formato).
+    for viejo in glob.glob(os.path.join(DIR_FOTOS, f"cond_{usuario_id}.*")):
+        try:
+            os.remove(viejo)
+        except OSError:
+            pass
+
+    nombre_final = f"cond_{usuario_id}{extension}"
+    ruta_fisica = os.path.join(DIR_FOTOS, nombre_final)
+    with open(ruta_fisica, "wb") as f:
+        f.write(contenido)
+
+    # Query ?v= para invalidar la caché del navegador/expo-image al reemplazar.
+    url = f"/media/conductores/{nombre_final}?v={int(time.time())}"
+    conductor_repository.actualizar_foto(db, usuario_id, url)
+    return _a_respuesta(db, usuario)
