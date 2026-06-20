@@ -1,5 +1,5 @@
-// Paletas de color para modo claro y oscuro. Acento azul de marca fijo
-// (coherente con el panel web). Mismas claves en ambas para no romper componentes.
+// Paleta de color (solo modo claro). Azul de marca sobrio (no chillón), blanco
+// humo en superficies y fondo algo más gris para dar profundidad por capas.
 export interface Palette {
   brand: string;
   brandPressed: string;
@@ -23,52 +23,30 @@ export interface Palette {
 }
 
 const claro: Palette = {
-  brand: "#2563EB",
-  brandPressed: "#1D4ED8",
-  brandSoft: "#EFF6FF",
+  brand: "#1D4ED8",        // azul más oscuro/sobrio (antes #2563EB, muy chillón)
+  brandPressed: "#1E3A8A",
+  brandSoft: "#E7EEFB",
   ink: "#0F172A",
   text: "#334155",
   muted: "#64748B",
-  surface: "#FFFFFF",
-  canvas: "#F1F5F9",
-  border: "#E2E8F0",
+  surface: "#F7F8FA",      // blanco humo (tarjetas)
+  canvas: "#E7ECF2",       // fondo algo más gris (da profundidad bajo las tarjetas)
+  border: "#D8DEE7",
   success: "#16A34A",
   successSoft: "#DCFCE7",
   warning: "#D97706",
   warningSoft: "#FFFBEB",
   danger: "#DC2626",
   dangerSoft: "#FEE2E2",
-  white: "#FFFFFF",
+  white: "#FFFFFF",        // blanco puro: solo para texto/iconos sobre el degradado
   brandInk: "#1E3A8A",
   shadow: "#0F172A",
   overlay: "rgba(255,255,255,0.16)",
 };
 
-const oscuro: Palette = {
-  brand: "#3B82F6",
-  brandPressed: "#2563EB",
-  brandSoft: "#1E293B",
-  ink: "#F1F5F9",
-  text: "#CBD5E1",
-  muted: "#94A3B8",
-  surface: "#1E293B",
-  canvas: "#0F172A",
-  border: "#334155",
-  success: "#4ADE80",
-  successSoft: "#14321F",
-  warning: "#FBBF24",
-  warningSoft: "#3B2F12",
-  danger: "#F87171",
-  dangerSoft: "#3B1D1D",
-  white: "#FFFFFF",
-  brandInk: "#BFDBFE",
-  shadow: "#000000",
-  overlay: "rgba(255,255,255,0.12)",
-};
-
 export type Esquema = "light" | "dark";
 
-// Construye la paleta final. Recibe: esquema (light/dark).
-export function construirPaleta(esquema: Esquema): Palette {
-  return esquema === "dark" ? oscuro : claro;
+// Construye la paleta final. La app es SOLO modo claro: siempre devuelve `claro`.
+export function construirPaleta(_esquema: Esquema): Palette {
+  return claro;
 }

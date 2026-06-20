@@ -1,8 +1,7 @@
-// Ajustes del conductor (apartado separado del perfil): tema claro/oscuro,
-// contacto con coordinación y cierre de sesión. Pantalla navegable (con cabecera
-// nativa y botón atrás); no es una pestaña.
-import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+// Ajustes del conductor (pestaña ⚙). Versión base; el detalle (notificaciones,
+// reportar errores/feedback, información de la app, estado de cuenta y Ayuda) se
+// añade en el siguiente hito.
+import { Linking, ScrollView, StyleSheet, View } from "react-native";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
@@ -11,75 +10,38 @@ import { DeslizarPestanas } from "@/components/DeslizarPestanas";
 import { Aparecer } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
 import { useAuth } from "@/store/auth";
-import { useTheme, spacing, radius, type Modo } from "@/theme";
+import { useTheme, spacing } from "@/theme";
 
 // Número de coordinación para llamar/escribir. Cámbialo por el real (o usa env).
 const TELEFONO_COORDINACION = process.env.EXPO_PUBLIC_COORDINACION_TEL ?? "+51999888777";
-const MODOS: { valor: Modo; etiqueta: string; icono: keyof typeof Ionicons.glyphMap }[] = [
-  { valor: "system", etiqueta: "Sistema", icono: "phone-portrait-outline" },
-  { valor: "light", etiqueta: "Claro", icono: "sunny-outline" },
-  { valor: "dark", etiqueta: "Oscuro", icono: "moon-outline" },
-];
 
 export default function AjustesScreen() {
-  const { colors, modo, setModo } = useTheme();
+  const { colors } = useTheme();
   const { cerrarSesion } = useAuth();
 
-  // Abre el marcador con el número de coordinación.
   const llamar = () => Linking.openURL(`tel:${TELEFONO_COORDINACION.replace(/\s/g, "")}`);
-  // Abre WhatsApp con el número de coordinación.
   const whatsapp = () => Linking.openURL(`https://wa.me/${TELEFONO_COORDINACION.replace(/[^\d]/g, "")}`);
 
   return (
     <Screen conPadding={false}>
       <Cabecera titulo="Ajustes" />
       <DeslizarPestanas>
-      <ScrollView contentContainerStyle={estilos.cuerpo}>
-        {/* Tema */}
-        <Aparecer delay={0}>
-          <Card>
-            <Texto variante="subtitle" color={colors.ink} style={estilos.titulo}>Apariencia</Texto>
-            <Texto variante="caption" color={colors.muted}>Tema</Texto>
-            <View style={estilos.fila}>
-              {MODOS.map((m) => {
-                const activo = modo === m.valor;
-                return (
-                  <Pressable
-                    key={m.valor}
-                    onPress={() => setModo(m.valor)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Tema ${m.etiqueta}`}
-                    style={({ pressed }) => [
-                      estilos.chip,
-                      { borderColor: activo ? colors.brand : colors.border, backgroundColor: activo ? colors.brandSoft : colors.surface },
-                      pressed && { opacity: 0.85 },
-                    ]}
-                  >
-                    <Ionicons name={m.icono} size={20} color={activo ? colors.brand : colors.text} />
-                    <Texto variante="label" color={activo ? colors.brand : colors.text}>{m.etiqueta}</Texto>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </Card>
-        </Aparecer>
+        <ScrollView contentContainerStyle={estilos.cuerpo}>
+          <Aparecer delay={0}>
+            <Card>
+              <Texto variante="subtitle" color={colors.ink} style={estilos.titulo}>¿Algún problema?</Texto>
+              <Texto variante="caption" color={colors.muted}>Contacta a coordinación.</Texto>
+              <View style={[estilos.fila, { marginTop: spacing.md }]}>
+                <View style={{ flex: 1 }}><Button titulo="Llamar" variante="secondary" onPress={llamar} /></View>
+                <View style={{ flex: 1 }}><Button titulo="WhatsApp" variante="secondary" onPress={whatsapp} /></View>
+              </View>
+            </Card>
+          </Aparecer>
 
-        {/* Contacto con coordinación */}
-        <Aparecer delay={60}>
-          <Card>
-            <Texto variante="subtitle" color={colors.ink} style={estilos.titulo}>¿Algún problema?</Texto>
-            <Texto variante="caption" color={colors.muted}>Contacta a coordinación o repórtalo desde el pedido.</Texto>
-            <View style={[estilos.fila, { marginTop: spacing.md }]}>
-              <View style={{ flex: 1 }}><Button titulo="Llamar" variante="secondary" onPress={llamar} /></View>
-              <View style={{ flex: 1 }}><Button titulo="WhatsApp" variante="secondary" onPress={whatsapp} /></View>
-            </View>
-          </Card>
-        </Aparecer>
-
-        <Aparecer delay={120}>
-          <Button titulo="Cerrar sesión" variante="danger" onPress={cerrarSesion} />
-        </Aparecer>
-      </ScrollView>
+          <Aparecer delay={60}>
+            <Button titulo="Cerrar sesión" variante="danger" onPress={cerrarSesion} />
+          </Aparecer>
+        </ScrollView>
       </DeslizarPestanas>
     </Screen>
   );
@@ -88,6 +50,5 @@ export default function AjustesScreen() {
 const estilos = StyleSheet.create({
   cuerpo: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xl },
   titulo: { marginBottom: spacing.xs },
-  fila: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs },
-  chip: { flex: 1, alignItems: "center", gap: spacing.xs, paddingVertical: spacing.md, borderRadius: radius.md, borderWidth: 1 },
+  fila: { flexDirection: "row", gap: spacing.sm },
 });
