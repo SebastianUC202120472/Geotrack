@@ -2,7 +2,7 @@
 // ENTREGADO adjuntando una foto (POD) o (b) reportar un problema (falla), que
 // el administrador verá en su panel de reportes.
 import { useState } from "react";
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,7 +12,8 @@ import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { EstadoBadge } from "@/components/EstadoBadge";
 import { Cargando, Vacio } from "@/components/Estados";
-import { Aparecer } from "@/components/Animations";
+import { Aparecer, CheckEntrega } from "@/components/Animations";
+import { Texto } from "@/components/Texto";
 import { abrirNavegacion } from "@/services/navegacion";
 import { useManifiesto } from "@/features/ruta/hooks";
 import { useEntregarConEvidencia, useReportarFalla } from "@/features/entrega/hooks";
@@ -35,6 +36,8 @@ export default function ParadaScreen() {
   const [modoReporte, setModoReporte] = useState(false);
   const [motivo, setMotivo] = useState(MOTIVOS[0]);
   const [descripcion, setDescripcion] = useState("");
+  // Estado para mostrar el check animado tras confirmar entrega.
+  const [exito, setExito] = useState(false);
 
   const parada = manifiesto.data?.paradas.find((p: ParadaManifiesto) => p.pedido_id === pedidoId);
 
@@ -62,8 +65,9 @@ export default function ParadaScreen() {
       { pedidoId, uriFoto: foto },
       {
         onSuccess: () => {
-          Alert.alert("Entrega registrada", "Se guardó la entrega con su evidencia.");
-          router.back();
+          // Muestra el check animado y vuelve atrás tras 900 ms.
+          setExito(true);
+          setTimeout(() => router.back(), 900);
         },
         onError: (e) => Alert.alert("Error", mensajeDeError(e)),
       }
@@ -89,22 +93,34 @@ export default function ParadaScreen() {
 
   const gestionada = parada.estado_entrega !== "PENDIENTE";
 
+  // Capa de éxito: muestra el check animado mientras el componente navega atrás.
+  if (exito) {
+    return (
+      <Screen>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.md }}>
+          <CheckEntrega color={colors.success} />
+          <Texto variante="subtitle" color={colors.ink}>¡Entrega registrada!</Texto>
+        </View>
+      </Screen>
+    );
+  }
+
   return (
     <Screen conPadding={false}>
       <ScrollView contentContainerStyle={estilos.contenido}>
         <Aparecer style={estilos.grupo}>
           <Card>
             <View style={estilos.encabezado}>
-              <Text style={[estilos.codigo, { color: colors.muted }]}>{parada.codigo ?? `Pedido ${parada.pedido_id}`}</Text>
+              <Texto variante="label" color={colors.muted} style={estilos.codigo}>{parada.codigo ?? `Pedido ${parada.pedido_id}`}</Texto>
               <EstadoBadge estado={parada.estado_entrega} />
             </View>
 
             {/* Destacar a quién y de quién es el pedido */}
-            <Text style={[estilos.rol, { color: colors.muted }]}>Para</Text>
-            <Text style={[estilos.destacado, { color: colors.ink }]}>{parada.nombre_destinatario || "—"}</Text>
+            <Texto variante="caption" color={colors.muted} style={estilos.rol}>Para</Texto>
+            <Texto variante="title" color={colors.ink} style={estilos.destacado}>{parada.nombre_destinatario || "—"}</Texto>
 
-            <Text style={[estilos.rol, { color: colors.muted, marginTop: spacing.md }]}>De</Text>
-            <Text style={[estilos.empresa, { color: colors.text }]}>{parada.cliente_origen}</Text>
+            <Texto variante="caption" color={colors.muted} style={[estilos.rol, { marginTop: spacing.md }]}>De</Texto>
+            <Texto variante="subtitle" color={colors.text} style={estilos.empresa}>{parada.cliente_origen}</Texto>
 
             <View style={[estilos.separador, { backgroundColor: colors.border }]} />
 
@@ -120,7 +136,7 @@ export default function ParadaScreen() {
                   style={[estilos.llamar, { backgroundColor: colors.brandSoft }]}
                 >
                   <Ionicons name="call" size={18} color={colors.brand} />
-                  <Text style={[estilos.llamarTexto, { color: colors.brand }]}>Llamar</Text>
+                  <Texto variante="body" color={colors.brand} style={estilos.llamarTexto}>Llamar</Texto>
                 </Pressable>
               </>
             ) : null}
@@ -133,28 +149,28 @@ export default function ParadaScreen() {
                 style={[estilos.navegar, { backgroundColor: colors.brand }]}
               >
                 <Ionicons name="navigate" size={18} color={colors.white} />
-                <Text style={[estilos.navegarTexto, { color: colors.white }]}>Navegar (Google Maps / Waze)</Text>
+                <Texto variante="body" color={colors.white} style={estilos.navegarTexto}>Navegar (Google Maps / Waze)</Texto>
               </Pressable>
             )}
           </Card>
 
           {gestionada ? (
             <Card style={{ backgroundColor: parada.estado_entrega === "ENTREGADO" ? colors.successSoft : colors.dangerSoft }}>
-              <Text style={{ color: parada.estado_entrega === "ENTREGADO" ? colors.success : colors.danger, fontSize: fontSize.subtitle, fontWeight: "700", textAlign: "center" }}>
+              <Texto variante="subtitle" color={parada.estado_entrega === "ENTREGADO" ? colors.success : colors.danger} style={{ textAlign: "center" }}>
                 {parada.estado_entrega === "ENTREGADO" ? "Esta parada ya fue entregada." : "Esta parada fue reportada como fallida."}
-              </Text>
+              </Texto>
             </Card>
           ) : modoReporte ? (
             <Card>
-              <Text style={[estilos.titulo, { color: colors.ink }]}>Reportar problema</Text>
-              <Text style={[estilos.sub, { color: colors.muted }]}>Motivo de la falla</Text>
+              <Texto variante="subtitle" color={colors.ink} style={estilos.titulo}>Reportar problema</Texto>
+              <Texto variante="caption" color={colors.muted} style={estilos.sub}>Motivo de la falla</Texto>
               <View style={estilos.motivos}>
                 {MOTIVOS.map((m) => {
                   const activo = motivo === m;
                   return (
                     <Pressable key={m} onPress={() => setMotivo(m)} accessibilityRole="button" accessibilityLabel={m}
                       style={[estilos.motivoChip, { borderColor: activo ? colors.brand : colors.border, backgroundColor: activo ? colors.brandSoft : colors.surface }]}>
-                      <Text style={{ color: activo ? colors.brand : colors.text, fontWeight: "600" }}>{m}</Text>
+                      <Texto variante="bodyMedium" color={activo ? colors.brand : colors.text}>{m}</Texto>
                     </Pressable>
                   );
                 })}
@@ -175,12 +191,12 @@ export default function ParadaScreen() {
           ) : (
             <>
               <Card>
-                <Text style={[estilos.titulo, { color: colors.ink }]}>Evidencia de entrega (foto)</Text>
+                <Texto variante="subtitle" color={colors.ink} style={estilos.titulo}>Evidencia de entrega (foto)</Texto>
                 {foto ? (
                   <Image source={{ uri: foto }} style={estilos.preview} contentFit="cover" />
                 ) : (
                   <View style={[estilos.placeholder, { borderColor: colors.border }]}>
-                    <Text style={{ color: colors.muted, fontSize: fontSize.body }}>Adjunta una foto como prueba de entrega</Text>
+                    <Texto variante="body" color={colors.muted}>Adjunta una foto como prueba de entrega</Texto>
                   </View>
                 )}
                 <View style={estilos.botonesFoto}>
@@ -205,8 +221,8 @@ export default function ParadaScreen() {
 function Dato({ etiqueta, valor, c }: { etiqueta: string; valor: string; c: { muted: string; text: string } }) {
   return (
     <View style={estilos.dato}>
-      <Text style={[estilos.datoEtiqueta, { color: c.muted }]}>{etiqueta}</Text>
-      <Text style={[estilos.datoValor, { color: c.text }]}>{valor}</Text>
+      <Texto variante="caption" color={c.muted} style={estilos.datoEtiqueta}>{etiqueta}</Texto>
+      <Texto variante="bodyMedium" color={c.text} style={estilos.datoValor}>{valor}</Texto>
     </View>
   );
 }
@@ -215,20 +231,20 @@ const estilos = StyleSheet.create({
   contenido: { padding: spacing.lg },
   grupo: { gap: spacing.lg },
   encabezado: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.md },
-  codigo: { fontSize: fontSize.body, fontWeight: "700" },
-  rol: { fontSize: fontSize.caption, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.5 },
-  destacado: { fontSize: fontSize.title, fontWeight: "800", marginTop: 2 },
-  empresa: { fontSize: fontSize.subtitle, fontWeight: "600", marginTop: 2 },
+  codigo: {},
+  rol: { textTransform: "uppercase", letterSpacing: 0.5 },
+  destacado: { marginTop: 2 },
+  empresa: { marginTop: 2 },
   separador: { height: 1, marginVertical: spacing.md },
   llamar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, marginTop: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.md },
-  llamarTexto: { fontSize: fontSize.body, fontWeight: "700" },
+  llamarTexto: {},
   navegar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, marginTop: spacing.md, paddingVertical: spacing.md, borderRadius: radius.md },
-  navegarTexto: { fontSize: fontSize.body, fontWeight: "700" },
+  navegarTexto: {},
   dato: { marginTop: spacing.md },
-  datoEtiqueta: { fontSize: fontSize.caption },
-  datoValor: { fontSize: fontSize.body, fontWeight: "600" },
-  titulo: { fontSize: fontSize.subtitle, fontWeight: "700", marginBottom: spacing.md },
-  sub: { fontSize: fontSize.caption, marginBottom: spacing.xs },
+  datoEtiqueta: {},
+  datoValor: {},
+  titulo: { marginBottom: spacing.md },
+  sub: { marginBottom: spacing.xs },
   preview: { width: "100%", height: 220, borderRadius: radius.md },
   placeholder: { height: 160, borderRadius: radius.md, borderWidth: 2, borderStyle: "dashed", alignItems: "center", justifyContent: "center" },
   botonesFoto: { flexDirection: "row", gap: spacing.md, marginTop: spacing.md },
