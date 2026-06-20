@@ -108,6 +108,18 @@ export const actualizarConductor = (id, datos) =>
 export const eliminarConductor = (id) =>
   request(`/conductores/${id}`, { method: "DELETE" });
 
+// Sube/reemplaza la foto de un conductor (multipart). La verá en su app móvil.
+export const subirFotoConductor = (usuarioId, file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request(`/conductores/${usuarioId}/foto`, { method: "POST", body: formData });
+};
+
+// Construye la URL absoluta de un recurso de /media a partir de la ruta del backend.
+// Entrada: ruta (ej. "/media/conductores/cond_1.jpg?v=..."). Salida: URL o null.
+export const urlMedia = (ruta) =>
+  ruta ? `${API_URL.replace(/\/api\/?$/, "")}${ruta}` : null;
+
 /* ============================================================
    REPORTES DE INCIDENCIA  (el conductor reporta fallas; el admin responde)
 ============================================================ */
