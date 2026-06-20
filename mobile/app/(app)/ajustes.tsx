@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
+import { Cabecera } from "@/components/Cabecera";
 import { Aparecer } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
 import { useAuth } from "@/store/auth";
@@ -30,6 +31,7 @@ export default function AjustesScreen() {
 
   return (
     <Screen conPadding={false}>
+      <Cabecera titulo="Ajustes" />
       <ScrollView contentContainerStyle={estilos.cuerpo}>
         {/* Tema */}
         <Aparecer delay={0}>

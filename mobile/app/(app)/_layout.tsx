@@ -1,7 +1,8 @@
-// Navegación interna (protegida) por pestañas: Pedidos · Ruta (centro) · Historial.
+// Navegación interna (protegida) por pestañas: Pedidos · Ruta (centro) · Ajustes (⚙).
 // La app abre en "Ruta" (initialRouteName). Las pestañas usan cabecera propia
-// (Cabecera), por eso ocultan la nativa. Perfil, Ajustes, Notificaciones y el
-// detalle de parada son navegables (con cabecera nativa y botón atrás), no pestañas.
+// (Cabecera), por eso ocultan la nativa. Perfil, Notificaciones y el detalle de
+// parada son navegables (con cabecera nativa y botón atrás), no pestañas.
+// "Historial" se eliminó: los entregados (con evidencia) se ven en "Pedidos".
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme, fuentes } from "@/theme";
@@ -50,13 +51,12 @@ export default function AppLayout() {
         options={{ title: "Ruta", tabBarLabel: "Ruta", tabBarIcon: ({ color, size }) => <Ionicons name="map" color={color} size={size} /> }}
       />
       <Tabs.Screen
-        name="historial"
-        options={{ title: "Historial", tabBarLabel: "Historial", tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-done" color={color} size={size} /> }}
+        name="ajustes"
+        options={{ title: "Ajustes", tabBarLabel: "Ajustes", tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" color={color} size={size} /> }}
       />
 
       {/* Navegables (no pestañas): cabecera nativa con botón atrás. */}
       <Tabs.Screen name="perfil" options={{ href: null, headerShown: true, title: "Mi perfil" }} />
-      <Tabs.Screen name="ajustes" options={{ href: null, headerShown: true, title: "Ajustes" }} />
       <Tabs.Screen name="notificaciones" options={{ href: null, headerShown: true, title: "Notificaciones" }} />
       <Tabs.Screen name="parada/[id]" options={{ href: null, headerShown: true, title: "Entrega" }} />
     </Tabs>
