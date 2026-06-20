@@ -7,6 +7,7 @@ import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { Cabecera } from "@/components/Cabecera";
+import { DeslizarPestanas } from "@/components/DeslizarPestanas";
 import { Aparecer } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
 import { useAuth } from "@/store/auth";
@@ -32,6 +33,7 @@ export default function AjustesScreen() {
   return (
     <Screen conPadding={false}>
       <Cabecera titulo="Ajustes" />
+      <DeslizarPestanas>
       <ScrollView contentContainerStyle={estilos.cuerpo}>
         {/* Tema */}
         <Aparecer delay={0}>
@@ -78,6 +80,7 @@ export default function AjustesScreen() {
           <Button titulo="Cerrar sesión" variante="danger" onPress={cerrarSesion} />
         </Aparecer>
       </ScrollView>
+      </DeslizarPestanas>
     </Screen>
   );
 }

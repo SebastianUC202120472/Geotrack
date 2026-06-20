@@ -14,6 +14,7 @@ import { ErrorVista, Vacio } from "@/components/Estados";
 import { GradientHeader } from "@/components/GradientHeader";
 import { Cabecera } from "@/components/Cabecera";
 import { CamionCargando } from "@/components/CamionCargando";
+import { DeslizarPestanas } from "@/components/DeslizarPestanas";
 import { Aparecer, ItemLista, BarraProgreso, Contador, IndicadorEnVivo } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
 import { useRutaActiva, useManifiesto, useNavegacion, useIniciarRuta, useFinalizarRuta, claves } from "@/features/ruta/hooks";
@@ -195,6 +196,7 @@ export default function RutaScreen() {
   return (
     <Screen conPadding={false}>
       <Cabecera titulo="Ruta" />
+      <DeslizarPestanas>
       <FlatList
         data={paradas}
         keyExtractor={(p) => String(p.pedido_id)}
@@ -211,6 +213,7 @@ export default function RutaScreen() {
         ItemSeparatorComponent={() => <View style={{ height: spacing.md }} />}
         refreshControl={<RefreshControl refreshing={refrescando} onRefresh={refrescar} />}
       />
+      </DeslizarPestanas>
     </Screen>
   );
 }
