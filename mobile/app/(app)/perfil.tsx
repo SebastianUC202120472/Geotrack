@@ -1,17 +1,21 @@
 // Perfil del conductor: sus datos, ajuste de tema (claro/oscuro), contacto con
 // coordinación, sus reportes y cierre de sesión.
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Image } from "expo-image";
 import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { Cargando } from "@/components/Estados";
-import { Aparecer } from "@/components/Animations";
+import { Aparecer, Contador } from "@/components/Animations";
 import { GradientHeader } from "@/components/GradientHeader";
+import { Texto } from "@/components/Texto";
 import { useAuth } from "@/store/auth";
 import { obtenerPerfil, obtenerMisReportes } from "@/api/conductor";
-import { useTheme, spacing, fontSize, radius, type Modo } from "@/theme";
+import { useTheme, spacing, radius, type Modo } from "@/theme";
+import { colorDeNombre } from "@/utils/colorDeNombre";
+import { urlMedia } from "@/api/config";
 import type { Reporte } from "@/types/api";
 
 // Número de coordinación para llamar/escribir. Cámbialo por el real (o usa env).
@@ -49,24 +53,57 @@ export default function PerfilScreen() {
   const p = perfil.data;
   const inicial = (p?.nombre || p?.correo || "?").charAt(0).toUpperCase();
 
+  // Conteo de reportes para los mini-stats del header.
+  const totalReportes = reportes.data?.length ?? 0;
+  const respondidos = (reportes.data ?? []).filter((r: Reporte) => r.estado === "RESUELTO").length;
+  // URI de la foto del conductor subida por el admin; undefined si no tiene.
+  const fotoUri = urlMedia(p?.foto_url);
+
   return (
     <Screen conPadding={false}>
       <ScrollView contentContainerStyle={estilos.contenido}>
-        {/* Identidad */}
+        {/* Identidad: foto/inicial, datos, vehículo y mini-stats de reportes */}
         <GradientHeader>
           <View style={estilos.cabecera}>
-            <View style={[estilos.avatar, { backgroundColor: colors.white }]}>
-              <Text style={[estilos.avatarTexto, { color: colors.brand }]}>{inicial}</Text>
-            </View>
+            {fotoUri ? (
+              // Foto real del conductor cargada con transición suave.
+              <Image
+                source={{ uri: fotoUri }}
+                style={estilos.avatarFoto}
+                contentFit="cover"
+                transition={250}
+              />
+            ) : (
+              // Fallback: inicial con color determinista por nombre.
+              <View style={[estilos.avatar, { backgroundColor: colorDeNombre(p?.nombre) }]}>
+                <Texto variante="title" color={colors.white}>{inicial}</Texto>
+              </View>
+            )}
             <View style={{ flex: 1 }}>
-              <Text style={[estilos.nombre, { color: colors.white }]}>{p?.nombre || "Conductor"}</Text>
-              <Text style={[estilos.dato, { color: colors.white }]}>{p?.codigo} · {p?.correo}</Text>
+              <Texto variante="title" color={colors.white} numberOfLines={1}>
+                {p?.nombre || "Conductor"}
+              </Texto>
+              <Texto variante="caption" color={colors.white} style={{ opacity: 0.9 }} numberOfLines={1}>
+                {p?.codigo} · {p?.correo}
+              </Texto>
               {p?.vehiculo && (
-                <View style={estilos.vehiculo}>
+                <View style={[estilos.vehiculo, { backgroundColor: colors.overlay }]}>
                   <Ionicons name="car-outline" size={14} color={colors.white} />
-                  <Text style={[estilos.dato, { color: colors.white }]}>{p.vehiculo.placa}</Text>
+                  <Texto variante="caption" color={colors.white}>{p.vehiculo.placa}</Texto>
                 </View>
               )}
+            </View>
+          </View>
+
+          {/* Mini-stats: total de reportes y cuántos están respondidos */}
+          <View style={estilos.stats}>
+            <View style={[estilos.stat, { backgroundColor: colors.overlay }]}>
+              <Contador valor={totalReportes} variante="subtitle" color={colors.white} />
+              <Texto variante="caption" color={colors.white} style={{ opacity: 0.9 }}>Reportes</Texto>
+            </View>
+            <View style={[estilos.stat, { backgroundColor: colors.overlay }]}>
+              <Contador valor={respondidos} variante="subtitle" color={colors.white} />
+              <Texto variante="caption" color={colors.white} style={{ opacity: 0.9 }}>Respondidos</Texto>
             </View>
           </View>
         </GradientHeader>
@@ -75,8 +112,8 @@ export default function PerfilScreen() {
           {/* Ajuste de tema */}
           <Aparecer delay={0}>
             <Card>
-              <Text style={[estilos.titulo, { color: colors.ink }]}>Apariencia</Text>
-              <Text style={[estilos.sub, { color: colors.muted }]}>Tema</Text>
+              <Texto variante="subtitle" color={colors.ink} style={estilos.titulo}>Apariencia</Texto>
+              <Texto variante="caption" color={colors.muted} style={estilos.sub}>Tema</Texto>
               <View style={estilos.fila}>
                 {MODOS.map((m) => {
                   const activo = modo === m.valor;
@@ -86,13 +123,14 @@ export default function PerfilScreen() {
                       onPress={() => setModo(m.valor)}
                       accessibilityRole="button"
                       accessibilityLabel={`Tema ${m.etiqueta}`}
-                      style={[
+                      style={({ pressed }) => [
                         estilos.chip,
                         { borderColor: activo ? colors.brand : colors.border, backgroundColor: activo ? colors.brandSoft : colors.surface },
+                        pressed && { opacity: 0.85 },
                       ]}
                     >
                       <Ionicons name={m.icono} size={20} color={activo ? colors.brand : colors.text} />
-                      <Text style={{ color: activo ? colors.brand : colors.text, fontWeight: "700" }}>{m.etiqueta}</Text>
+                      <Texto variante="label" color={activo ? colors.brand : colors.text}>{m.etiqueta}</Texto>
                     </Pressable>
                   );
                 })}
@@ -103,8 +141,10 @@ export default function PerfilScreen() {
           {/* Contacto con coordinación */}
           <Aparecer delay={60}>
             <Card>
-              <Text style={[estilos.titulo, { color: colors.ink }]}>¿Algún problema?</Text>
-              <Text style={[estilos.sub, { color: colors.muted }]}>Contacta a coordinación o repórtalo desde el pedido.</Text>
+              <Texto variante="subtitle" color={colors.ink} style={estilos.titulo}>¿Algún problema?</Texto>
+              <Texto variante="caption" color={colors.muted} style={estilos.sub}>
+                Contacta a coordinación o repórtalo desde el pedido.
+              </Texto>
               <View style={[estilos.fila, { marginTop: spacing.md }]}>
                 <View style={{ flex: 1 }}><Button titulo="Llamar" variante="secondary" onPress={llamar} /></View>
                 <View style={{ flex: 1 }}><Button titulo="WhatsApp" variante="secondary" onPress={whatsapp} /></View>
@@ -115,26 +155,30 @@ export default function PerfilScreen() {
           {/* Mis reportes */}
           <Aparecer delay={120}>
             <Card>
-              <Text style={[estilos.titulo, { color: colors.ink }]}>Mis reportes</Text>
+              <Texto variante="subtitle" color={colors.ink} style={estilos.titulo}>Mis reportes</Texto>
               {(reportes.data?.length ?? 0) === 0 ? (
-                <Text style={[estilos.sub, { color: colors.muted }]}>No has enviado reportes.</Text>
+                <Texto variante="caption" color={colors.muted} style={estilos.sub}>No has enviado reportes.</Texto>
               ) : (
                 reportes.data!.map((r: Reporte) => {
                   const resuelto = r.estado === "RESUELTO";
                   return (
                     <View key={r.id} style={[estilos.reporte, { borderColor: colors.border }]}>
-                      <Text style={{ color: colors.ink, fontWeight: "700" }}>{r.pedido_codigo} · {r.motivo}</Text>
+                      <Texto variante="bodyMedium" color={colors.ink}>{r.pedido_codigo} · {r.motivo}</Texto>
                       <View
                         style={[
                           estilos.badge,
                           { backgroundColor: resuelto ? colors.successSoft : colors.warningSoft },
                         ]}
                       >
-                        <Text style={{ color: resuelto ? colors.success : colors.warning, fontWeight: "700", fontSize: fontSize.caption }}>
+                        <Texto variante="caption" color={resuelto ? colors.success : colors.warning}>
                           {resuelto ? "Respondido" : "En revisión"}
-                        </Text>
+                        </Texto>
                       </View>
-                      {r.respuesta ? <Text style={{ color: colors.text, marginTop: 2 }}>{r.respuesta}</Text> : null}
+                      {r.respuesta ? (
+                        <Texto variante="body" color={colors.text} style={{ marginTop: 2 }}>
+                          {r.respuesta}
+                        </Texto>
+                      ) : null}
                     </View>
                   );
                 })
@@ -155,13 +199,17 @@ const estilos = StyleSheet.create({
   contenido: { paddingBottom: spacing.xl },
   cuerpo: { padding: spacing.lg, gap: spacing.lg },
   cabecera: { flexDirection: "row", gap: spacing.md, alignItems: "center" },
-  avatar: { width: 56, height: 56, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
-  avatarTexto: { fontSize: fontSize.title, fontWeight: "800" },
-  nombre: { fontSize: fontSize.title, fontWeight: "800" },
-  dato: { fontSize: fontSize.caption, marginTop: 2 },
-  vehiculo: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: 2 },
-  titulo: { fontSize: fontSize.subtitle, fontWeight: "700", marginBottom: spacing.sm },
-  sub: { fontSize: fontSize.caption },
+  // Avatar de inicial: borde blanco + color de fondo determinista.
+  avatar: { width: 66, height: 66, borderRadius: radius.pill, alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: "#FFFFFF" },
+  // Avatar de foto real: mismas dimensiones y borde blanco.
+  avatarFoto: { width: 66, height: 66, borderRadius: radius.pill, borderWidth: 3, borderColor: "#FFFFFF" },
+  // Chip de vehículo en el header.
+  vehiculo: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: spacing.xs, alignSelf: "flex-start", paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill },
+  // Fila de mini-stats bajo los datos del conductor.
+  stats: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.lg },
+  stat: { flex: 1, borderRadius: radius.md, padding: spacing.md, gap: 2 },
+  titulo: { marginBottom: spacing.sm },
+  sub: {},
   fila: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs },
   chip: { flex: 1, alignItems: "center", gap: spacing.xs, paddingVertical: spacing.md, borderRadius: radius.md, borderWidth: 1 },
   reporte: { borderTopWidth: 1, paddingTop: spacing.sm, marginTop: spacing.sm },
