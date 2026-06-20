@@ -1,4 +1,4 @@
-// Navegación interna (protegida) por pestañas: Pedidos · Ruta (centro) · Ajustes (⚙).
+// Navegación interna (protegida) por pestañas: Pedidos · Ruta · Reportes · Ajustes (⚙).
 // La app abre en "Ruta" (initialRouteName). Las pestañas usan cabecera propia
 // (Cabecera), por eso ocultan la nativa. Perfil, Notificaciones y el detalle de
 // parada son navegables (con cabecera nativa y botón atrás), no pestañas.
@@ -51,13 +51,19 @@ export default function AppLayout() {
         options={{ title: "Ruta", tabBarLabel: "Ruta", tabBarIcon: ({ color, size }) => <Ionicons name="map" color={color} size={size} /> }}
       />
       <Tabs.Screen
+        name="reportes"
+        options={{ title: "Reportes", tabBarLabel: "Reportes", tabBarIcon: ({ color, size }) => <Ionicons name="alert-circle-outline" color={color} size={size} /> }}
+      />
+      <Tabs.Screen
         name="ajustes"
         options={{ title: "Ajustes", tabBarLabel: "Ajustes", tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" color={color} size={size} /> }}
       />
 
-      {/* Navegables (no pestañas): cabecera nativa con botón atrás. */}
-      <Tabs.Screen name="perfil" options={{ href: null, headerShown: true, title: "Mi perfil" }} />
-      <Tabs.Screen name="notificaciones" options={{ href: null, headerShown: true, title: "Notificaciones" }} />
+      {/* Navegables (no pestañas). Perfil/Notificaciones/Reporte usan <Cabecera atras>;
+          el detalle de parada conserva la cabecera nativa. */}
+      <Tabs.Screen name="perfil" options={{ href: null }} />
+      <Tabs.Screen name="notificaciones" options={{ href: null }} />
+      <Tabs.Screen name="reporte/[id]" options={{ href: null }} />
       <Tabs.Screen name="parada/[id]" options={{ href: null, headerShown: true, title: "Entrega" }} />
     </Tabs>
   );

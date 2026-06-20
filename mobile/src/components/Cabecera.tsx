@@ -14,7 +14,9 @@ import { obtenerPerfil } from "@/api/conductor";
 import { colorDeNombre } from "@/utils/colorDeNombre";
 import { urlMedia } from "@/api/config";
 
-export function Cabecera({ titulo }: { titulo: string }) {
+// Recibe: { titulo, atras? }. Con `atras` muestra una flecha de retroceso junto
+// al título (pantallas a las que se entra); sin él, muestra campana + foto (pestañas).
+export function Cabecera({ titulo, atras }: { titulo: string; atras?: boolean }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -23,13 +25,28 @@ export function Cabecera({ titulo }: { titulo: string }) {
   const fotoUri = urlMedia(p?.foto_url);
   const inicial = (p?.nombre || p?.correo || "?").charAt(0).toUpperCase();
 
+  const padTop = { paddingTop: insets.top + spacing.sm };
+
+  // Modo "atrás": flecha + título (sin campana ni foto).
+  if (atras) {
+    return (
+      <View style={[estilos.cont, padTop, { backgroundColor: colors.canvas, borderBottomColor: colors.border }]}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Atrás"
+          style={[estilos.iconoBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        >
+          <Ionicons name="arrow-back" size={22} color={colors.ink} />
+        </Pressable>
+        <Texto variante="title" color={colors.ink} style={estilos.titulo} numberOfLines={1}>{titulo}</Texto>
+      </View>
+    );
+  }
+
   return (
-    <View
-      style={[
-        estilos.cont,
-        { paddingTop: insets.top + spacing.sm, backgroundColor: colors.canvas, borderBottomColor: colors.border },
-      ]}
-    >
+    <View style={[estilos.cont, padTop, { backgroundColor: colors.canvas, borderBottomColor: colors.border }]}>
       <Texto variante="title" color={colors.ink} style={estilos.titulo} numberOfLines={1}>{titulo}</Texto>
 
       <Pressable

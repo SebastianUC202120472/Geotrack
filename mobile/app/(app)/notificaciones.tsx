@@ -5,6 +5,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
+import { Cabecera } from "@/components/Cabecera";
 import { Cargando, Vacio } from "@/components/Estados";
 import { Aparecer } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
@@ -17,16 +18,22 @@ export default function NotificacionesScreen() {
 
   const sinRuta = (ruta.error as { response?: { status?: number } } | null)?.response?.status === 404;
 
-  if (ruta.isLoading) return <Screen><Cargando /></Screen>;
+  if (ruta.isLoading) return <Screen conPadding={false}><Cabecera titulo="Notificaciones" atras /><Cargando /></Screen>;
 
   if (sinRuta || !ruta.data) {
-    return <Screen><Vacio titulo="Sin notificaciones" detalle="Te avisaremos aquí cuando te asignen pedidos." /></Screen>;
+    return (
+      <Screen conPadding={false}>
+        <Cabecera titulo="Notificaciones" atras />
+        <Vacio titulo="Sin notificaciones" detalle="Te avisaremos aquí cuando te asignen pedidos." />
+      </Screen>
+    );
   }
 
   const r = ruta.data;
 
   return (
     <Screen conPadding={false}>
+      <Cabecera titulo="Notificaciones" atras />
       <ScrollView contentContainerStyle={estilos.cuerpo}>
         <Aparecer>
           <Card>
