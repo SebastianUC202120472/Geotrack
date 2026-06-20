@@ -46,7 +46,12 @@ export default function RutaScreen() {
     }, [qc])
   );
 
-  const paradas = manifiesto.data?.paradas ?? [];
+  // "Ruta" muestra solo las próximas 5 paradas PENDIENTES (ventana que se va
+  // llenando: al entregar una, entra la siguiente). El listado completo está en "Pedidos".
+  const paradasPendientes = [...(manifiesto.data?.paradas ?? [])]
+    .filter((p) => p.estado_entrega === "PENDIENTE")
+    .sort((a, b) => a.secuencia - b.secuencia);
+  const proximas = paradasPendientes.slice(0, 5);
   const sinRuta = (ruta.error as { response?: { status?: number } } | null)?.response?.status === 404;
 
   // Estado del pull-to-refresh manual. Se mantiene aparte de isFetching para que el
@@ -128,13 +133,20 @@ export default function RutaScreen() {
       )}
 
       <Aparecer style={estilos.secciones}>
-        <Card style={{ marginTop: -spacing.xl, padding: spacing.sm }}>
-          <MapaWeb paradas={manifiesto.data?.paradas ?? []} />
+        <Card style={{ marginTop: spacing.md, padding: spacing.sm }}>
+          <MapaWeb paradas={proximas} />
         </Card>
 
         <Button titulo="Iniciar ruta desde mi ubicación" onPress={iniciarRuta} cargando={ubicacion.cargando || iniciar.isPending} />
 
-        <Texto variante="subtitle" color={colors.ink} style={estilos.seccion}>Paradas ({paradas.length})</Texto>
+        <View style={estilos.seccion}>
+          <Texto variante="subtitle" color={colors.ink}>Próximas paradas</Texto>
+          <Texto variante="caption" color={colors.muted}>
+            {proximas.length > 0
+              ? `${proximas.length} de ${paradasPendientes.length} pendientes · todas en Pedidos`
+              : "No quedan paradas pendientes"}
+          </Texto>
+        </View>
       </Aparecer>
     </View>
   );
@@ -198,7 +210,7 @@ export default function RutaScreen() {
       <Cabecera titulo="Ruta" />
       <DeslizarPestanas>
       <FlatList
-        data={paradas}
+        data={proximas}
         keyExtractor={(p) => String(p.pedido_id)}
         ListHeaderComponent={Encabezado}
         ListFooterComponent={Pie}
