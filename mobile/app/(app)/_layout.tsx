@@ -2,7 +2,7 @@
 // El detalle de parada (parada/[id]) es navegable pero no aparece como pestaña.
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useTheme } from "@/theme";
+import { useTheme, fuentes } from "@/theme";
 
 export default function AppLayout() {
   const { colors } = useTheme();
@@ -12,10 +12,10 @@ export default function AppLayout() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.ink },
         headerTintColor: colors.white,
-        headerTitleStyle: { fontWeight: "700" },
+        headerTitleStyle: { fontFamily: fuentes.bold },
         tabBarActiveTintColor: colors.brand,
         tabBarInactiveTintColor: colors.muted,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+        tabBarLabelStyle: { fontSize: 11, fontFamily: fuentes.semibold },
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
