@@ -6,7 +6,7 @@ import { useRef } from "react";
 import { PanResponder, StyleSheet, View, type ViewProps } from "react-native";
 import { usePathname, useRouter, type Href } from "expo-router";
 
-const ORDEN: Href[] = ["/pedidos", "/", "/ajustes"];
+const ORDEN: Href[] = ["/pedidos", "/", "/reportes", "/ajustes"];
 
 export function DeslizarPestanas({ children, style, ...props }: ViewProps) {
   const router = useRouter();
