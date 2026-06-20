@@ -17,6 +17,9 @@ export interface Palette {
   danger: string;
   dangerSoft: string;
   white: string;
+  brandInk: string;
+  shadow: string;
+  overlay: string;
 }
 
 const claro: Palette = {
@@ -31,11 +34,14 @@ const claro: Palette = {
   border: "#E2E8F0",
   success: "#16A34A",
   successSoft: "#DCFCE7",
-  warning: "#B45309",
-  warningSoft: "#FEF3C7",
+  warning: "#D97706",
+  warningSoft: "#FFFBEB",
   danger: "#DC2626",
   dangerSoft: "#FEE2E2",
   white: "#FFFFFF",
+  brandInk: "#1E3A8A",
+  shadow: "#0F172A",
+  overlay: "rgba(255,255,255,0.16)",
 };
 
 const oscuro: Palette = {
@@ -55,6 +61,9 @@ const oscuro: Palette = {
   danger: "#F87171",
   dangerSoft: "#3B1D1D",
   white: "#FFFFFF",
+  brandInk: "#BFDBFE",
+  shadow: "#000000",
+  overlay: "rgba(255,255,255,0.12)",
 };
 
 export type Esquema = "light" | "dark";
