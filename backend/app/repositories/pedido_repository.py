@@ -73,10 +73,19 @@ def contar_por_estado(db: Session):
 
 
 def agrupar_por_cliente(db: Session):
-    """Cuenta pedidos por empresa (cliente_origen) y estado, para el seguimiento
-    por cliente. Devuelve filas (cliente_origen, estado, total)."""
+    """Cuenta pedidos por empresa (cliente_origen) y estado EFECTIVO, para el
+    seguimiento por cliente. Si el pedido está en una ruta, su estado real es el del
+    detalle (estado_entrega: PENDIENTE/ENTREGADO/FALLIDO); si no, el estado del pedido.
+    Así un pedido entregado SÍ cuenta como entregado. Devuelve (cliente_origen, estado, total)."""
+    from app.models.ruta import RutaDetalle
+    estado_efectivo = func.coalesce(RutaDetalle.estado_entrega, Pedido.estado)
     return (
-        db.query(Pedido.cliente_origen, Pedido.estado, func.count(Pedido.id).label("total"))
-        .group_by(Pedido.cliente_origen, Pedido.estado)
+        db.query(
+            Pedido.cliente_origen,
+            estado_efectivo.label("estado"),
+            func.count(func.distinct(Pedido.id)).label("total"),
+        )
+        .outerjoin(RutaDetalle, RutaDetalle.pedido_id == Pedido.id)
+        .group_by(Pedido.cliente_origen, estado_efectivo)
         .all()
     )
