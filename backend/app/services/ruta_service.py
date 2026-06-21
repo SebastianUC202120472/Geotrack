@@ -400,3 +400,118 @@ def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -
     ruta_repository.guardar_cambios(db)
 
     return {"mensaje": "Ruta optimizada matemáticamente", "total_paradas": len(ordenados)}
+
+
+# FASE 5: ajuste manual de la ruta desde el panel (CUS-20)
+def _ruta_o_404(db: Session, ruta_id: int) -> Ruta:
+    """Devuelve la ruta o lanza 404."""
+    ruta = ruta_repository.obtener_ruta_por_id(db, ruta_id)
+    if not ruta:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ruta no encontrada")
+    return ruta
+
+
+def obtener_paradas_admin(db: Session, ruta_id: int):
+    """CUS-20: paradas de una ruta (ordenadas) para que el admin las edite en el panel."""
+    ruta = _ruta_o_404(db, ruta_id)
+    detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
+    paradas = [
+        {
+            "secuencia": detalle.secuencia,
+            "pedido_id": pedido.id,
+            "codigo": pedido.codigo,
+            "cliente_origen": pedido.cliente_origen,
+            "nombre_destinatario": pedido.nombre_destinatario,
+            "direccion_destino": pedido.direccion_destino,
+            "distrito": pedido.distrito,
+            "estado_entrega": detalle.estado_entrega,
+        }
+        for detalle, pedido in detalles
+    ]
+    return {
+        "ruta_id": ruta.id, "codigo": ruta.codigo, "nombre": ruta.nombre,
+        "estado": ruta.estado, "total_paradas": len(paradas), "paradas": paradas,
+    }
+
+
+def reordenar_paradas(db: Session, ruta_id: int, orden: list[int]) -> dict:
+    """CUS-20: reescribe la secuencia de las paradas según el orden recibido (lista de
+    pedido_id). Solo afecta a los pedidos que pertenecen a la ruta. Recibe: id de ruta
+    y la lista ordenada de pedido_id."""
+    ruta = _ruta_o_404(db, ruta_id)
+    secuencia = 1
+    vistos = set()
+    for pedido_id in orden:
+        detalle = ruta_repository.obtener_detalle_de_ruta(db, ruta.id, pedido_id)
+        if detalle:
+            detalle.secuencia = secuencia
+            secuencia += 1
+            vistos.add(pedido_id)
+    # Defensa: si el orden recibido no incluía todas las paradas, las que faltan se
+    # numeran al final para que NO queden secuencias duplicadas o solapadas.
+    for detalle, pedido in ruta_repository.obtener_detalles_con_pedido(db, ruta.id):
+        if pedido.id not in vistos:
+            detalle.secuencia = secuencia
+            secuencia += 1
+    db.commit()
+    return {"mensaje": "Orden de paradas actualizado", "total_paradas": secuencia - 1}
+
+
+def quitar_parada(db: Session, ruta_id: int, pedido_id: int, usuario_id: int | None = None) -> dict:
+    """CUS-20: quita un pedido de la ruta y lo devuelve a PENDIENTE para reasignarlo.
+    Recibe: id de ruta, id de pedido y el id del admin."""
+    ruta = _ruta_o_404(db, ruta_id)
+    detalle = ruta_repository.obtener_detalle_de_ruta(db, ruta.id, pedido_id)
+    if not detalle:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Esa parada no pertenece a la ruta")
+
+    pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
+    db.delete(detalle)
+    if pedido:
+        estado_anterior = pedido.estado
+        pedido.estado = "PENDIENTE"
+        pedido.fecha_entrega = None
+        historial_repository.registrar(db, pedido.id, estado_anterior, "PENDIENTE", usuario_id)
+    db.commit()
+    return {"mensaje": "Parada quitada de la ruta; el pedido volvió a PENDIENTE"}
+
+
+# FASE 5: manifiesto descargable en Excel (CUS-21)
+COLUMNAS_MANIFIESTO = ["Secuencia", "Código", "Cliente", "Destinatario", "Dirección", "Distrito", "Teléfono", "Estado"]
+
+
+def generar_manifiesto_excel(db: Session, ruta_id: int) -> tuple[bytes, str]:
+    """CUS-21: arma el manifiesto de carga de una ruta como archivo Excel (.xlsx) en
+    memoria. Recibe: id de la ruta. Devuelve: (bytes del archivo, nombre sugerido)."""
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    ruta = _ruta_o_404(db, ruta_id)
+    detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
+
+    wb = Workbook()
+    hoja = wb.active
+    hoja.title = "Manifiesto"
+    hoja.append([f"Manifiesto de carga · {ruta.nombre} ({ruta.codigo or ruta.id})"])
+    hoja.append(COLUMNAS_MANIFIESTO)
+    for celda in hoja[2]:
+        celda.font = Font(bold=True)
+
+    for detalle, pedido in detalles:
+        hoja.append([
+            detalle.secuencia,
+            pedido.codigo or "",
+            pedido.cliente_origen or "",
+            pedido.nombre_destinatario or "",
+            pedido.direccion_destino or "",
+            pedido.distrito or "",
+            pedido.telefono_destinatario or "",
+            detalle.estado_entrega or "",
+        ])
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    nombre = f"manifiesto_{ruta.codigo or ruta.id}.xlsx"
+    return buffer.getvalue(), nombre

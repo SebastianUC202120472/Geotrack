@@ -145,3 +145,31 @@ class OptimizacionResponse(BaseModel):
     """SALIDA (CUS-19): confirmación con el número total de paradas optimizadas."""
     mensaje: str
     total_paradas: int
+
+
+# --- CUS-20: ajuste manual de la ruta desde el panel ---
+class ParadaAdmin(BaseModel):
+    """Una parada de la ruta, vista por el admin para reordenar/quitar."""
+    secuencia: int
+    pedido_id: int
+    codigo: Optional[str] = None
+    cliente_origen: str
+    nombre_destinatario: Optional[str] = None
+    direccion_destino: str
+    distrito: Optional[str] = None
+    estado_entrega: str
+
+
+class RutaParadasResponse(BaseModel):
+    """SALIDA (CUS-20): la ruta y sus paradas ordenadas, para editarlas en el panel."""
+    ruta_id: int
+    codigo: Optional[str] = None
+    nombre: str
+    estado: str
+    total_paradas: int
+    paradas: List[ParadaAdmin]
+
+
+class ReordenarRequest(BaseModel):
+    """ENTRADA (CUS-20): el nuevo orden de las paradas (lista de pedido_id en orden)."""
+    orden: List[int]

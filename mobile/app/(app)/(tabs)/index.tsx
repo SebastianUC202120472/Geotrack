@@ -147,6 +147,8 @@ export default function RutaScreen() {
         </Card>
 
         <Button titulo="Iniciar ruta desde mi ubicación" onPress={iniciarRuta} cargando={ubicacion.cargando || iniciar.isPending} />
+        {/* CUS-22: validar la carga escaneando el QR de cada caja antes de salir */}
+        <Button titulo="Validar carga (escanear QR)" variante="secondary" onPress={() => router.push("/validar-carga")} />
 
         <View style={estilos.seccion}>
           <Texto variante="subtitle" color={colors.ink}>Próximas paradas</Texto>
