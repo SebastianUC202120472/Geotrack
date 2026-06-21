@@ -109,7 +109,9 @@ def _cerrar(db: Session, incidencia_id: int, usuario_id: int, nota, por_defecto:
 def reanudar(db: Session, incidencia_id: int, usuario_id: int, nota=None) -> dict:
     """CONDUCTOR: reanuda su ruta cerrando la incidencia abierta. Recibe: id, conductor, nota."""
     inc = incidencia_repository.obtener(db, incidencia_id)
-    if inc and inc.conductor_id != usuario_id:
+    if not inc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incidencia no encontrada")
+    if inc.conductor_id != usuario_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Esta incidencia no es de tu ruta")
     return _cerrar(db, incidencia_id, usuario_id, nota, "Reanudada por el conductor")
 
