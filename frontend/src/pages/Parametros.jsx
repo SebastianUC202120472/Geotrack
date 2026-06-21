@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { SlidersHorizontal, Plus, Trash2, AlertCircle, Ban, Fuel, Save } from "lucide-react";
+import { SlidersHorizontal, Plus, Trash2, AlertCircle, Ban, Save } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import SectionCard from "../components/ui/SectionCard";
 import Input from "../components/ui/Input";
