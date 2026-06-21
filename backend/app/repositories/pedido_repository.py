@@ -33,6 +33,22 @@ def obtener_sin_coordenadas(db: Session) -> List[Pedido]:
     return db.query(Pedido).filter(Pedido.latitud == None).all()  # noqa: E711 (SQLAlchemy exige '== None')
 
 
+def obtener_por_id(db: Session, pedido_id: int) -> Optional[Pedido]:
+    """Busca un pedido por su id (para fijarle la ubicación a mano, CUS-17)."""
+    return db.query(Pedido).filter(Pedido.id == pedido_id).first()
+
+
+def listar_geocodificacion_fallida(db: Session) -> List[Pedido]:
+    """Pedidos cuya dirección no se pudo ubicar automáticamente (CUS-17), para que el
+    admin los resuelva a mano en el mapa."""
+    return (
+        db.query(Pedido)
+        .filter(Pedido.estado == "GEOCODIFICACION_FALLIDA")
+        .order_by(Pedido.codigo.asc())
+        .all()
+    )
+
+
 def obtener_pendientes_por_distrito(db: Session, distrito: str) -> List[Pedido]:
     """Pedidos PENDIENTES de un distrito (base para armar una ruta, CUS-18)."""
     return (

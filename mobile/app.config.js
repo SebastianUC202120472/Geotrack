@@ -46,6 +46,12 @@ export default {
           cameraPermission: "Necesitamos la cámara para tomar la foto de entrega (POD).",
         },
       ],
+      [
+        "expo-camera",
+        {
+          cameraPermission: "Necesitamos la cámara para escanear los códigos QR al validar la carga.",
+        },
+      ],
       "expo-font",
     ],
   },

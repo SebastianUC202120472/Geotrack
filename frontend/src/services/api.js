@@ -198,6 +198,16 @@ export const reabrirPedido = (id) => request(`/pedidos/${id}/reabrir`, { method:
 // Devuelve { zonas_operativas: [{ distrito, total_pedidos }] }
 export const listarZonas = () => request("/pedidos/zonas");
 
+// CUS-17: pedidos con la geocodificación fallida (para resolver a mano).
+export const listarPorUbicar = () => request("/pedidos/por-ubicar");
+
+// CUS-17: geocodifica un texto de búsqueda para ubicar el pin en el mapa.
+export const buscarDireccion = (q) => request(`/pedidos/buscar-direccion?q=${encodeURIComponent(q)}`);
+
+// CUS-17: fija a mano la ubicación (lat/lng) de un pedido.
+export const fijarUbicacionPedido = (id, datos) =>
+  request(`/pedidos/${id}/ubicacion`, { method: "PATCH", body: datos });
+
 // Seguimiento de repartos agregado por empresa cliente (no por ruta).
 export const obtenerSeguimientoClientes = () => request("/dashboard/clientes");
 
@@ -231,6 +241,39 @@ export const asignarBloque = ({ nombre_ruta, distrito, conductor_id }) =>
     method: "POST",
     body: { nombre_ruta, distrito, conductor_id },
   });
+
+/* ============================================================
+   AJUSTE DE RUTA Y MANIFIESTO  (CUS-20 / CUS-21)
+============================================================ */
+
+// CUS-20: paradas de una ruta (ordenadas) para reordenar/quitar.
+export const listarParadasRuta = (rutaId) => request(`/rutas/${rutaId}/paradas`);
+
+// CUS-20: reordena las paradas según el nuevo orden (lista de pedido_id).
+export const reordenarParadas = (rutaId, orden) =>
+  request(`/rutas/${rutaId}/reordenar`, { method: "PATCH", body: { orden } });
+
+// CUS-20: quita un pedido de la ruta (vuelve a PENDIENTE).
+export const quitarParada = (rutaId, pedidoId) =>
+  request(`/rutas/${rutaId}/paradas/${pedidoId}`, { method: "DELETE" });
+
+// CUS-21: descarga el manifiesto de carga de una ruta en Excel (autenticado).
+export async function descargarManifiesto(rutaId, nombre) {
+  const token = getToken();
+  const resp = await fetch(`${API_URL}/rutas/${rutaId}/manifiesto`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!resp.ok) throw new Error("No se pudo descargar el manifiesto");
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombre || `manifiesto_${rutaId}.xlsx`;
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  URL.revokeObjectURL(url);
+}
 
 /* ============================================================
    DASHBOARD / TRAZABILIDAD  (CUS-33 / CUS-35)
