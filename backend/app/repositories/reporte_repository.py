@@ -37,3 +37,20 @@ def obtener(db: Session, reporte_id: int) -> Optional[Reporte]:
 
 def guardar(db: Session) -> None:
     db.commit()
+
+
+def cerrar_abierto_de_pedido(db: Session, pedido_id: int, accion: str) -> None:
+    """CUS-31: marca como RESUELTO el reporte ABIERTO de un pedido (si existe) al decidir
+    su devolución. Recibe: pedido_id y la acción tomada ('Reprogramado'/'Cancelado')."""
+    from datetime import datetime
+    reporte = (
+        db.query(Reporte)
+        .filter(Reporte.pedido_id == pedido_id, Reporte.estado == "ABIERTO")
+        .order_by(Reporte.creado_en.desc())
+        .first()
+    )
+    if reporte:
+        reporte.estado = "RESUELTO"
+        reporte.accion = accion
+        reporte.respondido_en = datetime.utcnow()
+        db.commit()

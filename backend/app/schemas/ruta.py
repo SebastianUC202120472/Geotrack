@@ -45,6 +45,9 @@ class RutaActivaResponse(BaseModel):
     pendientes: int
     entregadas: int
     fallidas: int
+    # CUS-30: la ruta está pausada si tiene una incidencia abierta (auxilio mecánico).
+    pausada: bool = False
+    incidencia_id: Optional[int] = None
 
 
 # --- CUS-24: manifiesto completo y ordenado ---

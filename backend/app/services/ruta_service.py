@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.models.ruta import Ruta, RutaDetalle
 from app.models.pedido import Pedido
-from app.repositories import ruta_repository, pedido_repository, historial_repository, evidencia_repository
-from app.services.router import optimizar_secuencia_pedidos
+from app.repositories import ruta_repository, pedido_repository, historial_repository, evidencia_repository, incidencia_repository
+from app.services.router import optimizar_secuencia_pedidos, distancia_total
 from app.schemas.ruta import (
     RutaActivaResponse,
     ManifiestoResponse,
@@ -69,6 +69,9 @@ def obtener_resumen_ruta_activa(db: Session, conductor_id: int) -> RutaActivaRes
     entregadas = sum(1 for d, _ in detalles if d.estado_entrega == "ENTREGADO")
     fallidas = sum(1 for d, _ in detalles if d.estado_entrega == "FALLIDO")
 
+    # CUS-30: comprueba si existe una incidencia abierta (auxilio mecánico) para esta ruta.
+    abierta = incidencia_repository.obtener_abierta_por_ruta(db, ruta.id)
+
     return RutaActivaResponse(
         ruta_id=ruta.id,
         codigo=ruta.codigo,
@@ -81,6 +84,8 @@ def obtener_resumen_ruta_activa(db: Session, conductor_id: int) -> RutaActivaRes
         pendientes=pendientes,
         entregadas=entregadas,
         fallidas=fallidas,
+        pausada=abierta is not None,
+        incidencia_id=abierta.id if abierta else None,
     )
 
 
@@ -183,6 +188,11 @@ def actualizar_estado_parada(
         )
 
     detalle = _obtener_detalle_de_mi_ruta(db, conductor_id, pedido_id)
+
+    # CUS-30: bloquear si la ruta está pausada por una incidencia de auxilio mecánico.
+    if incidencia_repository.tiene_abierta(db, detalle.ruta_id):
+        raise HTTPException(status_code=400, detail="La ruta está pausada por una incidencia. Reanúdala antes de continuar.")
+
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
 
     ahora = datetime.utcnow()
@@ -265,6 +275,11 @@ def guardar_evidencia(
 def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
     """CUS-28: da por finalizada la ruta del día del conductor."""
     ruta = _obtener_ruta_activa_o_404(db, conductor_id)
+
+    # CUS-30: no se puede cerrar el día con una incidencia (auxilio mecánico) abierta.
+    if incidencia_repository.tiene_abierta(db, ruta.id):
+        raise HTTPException(status_code=400, detail="La ruta está pausada por una incidencia. Reanúdala antes de cerrar el día.")
+
     detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
 
     pendientes = sum(1 for d, _ in detalles if d.estado_entrega == "PENDIENTE")
@@ -281,6 +296,15 @@ def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
 
     ruta.estado = "FINALIZADA"
     ruta.fecha_fin = datetime.utcnow()
+
+    # CUS-34: si la ruta nunca se optimizó (km_estimado vacío), estima los km de la
+    # secuencia final partiendo de la primera parada (ahorro 0, no hubo optimización).
+    if ruta.km_estimado is None and detalles:
+        pedidos_ordenados = [pedido for _, pedido in detalles]
+        primero = next((p for p in pedidos_ordenados if p.latitud is not None and p.longitud is not None), None)
+        if primero is not None:
+            ruta.km_estimado = round(distancia_total(primero.latitud, primero.longitud, pedidos_ordenados), 2)
+            ruta.km_ahorrado = 0.0
 
     # CUS-28: horas trabajadas = cierre - salida. Si no hubo sello de salida (ruta
     # antigua), se usa la fecha de creación como referencia para no devolver vacío.
@@ -380,6 +404,14 @@ def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -
         datos.latitud_actual_conductor,
         datos.longitud_actual_conductor,
     )
+
+    # CUS-34: km del orden EMPÍRICO (como venían los pedidos) vs km del orden OPTIMIZADO,
+    # ambos desde el mismo origen (GPS del conductor). El ahorro es la diferencia.
+    origen = (datos.latitud_actual_conductor, datos.longitud_actual_conductor)
+    km_base = distancia_total(origen[0], origen[1], pedidos_validos)
+    km_opt = distancia_total(origen[0], origen[1], ordenados)
+    ruta.km_estimado = round(km_opt, 2)
+    ruta.km_ahorrado = round(max(0.0, km_base - km_opt), 2)
 
     # Escribimos la secuencia final (1, 2, 3...) en cada detalle.
     secuencia = 1
