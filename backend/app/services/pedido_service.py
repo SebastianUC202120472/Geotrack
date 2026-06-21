@@ -193,25 +193,6 @@ def reabrir_pedido(db: Session, pedido_id: int, usuario_id: int | None = None) -
     return {"mensaje": "Pedido reabierto. Ya puedes reasignarlo.", "codigo": pedido.codigo}
 
 
-def listar_devueltos(db: Session) -> list:
-    """CUS-31: pedidos FALLIDOS para que el admin decida reprogramar o cancelar.
-    Recibe: la sesión. Devuelve: lista de dicts con los datos para la tabla."""
-    pedidos = pedido_repository.listar_fallidos(db)
-    return [
-        {
-            "id": p.id,
-            "codigo": p.codigo,
-            "cliente_origen": p.cliente_origen,
-            "direccion_destino": p.direccion_destino,
-            "distrito": p.distrito,
-            "nombre_destinatario": p.nombre_destinatario,
-            "estado": p.estado,
-            "fecha_creacion": p.fecha_creacion,
-        }
-        for p in pedidos
-    ]
-
-
 def _exigir_fallido(pedido) -> None:
     """Valida que el pedido esté en FALLIDO antes de decidir su devolución."""
     if not pedido:

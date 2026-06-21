@@ -338,11 +338,8 @@ export const actualizarCombustible = (consumo_l_100km, precio_soles_litro) =>
   request("/parametros/combustible", { method: "PUT", body: { consumo_l_100km, precio_soles_litro } });
 
 /* ============================================================
-   PAQUETES DEVUELTOS (CUS-31)
+   DECISIONES SOBRE PEDIDOS FALLIDOS (CUS-31)
 ============================================================ */
-
-// Lista los pedidos FALLIDOS pendientes de decisión. Salida: array.
-export const listarDevueltos = () => request("/pedidos/devueltos");
 
 // Reprograma un pedido (vuelve a PENDIENTE). Entrada: id. Salida: { mensaje, codigo }.
 export const reprogramarPedido = (id) => request(`/pedidos/${id}/reprogramar`, { method: "POST" });
