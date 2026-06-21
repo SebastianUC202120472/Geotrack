@@ -10,6 +10,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
+import { Cabecera } from "@/components/Cabecera";
 import { EstadoBadge } from "@/components/EstadoBadge";
 import { Cargando, Vacio } from "@/components/Estados";
 import { Aparecer, CheckEntrega } from "@/components/Animations";
@@ -88,8 +89,8 @@ export default function ParadaScreen() {
     );
   };
 
-  if (manifiesto.isLoading) return <Screen><Cargando /></Screen>;
-  if (!parada) return <Screen><Vacio titulo="Pedido no encontrado" /></Screen>;
+  if (manifiesto.isLoading) return <Screen conPadding={false}><Cabecera titulo="Entrega" atras /><Cargando /></Screen>;
+  if (!parada) return <Screen conPadding={false}><Cabecera titulo="Entrega" atras /><Vacio titulo="Pedido no encontrado" /></Screen>;
 
   const gestionada = parada.estado_entrega !== "PENDIENTE";
 
@@ -107,6 +108,7 @@ export default function ParadaScreen() {
 
   return (
     <Screen conPadding={false}>
+      <Cabecera titulo="Entrega" atras />
       <ScrollView contentContainerStyle={estilos.contenido}>
         <Aparecer style={estilos.grupo}>
           <Card>
