@@ -38,6 +38,13 @@ export async function obtenerMisReportes(): Promise<Reporte[]> {
   return data;
 }
 
+// CUS-06: motivos de rechazo configurados por el admin (para el reporte de falla).
+// Devuelve: lista de textos. Antes esta lista estaba fija en la app.
+export async function obtenerMotivos(): Promise<string[]> {
+  const { data } = await api.get<string[]>("/conductor/motivos");
+  return data;
+}
+
 // Resumen de la ruta activa. Devuelve: RutaActiva (lanza 404 si no tiene ruta).
 export async function obtenerRutaActiva(): Promise<RutaActiva> {
   const { data } = await api.get<RutaActiva>("/conductor/ruta-activa");
