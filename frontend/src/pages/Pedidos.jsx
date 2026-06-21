@@ -301,8 +301,8 @@ function DetallePedido({ pedido, onCerrar, onReabierto }) {
         <Dato etiqueta="Destinatario" valor={pedido.nombre_destinatario || "—"} />
         <Dato etiqueta="Dirección" valor={pedido.direccion_destino} icono={MapPin} />
         <Dato etiqueta="Distrito" valor={pedido.distrito || "—"} />
-        <Dato etiqueta="Ruta asignada" valor={historial?.ruta_asignada || "Sin asignar"} icono={Truck} />
-        <Dato etiqueta="Conductor" valor={historial?.conductor_asignado || "Sin asignar"} icono={User} />
+        <Dato etiqueta="Ruta asignada" valor={pedido.ruta_nombre || historial?.ruta_asignada || "Sin asignar"} icono={Truck} />
+        <Dato etiqueta="Conductor" valor={pedido.conductor_nombre || historial?.conductor_asignado || "Sin asignar"} icono={User} />
 
         {pedido.estado === "FALLIDO" && (
           <div className="rounded-xl border border-warning/30 bg-warning-soft p-4">
