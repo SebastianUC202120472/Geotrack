@@ -64,6 +64,10 @@ export default function AppLayout() {
       <Tabs.Screen name="perfil" options={{ href: null }} />
       <Tabs.Screen name="notificaciones" options={{ href: null }} />
       <Tabs.Screen name="reporte/[id]" options={{ href: null }} />
+      <Tabs.Screen name="ayuda" options={{ href: null }} />
+      <Tabs.Screen name="feedback" options={{ href: null }} />
+      <Tabs.Screen name="cuenta" options={{ href: null }} />
+      <Tabs.Screen name="acerca" options={{ href: null }} />
       <Tabs.Screen name="parada/[id]" options={{ href: null, headerShown: true, title: "Entrega" }} />
     </Tabs>
   );
