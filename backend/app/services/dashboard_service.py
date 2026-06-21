@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from datetime import datetime
 
-from app.repositories import ruta_repository, pedido_repository, usuario_repository, historial_repository, ubicacion_repository
+from app.repositories import ruta_repository, pedido_repository, usuario_repository, historial_repository, ubicacion_repository, incidencia_repository
 from app.schemas.dashboard import (
     RutaFlota,
     FlotaResponse,
@@ -88,6 +88,9 @@ def obtener_ubicaciones_flota(db: Session) -> list[ConductorUbicacion]:
     ahora = datetime.utcnow()
     rutas = db.query(Ruta).filter(Ruta.estado.in_(ESTADOS_RUTA_ACTIVA), Ruta.conductor_id.isnot(None)).all()
 
+    # CUS-30: rutas con incidencia abierta (para marcar al conductor como pausado en el mapa).
+    rutas_pausadas = incidencia_repository.rutas_con_incidencia_abierta(db)
+
     # Un conductor podría (excepcionalmente) tener más de una ruta activa: se agrupa
     # por conductor para NO duplicarlo en el mapa; sus paradas se fusionan.
     salida: dict[int, ConductorUbicacion] = {}
@@ -116,6 +119,8 @@ def obtener_ubicaciones_flota(db: Session) -> list[ConductorUbicacion]:
         existente = salida.get(ruta.conductor_id)
         if existente:
             existente.paradas.extend(paradas)  # mismo conductor en otra ruta: fusiona paradas
+            # CUS-30: si cualquiera de sus rutas está pausada, el conductor aparece pausado.
+            existente.pausado = existente.pausado or (ruta.id in rutas_pausadas)
         else:
             salida[ruta.conductor_id] = ConductorUbicacion(
                 conductor_id=ruta.conductor_id,
@@ -125,6 +130,7 @@ def obtener_ubicaciones_flota(db: Session) -> list[ConductorUbicacion]:
                 longitud=ubicacion.longitud if ubicacion else None,
                 actualizado_en=ubicacion.actualizado_en if ubicacion else None,
                 en_linea=en_linea,
+                pausado=ruta.id in rutas_pausadas,
                 paradas=paradas,
             )
 
