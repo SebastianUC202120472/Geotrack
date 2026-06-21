@@ -1,45 +1,23 @@
-// Provee el tema activo (claro/oscuro/sistema) a toda la app,
-// y persiste la preferencia del usuario.
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useColorScheme } from "react-native";
-import * as SecureStore from "expo-secure-store";
+// Provee el tema a toda la app. La app es SOLO modo claro (se eliminó el modo
+// oscuro y el selector de apariencia).
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { construirPaleta, type Esquema, type Palette } from "./palettes";
 
+// Se conserva el tipo por compatibilidad de exports, aunque ya no se use el selector.
 export type Modo = "system" | "light" | "dark";
 
 interface ContextoTema {
   colors: Palette;
-  esquema: Esquema; // claro/oscuro ya resuelto
-  modo: Modo;
-  setModo: (m: Modo) => void;
+  esquema: Esquema; // siempre "light"
 }
 
 const ThemeContext = createContext<ContextoTema | null>(null);
-const CLAVE_MODO = "tema_modo";
 
-// Envuelve la app y entrega el tema. Recibe: children (ReactNode).
+// Envuelve la app y entrega el tema (claro). Recibe: children (ReactNode).
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const esquemaSistema = useColorScheme(); // "light" | "dark" | null
-  const [modo, setModoState] = useState<Modo>("system");
-
-  // Carga la preferencia guardada al iniciar.
-  useEffect(() => {
-    (async () => {
-      const m = (await SecureStore.getItemAsync(CLAVE_MODO)) as Modo | null;
-      if (m) setModoState(m);
-    })();
-  }, []);
-
-  const setModo = (m: Modo) => {
-    setModoState(m);
-    SecureStore.setItemAsync(CLAVE_MODO, m);
-  };
-
-  const esquema: Esquema = modo === "system" ? (esquemaSistema === "dark" ? "dark" : "light") : modo;
-  const colors = useMemo(() => construirPaleta(esquema), [esquema]);
-
+  const colors = useMemo(() => construirPaleta("light"), []);
   return (
-    <ThemeContext.Provider value={{ colors, esquema, modo, setModo }}>
+    <ThemeContext.Provider value={{ colors, esquema: "light" }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -53,7 +31,6 @@ export function useTheme(): ContextoTema {
 }
 
 // Crea estilos dependientes del tema. Recibe: una función (colors) => estilos.
-// Devuelve: los estilos recalculados cuando cambia el tema.
 export function useEstilos<T>(factory: (c: Palette) => T): T {
   const { colors } = useTheme();
   return useMemo(() => factory(colors), [colors, factory]);

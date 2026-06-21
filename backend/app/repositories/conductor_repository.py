@@ -67,3 +67,14 @@ def desasignar_vehiculo(db: Session, usuario_id: int) -> None:
     if vehiculo:
         vehiculo.conductor_id = None
         db.commit()
+
+
+def actualizar_foto(db: Session, usuario_id: int, foto_url: str) -> Optional[PerfilConductor]:
+    """Guarda la URL de la foto del conductor. Recibe: usuario_id y la ruta /media/..."""
+    perfil = obtener_perfil(db, usuario_id)
+    if perfil is None:
+        return None
+    perfil.foto_url = foto_url
+    db.commit()
+    db.refresh(perfil)
+    return perfil

@@ -38,7 +38,12 @@ function construirHtml(puntos: PuntoWeb[]): string {
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
   integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous"/>
-<style>html,body,#map{height:100%;margin:0;background:#e9eef4}</style>
+<style>
+html,body,#map{height:100%;margin:0;background:#e9eef4}
+@keyframes latido{0%{transform:scale(1);opacity:.55}70%{transform:scale(2.2);opacity:0}100%{opacity:0}}
+.parada-activa{overflow:visible!important}
+.parada-activa::after{content:'';position:absolute;left:50%;top:50%;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;background:rgba(37,99,235,.5);animation:latido 1.8s ease-out infinite;z-index:-1}
+</style>
 </head><body>
 <div id="map"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
@@ -57,7 +62,7 @@ function construirHtml(puntos: PuntoWeb[]): string {
     var color = p.estado === 'ENTREGADO' ? '#16a34a' : p.estado === 'FALLIDO' ? '#dc2626' : (esSiguiente ? '#2563eb' : '#f59e0b');
     var size = esSiguiente ? 34 : 28;
     var icon = L.divIcon({
-      className: '',
+      className: esSiguiente ? 'parada-activa' : '',
       html: '<div style="background:' + color + ';width:' + size + 'px;height:' + size + 'px;border-radius:50%;border:2px solid #fff;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.3)">' + (p.sec || (i + 1)) + '</div>',
       iconSize: [size, size], iconAnchor: [size / 2, size / 2]
     });

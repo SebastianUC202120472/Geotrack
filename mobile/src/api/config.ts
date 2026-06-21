@@ -10,10 +10,13 @@ export const MEDIA_BASE_URL = API_URL.replace(/\/api\/?$/, "");
 // "localhost", el .env no se cargó (reinicia con `npx expo start -c`).
 if (__DEV__) console.log("[GeoTrack] API base URL:", API_BASE_URL);
 
-// Construye la URL absoluta de una evidencia a partir de la ruta /media/... que
-// devuelve el backend. Recibe: ruta relativa o null. Devuelve: URL o undefined.
-export function urlEvidencia(ruta?: string | null): string | undefined {
+// Construye la URL absoluta de un recurso /media a partir de la ruta del backend.
+// Recibe: ruta relativa o null. Devuelve: URL o undefined.
+export function urlMedia(ruta?: string | null): string | undefined {
   if (!ruta) return undefined;
   if (ruta.startsWith("http")) return ruta;
   return `${MEDIA_BASE_URL}${ruta}`;
 }
+
+// Alias retrocompatible (usado por las evidencias POD).
+export const urlEvidencia = urlMedia;

@@ -125,4 +125,5 @@ class ConductorResponse(BaseModel):
     nombre: Optional[str] = None
     telefono: Optional[str] = None
     dni: Optional[str] = None
+    foto_url: Optional[str] = None   # URL pública de la foto (o None si no tiene)
     vehiculo: Optional[VehiculoAsignado] = None
