@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models.ruta import Ruta, RutaDetalle
 from app.models.pedido import Pedido
-from app.repositories import ruta_repository, pedido_repository, historial_repository, evidencia_repository, incidencia_repository
+from app.repositories import ruta_repository, pedido_repository, historial_repository, evidencia_repository, incidencia_repository, recojo_repository
 from app.services.router import optimizar_secuencia_pedidos, distancia_total
 from app.schemas.ruta import (
     RutaActivaResponse,
@@ -63,29 +63,34 @@ def _obtener_ruta_activa_o_404(db: Session, conductor_id: int) -> Ruta:
 def obtener_resumen_ruta_activa(db: Session, conductor_id: int) -> RutaActivaResponse:
     """CUS-21: resumen de la ruta activa con contadores de avance."""
     ruta = _obtener_ruta_activa_o_404(db, conductor_id)
-    detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
 
+    # CUS-30: incidencia abierta (auxilio mecánico) -> ruta pausada.
+    abierta = incidencia_repository.obtener_abierta_por_ruta(db, ruta.id)
+
+    # Ruta de recojo (CUS-11/12): los contadores salen de las solicitudes de recojo.
+    if ruta.tipo == "RECOJO":
+        recojos = recojo_repository.obtener_por_ruta(db, ruta.id)
+        total = len(recojos)
+        recogidas = sum(1 for r in recojos if r.estado == "RECOGIDO")
+        return RutaActivaResponse(
+            ruta_id=ruta.id, codigo=ruta.codigo, nombre=ruta.nombre, estado=ruta.estado,
+            fecha_creacion=ruta.fecha_creacion, fecha_salida=ruta.fecha_salida,
+            vehiculo_placa=ruta.vehiculo_placa, total_paradas=total, pendientes=total - recogidas,
+            entregadas=recogidas, fallidas=0, pausada=abierta is not None,
+            incidencia_id=abierta.id if abierta else None, tipo=ruta.tipo,
+        )
+
+    detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
     pendientes = sum(1 for d, _ in detalles if d.estado_entrega == "PENDIENTE")
     entregadas = sum(1 for d, _ in detalles if d.estado_entrega == "ENTREGADO")
     fallidas = sum(1 for d, _ in detalles if d.estado_entrega == "FALLIDO")
 
-    # CUS-30: comprueba si existe una incidencia abierta (auxilio mecánico) para esta ruta.
-    abierta = incidencia_repository.obtener_abierta_por_ruta(db, ruta.id)
-
     return RutaActivaResponse(
-        ruta_id=ruta.id,
-        codigo=ruta.codigo,
-        nombre=ruta.nombre,
-        estado=ruta.estado,
-        fecha_creacion=ruta.fecha_creacion,
-        fecha_salida=ruta.fecha_salida,  # CUS-23: sello de salida (la App muestra "Salida HH:MM")
-        vehiculo_placa=ruta.vehiculo_placa,
-        total_paradas=len(detalles),
-        pendientes=pendientes,
-        entregadas=entregadas,
-        fallidas=fallidas,
-        pausada=abierta is not None,
-        incidencia_id=abierta.id if abierta else None,
+        ruta_id=ruta.id, codigo=ruta.codigo, nombre=ruta.nombre, estado=ruta.estado,
+        fecha_creacion=ruta.fecha_creacion, fecha_salida=ruta.fecha_salida,
+        vehiculo_placa=ruta.vehiculo_placa, total_paradas=len(detalles), pendientes=pendientes,
+        entregadas=entregadas, fallidas=fallidas, pausada=abierta is not None,
+        incidencia_id=abierta.id if abierta else None, tipo=ruta.tipo,
     )
 
 
@@ -275,6 +280,11 @@ def guardar_evidencia(
 def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
     """CUS-28: da por finalizada la ruta del día del conductor."""
     ruta = _obtener_ruta_activa_o_404(db, conductor_id)
+
+    # Ruta de recojo (CUS-12): el cierre lo maneja el servicio de recojos.
+    if ruta.tipo == "RECOJO":
+        from app.services import recojo_service  # import local: evita ciclo de imports
+        return recojo_service.finalizar_ruta_recojo(db, ruta)
 
     # CUS-30: no se puede cerrar el día con una incidencia (auxilio mecánico) abierta.
     if incidencia_repository.tiene_abierta(db, ruta.id):
