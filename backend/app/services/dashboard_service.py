@@ -88,7 +88,9 @@ def obtener_ubicaciones_flota(db: Session) -> list[ConductorUbicacion]:
     ahora = datetime.utcnow()
     rutas = db.query(Ruta).filter(Ruta.estado.in_(ESTADOS_RUTA_ACTIVA), Ruta.conductor_id.isnot(None)).all()
 
-    salida: list[ConductorUbicacion] = []
+    # Un conductor podría (excepcionalmente) tener más de una ruta activa: se agrupa
+    # por conductor para NO duplicarlo en el mapa; sus paradas se fusionan.
+    salida: dict[int, ConductorUbicacion] = {}
     for ruta in rutas:
         ubicacion = ubicacion_repository.obtener(db, ruta.conductor_id)
         en_linea = bool(ubicacion) and (ahora - ubicacion.actualizado_en).total_seconds() <= UMBRAL_EN_LINEA_SEG
@@ -111,8 +113,11 @@ def obtener_ubicaciones_flota(db: Session) -> list[ConductorUbicacion]:
             if pedido.latitud is not None and pedido.longitud is not None
         ]
 
-        salida.append(
-            ConductorUbicacion(
+        existente = salida.get(ruta.conductor_id)
+        if existente:
+            existente.paradas.extend(paradas)  # mismo conductor en otra ruta: fusiona paradas
+        else:
+            salida[ruta.conductor_id] = ConductorUbicacion(
                 conductor_id=ruta.conductor_id,
                 conductor=_nombre_conductor(db, ruta.conductor_id),
                 ruta=ruta.nombre,
@@ -122,8 +127,11 @@ def obtener_ubicaciones_flota(db: Session) -> list[ConductorUbicacion]:
                 en_linea=en_linea,
                 paradas=paradas,
             )
-        )
-    return salida
+
+    # Ordena las paradas de cada conductor por secuencia (orden de visita).
+    for cu in salida.values():
+        cu.paradas.sort(key=lambda p: p.secuencia if p.secuencia is not None else 0)
+    return list(salida.values())
 
 
 # CUS-33: Seguimiento de la flota
@@ -131,8 +139,8 @@ def obtener_flota(db: Session) -> FlotaResponse:
     """Resume el avance de TODAS las rutas para el tablero de la flota."""
     rutas = ruta_repository.listar_rutas(db)
 
-    # Caché de correos de conductores para no repetir consultas (evita N+1).
-    cache_conductores: dict[int, str] = {}
+    # Caché de nombres de conductores para no repetir consultas (evita N+1).
+    cache_conductores: dict[int, str | None] = {}
 
     items: list[RutaFlota] = []
     for ruta in rutas:
@@ -144,13 +152,12 @@ def obtener_flota(db: Session) -> FlotaResponse:
         gestionadas = entregadas + fallidas
         avance = round((gestionadas / total) * 100, 1) if total else 0.0
 
-        # Correo del conductor (si la ruta tiene uno asignado).
-        correo = None
+        # Nombre del conductor (si la ruta tiene uno asignado).
+        nombre = None
         if ruta.conductor_id:
             if ruta.conductor_id not in cache_conductores:
-                u = usuario_repository.obtener_por_id(db, ruta.conductor_id)
-                cache_conductores[ruta.conductor_id] = u.correo if u else None
-            correo = cache_conductores[ruta.conductor_id]
+                cache_conductores[ruta.conductor_id] = _nombre_conductor(db, ruta.conductor_id)
+            nombre = cache_conductores[ruta.conductor_id]
 
         items.append(
             RutaFlota(
@@ -158,7 +165,7 @@ def obtener_flota(db: Session) -> FlotaResponse:
                 nombre=ruta.nombre,
                 estado=ruta.estado,
                 conductor_id=ruta.conductor_id,
-                conductor_correo=correo,
+                conductor_nombre=nombre,
                 vehiculo_placa=ruta.vehiculo_placa,
                 total_paradas=total,
                 entregadas=entregadas,

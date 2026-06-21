@@ -179,7 +179,7 @@ function VistaRutas({ rutas }) {
               <div className="mb-4 flex items-start justify-between">
                 <div>
                   <h3 className="font-semibold text-slate-900">{r.nombre}</h3>
-                  <p className="text-sm text-slate-500">{r.vehiculo_placa || "Sin vehículo"}</p>
+                  <p className="text-sm text-slate-500">{r.conductor_nombre || "Sin conductor"}</p>
                 </div>
                 <EstadoBadge estado={r.estado} />
               </div>
