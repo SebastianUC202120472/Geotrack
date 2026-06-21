@@ -44,6 +44,8 @@ class CargaPedidosResponse(BaseModel):
     total_filas_leidas: int
     pedidos_geocodificados: int = 0
     pedidos_fallidos: int = 0
+    rechazados: List[dict] = []        # filas no importadas por cliente no registrado
+    total_rechazados: int = 0
 
 
 class GeocodificacionResponse(BaseModel):

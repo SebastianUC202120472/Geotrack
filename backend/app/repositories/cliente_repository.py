@@ -2,6 +2,7 @@
 # Única capa que consulta/escribe en la tabla 'clientes_corporativos'.
 from datetime import datetime
 from typing import List, Optional
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.cliente import ClienteCorporativo
@@ -41,6 +42,22 @@ def obtener_por_razon_social(db: Session, razon_social: str) -> Optional[Cliente
     return (
         db.query(ClienteCorporativo)
         .filter(ClienteCorporativo.razon_social == razon_social)
+        .first()
+    )
+
+
+def buscar_por_razon_social_normalizada(db: Session, razon_social: str) -> Optional[ClienteCorporativo]:
+    """Busca un cliente ACTIVO por razón social comparando normalizado (sin espacios
+    de sobra ni distinguir mayúsculas). Recibe: el texto de la razón social del Excel."""
+    objetivo = (razon_social or "").strip().lower()
+    if not objetivo:
+        return None
+    return (
+        db.query(ClienteCorporativo)
+        .filter(
+            ClienteCorporativo.eliminado_en == None,  # noqa: E711
+            func.lower(func.trim(ClienteCorporativo.razon_social)) == objetivo,
+        )
         .first()
     )
 
