@@ -15,7 +15,6 @@ import {
   Search,
   AlertTriangle,
   Wrench,
-  PackageX,
   LogOut,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -60,13 +59,12 @@ const secciones = [
     titulo: "Incidencias",
     items: [
       { icon: Wrench, label: "Auxilio Mecánico", path: "/auxilio" },
-      { icon: PackageX, label: "Paquetes Devueltos", path: "/devueltos" },
+      { icon: AlertTriangle, label: "Reportes", path: "/reportes" },
     ],
   },
   {
     titulo: "Consulta",
     items: [
-      { icon: AlertTriangle, label: "Reportes", path: "/reportes" },
       { icon: Search, label: "Trazabilidad", path: "/trazabilidad" },
     ],
   },
