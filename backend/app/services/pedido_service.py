@@ -9,6 +9,7 @@ from app.models.pedido import Pedido
 from app.models.conductor import PerfilConductor
 from app.repositories import (
     pedido_repository, cliente_repository, historial_repository, ruta_repository, usuario_repository,
+    reporte_repository,
 )
 from app.services.geocoder import obtener_coordenadas
 from app.core.codigos import asignar_codigo, PREFIJO_PEDIDO
@@ -189,6 +190,62 @@ def reabrir_pedido(db: Session, pedido_id: int, usuario_id: int | None = None) -
     historial_repository.registrar(db, pedido.id, estado_anterior, "PENDIENTE", usuario_id)
     db.commit()
     return {"mensaje": "Pedido reabierto. Ya puedes reasignarlo.", "codigo": pedido.codigo}
+
+
+def listar_devueltos(db: Session) -> list:
+    """CUS-31: pedidos FALLIDOS para que el admin decida reprogramar o cancelar.
+    Recibe: la sesión. Devuelve: lista de dicts con los datos para la tabla."""
+    pedidos = pedido_repository.listar_fallidos(db)
+    return [
+        {
+            "id": p.id,
+            "codigo": p.codigo,
+            "cliente_origen": p.cliente_origen,
+            "direccion_destino": p.direccion_destino,
+            "distrito": p.distrito,
+            "nombre_destinatario": p.nombre_destinatario,
+            "estado": p.estado,
+            "fecha_creacion": p.fecha_creacion,
+        }
+        for p in pedidos
+    ]
+
+
+def _exigir_fallido(pedido) -> None:
+    """Valida que el pedido esté en FALLIDO antes de decidir su devolución."""
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    if pedido.estado != "FALLIDO":
+        raise HTTPException(status_code=400, detail="Solo se pueden decidir pedidos en estado FALLIDO")
+
+
+def reprogramar(db: Session, pedido_id: int, usuario_id: int | None = None) -> dict:
+    """CUS-31: el admin decide reintentar el pedido mañana: vuelve a PENDIENTE y sale de
+    su ruta para reasignarlo. Recibe: pedido_id y el id del admin."""
+    pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
+    _exigir_fallido(pedido)
+    estado_anterior = pedido.estado
+    ruta_repository.eliminar_detalles_de_pedido(db, pedido_id)
+    pedido.estado = "PENDIENTE"
+    pedido.fecha_entrega = None
+    historial_repository.registrar(db, pedido.id, estado_anterior, "PENDIENTE", usuario_id)
+    db.commit()
+    reporte_repository.cerrar_abierto_de_pedido(db, pedido_id, "Reprogramado")
+    return {"mensaje": "Pedido reprogramado. Volvió a su zona para reasignarlo.", "codigo": pedido.codigo}
+
+
+def cancelar(db: Session, pedido_id: int, usuario_id: int | None = None) -> dict:
+    """CUS-31: el admin decide cancelar el pedido (estado terminal CANCELADO). Recibe:
+    pedido_id y el id del admin."""
+    pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
+    _exigir_fallido(pedido)
+    estado_anterior = pedido.estado
+    pedido.estado = "CANCELADO"
+    pedido.fecha_entrega = None
+    historial_repository.registrar(db, pedido.id, estado_anterior, "CANCELADO", usuario_id)
+    db.commit()
+    reporte_repository.cerrar_abierto_de_pedido(db, pedido_id, "Cancelado")
+    return {"mensaje": "Pedido cancelado.", "codigo": pedido.codigo}
 
 
 def agrupar_por_zona(db: Session) -> dict:
