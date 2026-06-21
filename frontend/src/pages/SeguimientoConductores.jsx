@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { RefreshCw, MapPin, Users, Wifi, WifiOff } from "lucide-react";
+import { RefreshCw, MapPin, Users, Wifi, WifiOff, Wrench } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import SectionCard from "../components/ui/SectionCard";
@@ -52,6 +52,8 @@ export default function SeguimientoConductores() {
   const enLinea = ubicaciones.filter((c) => c.en_linea).length;
   const sinSenal = totalConductores - enLinea;
   const totalParadas = ubicaciones.reduce((acc, c) => acc + (c.paradas?.length ?? 0), 0);
+  // Conductores que declararon una incidencia y están en pausa activa.
+  const pausados = ubicaciones.filter((u) => u.pausado).length;
 
   // A cada conductor se le asigna un color (compartido con sus paradas en el mapa).
   const conductores = ubicaciones.map((c, i) => ({ ...c, _color: COLORES[i % COLORES.length] }));
@@ -73,7 +75,7 @@ export default function SeguimientoConductores() {
 
       {/* Fila de KPIs (solo visible cuando hay datos) */}
       {!cargando && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 animate-fade-up">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-5 animate-fade-up">
           <KpiCard
             label="Conductores activos"
             value={totalConductores}
@@ -99,6 +101,13 @@ export default function SeguimientoConductores() {
             value={totalParadas}
             icon={MapPin}
             tone="info"
+          />
+          {/* Conductores pausados por incidencia activa */}
+          <KpiCard
+            label="Pausados"
+            value={pausados}
+            icon={Wrench}
+            tone={pausados > 0 ? "danger" : "info"}
           />
         </div>
       )}
@@ -154,6 +163,10 @@ export default function SeguimientoConductores() {
                           <p className="truncate text-sm font-semibold text-slate-900">
                             {c.conductor || "Conductor"}
                           </p>
+                          {/* Marca roja cuando el conductor está pausado por una incidencia */}
+                          {c.pausado && (
+                            <span className="inline-block rounded-full bg-danger-soft px-2 py-0.5 text-[11px] font-semibold text-danger-strong">🛠️ Pausado</span>
+                          )}
                           <p className="truncate text-xs text-slate-500">{c.ruta || "Sin ruta"}</p>
                           <p className="mt-0.5 text-xs text-slate-400">
                             {c.paradas?.length ?? 0} parada{(c.paradas?.length ?? 0) !== 1 ? "s" : ""} ·{" "}
