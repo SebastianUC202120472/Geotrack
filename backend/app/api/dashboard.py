@@ -16,6 +16,7 @@ from app.schemas.dashboard import (
     ConductorUbicacion,
     LiquidacionRequest,
     LiquidacionResponse,
+    KpisEficienciaResponse,
 )
 
 router = APIRouter()
@@ -73,3 +74,9 @@ def descargar_liquidacion(liquidacion_id: int, db: Session = Depends(get_db)):
 def obtener_historial(codigo: str, db: Session = Depends(get_db)):
     """CUS-35: línea de tiempo completa de un paquete (por su código PD-001)."""
     return dashboard_service.obtener_historial(db, codigo)
+
+
+@router.get("/kpis-eficiencia", response_model=KpisEficienciaResponse, dependencies=[Depends(get_current_admin)])
+def obtener_kpis_eficiencia(db: Session = Depends(get_db)):
+    """CUS-34: KPIs de eficiencia (cajas entregadas hoy y ahorro de combustible)."""
+    return dashboard_service.obtener_kpis_eficiencia(db)
