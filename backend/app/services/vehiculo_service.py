@@ -3,8 +3,8 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.repositories import vehiculo_repository, conductor_repository
-from app.schemas.vehiculo import VehiculoCreate
+from app.repositories import vehiculo_repository, conductor_repository, usuario_repository
+from app.schemas.vehiculo import VehiculoCreate, VehiculoUpdate
 
 
 def listar_vehiculos(db: Session):
@@ -46,3 +46,32 @@ def crear_vehiculo(db: Session, datos: VehiculoCreate):
     db.commit()
     db.refresh(vehiculo)
     return vehiculo
+
+
+def reasignar_conductor(db: Session, vehiculo_id: int, datos: VehiculoUpdate):
+    """CUS-09: cambia (o quita) el conductor asignado a un vehículo. Recibe: id del
+    vehículo y el nuevo conductor_id (None = vehículo de la empresa). Valida que el
+    vehículo exista y que el conductor sea un usuario activo con rol 'conductor'.
+    Mantiene la relación 1-a-1 (libera el vehículo previo del conductor)."""
+    vehiculo = vehiculo_repository.obtener_por_id(db, vehiculo_id)
+    if vehiculo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehículo no encontrado")
+
+    if datos.conductor_id is not None:
+        conductor = usuario_repository.obtener_por_id(db, datos.conductor_id)
+        if conductor is None or conductor.rol != "conductor" or not conductor.estado:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El conductor indicado no existe o no está activo",
+            )
+
+    vehiculo_repository.reasignar_conductor(db, vehiculo, datos.conductor_id)
+    return {
+        "id": vehiculo.id,
+        "codigo": vehiculo.codigo,
+        "placa": vehiculo.placa,
+        "marca": vehiculo.marca,
+        "capacidad_volumetrica": vehiculo.capacidad_volumetrica,
+        "estado": vehiculo.estado,
+        "conductor_id": vehiculo.conductor_id,
+    }

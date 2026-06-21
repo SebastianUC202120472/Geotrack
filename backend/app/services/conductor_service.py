@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.repositories import conductor_repository, usuario_repository, ubicacion_repository
 from app.core.security import get_password_hash
-from app.schemas.conductor import ConductorCreate, ConductorUpdate, UbicacionRequest
+from app.schemas.conductor import ConductorCreate, ConductorUpdate, UbicacionRequest, ConductorResetContrasena
 
 
 def _a_respuesta(db: Session, usuario) -> dict:
@@ -68,6 +68,15 @@ def actualizar(db: Session, usuario_id: int, datos: ConductorUpdate) -> dict:
         db, usuario_id, nombre=datos.nombre, telefono=datos.telefono, dni=datos.dni
     )
     return _a_respuesta(db, usuario)
+
+
+def restablecer_contrasena(db: Session, usuario_id: int, datos: ConductorResetContrasena) -> dict:
+    """CUS-04: el admin fija una NUEVA contraseña para un conductor activo (p. ej. si
+    la olvidó). Recibe: id del conductor y la nueva clave (ya validada por el schema).
+    La clave se guarda hasheada (Argon2); nunca en texto plano."""
+    usuario = _conductor_activo(db, usuario_id)
+    usuario_repository.actualizar_hash(db, usuario.id, get_password_hash(datos.contrasena))
+    return {"mensaje": "Contraseña restablecida correctamente"}
 
 
 def registrar_ubicacion(db: Session, conductor_id: int, datos: UbicacionRequest) -> dict:

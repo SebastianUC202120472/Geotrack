@@ -19,6 +19,7 @@ import { abrirNavegacion } from "@/services/navegacion";
 import { useManifiesto } from "@/features/ruta/hooks";
 import { useEntregarConEvidencia, useReportarFalla } from "@/features/entrega/hooks";
 import { mensajeDeError } from "@/api/client";
+import { urlMedia } from "@/api/config";
 import { useTheme, fontSize, radius, spacing } from "@/theme";
 import type { ParadaManifiesto } from "@/types/api";
 
@@ -161,6 +162,15 @@ export default function ParadaScreen() {
               <Texto variante="subtitle" color={parada.estado_entrega === "ENTREGADO" ? colors.success : colors.danger} style={{ textAlign: "center" }}>
                 {parada.estado_entrega === "ENTREGADO" ? "Esta parada ya fue entregada." : "Esta parada fue reportada como fallida."}
               </Texto>
+              {/* CUS-26: la foto POD se lee del backend (persistida en BD), no de un caché temporal. */}
+              {parada.estado_entrega === "ENTREGADO" && urlMedia(parada.url_evidencia) && (
+                <Image
+                  source={{ uri: urlMedia(parada.url_evidencia) }}
+                  style={estilos.evidenciaGuardada}
+                  contentFit="cover"
+                  transition={200}
+                />
+              )}
             </Card>
           ) : modoReporte ? (
             <Card>
@@ -248,6 +258,7 @@ const estilos = StyleSheet.create({
   titulo: { marginBottom: spacing.md },
   sub: { marginBottom: spacing.xs },
   preview: { width: "100%", height: 220, borderRadius: radius.md },
+  evidenciaGuardada: { width: "100%", height: 200, borderRadius: radius.md, marginTop: spacing.md },
   placeholder: { height: 160, borderRadius: radius.md, borderWidth: 2, borderStyle: "dashed", alignItems: "center", justifyContent: "center" },
   botonesFoto: { flexDirection: "row", gap: spacing.md, marginTop: spacing.md },
   motivos: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },

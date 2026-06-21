@@ -108,6 +108,10 @@ export const actualizarConductor = (id, datos) =>
 export const eliminarConductor = (id) =>
   request(`/conductores/${id}`, { method: "DELETE" });
 
+// CUS-04: el admin fija una nueva contraseña para un conductor que la olvidó.
+export const restablecerContrasenaConductor = (id, contrasena) =>
+  request(`/conductores/${id}/restablecer-contrasena`, { method: "POST", body: { contrasena } });
+
 // Sube/reemplaza la foto de un conductor (multipart). La verá en su app móvil.
 export const subirFotoConductor = (usuarioId, file) => {
   const formData = new FormData();
@@ -166,6 +170,10 @@ export const listarVehiculos = () => request("/vehiculos/");
 export const crearVehiculo = (datos) =>
   request("/vehiculos/", { method: "POST", body: datos });
 
+// CUS-09: reasigna (o libera con conductor_id=null) el conductor de un vehículo.
+export const actualizarVehiculo = (id, datos) =>
+  request(`/vehiculos/${id}`, { method: "PATCH", body: datos });
+
 /* ============================================================
    ENRUTAMIENTO  (CUS-18)
 ============================================================ */
@@ -189,6 +197,34 @@ export const obtenerFlota = () => request("/dashboard/flota");
 // Línea de tiempo completa de un paquete por su código (PD-001).
 export const obtenerHistorial = (codigo) =>
   request(`/dashboard/pedidos/${encodeURIComponent(codigo)}/historial`);
+
+// CUS-36: genera la liquidación (.xlsx) de un cliente y la registra en la BD.
+// Devuelve { liquidacion_id, descarga_url, archivo, total_pedidos, ... }.
+export const generarLiquidacion = ({ cliente, periodo_inicio, periodo_fin } = {}) =>
+  request("/dashboard/clientes/liquidacion", {
+    method: "POST",
+    body: { cliente, periodo_inicio, periodo_fin },
+  });
+
+// Descarga la liquidación por el endpoint AUTENTICADO (lleva el token en el header:
+// el .xlsx tiene datos personales y NO es público). Entrada: descarga_url (relativa a
+// /api) y el nombre del archivo. Dispara la descarga en el navegador.
+export async function descargarLiquidacion(descargaUrl, nombre) {
+  const token = getToken();
+  const resp = await fetch(`${API_URL}${descargaUrl}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!resp.ok) throw new Error("No se pudo descargar la liquidación");
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombre || "liquidacion.xlsx";
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  URL.revokeObjectURL(url);
+}
 
 /* ============================================================
    BANDEJA DE CORREOS  (solicitudes de recojo)

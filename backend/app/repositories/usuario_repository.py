@@ -28,3 +28,15 @@ def crear_usuario(db: Session, correo: str, hash_contrasena: str, rol: str) -> U
     db.commit()                                     # confirma el cambio en PostgreSQL
     db.refresh(nuevo)                               # recarga el objeto con el id ya asignado
     return nuevo
+
+
+def actualizar_hash(db: Session, usuario_id: int, hash_contrasena: str) -> Optional[Usuario]:
+    """Reemplaza el hash de la contraseña de un usuario (CUS-04: restablecer clave).
+    Recibe: el id del usuario y el hash ya generado por el servicio."""
+    usuario = obtener_por_id(db, usuario_id)
+    if usuario is None:
+        return None
+    usuario.hash_contrasena = hash_contrasena
+    db.commit()
+    db.refresh(usuario)
+    return usuario
