@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check, Pencil, Trash2 } from "lucide-react";
+import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check, Pencil, Trash2, Camera } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -9,7 +9,7 @@ import Button from "../components/ui/Button";
 import Badge, { EstadoBadge } from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
 import SectionCard from "../components/ui/SectionCard";
-import { listarConductores, crearConductor, actualizarConductor, eliminarConductor } from "../services/api";
+import { listarConductores, crearConductor, actualizarConductor, eliminarConductor, subirFotoConductor, urlMedia } from "../services/api";
 import { validarNombre, validarCorreo, validarPassword, validarTelefono, validarDni, soloDigitos } from "../utils/validaciones";
 
 // Apartado de conductores: ficha completa (nombre, teléfono, DNI), vehículo
@@ -209,6 +209,7 @@ function DetalleConductor({ conductor: c, onCerrar, onCambios }) {
   const [errores, setErrores] = useState({});
   const [aviso, setAviso] = useState(null);
   const [trabajando, setTrabajando] = useState(false);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
 
   // Actualiza un campo del formulario y limpia su error.
   const set = (campo, transform) => (e) => {
@@ -257,13 +258,36 @@ function DetalleConductor({ conductor: c, onCerrar, onCambios }) {
     }
   };
 
+  // Sube la foto elegida y recarga la lista. Recibe: el evento del <input file>.
+  const cambiarFoto = async (e) => {
+    const archivo = e.target.files?.[0];
+    if (!archivo) return;
+    setSubiendoFoto(true);
+    setAviso(null);
+    try {
+      await subirFotoConductor(c.usuario_id, archivo);
+      onCambios();
+    } catch (err) {
+      setAviso({ texto: err.message });
+      setSubiendoFoto(false);
+    }
+  };
+
   return (
     <>
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 text-lg font-bold text-white">
-            {(c.nombre || "?").charAt(0).toUpperCase()}
-          </span>
+          {c.foto_url ? (
+            <img
+              src={urlMedia(c.foto_url)}
+              alt={c.nombre || "Conductor"}
+              className="h-12 w-12 rounded-full object-cover ring-2 ring-brand-100"
+            />
+          ) : (
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 text-lg font-bold text-white">
+              {(c.nombre || "?").charAt(0).toUpperCase()}
+            </span>
+          )}
           <div>
             <h2 className="font-bold text-slate-900">{c.nombre || "Conductor"}</h2>
             <p className="text-sm text-slate-500 nums">{c.codigo}</p>
@@ -305,6 +329,11 @@ function DetalleConductor({ conductor: c, onCerrar, onCambios }) {
             <Input label="DNI" inputMode="numeric" value={form.dni} onChange={set("dni", (v) => soloDigitos(v, 8))}
               error={errores.dni} hint="8 dígitos" />
           </div>
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50">
+            <Camera size={18} className="text-slate-400" />
+            {subiendoFoto ? "Subiendo…" : c.foto_url ? "Cambiar foto" : "Subir foto"}
+            <input type="file" accept="image/*" className="hidden" onChange={cambiarFoto} disabled={subiendoFoto} />
+          </label>
           <div className="flex gap-2">
             <Button variant="secondary" block onClick={() => { setModo("ver"); setErrores({}); }} disabled={trabajando}>Cancelar</Button>
             <Button icon={Check} block onClick={guardar} disabled={trabajando}>{trabajando ? "Guardando…" : "Guardar"}</Button>

@@ -1,21 +1,12 @@
-// Abre la navegación real en una app externa (Google Maps o Waze) por deep link.
+// Abre la navegación real a un destino directamente en Google Maps por deep link.
 // No usa ninguna API ni clave: solo manda al usuario a la dirección exacta.
 import { Alert, Linking } from "react-native";
 
-// Pregunta a qué app navegar y abre el destino (lat/lng). Recibe coordenadas y
-// una etiqueta opcional para el título. No devuelve nada (efecto externo).
-export function abrirNavegacion(latitud: number, longitud: number, etiqueta?: string): void {
+// Abre el destino (lat/lng) en Google Maps. Recibe coordenadas y una etiqueta
+// opcional (ya no se usa para preguntar app). No devuelve nada (efecto externo).
+export function abrirNavegacion(latitud: number, longitud: number, _etiqueta?: string): void {
   const googleMaps = `https://www.google.com/maps/dir/?api=1&destination=${latitud},${longitud}`;
-  const waze = `https://waze.com/ul?ll=${latitud},${longitud}&navigate=yes`;
-
-  Alert.alert(
-    "Navegar",
-    etiqueta ? `Ir a: ${etiqueta}` : "Abrir la dirección en:",
-    [
-      { text: "Google Maps", onPress: () => Linking.openURL(googleMaps) },
-      { text: "Waze", onPress: () => Linking.openURL(waze) },
-      { text: "Cancelar", style: "cancel" },
-    ],
-    { cancelable: true }
-  );
+  Linking.openURL(googleMaps).catch(() => {
+    Alert.alert("No se pudo abrir", "No se pudo abrir Google Maps en este dispositivo.");
+  });
 }

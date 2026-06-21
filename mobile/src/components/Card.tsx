@@ -2,7 +2,7 @@
 // es táctil y hace una leve escala al presionar.
 import { useRef } from "react";
 import { Animated, Pressable, StyleSheet, View, type ViewProps } from "react-native";
-import { useTheme, radius, spacing } from "@/theme";
+import { useTheme, radius, spacing, sombra } from "@/theme";
 
 interface Props extends ViewProps {
   onPress?: () => void;
@@ -13,7 +13,7 @@ export function Card({ style, onPress, children, ...props }: Props) {
   const escala = useRef(new Animated.Value(1)).current;
   const animar = (v: number) => Animated.spring(escala, { toValue: v, useNativeDriver: true, speed: 40, bounciness: 0 }).start();
 
-  const base = [estilos.card, { backgroundColor: colors.surface, borderColor: colors.border }, style];
+  const base = [estilos.card, sombra(colors), { backgroundColor: colors.surface, borderColor: colors.border }, style];
 
   if (!onPress) return <View style={base} {...props}>{children}</View>;
 
@@ -27,5 +27,5 @@ export function Card({ style, onPress, children, ...props }: Props) {
 }
 
 const estilos = StyleSheet.create({
-  card: { borderRadius: radius.lg, borderWidth: 1, padding: spacing.lg, shadowColor: "#0F172A", shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
+  card: { borderRadius: radius.lg, borderWidth: 1, padding: spacing.lg },
 });
