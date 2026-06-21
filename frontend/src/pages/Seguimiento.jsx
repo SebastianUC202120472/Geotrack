@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { RefreshCw, Truck, CircleCheck, CircleX, Clock, Building2, Loader2, Route, FileSpreadsheet, ListOrdered, ArrowUp, ArrowDown, Trash2, X, AlertCircle } from "lucide-react";
+import { RefreshCw, Truck, CircleCheck, CircleX, Clock, Building2, Loader2, Route, FileSpreadsheet } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import Card from "../components/ui/Card";
 import SectionCard from "../components/ui/SectionCard";
@@ -7,10 +7,9 @@ import KpiCard from "../components/ui/KpiCard";
 import EmptyState from "../components/ui/EmptyState";
 import LiveBadge from "../components/ui/LiveBadge";
 import Button from "../components/ui/Button";
-import Modal from "../components/ui/Modal";
 import { EstadoBadge } from "../components/ui/Badge";
 import { obtenerFlota, obtenerSeguimientoClientes, generarLiquidacion, descargarLiquidacion,
-  listarParadasRuta, reordenarParadas, quitarParada, descargarManifiesto } from "../services/api";
+  descargarManifiesto } from "../services/api";
 
 // Seguimiento de PEDIDOS con dos vistas (pestañas):
 //  - "Por ruta": avance de cada ruta (CUS-33, /dashboard/flota).
@@ -150,7 +149,7 @@ export default function Seguimiento() {
             </div>
           </SectionCard>
         ) : tab === "ruta" ? (
-          <VistaRutas rutas={rutas} onCambios={() => cargar("ruta")} />
+          <VistaRutas rutas={rutas} />
         ) : (
           <VistaClientes clientes={clientes} />
         )}
@@ -160,9 +159,7 @@ export default function Seguimiento() {
 }
 
 // --- Vista por ruta (avance de cada ruta) ---
-function VistaRutas({ rutas, onCambios }) {
-  const [editando, setEditando] = useState(null); // ruta cuyas paradas se editan (CUS-20)
-
+function VistaRutas({ rutas }) {
   if (rutas.length === 0) {
     return (
       <SectionCard title="Rutas en operación">
@@ -209,9 +206,8 @@ function VistaRutas({ rutas, onCambios }) {
                 <Contador icon={Clock} color="text-warning" valor={r.pendientes} etiqueta="Pendientes" />
               </div>
 
-              {/* CUS-20 / CUS-21: editar paradas y descargar manifiesto */}
+              {/* CUS-21: descargar manifiesto de carga */}
               <div className="mt-4 flex gap-2">
-                <Button variant="secondary" size="sm" icon={ListOrdered} block onClick={() => setEditando(r)}>Editar paradas</Button>
                 <Button variant="ghost" size="sm" icon={FileSpreadsheet} onClick={() => descargarManifiesto(r.ruta_id, `manifiesto_${r.nombre}.xlsx`)}>Manifiesto</Button>
               </div>
             </Card>
@@ -219,102 +215,7 @@ function VistaRutas({ rutas, onCambios }) {
         ))}
       </div>
 
-      <Modal open={!!editando} onClose={() => setEditando(null)} variant="center">
-        {editando && (
-          <EditarParadas ruta={editando} onCerrar={() => setEditando(null)} onCambios={() => { onCambios && onCambios(); }} />
-        )}
-      </Modal>
     </SectionCard>
-  );
-}
-
-// Editor de paradas de una ruta (CUS-20): reordenar (subir/bajar) y quitar.
-function EditarParadas({ ruta, onCerrar, onCambios }) {
-  const [paradas, setParadas] = useState([]);
-  const [cargando, setCargando] = useState(true);
-  const [guardando, setGuardando] = useState(false);
-  const [aviso, setAviso] = useState(null);
-
-  useEffect(() => {
-    let activo = true;
-    listarParadasRuta(ruta.ruta_id)
-      .then((d) => activo && setParadas(d.paradas || []))
-      .catch((err) => activo && setAviso({ texto: err.message }))
-      .finally(() => activo && setCargando(false));
-    return () => { activo = false; };
-  }, [ruta.ruta_id]);
-
-  // Mueve una parada arriba/abajo en la lista local (se persiste al guardar el orden).
-  const mover = (idx, delta) => {
-    const j = idx + delta;
-    if (j < 0 || j >= paradas.length) return;
-    const copia = [...paradas];
-    [copia[idx], copia[j]] = [copia[j], copia[idx]];
-    setParadas(copia);
-  };
-
-  const guardarOrden = async () => {
-    setGuardando(true); setAviso(null);
-    try {
-      await reordenarParadas(ruta.ruta_id, paradas.map((p) => p.pedido_id));
-      onCambios();
-      onCerrar();
-    } catch (err) { setAviso({ texto: err.message }); setGuardando(false); }
-  };
-
-  const quitar = async (pedidoId) => {
-    setAviso(null);
-    try {
-      await quitarParada(ruta.ruta_id, pedidoId);
-      setParadas((ps) => ps.filter((p) => p.pedido_id !== pedidoId));
-      onCambios();
-    } catch (err) { setAviso({ texto: err.message }); }
-  };
-
-  return (
-    <>
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="font-bold text-slate-900">Paradas · {ruta.nombre}</h2>
-          <p className="text-sm text-slate-500">Reordena (↑↓) o quita una parada.</p>
-        </div>
-        <button onClick={onCerrar} aria-label="Cerrar" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X size={20} /></button>
-      </div>
-
-      {aviso && (
-        <div className="mt-4 flex items-center gap-2 rounded-xl bg-danger-soft px-3.5 py-3 text-sm text-danger-strong">
-          <AlertCircle size={18} /> <span>{aviso.texto}</span>
-        </div>
-      )}
-
-      <div className="mt-4 max-h-80 overflow-y-auto">
-        {cargando ? (
-          <p className="py-6 text-center text-sm text-slate-400">Cargando…</p>
-        ) : paradas.length === 0 ? (
-          <p className="py-6 text-center text-sm text-slate-400">Esta ruta no tiene paradas.</p>
-        ) : (
-          <ul className="space-y-2">
-            {paradas.map((p, idx) => (
-              <li key={p.pedido_id} className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2">
-                <span className="w-6 shrink-0 text-center text-sm font-bold text-brand-600 nums">{idx + 1}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-700">{p.nombre_destinatario || p.codigo || `Pedido ${p.pedido_id}`}</p>
-                  <p className="truncate text-xs text-slate-400">{p.direccion_destino}</p>
-                </div>
-                <button onClick={() => mover(idx, -1)} disabled={idx === 0} className="rounded p-1 text-slate-500 hover:bg-slate-100 disabled:opacity-30"><ArrowUp size={16} /></button>
-                <button onClick={() => mover(idx, 1)} disabled={idx === paradas.length - 1} className="rounded p-1 text-slate-500 hover:bg-slate-100 disabled:opacity-30"><ArrowDown size={16} /></button>
-                <button onClick={() => quitar(p.pedido_id)} className="rounded p-1 text-danger hover:bg-danger-soft"><Trash2 size={16} /></button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className="mt-4 flex gap-2">
-        <Button variant="secondary" block onClick={onCerrar} disabled={guardando}>Cerrar</Button>
-        <Button block onClick={guardarOrden} disabled={guardando || paradas.length === 0}>{guardando ? "Guardando…" : "Guardar orden"}</Button>
-      </div>
-    </>
   );
 }
 
