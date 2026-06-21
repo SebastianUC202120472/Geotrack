@@ -9,8 +9,8 @@ import Button from "../components/ui/Button";
 import Modal from "../components/ui/Modal";
 import { listarClientes, crearCliente, actualizarCliente, eliminarCliente } from "../services/api";
 
-// Administración de empresas cliente (CUS-07): alta, edición y baja. Los clientes
-// también se crean solos al importar el Excel; aquí se gestionan a mano.
+// Administración de empresas cliente (CUS-07): alta, edición y baja.
+// Al importar pedidos el cliente debe estar registrado aquí (ya no se crea solo).
 export default function Clientes() {
   const [clientes, setClientes] = useState([]);
   const [cargando, setCargando] = useState(true);

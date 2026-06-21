@@ -89,18 +89,3 @@ def eliminar(db: Session, cliente: ClienteCorporativo) -> None:
     """Baja lógica de un cliente (marca eliminado_en; conserva su historial). Recibe: el cliente."""
     cliente.eliminado_en = datetime.utcnow()
     db.commit()
-
-
-def buscar_o_crear(db: Session, razon_social: str, identificador_unico=None, contacto=None) -> ClienteCorporativo:
-    """
-    Devuelve el cliente existente o lo crea si no está (lo usa la carga de Excel).
-    Prioridad de búsqueda: por RUC si viene; si no, por razón social.
-    """
-    cliente = None
-    if identificador_unico:
-        cliente = obtener_por_identificador(db, identificador_unico)
-    if not cliente:
-        cliente = obtener_por_razon_social(db, razon_social)
-    if not cliente:
-        cliente = crear(db, razon_social, identificador_unico, contacto)
-    return cliente
