@@ -48,6 +48,9 @@ class RutaActivaResponse(BaseModel):
     # CUS-30: la ruta está pausada si tiene una incidencia abierta (auxilio mecánico).
     pausada: bool = False
     incidencia_id: Optional[int] = None
+    # Tipo de ruta: ENTREGA (outbound) | RECOJO (inbound, CUS-11). La app móvil lo usa
+    # para mostrar el flujo de entregas o el de recepción condicionada.
+    tipo: str = "ENTREGA"
 
 
 # --- CUS-24: manifiesto completo y ordenado ---
