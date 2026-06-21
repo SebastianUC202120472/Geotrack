@@ -33,6 +33,7 @@ const mapaEstados = {
   DISPONIBLE: "success",
   FALLIDO: "danger",
   GEOCODIFICACION_FALLIDA: "danger",
+  CANCELADO: "neutral",
 };
 
 // Color del punto por tono (coincide con los semánticos).

@@ -6,6 +6,7 @@ import { Alert, Linking, Pressable, ScrollView, StyleSheet, TextInput, View } fr
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
@@ -16,26 +17,34 @@ import { Cargando, Vacio } from "@/components/Estados";
 import { Aparecer, CheckEntrega } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
 import { abrirNavegacion } from "@/services/navegacion";
-import { useManifiesto } from "@/features/ruta/hooks";
+import { useRutaActiva, useManifiesto } from "@/features/ruta/hooks";
 import { useEntregarConEvidencia, useReportarFalla } from "@/features/entrega/hooks";
+import { obtenerMotivos } from "@/api/conductor";
 import { mensajeDeError } from "@/api/client";
+import { urlMedia } from "@/api/config";
 import { useTheme, fontSize, radius, spacing } from "@/theme";
 import type { ParadaManifiesto } from "@/types/api";
 
-const MOTIVOS = ["Cliente ausente", "Dirección incorrecta", "Pedido rechazado", "Zona inaccesible", "Otro"];
+// Lista por defecto si aún no llegan los motivos del backend (CUS-06).
+const MOTIVOS_DEFECTO = ["Cliente ausente", "Dirección incorrecta", "Pedido rechazado", "Zona inaccesible", "Otro"];
 
 export default function ParadaScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const pedidoId = Number(id);
   const router = useRouter();
   const { colors } = useTheme();
+  const ruta = useRutaActiva();
   const manifiesto = useManifiesto();
   const entregar = useEntregarConEvidencia();
   const reportar = useReportarFalla();
 
+  // CUS-06: los motivos vienen del catálogo del backend (con respaldo por defecto).
+  const motivosQuery = useQuery({ queryKey: ["motivos"], queryFn: obtenerMotivos, staleTime: 60_000 });
+  const motivos = motivosQuery.data && motivosQuery.data.length ? motivosQuery.data : MOTIVOS_DEFECTO;
+
   const [foto, setFoto] = useState<string | null>(null);
   const [modoReporte, setModoReporte] = useState(false);
-  const [motivo, setMotivo] = useState(MOTIVOS[0]);
+  const [motivo, setMotivo] = useState(MOTIVOS_DEFECTO[0]);
   const [descripcion, setDescripcion] = useState("");
   // Estado para mostrar el check animado tras confirmar entrega.
   const [exito, setExito] = useState(false);
@@ -93,6 +102,8 @@ export default function ParadaScreen() {
   if (!parada) return <Screen conPadding={false}><Cabecera titulo="Entrega" atras /><Vacio titulo="Pedido no encontrado" /></Screen>;
 
   const gestionada = parada.estado_entrega !== "PENDIENTE";
+  // CUS-30: la ruta está pausada por avería; no se permiten acciones hasta reanudarla.
+  const pausada = !!ruta.data?.pausada;
 
   // Capa de éxito: muestra el check animado mientras el componente navega atrás.
   if (exito) {
@@ -161,13 +172,29 @@ export default function ParadaScreen() {
               <Texto variante="subtitle" color={parada.estado_entrega === "ENTREGADO" ? colors.success : colors.danger} style={{ textAlign: "center" }}>
                 {parada.estado_entrega === "ENTREGADO" ? "Esta parada ya fue entregada." : "Esta parada fue reportada como fallida."}
               </Texto>
+              {/* CUS-26: la foto POD se lee del backend (persistida en BD), no de un caché temporal. */}
+              {parada.estado_entrega === "ENTREGADO" && urlMedia(parada.url_evidencia) && (
+                <Image
+                  source={{ uri: urlMedia(parada.url_evidencia) }}
+                  style={estilos.evidenciaGuardada}
+                  contentFit="cover"
+                  transition={200}
+                />
+              )}
+            </Card>
+          ) : pausada ? (
+            /* CUS-30: ruta pausada — bloquea las acciones de entrega y reporte. */
+            <Card style={{ backgroundColor: colors.dangerSoft }}>
+              <Texto variante="bodyMedium" color={colors.danger} style={{ textAlign: "center" }}>
+                🛠️ Ruta pausada por avería. Reanúdala desde Mi Ruta para continuar.
+              </Texto>
             </Card>
           ) : modoReporte ? (
             <Card>
               <Texto variante="subtitle" color={colors.ink} style={estilos.titulo}>Reportar problema</Texto>
               <Texto variante="caption" color={colors.muted} style={estilos.sub}>Motivo de la falla</Texto>
               <View style={estilos.motivos}>
-                {MOTIVOS.map((m) => {
+                {motivos.map((m: string) => {
                   const activo = motivo === m;
                   return (
                     <Pressable key={m} onPress={() => setMotivo(m)} accessibilityRole="button" accessibilityLabel={m}
@@ -248,6 +275,7 @@ const estilos = StyleSheet.create({
   titulo: { marginBottom: spacing.md },
   sub: { marginBottom: spacing.xs },
   preview: { width: "100%", height: 220, borderRadius: radius.md },
+  evidenciaGuardada: { width: "100%", height: 200, borderRadius: radius.md, marginTop: spacing.md },
   placeholder: { height: 160, borderRadius: radius.md, borderWidth: 2, borderStyle: "dashed", alignItems: "center", justifyContent: "center" },
   botonesFoto: { flexDirection: "row", gap: spacing.md, marginTop: spacing.md },
   motivos: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },

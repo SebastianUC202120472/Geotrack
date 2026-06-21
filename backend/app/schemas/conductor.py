@@ -9,6 +9,22 @@ _RE_TELEFONO = re.compile(r"^9\d{8}$")
 _RE_DNI = re.compile(r"^\d{8}$")
 
 
+def validar_fuerza_contrasena(v: str) -> str:
+    """Valida que una contraseña sea segura (se reutiliza al crear y al restablecer):
+    mínimo 8, con mayúscula, minúscula, número y carácter especial. Recibe: la clave."""
+    if len(v) < 8:
+        raise ValueError("La contraseña debe tener al menos 8 caracteres")
+    if not re.search(r"[A-Z]", v):
+        raise ValueError("La contraseña debe incluir al menos una mayúscula")
+    if not re.search(r"[a-z]", v):
+        raise ValueError("La contraseña debe incluir al menos una minúscula")
+    if not re.search(r"\d", v):
+        raise ValueError("La contraseña debe incluir al menos un número")
+    if not re.search(r"[^A-Za-z0-9]", v):
+        raise ValueError("La contraseña debe incluir al menos un carácter especial")
+    return v
+
+
 class ConductorCreate(BaseModel):
     """ENTRADA: alta de un conductor (crea su cuenta + su ficha)."""
     correo: EmailStr            # EmailStr valida el formato del correo
@@ -28,19 +44,8 @@ class ConductorCreate(BaseModel):
     @field_validator("contrasena")
     @classmethod
     def _v_contrasena(cls, v: str) -> str:
-        # Contraseña segura (se guardará hasheada): mínimo 8, con mayúscula,
-        # minúscula y número.
-        if len(v) < 8:
-            raise ValueError("La contraseña debe tener al menos 8 caracteres")
-        if not re.search(r"[A-Z]", v):
-            raise ValueError("La contraseña debe incluir al menos una mayúscula")
-        if not re.search(r"[a-z]", v):
-            raise ValueError("La contraseña debe incluir al menos una minúscula")
-        if not re.search(r"\d", v):
-            raise ValueError("La contraseña debe incluir al menos un número")
-        if not re.search(r"[^A-Za-z0-9]", v):
-            raise ValueError("La contraseña debe incluir al menos un carácter especial")
-        return v
+        # Contraseña segura (se guardará hasheada). Misma regla que al restablecerla.
+        return validar_fuerza_contrasena(v)
 
     @field_validator("telefono")
     @classmethod
@@ -101,6 +106,16 @@ class ConductorUpdate(BaseModel):
         return v
 
 
+class ConductorResetContrasena(BaseModel):
+    """ENTRADA (CUS-04): el admin define una nueva contraseña para el conductor."""
+    contrasena: str
+
+    @field_validator("contrasena")
+    @classmethod
+    def _v_contrasena(cls, v: str) -> str:
+        return validar_fuerza_contrasena(v)
+
+
 class UbicacionRequest(BaseModel):
     """ENTRADA: la app del conductor reporta su posición actual (foreground)."""
     latitud: float
@@ -123,6 +138,7 @@ class ConductorResponse(BaseModel):
     correo: str
     estado: bool
     en_ruta: bool = False   # True si tiene una ruta activa (CREADA/EN_PROGRESO)
+    solicito_restablecimiento: bool = False   # True si pidió restablecer su clave (pendiente)
     nombre: Optional[str] = None
     telefono: Optional[str] = None
     dni: Optional[str] = None

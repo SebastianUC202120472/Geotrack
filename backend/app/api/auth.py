@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.api.deps import get_current_admin
 from app.models.usuario import Usuario
-from app.schemas.usuario import UsuarioCreate, UsuarioResponse, Token
+from app.schemas.usuario import UsuarioCreate, UsuarioResponse, Token, SolicitudRestablecimientoRequest
 from app.services import usuario_service
 
 router = APIRouter()
@@ -41,3 +41,13 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         db, correo=form_data.username, contrasena=form_data.password
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/solicitar-restablecimiento")
+def solicitar_restablecimiento(datos: SolicitudRestablecimientoRequest, db: Session = Depends(get_db)):
+    """
+    Extra CUS-04: PÚBLICO (sin token) — el conductor que olvidó su contraseña pide
+    desde el Login de la app que el admin se la restablezca. Responde siempre el mismo
+    mensaje genérico (exista o no el correo) para no revelar qué cuentas hay.
+    """
+    return usuario_service.solicitar_restablecimiento(db, datos.correo)

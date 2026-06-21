@@ -11,6 +11,13 @@ class ClienteCreate(BaseModel):
     contacto: Optional[str] = None
 
 
+class ClienteUpdate(BaseModel):
+    """ENTRADA: edición de una empresa cliente. Todos los campos son opcionales."""
+    razon_social: Optional[str] = None
+    identificador_unico: Optional[str] = None  # RUC
+    contacto: Optional[str] = None
+
+
 class ClienteResponse(BaseModel):
     """SALIDA: datos de una empresa cliente."""
     id: int

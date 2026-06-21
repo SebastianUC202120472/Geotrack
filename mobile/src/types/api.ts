@@ -15,11 +15,14 @@ export interface RutaActiva {
   nombre: string;
   estado: string; // CREADA | EN_PROGRESO | FINALIZADA
   fecha_creacion: string;
+  fecha_salida?: string | null; // CUS-23: salida del almacén (null si aún no inició)
   vehiculo_placa?: string | null;
   total_paradas: number;
   pendientes: number;
   entregadas: number;
   fallidas: number;
+  pausada?: boolean;          // CUS-30: la ruta está pausada por un auxilio mecánico
+  incidencia_id?: number | null;
 }
 
 // Una parada del manifiesto (GET /conductor/ruta-activa/manifiesto).
@@ -37,6 +40,7 @@ export interface ParadaManifiesto {
   longitud?: number | null;
   peso_kg?: number | null;
   estado_entrega: EstadoEntrega;
+  url_evidencia?: string | null; // foto POD ya subida (CUS-26), servida en /media
 }
 
 export interface Manifiesto {
@@ -79,9 +83,20 @@ export interface OptimizacionResultado {
   total_paradas: number;
 }
 
+// Resultado de validar un paquete por QR contra la ruta activa (CUS-22).
+export interface ValidacionQR {
+  pertenece: boolean;
+  mensaje: string;
+  parada?: ParadaManifiesto | null;
+}
+
 export interface CierreRuta {
   ruta_id: number;
   estado: string;
+  fecha_fin?: string | null;
+  hora_inicio?: string | null;      // CUS-28: salida (o creación si no hubo salida)
+  hora_fin?: string | null;         // CUS-28: cierre de la ruta
+  duracion_minutos?: number | null; // CUS-28: horas trabajadas, en minutos
   total_paradas: number;
   entregadas: number;
   fallidas: number;
@@ -120,4 +135,24 @@ export interface Reporte {
   accion?: string | null;
   creado_en?: string | null;
   respondido_en?: string | null;
+}
+
+// Incidencia de auxilio mecánico (CUS-30).
+export interface Incidencia {
+  id: number;
+  codigo?: string | null;
+  ruta_id: number;
+  ruta_nombre?: string | null;
+  conductor_id: number;
+  conductor_nombre?: string | null;
+  vehiculo_placa?: string | null;
+  tipo: string;
+  descripcion?: string | null;
+  url_evidencia?: string | null;
+  latitud?: number | null;
+  longitud?: number | null;
+  estado: string; // ABIERTA | RESUELTA
+  creado_en?: string | null;
+  resuelto_en?: string | null;
+  nota_resolucion?: string | null;
 }

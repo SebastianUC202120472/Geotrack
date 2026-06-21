@@ -4,7 +4,15 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.repositories import cliente_repository
-from app.schemas.cliente import ClienteCreate
+from app.schemas.cliente import ClienteCreate, ClienteUpdate
+
+
+def _cliente_o_404(db: Session, cliente_id: int):
+    """Devuelve el cliente activo o lanza 404 si no existe / está dado de baja."""
+    cliente = cliente_repository.obtener_por_id(db, cliente_id)
+    if cliente is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
+    return cliente
 
 
 def listar_clientes(db: Session):
@@ -31,3 +39,39 @@ def crear_cliente(db: Session, datos: ClienteCreate):
     db.commit()          # crear() solo hizo flush; aquí confirmamos
     db.refresh(cliente)
     return cliente
+
+
+def actualizar_cliente(db: Session, cliente_id: int, datos: ClienteUpdate):
+    """CUS-07: edita una empresa cliente. Recibe: id y los campos a cambiar. Si cambia
+    el RUC, valida que no choque con otro cliente."""
+    cliente = _cliente_o_404(db, cliente_id)
+    campos = datos.model_dump(exclude_unset=True)  # solo lo que el cliente envió
+
+    # La razón social, si se envía, no puede quedar vacía (es obligatoria).
+    if "razon_social" in campos:
+        rs = (campos["razon_social"] or "").strip()
+        if len(rs) < 3:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La razón social debe tener al menos 3 caracteres",
+            )
+        campos["razon_social"] = rs
+
+    # Si cambia el RUC (a un valor no vacío), validar que no choque con otro cliente.
+    nuevo_ruc = campos.get("identificador_unico")
+    if nuevo_ruc and nuevo_ruc != cliente.identificador_unico:
+        otro = cliente_repository.obtener_por_identificador(db, nuevo_ruc)
+        if otro and otro.id != cliente.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Ya existe otro cliente con ese identificador (RUC)",
+            )
+
+    return cliente_repository.actualizar(db, cliente, **campos)
+
+
+def eliminar_cliente(db: Session, cliente_id: int) -> dict:
+    """CUS-07: da de baja (lógica) una empresa cliente. Recibe: id."""
+    cliente = _cliente_o_404(db, cliente_id)
+    cliente_repository.eliminar(db, cliente)
+    return {"mensaje": "Cliente eliminado"}

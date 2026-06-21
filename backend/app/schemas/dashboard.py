@@ -1,6 +1,6 @@
 # app/schemas/dashboard.py
 # Define los "moldes" de salida del módulo de TRAZABILIDAD (Fase 4).
-from datetime import datetime
+from datetime import datetime, date
 from typing import Dict, List, Optional
 from pydantic import BaseModel
 
@@ -56,6 +56,7 @@ class ConductorUbicacion(BaseModel):
     longitud: Optional[float] = None
     actualizado_en: Optional[datetime] = None
     en_linea: bool = False                # True si la última señal es reciente (< 2 min)
+    pausado: bool = False  # CUS-30: tiene una incidencia (auxilio mecánico) abierta
     paradas: List[ParadaMapa] = []
 
 
@@ -69,6 +70,26 @@ class ClienteSeguimiento(BaseModel):
     fallidos: int
     pendientes: int
     en_proceso: int  # ASIGNADO + EN_RUTA
+
+
+# CUS-36: liquidación por cliente
+class LiquidacionRequest(BaseModel):
+    """ENTRADA (CUS-36): el admin pide la liquidación de un cliente. El período es
+    opcional; si no se envía, se incluyen todos los pedidos del cliente."""
+    cliente: str
+    periodo_inicio: Optional[date] = None
+    periodo_fin: Optional[date] = None
+
+
+class LiquidacionResponse(BaseModel):
+    """SALIDA (CUS-36): confirmación + ruta del endpoint AUTENTICADO de descarga.
+    El .xlsx no es público (contiene datos personales): se baja con token de admin."""
+    mensaje: str
+    cliente: str
+    total_pedidos: int
+    liquidacion_id: int
+    descarga_url: str  # relativo a /api, p.ej. /dashboard/liquidaciones/3/descarga
+    archivo: str
 
 
 # CUS-35: Historial / línea de tiempo de un paquete
@@ -93,3 +114,14 @@ class HistorialPedidoResponse(BaseModel):
     url_evidencia: Optional[str] = None
     motivo_fallo: Optional[str] = None
     eventos: List[EventoHistorial]  # la línea de tiempo, en orden cronológico
+
+
+# CUS-34: eficiencia acumulada por conductor (Km y ahorro de combustible).
+class EficienciaConductor(BaseModel):
+    """Resumen de eficiencia de UN conductor, sumando sus rutas ya cerradas."""
+    conductor_id: int
+    nombre: Optional[str] = None
+    km_recorridos: float
+    km_ahorrados: float
+    litros_ahorrados: float
+    soles_ahorrados: float

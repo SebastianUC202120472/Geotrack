@@ -2,7 +2,7 @@
 # Define los "moldes" de las respuestas del módulo de Pedidos (carga de Excel, geocodificación, listado y agrupación por zonas).
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PedidoResponse(BaseModel):
@@ -44,6 +44,8 @@ class CargaPedidosResponse(BaseModel):
     total_filas_leidas: int
     pedidos_geocodificados: int = 0
     pedidos_fallidos: int = 0
+    rechazados: List[dict] = []        # filas no importadas por cliente no registrado
+    total_rechazados: int = 0
 
 
 class GeocodificacionResponse(BaseModel):
@@ -62,3 +64,22 @@ class ZonaItem(BaseModel):
 class ZonasResponse(BaseModel):
     """Agrupación de pedidos por distrito (CUS-16)."""
     zonas_operativas: List[ZonaItem]
+
+
+# --- CUS-17: resolución manual de direcciones ---
+class UbicacionManualRequest(BaseModel):
+    """ENTRADA (CUS-17): el admin fija a mano la ubicación de un pedido. La dirección
+    es opcional (por si la corrige al ubicarla en el mapa). Se valida que las
+    coordenadas estén en rango y no sean NaN/Infinity."""
+    model_config = ConfigDict(allow_inf_nan=False)
+
+    latitud: float = Field(ge=-90, le=90)
+    longitud: float = Field(ge=-180, le=180)
+    direccion: Optional[str] = None
+
+
+class BuscarDireccionResponse(BaseModel):
+    """SALIDA (CUS-17): resultado de geocodificar un texto de búsqueda en el mapa."""
+    encontrado: bool
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None

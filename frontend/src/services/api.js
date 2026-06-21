@@ -108,6 +108,53 @@ export const actualizarConductor = (id, datos) =>
 export const eliminarConductor = (id) =>
   request(`/conductores/${id}`, { method: "DELETE" });
 
+// CUS-04: el admin fija una nueva contraseña para un conductor que la olvidó.
+export const restablecerContrasenaConductor = (id, contrasena) =>
+  request(`/conductores/${id}/restablecer-contrasena`, { method: "POST", body: { contrasena } });
+
+/* ============================================================
+   CLIENTES CORPORATIVOS  (CUS-07 — administración)
+============================================================ */
+
+export const listarClientes = () => request("/clientes/");
+
+export const crearCliente = (datos) =>
+  request("/clientes/", { method: "POST", body: datos });
+
+export const actualizarCliente = (id, datos) =>
+  request(`/clientes/${id}`, { method: "PATCH", body: datos });
+
+export const eliminarCliente = (id) =>
+  request(`/clientes/${id}`, { method: "DELETE" });
+
+/* ============================================================
+   USUARIOS DEL PANEL  (CUS-03 — admin/jefe/almacén)
+============================================================ */
+
+export const listarUsuarios = () => request("/usuarios/");
+
+export const crearUsuario = (datos) =>
+  request("/usuarios/", { method: "POST", body: datos });
+
+// Cambia rol y/o estado (activo) de un usuario del panel.
+export const actualizarUsuario = (id, datos) =>
+  request(`/usuarios/${id}`, { method: "PATCH", body: datos });
+
+export const restablecerContrasenaUsuario = (id, contrasena) =>
+  request(`/usuarios/${id}/restablecer-contrasena`, { method: "POST", body: { contrasena } });
+
+/* ============================================================
+   PARÁMETROS — Motivos de rechazo  (CUS-06)
+============================================================ */
+
+export const listarMotivos = () => request("/parametros/motivos");
+
+export const crearMotivo = (texto) =>
+  request("/parametros/motivos", { method: "POST", body: { texto } });
+
+export const eliminarMotivo = (id) =>
+  request(`/parametros/motivos/${id}`, { method: "DELETE" });
+
 // Sube/reemplaza la foto de un conductor (multipart). La verá en su app móvil.
 export const subirFotoConductor = (usuarioId, file) => {
   const formData = new FormData();
@@ -151,6 +198,16 @@ export const reabrirPedido = (id) => request(`/pedidos/${id}/reabrir`, { method:
 // Devuelve { zonas_operativas: [{ distrito, total_pedidos }] }
 export const listarZonas = () => request("/pedidos/zonas");
 
+// CUS-17: pedidos con la geocodificación fallida (para resolver a mano).
+export const listarPorUbicar = () => request("/pedidos/por-ubicar");
+
+// CUS-17: geocodifica un texto de búsqueda para ubicar el pin en el mapa.
+export const buscarDireccion = (q) => request(`/pedidos/buscar-direccion?q=${encodeURIComponent(q)}`);
+
+// CUS-17: fija a mano la ubicación (lat/lng) de un pedido.
+export const fijarUbicacionPedido = (id, datos) =>
+  request(`/pedidos/${id}/ubicacion`, { method: "PATCH", body: datos });
+
 // Seguimiento de repartos agregado por empresa cliente (no por ruta).
 export const obtenerSeguimientoClientes = () => request("/dashboard/clientes");
 
@@ -166,6 +223,14 @@ export const listarVehiculos = () => request("/vehiculos/");
 export const crearVehiculo = (datos) =>
   request("/vehiculos/", { method: "POST", body: datos });
 
+// CUS-08/09: edita un vehículo (marca/capacidades) o reasigna su conductor.
+export const actualizarVehiculo = (id, datos) =>
+  request(`/vehiculos/${id}`, { method: "PATCH", body: datos });
+
+// CUS-08: da de baja (lógica) un vehículo.
+export const eliminarVehiculo = (id) =>
+  request(`/vehiculos/${id}`, { method: "DELETE" });
+
 /* ============================================================
    ENRUTAMIENTO  (CUS-18)
 ============================================================ */
@@ -176,6 +241,28 @@ export const asignarBloque = ({ nombre_ruta, distrito, conductor_id }) =>
     method: "POST",
     body: { nombre_ruta, distrito, conductor_id },
   });
+
+/* ============================================================
+   MANIFIESTO  (CUS-21)
+============================================================ */
+
+// CUS-21: descarga el manifiesto de carga de una ruta en Excel (autenticado).
+export async function descargarManifiesto(rutaId, nombre) {
+  const token = getToken();
+  const resp = await fetch(`${API_URL}/rutas/${rutaId}/manifiesto`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!resp.ok) throw new Error("No se pudo descargar el manifiesto");
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombre || `manifiesto_${rutaId}.xlsx`;
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  URL.revokeObjectURL(url);
+}
 
 /* ============================================================
    DASHBOARD / TRAZABILIDAD  (CUS-33 / CUS-35)
@@ -189,6 +276,34 @@ export const obtenerFlota = () => request("/dashboard/flota");
 // Línea de tiempo completa de un paquete por su código (PD-001).
 export const obtenerHistorial = (codigo) =>
   request(`/dashboard/pedidos/${encodeURIComponent(codigo)}/historial`);
+
+// CUS-36: genera la liquidación (.xlsx) de un cliente y la registra en la BD.
+// Devuelve { liquidacion_id, descarga_url, archivo, total_pedidos, ... }.
+export const generarLiquidacion = ({ cliente, periodo_inicio, periodo_fin } = {}) =>
+  request("/dashboard/clientes/liquidacion", {
+    method: "POST",
+    body: { cliente, periodo_inicio, periodo_fin },
+  });
+
+// Descarga la liquidación por el endpoint AUTENTICADO (lleva el token en el header:
+// el .xlsx tiene datos personales y NO es público). Entrada: descarga_url (relativa a
+// /api) y el nombre del archivo. Dispara la descarga en el navegador.
+export async function descargarLiquidacion(descargaUrl, nombre) {
+  const token = getToken();
+  const resp = await fetch(`${API_URL}${descargaUrl}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!resp.ok) throw new Error("No se pudo descargar la liquidación");
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombre || "liquidacion.xlsx";
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  URL.revokeObjectURL(url);
+}
 
 /* ============================================================
    BANDEJA DE CORREOS  (solicitudes de recojo)
@@ -207,6 +322,45 @@ export const responderCorreo = (id, cuerpo) =>
 
 export const marcarConversacion = (id, estado) =>
   request(`/correos/conversaciones/${id}/estado?estado=${encodeURIComponent(estado)}`, { method: "PATCH" });
+
+/* ============================================================
+   EFICIENCIA / COMBUSTIBLE (CUS-34)
+============================================================ */
+
+// CUS-34: eficiencia (km y ahorro de combustible) acumulada por cada conductor.
+export const obtenerEficienciaConductores = () => request("/dashboard/eficiencia-conductores");
+
+// Lee los parámetros de combustible. Salida: { consumo_l_100km, precio_soles_litro }.
+export const obtenerCombustible = () => request("/parametros/combustible");
+
+// Actualiza los parámetros de combustible. Entrada: consumo (L/100km) y precio (S//L).
+export const actualizarCombustible = (consumo_l_100km, precio_soles_litro) =>
+  request("/parametros/combustible", { method: "PUT", body: { consumo_l_100km, precio_soles_litro } });
+
+/* ============================================================
+   DECISIONES SOBRE PEDIDOS FALLIDOS (CUS-31)
+============================================================ */
+
+// Reprograma un pedido (vuelve a PENDIENTE). Entrada: id. Salida: { mensaje, codigo }.
+export const reprogramarPedido = (id) => request(`/pedidos/${id}/reprogramar`, { method: "POST" });
+
+// Cancela un pedido (estado CANCELADO). Entrada: id. Salida: { mensaje, codigo }.
+export const cancelarPedido = (id) => request(`/pedidos/${id}/cancelar`, { method: "POST" });
+
+/* ============================================================
+   INCIDENCIAS — Auxilio mecánico (CUS-30)
+============================================================ */
+
+// Lista las incidencias. Entrada: estado opcional ("ABIERTA"|"RESUELTA"). Salida: array.
+export const listarIncidencias = (estado) =>
+  request(`/incidencias${estado ? `?estado=${encodeURIComponent(estado)}` : ""}`);
+
+// Marca una incidencia como resuelta. Entrada: id y nota opcional. Salida: la incidencia.
+export const resolverIncidencia = (id, nota) =>
+  request(`/incidencias/${id}/resolver`, { method: "POST", body: { nota: nota ?? null } });
+
+// Cuántas incidencias hay abiertas (aviso del sidebar/dashboard). Salida: { abiertas }.
+export const contadorIncidencias = () => request("/incidencias/contador");
 
 // Descarga un adjunto (ej. el Excel del recojo) y dispara la descarga en el
 // navegador. Va con el token en el header, por eso no se usa un <a href> directo.

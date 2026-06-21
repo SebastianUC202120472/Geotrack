@@ -9,6 +9,8 @@ import type {
   CierreRuta,
   PerfilConductor,
   Reporte,
+  ValidacionQR,
+  Incidencia,
 } from "@/types/api";
 
 // Perfil del propio conductor (nombre, teléfono, DNI, vehículo). GET /conductor/perfil.
@@ -38,6 +40,13 @@ export async function obtenerMisReportes(): Promise<Reporte[]> {
   return data;
 }
 
+// CUS-06: motivos de rechazo configurados por el admin (para el reporte de falla).
+// Devuelve: lista de textos. Antes esta lista estaba fija en la app.
+export async function obtenerMotivos(): Promise<string[]> {
+  const { data } = await api.get<string[]>("/conductor/motivos");
+  return data;
+}
+
 // Resumen de la ruta activa. Devuelve: RutaActiva (lanza 404 si no tiene ruta).
 export async function obtenerRutaActiva(): Promise<RutaActiva> {
   const { data } = await api.get<RutaActiva>("/conductor/ruta-activa");
@@ -53,6 +62,13 @@ export async function obtenerManifiesto(): Promise<Manifiesto> {
 // Waypoints (lat/lng) para el mapa. Devuelve: Navegacion.
 export async function obtenerNavegacion(): Promise<Navegacion> {
   const { data } = await api.get<Navegacion>("/conductor/ruta-activa/navegacion");
+  return data;
+}
+
+// CUS-22: valida que un paquete escaneado (su código QR) pertenezca a la ruta activa.
+// Recibe: el código leído. Devuelve: { pertenece, mensaje, parada? }.
+export async function validarCarga(codigo: string): Promise<ValidacionQR> {
+  const { data } = await api.post<ValidacionQR>("/conductor/almacen/validar-qr", { codigo });
   return data;
 }
 
@@ -96,4 +112,40 @@ export async function finalizarRuta(): Promise<CierreRuta> {
 // Recibe: latitud y longitud. Best-effort: no devuelve datos.
 export async function enviarUbicacion(latitud: number, longitud: number): Promise<void> {
   await api.post("/conductor/ubicacion", { latitud, longitud });
+}
+
+// CUS-30: reporta un auxilio mecánico sobre la ruta activa (la ruta queda pausada).
+// Recibe: descripcion opcional y coords opcionales {latitud, longitud}.
+export async function reportarIncidencia(
+  descripcion?: string,
+  coords?: { latitud: number; longitud: number }
+): Promise<Incidencia> {
+  const { data } = await api.post<Incidencia>("/conductor/incidencias", {
+    tipo: "AVERIA_MECANICA",
+    descripcion: descripcion ?? null,
+    latitud: coords?.latitud ?? null,
+    longitud: coords?.longitud ?? null,
+  });
+  return data;
+}
+
+// CUS-30: sube la foto de la avería (multipart). Recibe: id de incidencia y uri local.
+export async function subirEvidenciaIncidencia(incidenciaId: number, uriFoto: string): Promise<Incidencia> {
+  const nombre = uriFoto.split("/").pop() ?? `inc_${incidenciaId}.jpg`;
+  const form = new FormData();
+  form.append("file", { uri: uriFoto, name: nombre, type: "image/jpeg" } as unknown as Blob);
+  const { data } = await api.post<Incidencia>(
+    `/conductor/incidencias/${incidenciaId}/evidencia`,
+    form,
+    { headers: { "Content-Type": "multipart/form-data" } }
+  );
+  return data;
+}
+
+// CUS-30: reanuda la ruta cerrando la incidencia. Recibe: id de incidencia y nota opcional.
+export async function reanudarRuta(incidenciaId: number, nota?: string): Promise<Incidencia> {
+  const { data } = await api.post<Incidencia>(`/conductor/incidencias/${incidenciaId}/reanudar`, {
+    nota: nota ?? null,
+  });
+  return data;
 }

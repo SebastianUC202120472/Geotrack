@@ -7,10 +7,9 @@ import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import EmptyState from "../components/ui/EmptyState";
-import { listarReportes, responderReporte } from "../services/api";
+import { listarReportes, responderReporte, reprogramarPedido, cancelarPedido } from "../services/api";
 
 const fmt = (f) => (f ? new Date(f).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—");
-const ACCIONES = ["Traer a base", "Reprogramar entrega", "Reintentar hoy", "Cerrar sin acción"];
 
 // Pantalla de reportes de incidencia: los conductores reportan pedidos con falla
 // y el admin responde con una solución.
@@ -20,7 +19,6 @@ export default function Reportes() {
   const [cargando, setCargando] = useState(true);
   const [sel, setSel] = useState(null);
   const [respuesta, setRespuesta] = useState("");
-  const [accion, setAccion] = useState(ACCIONES[0]);
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState(null);
 
@@ -42,7 +40,6 @@ export default function Reportes() {
   const abrir = (r) => {
     setSel(r);
     setRespuesta(r.respuesta || "");
-    setAccion(r.accion || ACCIONES[0]);
     setAviso(null);
   };
 
@@ -52,8 +49,27 @@ export default function Reportes() {
     setEnviando(true);
     setAviso(null);
     try {
-      await responderReporte(sel.id, { respuesta: respuesta.trim(), accion, estado: "RESUELTO" });
+      await responderReporte(sel.id, { respuesta: respuesta.trim(), accion: "Cerrar sin acción", estado: "RESUELTO" });
       setAviso({ ok: true, texto: "Reporte respondido y marcado como resuelto." });
+      await cargar();
+      setSel(null);
+    } catch (err) {
+      setAviso({ ok: false, texto: err.message });
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  // Ejecuta una decisión real sobre el pedido del reporte (reprograma o cancela).
+  // Recibe: la función de api (reprogramarPedido|cancelarPedido) y el texto del aviso.
+  const decidir = async (fn, textoOk, confirmar) => {
+    if (!sel) return;
+    if (confirmar && !window.confirm(confirmar)) return;
+    setEnviando(true);
+    setAviso(null);
+    try {
+      await fn(sel.pedido_id);              // cambia estado del pedido + auto-resuelve el reporte
+      setAviso({ ok: true, texto: textoOk });
       await cargar();
       setSel(null);
     } catch (err) {
@@ -169,12 +185,23 @@ export default function Reportes() {
                   <p className="mt-1 text-xs text-slate-400">{fmt(sel.respondido_en)}</p>
                 </div>
               ) : (
-                <form onSubmit={responder} className="space-y-3 border-t border-slate-100 pt-4">
-                  <Input as="select" label="Acción" value={accion} onChange={(e) => setAccion(e.target.value)}>
-                    {ACCIONES.map((a) => <option key={a} value={a}>{a}</option>)}
-                  </Input>
-                  <div className="space-y-1.5">
-                    <label className="block text-sm font-medium text-slate-700">Respuesta / solución</label>
+                <div className="space-y-3 border-t border-slate-100 pt-4">
+                  {/* Decisión real sobre el paquete devuelto (consolida lo que antes era "Paquetes Devueltos") */}
+                  <p className="text-sm font-medium text-slate-700">Decisión sobre el paquete</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="secondary" disabled={enviando}
+                      onClick={() => decidir(reprogramarPedido, "Pedido reprogramado: volvió a PENDIENTE para reasignarlo.")}>
+                      Reprogramar (→ Pendiente)
+                    </Button>
+                    <Button variant="danger" disabled={enviando}
+                      onClick={() => decidir(cancelarPedido, "Pedido cancelado.", `¿Cancelar definitivamente ${sel.pedido_codigo || "este pedido"}?`)}>
+                      Cancelar pedido
+                    </Button>
+                  </div>
+
+                  {/* Alternativa: cerrar el reporte con una nota, sin cambiar el estado del pedido */}
+                  <form onSubmit={responder} className="space-y-2 pt-2">
+                    <label className="block text-sm font-medium text-slate-700">O cerrar con una nota</label>
                     <textarea
                       value={respuesta}
                       onChange={(e) => setRespuesta(e.target.value)}
@@ -182,11 +209,11 @@ export default function Reportes() {
                       placeholder="Ej. Coordinamos recojo a base mañana 9am…"
                       className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
                     />
-                  </div>
-                  <Button type="submit" disabled={enviando || !respuesta.trim()}>
-                    {enviando ? <Loader2 className="animate-spin" size={18} /> : "Responder y marcar resuelto"}
-                  </Button>
-                </form>
+                    <Button type="submit" variant="secondary" disabled={enviando || !respuesta.trim()}>
+                      {enviando ? <Loader2 className="animate-spin" size={18} /> : "Responder y cerrar sin acción"}
+                    </Button>
+                  </form>
+                </div>
               )}
             </div>
           )}

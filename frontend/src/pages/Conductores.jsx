@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check, Pencil, Trash2, Camera } from "lucide-react";
+import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check, Pencil, Trash2, Camera, KeyRound, Fuel, Route as RouteIcon, PiggyBank } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -9,7 +9,7 @@ import Button from "../components/ui/Button";
 import Badge, { EstadoBadge } from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
 import SectionCard from "../components/ui/SectionCard";
-import { listarConductores, crearConductor, actualizarConductor, eliminarConductor, subirFotoConductor, urlMedia } from "../services/api";
+import { listarConductores, crearConductor, actualizarConductor, eliminarConductor, subirFotoConductor, restablecerContrasenaConductor, urlMedia, obtenerEficienciaConductores } from "../services/api";
 import { validarNombre, validarCorreo, validarPassword, validarTelefono, validarDni, soloDigitos } from "../utils/validaciones";
 
 // Apartado de conductores: ficha completa (nombre, teléfono, DNI), vehículo
@@ -17,6 +17,8 @@ import { validarNombre, validarCorreo, validarPassword, validarTelefono, validar
 // conductor usa en la app móvil.
 export default function Conductores() {
   const [conductores, setConductores] = useState([]);
+  // Mapa conductor_id -> datos de eficiencia (km recorridos/ahorrados, ahorro en S/).
+  const [eficiencia, setEficiencia] = useState({});
   const [cargando, setCargando] = useState(true);
   const [seleccionado, setSeleccionado] = useState(null);
 
@@ -29,6 +31,11 @@ export default function Conductores() {
     setCargando(true);
     try {
       setConductores(await listarConductores());
+      // CUS-34: carga la eficiencia tras obtener conductores (setState post-await, sin lint de effect).
+      try {
+        const efs = await obtenerEficienciaConductores();
+        setEficiencia(Object.fromEntries(efs.map((e) => [e.conductor_id, e])));
+      } catch { /* si falla el endpoint de eficiencia, la tabla sigue mostrando "—" */ }
     } catch (err) {
       console.error("No se pudo cargar conductores:", err.message);
     } finally {
@@ -46,7 +53,9 @@ export default function Conductores() {
     const activos = conductores.filter((c) => c.estado).length;
     const sinVehiculo = conductores.filter((c) => c.estado && !c.vehiculo).length;
     const inactivos = conductores.filter((c) => !c.estado).length;
-    return { total, activos, sinVehiculo, inactivos };
+    // Conductores que pidieron restablecer su clave y siguen pendientes (extra CUS-04).
+    const solicitudes = conductores.filter((c) => c.solicito_restablecimiento).length;
+    return { total, activos, sinVehiculo, inactivos, solicitudes };
   }, [conductores]);
 
   // Actualiza un campo y limpia su error mientras el usuario corrige.
@@ -93,8 +102,9 @@ export default function Conductores() {
     }
   };
 
-  // Columnas para DataTable
-  const columnas = [
+  // Columnas para DataTable. Dependen de `eficiencia` para que la columna de eficiencia
+  // siempre tenga acceso al estado más reciente (useMemo con dependencia).
+  const columnas = useMemo(() => [
     {
       key: "codigo",
       header: "Código",
@@ -103,7 +113,17 @@ export default function Conductores() {
     {
       key: "nombre",
       header: "Nombre",
-      render: (c) => <span className="text-slate-700">{c.nombre || "—"}</span>,
+      render: (c) => (
+        <span className="flex items-center gap-2">
+          <span className="text-slate-700">{c.nombre || "—"}</span>
+          {c.solicito_restablecimiento && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning-strong"
+              title="Solicitó restablecer su contraseña">
+              <KeyRound size={12} /> Solicitó clave
+            </span>
+          )}
+        </span>
+      ),
     },
     {
       key: "telefono",
@@ -123,7 +143,21 @@ export default function Conductores() {
       header: "Estado",
       render: (c) => <EstadoBadge estado={!c.estado ? "INACTIVO" : c.en_ruta ? "EN_RUTA" : "DISPONIBLE"} />,
     },
-  ];
+    {
+      // CUS-34: km ahorrados y ahorro económico acumulado por conductor.
+      key: "eficiencia",
+      header: "Eficiencia",
+      render: (c) => {
+        const e = eficiencia[c.usuario_id];
+        if (!e) return <span className="text-slate-400">—</span>;
+        return (
+          <span className="text-sm text-slate-600 nums">
+            {e.km_ahorrados} km ahorr. · S/ {e.soles_ahorrados}
+          </span>
+        );
+      },
+    },
+  ], [eficiencia]);
 
   return (
     <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
@@ -131,6 +165,17 @@ export default function Conductores() {
         titulo="Conductores"
         subtitulo="Registra y consulta a los conductores de reparto."
       />
+
+      {/* Aviso: conductores que solicitaron restablecer su contraseña (extra CUS-04) */}
+      {kpis.solicitudes > 0 && (
+        <div className="flex items-center gap-2 rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning-strong animate-fade-up">
+          <KeyRound size={18} className="shrink-0" />
+          <span>
+            <b>{kpis.solicitudes}</b> {kpis.solicitudes === 1 ? "conductor solicitó" : "conductores solicitaron"} restablecer su contraseña.
+            Ábrelos (marcados abajo) y usa <b>"Restablecer contraseña"</b>.
+          </span>
+        </div>
+      )}
 
       {/* KPIs derivados de la lista cargada */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 animate-fade-up">
@@ -192,6 +237,7 @@ export default function Conductores() {
         {seleccionado && (
           <DetalleConductor
             conductor={seleccionado}
+            efic={eficiencia[seleccionado.usuario_id]}
             onCerrar={() => setSeleccionado(null)}
             onCambios={() => { setSeleccionado(null); cargar(); }}
           />
@@ -203,13 +249,18 @@ export default function Conductores() {
 
 // Detalle del conductor con tres modos: ver la ficha, editarla, o confirmar su
 // eliminación. `onCambios` se llama tras editar/eliminar (cierra + recarga lista).
-function DetalleConductor({ conductor: c, onCerrar, onCambios }) {
-  const [modo, setModo] = useState("ver"); // "ver" | "editar" | "confirmar"
+// `efic` son los datos de eficiencia CUS-34 (km recorridos/ahorrados, ahorro S/).
+function DetalleConductor({ conductor: c, efic, onCerrar, onCambios }) {
+  const [modo, setModo] = useState("ver"); // "ver" | "editar" | "confirmar" | "clave"
   const [form, setForm] = useState({ nombre: c.nombre || "", telefono: c.telefono || "", dni: c.dni || "" });
   const [errores, setErrores] = useState({});
   const [aviso, setAviso] = useState(null);
   const [trabajando, setTrabajando] = useState(false);
   const [subiendoFoto, setSubiendoFoto] = useState(false);
+  // CUS-04: restablecer contraseña (nueva clave + estado del proceso).
+  const [nuevaClave, setNuevaClave] = useState("");
+  const [errorClave, setErrorClave] = useState("");
+  const [claveOk, setClaveOk] = useState(false);
 
   // Actualiza un campo del formulario y limpia su error.
   const set = (campo, transform) => (e) => {
@@ -273,6 +324,27 @@ function DetalleConductor({ conductor: c, onCerrar, onCambios }) {
     }
   };
 
+  // CUS-04: valida y fija la nueva contraseña del conductor. No cierra el modal:
+  // muestra confirmación para que el admin pueda comunicarle la clave.
+  const restablecer = async () => {
+    const error = validarPassword(nuevaClave);
+    if (error) {
+      setErrorClave(error);
+      return;
+    }
+    setTrabajando(true);
+    setAviso(null);
+    try {
+      await restablecerContrasenaConductor(c.usuario_id, nuevaClave);
+      setClaveOk(true);
+      setNuevaClave("");
+    } catch (err) {
+      setAviso({ texto: err.message });
+    } finally {
+      setTrabajando(false);
+    }
+  };
+
   return (
     <>
       <div className="flex items-start justify-between">
@@ -313,11 +385,65 @@ function DetalleConductor({ conductor: c, onCerrar, onCambios }) {
             <Dato icono={Truck} etiqueta="Vehículo asignado"
               valor={c.vehiculo ? `${c.vehiculo.placa}${c.vehiculo.codigo ? ` (${c.vehiculo.codigo})` : ""}` : "Sin vehículo asignado"} />
           </div>
+          {/* CUS-34: bloque de eficiencia de combustible acumulada del conductor */}
+          <div className="mt-5">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Eficiencia acumulada</p>
+            {efic ? (
+              <div className="space-y-2">
+                <Dato icono={RouteIcon} etiqueta="Km recorridos" valor={`${efic.km_recorridos} km`} />
+                <Dato icono={RouteIcon} etiqueta="Km ahorrados" valor={`${efic.km_ahorrados} km`} />
+                <Dato icono={Fuel} etiqueta="Litros ahorrados" valor={`${efic.litros_ahorrados} L`} />
+                <Dato icono={PiggyBank} etiqueta="Ahorro en S/" valor={`S/ ${efic.soles_ahorrados}`} />
+              </div>
+            ) : (
+              <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-400">Sin rutas cerradas aún</p>
+            )}
+          </div>
+          {c.solicito_restablecimiento && (
+            <div className="mt-4 flex items-start gap-2 rounded-xl bg-warning-soft px-3.5 py-3 text-sm text-warning-strong">
+              <KeyRound size={18} className="shrink-0" />
+              <span>Este conductor <b>solicitó restablecer su contraseña</b>. Genera una nueva y comunícasela.</span>
+            </div>
+          )}
           <div className="mt-6 flex gap-2">
             <Button variant="secondary" icon={Pencil} block onClick={() => { setAviso(null); setModo("editar"); }}>Editar</Button>
             <Button variant="danger" icon={Trash2} block onClick={() => { setAviso(null); setModo("confirmar"); }}>Eliminar</Button>
           </div>
+          <Button variant="secondary" icon={KeyRound} block className="mt-2"
+            onClick={() => { setAviso(null); setClaveOk(false); setErrorClave(""); setNuevaClave(""); setModo("clave"); }}>
+            Restablecer contraseña
+          </Button>
         </>
+      )}
+
+      {modo === "clave" && (
+        <div className="mt-6 space-y-4">
+          {claveOk ? (
+            <>
+              <div className="flex items-start gap-3 rounded-xl bg-success-soft px-4 py-3 text-sm text-success-strong">
+                <CheckCircle2 size={20} className="shrink-0" />
+                <span>Contraseña restablecida. Comunícasela a <b>{c.nombre || "el conductor"}</b> para que entre a la app.</span>
+              </div>
+              <Button block onClick={() => setModo("ver")}>Listo</Button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-slate-500">
+                Define una nueva contraseña para <b>{c.nombre || "el conductor"}</b>. La usará para iniciar sesión en la app móvil.
+              </p>
+              <div>
+                <PasswordInput label="Nueva contraseña" value={nuevaClave}
+                  onChange={(e) => { setNuevaClave(e.target.value); setErrorClave(""); }}
+                  placeholder="Escribe la nueva contraseña" error={errorClave} autoComplete="new-password" />
+                <RequisitosPassword value={nuevaClave} />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="secondary" block onClick={() => { setModo("ver"); setErrorClave(""); setNuevaClave(""); }} disabled={trabajando}>Cancelar</Button>
+                <Button icon={KeyRound} block onClick={restablecer} disabled={trabajando}>{trabajando ? "Guardando…" : "Restablecer"}</Button>
+              </div>
+            </>
+          )}
+        </div>
       )}
 
       {modo === "editar" && (

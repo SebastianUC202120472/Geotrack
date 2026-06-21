@@ -1,6 +1,6 @@
 # app/models/ruta.py
 # Define DOS tablas relacionadas.
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.db.database import Base
@@ -14,8 +14,12 @@ class Ruta(Base):
     nombre = Column(String(100), nullable=False)  # ej: "Ruta San Miguel - Tarde"
     # Estado de la operación: CREADA -> EN_PROGRESO -> FINALIZADA
     estado = Column(String(50), default="CREADA")
-    fecha_creacion = Column(DateTime, default=datetime.utcnow)
+    fecha_creacion = Column(DateTime, default=datetime.utcnow)  # cuándo la creó el admin
+    fecha_salida = Column(DateTime, nullable=True)  # CUS-23: salida del almacén (al iniciar la ruta)
     fecha_fin = Column(DateTime, nullable=True)  # CUS-28: momento del cierre de la ruta
+    # CUS-34: métricas de eficiencia estimadas al optimizar la ruta (router.py).
+    km_estimado = Column(Float, nullable=True)   # distancia total de la secuencia optimizada
+    km_ahorrado = Column(Float, nullable=True)   # km que la optimización evita vs el orden empírico
 
     # Asignaciones (para el MVP las guardamos por id/placa, sin tabla aparte).
     vehiculo_placa = Column(String(20), nullable=True)
