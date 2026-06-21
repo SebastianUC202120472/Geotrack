@@ -10,7 +10,17 @@ PREFIJO_HISTORIAL = "HP"
 PREFIJO_VEHICULO = "VE"
 # Usuarios: el prefijo depende del ROL (se distinguen a simple vista).
 PREFIJO_ADMIN = "AD"
+PREFIJO_JEFE = "JE"
+PREFIJO_ALMACEN = "AL"
 PREFIJO_CONDUCTOR = "CO"
+
+# Mapa rol -> prefijo del código de usuario.
+_PREFIJOS_POR_ROL = {
+    "admin": PREFIJO_ADMIN,
+    "jefe": PREFIJO_JEFE,
+    "almacen": PREFIJO_ALMACEN,
+    "conductor": PREFIJO_CONDUCTOR,
+}
 
 
 def generar_codigo(prefijo: str, numero: int) -> str:
@@ -30,5 +40,6 @@ def asignar_codigo(db, obj, prefijo: str) -> str:
 
 
 def prefijo_por_rol(rol: str) -> str:
-    """Devuelve el prefijo de usuario según su rol: admin->AD, conductor->CO."""
-    return PREFIJO_ADMIN if rol == "admin" else PREFIJO_CONDUCTOR
+    """Devuelve el prefijo de usuario según su rol: admin->AD, jefe->JE, almacen->AL,
+    conductor->CO. Si llega un rol desconocido, usa el de conductor por defecto."""
+    return _PREFIJOS_POR_ROL.get(rol, PREFIJO_CONDUCTOR)

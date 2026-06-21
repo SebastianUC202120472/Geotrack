@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.repositories import usuario_repository, solicitud_restablecimiento_repository
 from app.core.security import get_password_hash, verify_password, create_access_token
 from app.models.usuario import Usuario
-from app.schemas.usuario import UsuarioCreate
+from app.schemas.usuario import UsuarioCreate, PersonalCreate, PersonalUpdate, PersonalResetContrasena
 
 # Mensaje genérico para la solicitud de restablecimiento: SIEMPRE el mismo, exista o
 # no el correo, para no revelar qué cuentas están registradas (anti-enumeración).
@@ -60,6 +60,56 @@ def solicitar_restablecimiento(db: Session, correo: str) -> dict:
     if usuario and usuario.rol == "conductor" and usuario.estado:
         solicitud_restablecimiento_repository.crear_o_refrescar(db, usuario.id, correo)
     return {"mensaje": MENSAJE_SOLICITUD}
+
+
+# --- CUS-03: gestión de usuarios del personal (admin/jefe/almacén) ---
+def _personal_o_404(db: Session, usuario_id: int) -> Usuario:
+    """Devuelve un usuario del PANEL (no conductor) o lanza 404. Los conductores se
+    gestionan en su propia sección."""
+    usuario = usuario_repository.obtener_por_id(db, usuario_id)
+    if usuario is None or usuario.rol == "conductor":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+    return usuario
+
+
+def listar_personal(db: Session):
+    """CUS-03: lista las cuentas del panel (admin/jefe/almacén)."""
+    return usuario_repository.listar_personal(db)
+
+
+def crear_personal(db: Session, datos: PersonalCreate) -> Usuario:
+    """CUS-03: crea una cuenta de personal (rol admin/jefe/almacén) con su clave hasheada."""
+    if usuario_repository.obtener_por_correo(db, datos.correo):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El correo ya está registrado")
+    return usuario_repository.crear_usuario(
+        db, correo=datos.correo, hash_contrasena=get_password_hash(datos.contrasena), rol=datos.rol.value
+    )
+
+
+def actualizar_personal(db: Session, usuario_id: int, datos: PersonalUpdate, admin_id: int) -> Usuario:
+    """CUS-03: cambia el rol y/o el estado (activo) de un usuario del panel. Recibe: id,
+    los cambios y el id del admin que pide (para impedir que se modifique a sí mismo y
+    quede bloqueado fuera del sistema)."""
+    usuario = _personal_o_404(db, usuario_id)
+    if usuario.id == admin_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No puedes cambiar tu propio rol ni estado (evita bloquearte fuera del sistema)",
+        )
+    campos = datos.model_dump(exclude_unset=True)
+    if "rol" in campos and campos["rol"] is not None:
+        usuario_repository.actualizar_rol(db, usuario, campos["rol"].value)
+    if "estado" in campos and campos["estado"] is not None:
+        usuario_repository.actualizar_estado(db, usuario, campos["estado"])
+    db.refresh(usuario)
+    return usuario
+
+
+def restablecer_contrasena_personal(db: Session, usuario_id: int, datos: PersonalResetContrasena) -> dict:
+    """CUS-03: el admin fija una nueva contraseña a un usuario del panel."""
+    usuario = _personal_o_404(db, usuario_id)
+    usuario_repository.actualizar_hash(db, usuario.id, get_password_hash(datos.contrasena))
+    return {"mensaje": "Contraseña restablecida correctamente"}
 
 
 def autenticar_y_generar_token(db: Session, correo: str, contrasena: str) -> str:

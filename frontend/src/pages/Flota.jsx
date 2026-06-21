@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Truck, Plus, CheckCircle2, AlertCircle, UserCog, X } from "lucide-react";
+import { Truck, Plus, CheckCircle2, AlertCircle, Pencil, Trash2, Check, X } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -8,7 +8,7 @@ import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import Modal from "../components/ui/Modal";
 import { EstadoBadge } from "../components/ui/Badge";
-import { listarVehiculos, crearVehiculo, listarConductores, actualizarVehiculo } from "../services/api";
+import { listarVehiculos, crearVehiculo, listarConductores, actualizarVehiculo, eliminarVehiculo } from "../services/api";
 import { validarPlaca, validarCapacidad } from "../utils/validaciones";
 
 // Registro de vehículos y su asignación a un conductor. El alta de conductores
@@ -21,10 +21,11 @@ export default function Flota() {
   const [placa, setPlaca] = useState("");
   const [marca, setMarca] = useState("");
   const [capacidad, setCapacidad] = useState("");
+  const [cajas, setCajas] = useState("");
   const [conductorId, setConductorId] = useState("");
   const [errores, setErrores] = useState({});
   const [aviso, setAviso] = useState(null);
-  const [reasignar, setReasignar] = useState(null);  // vehículo cuyo conductor se reasigna (CUS-09)
+  const [editando, setEditando] = useState(null);  // vehículo que se edita/elimina (CUS-08/09)
 
   const cargar = async () => {
     setCargando(true);
@@ -71,10 +72,11 @@ export default function Flota() {
         placa,
         marca: marca || null,
         capacidad_volumetrica: capacidad ? Number(capacidad) : null,
+        capacidad_cajas: cajas ? Number(cajas) : null,
         conductor_id: conductorId ? Number(conductorId) : null,
       });
       setAviso({ ok: true, texto: "Vehículo registrado correctamente." });
-      setPlaca(""); setMarca(""); setCapacidad(""); setConductorId("");
+      setPlaca(""); setMarca(""); setCapacidad(""); setCajas(""); setConductorId("");
       cargar();
     } catch (err) {
       setAviso({ ok: false, texto: err.message });
@@ -100,8 +102,13 @@ export default function Flota() {
     },
     {
       key: "capacidad_volumetrica",
-      header: "Capacidad (m³)",
+      header: "Cap. (m³)",
       render: (v) => <span className="text-slate-600 nums">{v.capacidad_volumetrica ?? "—"}</span>,
+    },
+    {
+      key: "capacidad_cajas",
+      header: "Cajas",
+      render: (v) => <span className="text-slate-600 nums">{v.capacidad_cajas ?? "—"}</span>,
     },
     {
       key: "conductor",
@@ -121,8 +128,8 @@ export default function Flota() {
       key: "acciones",
       header: "",
       render: (v) => (
-        <Button variant="ghost" size="sm" icon={UserCog} onClick={() => { setAviso(null); setReasignar(v); }}>
-          Reasignar
+        <Button variant="ghost" size="sm" icon={Pencil} onClick={() => { setAviso(null); setEditando(v); }}>
+          Editar
         </Button>
       ),
     },
@@ -156,6 +163,8 @@ export default function Flota() {
                 onChange={(e) => { setCapacidad(e.target.value); setErrores((er) => ({ ...er, capacidad: "" })); }}
                 placeholder="12" error={errores.capacidad} hint="Mayor a 0 (máx. 100)" />
             </div>
+            <Input label="Capacidad (cajas)" type="number" min="0" step="1" value={cajas}
+              onChange={(e) => setCajas(e.target.value)} placeholder="200" hint="Cuántas cajas soporta (opcional)" />
             <Input as="select" label="Conductor asignado" value={conductorId} onChange={(e) => setConductorId(e.target.value)}>
               <option value="">Sin conductor (de la empresa)</option>
               {conductores.map((c) => (
@@ -190,14 +199,14 @@ export default function Flota() {
         </div>
       </div>
 
-      {/* CUS-09: reasignar (o liberar) el conductor de un vehículo */}
-      <Modal open={!!reasignar} onClose={() => setReasignar(null)} variant="center">
-        {reasignar && (
-          <ReasignarConductor
-            vehiculo={reasignar}
+      {/* CUS-08/09: editar (marca/capacidades/conductor) o dar de baja un vehículo */}
+      <Modal open={!!editando} onClose={() => setEditando(null)} variant="center">
+        {editando && (
+          <EditarVehiculo
+            vehiculo={editando}
             conductores={conductores}
-            onCerrar={() => setReasignar(null)}
-            onCambios={() => { setReasignar(null); cargar(); }}
+            onCerrar={() => setEditando(null)}
+            onCambios={() => { setEditando(null); cargar(); }}
           />
         )}
       </Modal>
@@ -205,9 +214,13 @@ export default function Flota() {
   );
 }
 
-// Formulario para cambiar el conductor asignado a un vehículo (CUS-09). Recibe: el
-// vehículo, la lista de conductores y los callbacks de cierre/recarga.
-function ReasignarConductor({ vehiculo, conductores, onCerrar, onCambios }) {
+// Edición de un vehículo (CUS-08): marca, capacidades, conductor (CUS-09) y baja.
+// Recibe: el vehículo, la lista de conductores y los callbacks de cierre/recarga.
+function EditarVehiculo({ vehiculo, conductores, onCerrar, onCambios }) {
+  const [modo, setModo] = useState("editar"); // "editar" | "confirmar"
+  const [marca, setMarca] = useState(vehiculo.marca || "");
+  const [capacidad, setCapacidad] = useState(vehiculo.capacidad_volumetrica ?? "");
+  const [cajas, setCajas] = useState(vehiculo.capacidad_cajas ?? "");
   const [conductorId, setConductorId] = useState(vehiculo.conductor_id ? String(vehiculo.conductor_id) : "");
   const [trabajando, setTrabajando] = useState(false);
   const [error, setError] = useState(null);
@@ -216,7 +229,12 @@ function ReasignarConductor({ vehiculo, conductores, onCerrar, onCambios }) {
     setTrabajando(true);
     setError(null);
     try {
-      await actualizarVehiculo(vehiculo.id, { conductor_id: conductorId ? Number(conductorId) : null });
+      await actualizarVehiculo(vehiculo.id, {
+        marca: marca.trim() || null,
+        capacidad_volumetrica: capacidad === "" ? null : Number(capacidad),
+        capacidad_cajas: cajas === "" ? null : Number(cajas),
+        conductor_id: conductorId ? Number(conductorId) : null,
+      });
       onCambios();
     } catch (err) {
       setError(err.message);
@@ -224,12 +242,25 @@ function ReasignarConductor({ vehiculo, conductores, onCerrar, onCambios }) {
     }
   };
 
+  const eliminar = async () => {
+    setTrabajando(true);
+    setError(null);
+    try {
+      await eliminarVehiculo(vehiculo.id);
+      onCambios();
+    } catch (err) {
+      setError(err.message);
+      setTrabajando(false);
+      setModo("editar");
+    }
+  };
+
   return (
     <>
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="font-bold text-slate-900">Reasignar conductor</h2>
-          <p className="text-sm text-slate-500 nums">Vehículo {vehiculo.placa}{vehiculo.codigo ? ` · ${vehiculo.codigo}` : ""}</p>
+          <h2 className="font-bold text-slate-900">Editar vehículo</h2>
+          <p className="text-sm text-slate-500 nums">{vehiculo.placa}{vehiculo.codigo ? ` · ${vehiculo.codigo}` : ""}</p>
         </div>
         <button onClick={onCerrar} aria-label="Cerrar" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100">
           <X size={20} />
@@ -242,20 +273,40 @@ function ReasignarConductor({ vehiculo, conductores, onCerrar, onCambios }) {
         </div>
       )}
 
-      <div className="mt-6 space-y-4">
-        <Input as="select" label="Conductor asignado" value={conductorId} onChange={(e) => setConductorId(e.target.value)}>
-          <option value="">Sin conductor (de la empresa)</option>
-          {conductores.map((c) => (
-            <option key={c.usuario_id} value={c.usuario_id}>
-              {c.nombre || c.correo} {c.codigo ? `· ${c.codigo}` : ""}
-            </option>
-          ))}
-        </Input>
-        <div className="flex gap-2">
-          <Button variant="secondary" block onClick={onCerrar} disabled={trabajando}>Cancelar</Button>
-          <Button icon={UserCog} block onClick={guardar} disabled={trabajando}>{trabajando ? "Guardando…" : "Guardar"}</Button>
+      {modo === "editar" ? (
+        <div className="mt-6 space-y-4">
+          <Input label="Marca" value={marca} onChange={(e) => setMarca(e.target.value)} placeholder="Toyota" />
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Capacidad (m³)" type="number" min="0" step="0.1" value={capacidad}
+              onChange={(e) => setCapacidad(e.target.value)} placeholder="12" />
+            <Input label="Capacidad (cajas)" type="number" min="0" step="1" value={cajas}
+              onChange={(e) => setCajas(e.target.value)} placeholder="200" />
+          </div>
+          <Input as="select" label="Conductor asignado" value={conductorId} onChange={(e) => setConductorId(e.target.value)}>
+            <option value="">Sin conductor (de la empresa)</option>
+            {conductores.map((c) => (
+              <option key={c.usuario_id} value={c.usuario_id}>
+                {c.nombre || c.correo} {c.codigo ? `· ${c.codigo}` : ""}
+              </option>
+            ))}
+          </Input>
+          <div className="flex gap-2">
+            <Button variant="secondary" icon={Trash2} block onClick={() => { setError(null); setModo("confirmar"); }} disabled={trabajando}>Eliminar</Button>
+            <Button icon={Check} block onClick={guardar} disabled={trabajando}>{trabajando ? "Guardando…" : "Guardar"}</Button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="mt-6 space-y-4">
+          <div className="flex items-start gap-3 rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger-strong">
+            <AlertCircle size={20} className="shrink-0" />
+            <span>¿Dar de baja el vehículo <b>{vehiculo.placa}</b>? Se quitará de la flota y se liberará su conductor.</span>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="secondary" block onClick={() => setModo("editar")} disabled={trabajando}>Cancelar</Button>
+            <Button variant="danger" icon={Trash2} block onClick={eliminar} disabled={trabajando}>{trabajando ? "Eliminando…" : "Sí, eliminar"}</Button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
