@@ -1,10 +1,37 @@
 # app/repositories/usuario_repository.py
 # Es la ÚNICA capa que habla directamente con la tabla 'usuarios'.
-from typing import Optional
+from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.models.usuario import Usuario
 from app.core.codigos import asignar_codigo, prefijo_por_rol
+
+
+def listar_personal(db: Session) -> List[Usuario]:
+    """Lista los usuarios del PANEL (admin/jefe/almacén), no los conductores.
+    Recibe: la sesión. Devuelve la lista ordenada por código."""
+    return (
+        db.query(Usuario)
+        .filter(Usuario.rol != "conductor")
+        .order_by(Usuario.codigo.asc())
+        .all()
+    )
+
+
+def actualizar_rol(db: Session, usuario: Usuario, rol: str) -> Usuario:
+    """Cambia el rol de un usuario. Recibe: el usuario y el nuevo rol (texto)."""
+    usuario.rol = rol
+    db.commit()
+    db.refresh(usuario)
+    return usuario
+
+
+def actualizar_estado(db: Session, usuario: Usuario, estado: bool) -> Usuario:
+    """Activa/desactiva un usuario. Recibe: el usuario y el nuevo estado (bool)."""
+    usuario.estado = estado
+    db.commit()
+    db.refresh(usuario)
+    return usuario
 
 
 def obtener_por_correo(db: Session, correo: str) -> Optional[Usuario]:

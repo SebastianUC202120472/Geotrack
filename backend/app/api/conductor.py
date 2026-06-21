@@ -8,7 +8,7 @@ from typing import List
 from app.db.database import get_db
 from app.api.deps import get_current_conductor
 from app.models.usuario import Usuario
-from app.services import ruta_service, reporte_service, conductor_service
+from app.services import ruta_service, reporte_service, conductor_service, parametro_service
 from app.schemas.ruta import (
     RutaActivaResponse,
     ManifiestoResponse,
@@ -43,6 +43,17 @@ def mi_perfil(
     conductor: Usuario = Depends(get_current_conductor),
 ):
     return conductor_service.obtener_uno(db, conductor)
+
+
+# --- CUS-06: motivos de rechazo del catálogo (para el reporte de falla en la app) ---
+@router.get("/motivos", response_model=List[str])
+def listar_motivos(
+    db: Session = Depends(get_db),
+    conductor: Usuario = Depends(get_current_conductor),
+):
+    """Devuelve los textos de los motivos de rechazo configurados por el admin, para
+    que la app los muestre al reportar una entrega fallida (antes estaban fijos)."""
+    return [m["texto"] for m in parametro_service.listar_motivos(db)]
 
 
 # --- Reporta una falla de un pedido (incidencia) ---

@@ -12,6 +12,9 @@ import AsignacionBloque from "./pages/AsignacionBloque";
 import Bandeja from "./pages/Bandeja";
 import Flota from "./pages/Flota";
 import Conductores from "./pages/Conductores";
+import Clientes from "./pages/Clientes";
+import Usuarios from "./pages/Usuarios";
+import Parametros from "./pages/Parametros";
 import Seguimiento from "./pages/Seguimiento";
 import SeguimientoConductores from "./pages/SeguimientoConductores";
 import Reportes from "./pages/Reportes";
@@ -40,6 +43,9 @@ export default function App() {
         <Route path="/bandeja" element={<Bandeja />} />
         <Route path="/flota" element={<Flota />} />
         <Route path="/conductores" element={<Conductores />} />
+        <Route path="/clientes" element={<Clientes />} />
+        <Route path="/usuarios" element={<Usuarios />} />
+        <Route path="/parametros" element={<Parametros />} />
         <Route path="/seguimiento" element={<Seguimiento />} />
         <Route path="/seguimiento-conductores" element={<SeguimientoConductores />} />
         <Route path="/reportes" element={<Reportes />} />

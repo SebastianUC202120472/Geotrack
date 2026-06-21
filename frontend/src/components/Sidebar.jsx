@@ -7,6 +7,9 @@ import {
   Mail,
   Truck,
   Users,
+  Building2,
+  UserCog,
+  SlidersHorizontal,
   Radar,
   MapPin,
   Search,
@@ -37,8 +40,16 @@ const secciones = [
     items: [
       { icon: Truck, label: "Flota de Vehículos", path: "/flota" },
       { icon: Users, label: "Conductores", path: "/conductores" },
+      { icon: Building2, label: "Clientes", path: "/clientes" },
       { icon: Radar, label: "Seguimiento", path: "/seguimiento" },
       { icon: MapPin, label: "Seguimiento de Conductores", path: "/seguimiento-conductores" },
+    ],
+  },
+  {
+    titulo: "Administración",
+    items: [
+      { icon: UserCog, label: "Usuarios", path: "/usuarios" },
+      { icon: SlidersHorizontal, label: "Parámetros", path: "/parametros" },
     ],
   },
   {

@@ -25,6 +25,12 @@ def crear_vehiculo(datos: VehiculoCreate, db: Session = Depends(get_db)):
 
 
 @router.patch("/{vehiculo_id}", response_model=VehiculoResponse, dependencies=[Depends(get_current_admin)])
-def reasignar_conductor(vehiculo_id: int, datos: VehiculoUpdate, db: Session = Depends(get_db)):
-    """CUS-09: reasigna (o libera) el conductor de un vehículo."""
-    return vehiculo_service.reasignar_conductor(db, vehiculo_id, datos)
+def actualizar_vehiculo(vehiculo_id: int, datos: VehiculoUpdate, db: Session = Depends(get_db)):
+    """CUS-08/09: edita un vehículo (marca/capacidades) y/o reasigna su conductor."""
+    return vehiculo_service.actualizar_vehiculo(db, vehiculo_id, datos)
+
+
+@router.delete("/{vehiculo_id}", dependencies=[Depends(get_current_admin)])
+def eliminar_vehiculo(vehiculo_id: int, db: Session = Depends(get_db)):
+    """CUS-08: da de baja un vehículo (borrado lógico) y libera su conductor."""
+    return vehiculo_service.eliminar_vehiculo(db, vehiculo_id)

@@ -112,6 +112,49 @@ export const eliminarConductor = (id) =>
 export const restablecerContrasenaConductor = (id, contrasena) =>
   request(`/conductores/${id}/restablecer-contrasena`, { method: "POST", body: { contrasena } });
 
+/* ============================================================
+   CLIENTES CORPORATIVOS  (CUS-07 — administración)
+============================================================ */
+
+export const listarClientes = () => request("/clientes/");
+
+export const crearCliente = (datos) =>
+  request("/clientes/", { method: "POST", body: datos });
+
+export const actualizarCliente = (id, datos) =>
+  request(`/clientes/${id}`, { method: "PATCH", body: datos });
+
+export const eliminarCliente = (id) =>
+  request(`/clientes/${id}`, { method: "DELETE" });
+
+/* ============================================================
+   USUARIOS DEL PANEL  (CUS-03 — admin/jefe/almacén)
+============================================================ */
+
+export const listarUsuarios = () => request("/usuarios/");
+
+export const crearUsuario = (datos) =>
+  request("/usuarios/", { method: "POST", body: datos });
+
+// Cambia rol y/o estado (activo) de un usuario del panel.
+export const actualizarUsuario = (id, datos) =>
+  request(`/usuarios/${id}`, { method: "PATCH", body: datos });
+
+export const restablecerContrasenaUsuario = (id, contrasena) =>
+  request(`/usuarios/${id}/restablecer-contrasena`, { method: "POST", body: { contrasena } });
+
+/* ============================================================
+   PARÁMETROS — Motivos de rechazo  (CUS-06)
+============================================================ */
+
+export const listarMotivos = () => request("/parametros/motivos");
+
+export const crearMotivo = (texto) =>
+  request("/parametros/motivos", { method: "POST", body: { texto } });
+
+export const eliminarMotivo = (id) =>
+  request(`/parametros/motivos/${id}`, { method: "DELETE" });
+
 // Sube/reemplaza la foto de un conductor (multipart). La verá en su app móvil.
 export const subirFotoConductor = (usuarioId, file) => {
   const formData = new FormData();
@@ -170,9 +213,13 @@ export const listarVehiculos = () => request("/vehiculos/");
 export const crearVehiculo = (datos) =>
   request("/vehiculos/", { method: "POST", body: datos });
 
-// CUS-09: reasigna (o libera con conductor_id=null) el conductor de un vehículo.
+// CUS-08/09: edita un vehículo (marca/capacidades) o reasigna su conductor.
 export const actualizarVehiculo = (id, datos) =>
   request(`/vehiculos/${id}`, { method: "PATCH", body: datos });
+
+// CUS-08: da de baja (lógica) un vehículo.
+export const eliminarVehiculo = (id) =>
+  request(`/vehiculos/${id}`, { method: "DELETE" });
 
 /* ============================================================
    ENRUTAMIENTO  (CUS-18)
