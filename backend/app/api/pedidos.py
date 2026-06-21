@@ -12,6 +12,8 @@ from app.schemas.pedido import (
     CargaPedidosResponse,
     GeocodificacionResponse,
     ZonasResponse,
+    UbicacionManualRequest,
+    BuscarDireccionResponse,
 )
 from typing import List
 
@@ -51,3 +53,21 @@ def agrupar_pedidos_por_zona(db: Session = Depends(get_db)):
 def reabrir_pedido(pedido_id: int, db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
     """Devuelve un pedido FALLIDO a PENDIENTE para poder reasignarlo."""
     return pedido_service.reabrir_pedido(db, pedido_id, usuario_id=admin.id)
+
+
+@router.get("/por-ubicar", response_model=List[PedidoResponse], dependencies=[Depends(get_current_admin)])
+def listar_por_ubicar(db: Session = Depends(get_db)):
+    """CUS-17: pedidos cuya dirección no se pudo geocodificar (para resolver a mano)."""
+    return pedido_service.listar_para_ubicar(db)
+
+
+@router.get("/buscar-direccion", response_model=BuscarDireccionResponse, dependencies=[Depends(get_current_admin)])
+def buscar_direccion(q: str, db: Session = Depends(get_db)):
+    """CUS-17: geocodifica un texto de búsqueda para ubicar el pin en el mapa."""
+    return pedido_service.buscar_direccion(q)
+
+
+@router.patch("/{pedido_id}/ubicacion")
+def fijar_ubicacion(pedido_id: int, datos: UbicacionManualRequest, db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
+    """CUS-17: fija a mano la ubicación (lat/lng) de un pedido y lo deja listo para rutear."""
+    return pedido_service.fijar_ubicacion(db, pedido_id, datos.latitud, datos.longitud, datos.direccion, usuario_id=admin.id)

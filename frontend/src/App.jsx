@@ -9,6 +9,7 @@ import ImportarPedidos from "./pages/ImportarPedidos";
 import Pedidos from "./pages/Pedidos";
 import AgrupacionZonas from "./pages/AgrupacionZonas";
 import AsignacionBloque from "./pages/AsignacionBloque";
+import Direcciones from "./pages/Direcciones";
 import Bandeja from "./pages/Bandeja";
 import Flota from "./pages/Flota";
 import Conductores from "./pages/Conductores";
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="/pedidos" element={<Pedidos />} />
         <Route path="/agrupacion" element={<AgrupacionZonas />} />
         <Route path="/asignacion-bloque" element={<AsignacionBloque />} />
+        <Route path="/direcciones" element={<Direcciones />} />
         <Route path="/bandeja" element={<Bandeja />} />
         <Route path="/flota" element={<Flota />} />
         <Route path="/conductores" element={<Conductores />} />
