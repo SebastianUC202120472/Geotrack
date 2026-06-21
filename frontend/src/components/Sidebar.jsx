@@ -1,6 +1,5 @@
 import {
   LayoutDashboard,
-  FileSpreadsheet,
   Package,
   Layers3,
   Route as RouteIcon,
@@ -33,7 +32,6 @@ const secciones = [
     titulo: "Operación",
     items: [
       { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-      { icon: FileSpreadsheet, label: "Importar Pedidos", path: "/importar" },
       { icon: Package, label: "Pedidos", path: "/pedidos" },
       { icon: Layers3, label: "Agrupación por Zonas", path: "/agrupacion" },
       { icon: MapPinned, label: "Resolver Direcciones", path: "/direcciones" },
