@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Inbox, Plus, Route as RouteIcon, X, CheckCircle2, AlertCircle } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import DataTable from "../components/ui/DataTable";
@@ -21,6 +22,10 @@ export default function Recojos() {
   const [nueva, setNueva] = useState(false);
   const [modalRuta, setModalRuta] = useState(false);
   const [detalle, setDetalle] = useState(null);
+  // Precarga desde Bandeja: cliente pre-seleccionado y conversación vinculada (CUS-10).
+  const [clienteInicial, setClienteInicial] = useState(null);
+  const [conversacionId, setConversacionId] = useState(null);
+  const location = useLocation();
 
   // Carga la lista según el filtro. Los setState van en callbacks de promesa para no
   // disparar el lint "setState síncrono en effect".
@@ -48,6 +53,28 @@ export default function Recojos() {
     listarVehiculos().then((d) => activo && setVehiculos(d)).catch(() => {});
     return () => { activo = false; };
   }, []);
+
+  // Precarga desde Bandeja: cuando llega location.state.crearDesdeBandeja y ya están
+  // los clientes cargados, hace match por email o razón social y abre el modal con
+  // el cliente y la conversación pre-seleccionados. El setState va en callback para
+  // cumplir el patrón lint-safe (sin setState síncrono en effect).
+  useEffect(() => {
+    const datos = location.state?.crearDesdeBandeja;
+    if (!datos || !clientes.length) return;
+    const matchEmail = clientes.find(
+      (c) => c.correo && c.correo.toLowerCase() === (datos.email || "").toLowerCase()
+    );
+    const matchNombre = clientes.find(
+      (c) => c.razon_social && datos.nombre &&
+        c.razon_social.toLowerCase().includes(datos.nombre.toLowerCase())
+    );
+    const clienteEncontrado = matchEmail ?? matchNombre ?? null;
+    Promise.resolve().then(() => {
+      setClienteInicial(clienteEncontrado ? clienteEncontrado.id : null);
+      setConversacionId(datos.conversacion_id ?? null);
+      setNueva(true);
+    });
+  }, [location.state, clientes]);
 
   const columnas = [
     { key: "codigo", header: "Código", render: (r) => <span className="font-medium text-slate-800 nums">{r.codigo || "—"}</span> },
@@ -80,11 +107,13 @@ export default function Recojos() {
           onRowClick={(r) => setDetalle(r)} />
       </div>
 
-      {/* CUS-10: nueva solicitud */}
-      <Modal open={nueva} onClose={() => setNueva(false)} variant="right" className="max-w-lg">
+      {/* CUS-10: nueva solicitud (con precarga opcional desde Bandeja) */}
+      <Modal open={nueva} onClose={() => { setNueva(false); setClienteInicial(null); setConversacionId(null); }} variant="right" className="max-w-lg">
         <FormNuevaSolicitud clientes={clientes}
-          onCerrar={() => setNueva(false)}
-          onCreado={() => { setNueva(false); cargar(filtro); }} />
+          clienteInicial={clienteInicial}
+          conversacionId={conversacionId}
+          onCerrar={() => { setNueva(false); setClienteInicial(null); setConversacionId(null); }}
+          onCreado={() => { setNueva(false); setClienteInicial(null); setConversacionId(null); cargar(filtro); }} />
       </Modal>
 
       {/* CUS-11: crear ruta de recojo */}
@@ -102,9 +131,10 @@ export default function Recojos() {
   );
 }
 
-// Formulario de alta (CUS-10). Recibe: clientes, onCerrar, onCreado.
-function FormNuevaSolicitud({ clientes, onCerrar, onCreado }) {
-  const [form, setForm] = useState({ cliente_id: "", direccion_origen: "", volumen_estimado_m3: "", contacto_origen: "", referencia: "" });
+// Formulario de alta (CUS-10). Recibe: clientes, clienteInicial (id pre-seleccionado,
+// opcional), conversacionId (vinculación con hilo de Bandeja, opcional), onCerrar, onCreado.
+function FormNuevaSolicitud({ clientes, clienteInicial, conversacionId, onCerrar, onCreado }) {
+  const [form, setForm] = useState({ cliente_id: clienteInicial ?? "", direccion_origen: "", volumen_estimado_m3: "", contacto_origen: "", referencia: "" });
   const [aviso, setAviso] = useState(null);
   const [guardando, setGuardando] = useState(false);
 
@@ -120,6 +150,7 @@ function FormNuevaSolicitud({ clientes, onCerrar, onCreado }) {
         volumen_estimado_m3: form.volumen_estimado_m3 ? Number(form.volumen_estimado_m3) : null,
         contacto_origen: form.contacto_origen.trim() || null,
         referencia: form.referencia.trim() || null,
+        conversacion_id: conversacionId ?? null,
       });
       setAviso({ ok: true, texto: `Solicitud ${r.codigo || ""} creada.` });
       setTimeout(onCreado, 500);

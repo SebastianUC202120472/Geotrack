@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { RefreshCw, Send, Mail, Inbox, Loader2, CheckCircle2, AlertCircle, FileSpreadsheet, Download } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import SectionCard from "../components/ui/SectionCard";
@@ -23,6 +24,7 @@ export default function Bandeja() {
   const [sincronizando, setSincronizando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState(null);
+  const navigate = useNavigate();
 
   const cargarLista = async () => {
     try {
@@ -153,9 +155,23 @@ export default function Bandeja() {
           className="lg:col-span-2"
           title={detalle ? detalle.asunto : "Conversación"}
           action={detalle && (
-            <Button variant="ghost" size="sm" onClick={alternarEstado}>
-              {detalle.estado === "ATENDIDA" ? "Marcar pendiente" : "Marcar atendida"}
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Atajo: abre Recojos precargando el cliente de esta conversación (CUS-10) */}
+              <Button variant="secondary" size="sm" icon={Inbox} onClick={() => navigate("/recojos", {
+                state: {
+                  crearDesdeBandeja: {
+                    conversacion_id: detalle.id,
+                    email: detalle.contraparte_email,
+                    nombre: detalle.contraparte_nombre,
+                  },
+                },
+              })}>
+                Crear recojo
+              </Button>
+              <Button variant="ghost" size="sm" onClick={alternarEstado}>
+                {detalle.estado === "ATENDIDA" ? "Marcar pendiente" : "Marcar atendida"}
+              </Button>
+            </div>
           )}
         >
           {!selId ? (
