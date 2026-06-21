@@ -5,6 +5,7 @@ import {
   Route as RouteIcon,
   MapPinned,
   Mail,
+  Inbox,
   Truck,
   Users,
   Building2,
@@ -36,6 +37,7 @@ const secciones = [
       { icon: MapPinned, label: "Resolver Direcciones", path: "/direcciones" },
       { icon: RouteIcon, label: "Asignación de Rutas", path: "/asignacion-bloque" },
       { icon: Mail, label: "Bandeja de Solicitudes", path: "/bandeja" },
+      { icon: Inbox, label: "Recojos", path: "/recojos" },
     ],
   },
   {
