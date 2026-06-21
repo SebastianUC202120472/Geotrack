@@ -15,6 +15,7 @@ import {
   MapPin,
   Search,
   AlertTriangle,
+  Wrench,
   LogOut,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
@@ -52,6 +53,12 @@ const secciones = [
     items: [
       { icon: UserCog, label: "Usuarios", path: "/usuarios" },
       { icon: SlidersHorizontal, label: "Parámetros", path: "/parametros" },
+    ],
+  },
+  {
+    titulo: "Incidencias",
+    items: [
+      { icon: Wrench, label: "Auxilio Mecánico", path: "/auxilio" },
     ],
   },
   {
