@@ -1,6 +1,6 @@
 # app/api/conductor.py
 # Expone los endpoints que consume EXCLUSIVAMENTE la App Móvil del conductor (toda la Fase 3).
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
 
 from typing import List
@@ -8,7 +8,7 @@ from typing import List
 from app.db.database import get_db
 from app.api.deps import get_current_conductor
 from app.models.usuario import Usuario
-from app.services import ruta_service, reporte_service, conductor_service, parametro_service, incidencia_service
+from app.services import ruta_service, reporte_service, conductor_service, parametro_service, incidencia_service, recojo_service
 from app.schemas.ruta import (
     RutaActivaResponse,
     ManifiestoResponse,
@@ -18,7 +18,10 @@ from app.schemas.ruta import (
     ActualizarEstadoRequest,
     GestionParadaResponse,
     CierreRutaResponse,
+    OptimizacionRequest,
+    OptimizacionResponse,
 )
+from app.schemas.recojo import ManifiestoRecojoResponse, RecepcionResponse
 from app.schemas.reporte import ReporteCreate, ReporteResponse
 from app.schemas.incidencia import IncidenciaCreate, ResolverIncidenciaRequest, IncidenciaResponse
 from app.schemas.conductor import ConductorResponse, UbicacionRequest
@@ -183,3 +186,40 @@ def reanudar_ruta(
 ):
     """Reanuda la ruta del conductor marcando la incidencia como resuelta."""
     return incidencia_service.reanudar(db, incidencia_id, conductor.id, datos.nota)
+
+
+# --- CUS-12: manifiesto de la ruta de recojo activa ---
+@router.get("/recojo/manifiesto", response_model=ManifiestoRecojoResponse)
+def consultar_manifiesto_recojo(
+    db: Session = Depends(get_db),
+    conductor: Usuario = Depends(get_current_conductor),
+):
+    """Devuelve los puntos de origen de la ruta de recojo activa (ordenados por secuencia)."""
+    return recojo_service.obtener_manifiesto_recojo(db, conductor.id)
+
+
+# --- CUS-19 (recojo): optimizar la secuencia desde la posición del conductor ---
+@router.post("/recojo/optimizar", response_model=OptimizacionResponse)
+def optimizar_recojo(
+    solicitud: OptimizacionRequest,
+    db: Session = Depends(get_db),
+    conductor: Usuario = Depends(get_current_conductor),
+):
+    """Optimiza el orden de la ruta de recojo activa del conductor."""
+    return recojo_service.optimizar_recojo(db, solicitud, conductor.id)
+
+
+# --- CUS-12: recepción condicionada en origen (cantidad declarada + foto de la guía) ---
+@router.post("/recojo/{recojo_id}/recepcion", response_model=RecepcionResponse)
+async def registrar_recepcion(
+    recojo_id: int,
+    cantidad_declarada: int = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    conductor: Usuario = Depends(get_current_conductor),
+):
+    """Registra el recojo a bulto cerrado: cantidad declarada + foto de la Guía de Remisión."""
+    contenido = await file.read()
+    return recojo_service.registrar_recepcion(
+        db, conductor.id, recojo_id, cantidad_declarada, contenido, file.filename
+    )

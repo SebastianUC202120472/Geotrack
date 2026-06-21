@@ -348,6 +348,29 @@ export const reprogramarPedido = (id) => request(`/pedidos/${id}/reprogramar`, {
 export const cancelarPedido = (id) => request(`/pedidos/${id}/cancelar`, { method: "POST" });
 
 /* ============================================================
+   RECOJOS INBOUND  (CUS-10 / CUS-11)
+============================================================ */
+
+// Lista las solicitudes de recojo (filtro opcional por estado). Salida: array.
+export const listarRecojos = (estado) =>
+  request(`/recojos/${estado ? `?estado=${encodeURIComponent(estado)}` : ""}`);
+
+// Detalle de una solicitud de recojo. Entrada: id.
+export const obtenerRecojo = (id) => request(`/recojos/${id}`);
+
+// CUS-10: crea una solicitud. Entrada: { cliente_id, direccion_origen, volumen_estimado_m3?, contacto_origen?, referencia?, conversacion_id? }.
+export const crearRecojo = (datos) =>
+  request("/recojos/", { method: "POST", body: datos });
+
+// CUS-10: edita una solicitud (solo mientras está SOLICITADO). Entrada: id y campos.
+export const actualizarRecojo = (id, datos) =>
+  request(`/recojos/${id}`, { method: "PATCH", body: datos });
+
+// CUS-11: crea una ruta de recojo. Entrada: { recojo_ids, conductor_id, vehiculo_placa, nombre_ruta? }.
+export const asignarRutaRecojo = (datos) =>
+  request("/recojos/asignar-ruta", { method: "POST", body: datos });
+
+/* ============================================================
    INCIDENCIAS — Auxilio mecánico (CUS-30)
 ============================================================ */
 
