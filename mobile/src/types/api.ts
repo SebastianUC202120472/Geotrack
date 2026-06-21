@@ -104,6 +104,7 @@ export interface PerfilConductor {
   telefono?: string | null;
   dni?: string | null;
   vehiculo?: { id: number; codigo?: string | null; placa: string } | null;
+  foto_url?: string | null;
 }
 
 // Reporte de incidencia de un pedido.

@@ -20,9 +20,20 @@ from app.schemas.ruta import (
     CierreRutaResponse,
 )
 from app.schemas.reporte import ReporteCreate, ReporteResponse
-from app.schemas.conductor import ConductorResponse
+from app.schemas.conductor import ConductorResponse, UbicacionRequest
 
 router = APIRouter()
+
+
+# --- Reporta la posición actual del conductor (mapa de flota en vivo) ---
+@router.post("/ubicacion")
+def reportar_ubicacion(
+    datos: UbicacionRequest,
+    db: Session = Depends(get_db),
+    conductor: Usuario = Depends(get_current_conductor),
+):
+    """La app móvil envía la posición del conductor (foreground) cada ~12 s."""
+    return conductor_service.registrar_ubicacion(db, conductor.id, datos)
 
 
 # --- Perfil del propio conductor (para el header/perfil de la app) ---

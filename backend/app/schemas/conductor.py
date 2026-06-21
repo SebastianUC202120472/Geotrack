@@ -63,6 +63,50 @@ class ConductorCreate(BaseModel):
         return v
 
 
+class ConductorUpdate(BaseModel):
+    """ENTRADA: edición de la ficha de un conductor. Todos los campos son
+    opcionales; el correo (acceso) NO se edita aquí."""
+    nombre: Optional[str] = None
+    telefono: Optional[str] = None
+    dni: Optional[str] = None
+
+    @field_validator("nombre")
+    @classmethod
+    def _v_nombre(cls, v: Optional[str]) -> Optional[str]:
+        if v in (None, ""):
+            return None
+        v = v.strip()
+        if len(v) < 3:
+            raise ValueError("El nombre debe tener al menos 3 caracteres")
+        return v
+
+    @field_validator("telefono")
+    @classmethod
+    def _v_telefono(cls, v: Optional[str]) -> Optional[str]:
+        if v in (None, ""):
+            return None
+        v = v.strip().replace(" ", "")
+        if not _RE_TELEFONO.match(v):
+            raise ValueError("El teléfono debe tener 9 dígitos y empezar en 9")
+        return v
+
+    @field_validator("dni")
+    @classmethod
+    def _v_dni(cls, v: Optional[str]) -> Optional[str]:
+        if v in (None, ""):
+            return None
+        v = v.strip()
+        if not _RE_DNI.match(v):
+            raise ValueError("El DNI debe tener exactamente 8 dígitos")
+        return v
+
+
+class UbicacionRequest(BaseModel):
+    """ENTRADA: la app del conductor reporta su posición actual (foreground)."""
+    latitud: float
+    longitud: float
+
+
 class VehiculoAsignado(BaseModel):
     id: int
     codigo: Optional[str] = None
@@ -81,4 +125,5 @@ class ConductorResponse(BaseModel):
     nombre: Optional[str] = None
     telefono: Optional[str] = None
     dni: Optional[str] = None
+    foto_url: Optional[str] = None   # URL pública de la foto (o None si no tiene)
     vehiculo: Optional[VehiculoAsignado] = None

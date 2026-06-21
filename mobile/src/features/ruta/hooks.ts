@@ -24,22 +24,22 @@ const sinReintentarEn404 = (intentos: number, error: unknown): boolean => {
   return intentos < 2;
 };
 
-// Refresco automático cada 20 s (además del refresco al enfocar la pantalla/app).
-const INTERVALO = 20_000;
+// Refresco automático cada 10 s (además del refresco al enfocar la pantalla/app).
+const INTERVALO = 10_000;
 
 // Resumen de la ruta activa. Devuelve: query de RutaActiva.
 export function useRutaActiva() {
-  return useQuery({ queryKey: claves.rutaActiva, queryFn: obtenerRutaActiva, retry: sinReintentarEn404, refetchInterval: INTERVALO });
+  return useQuery({ queryKey: claves.rutaActiva, queryFn: obtenerRutaActiva, retry: sinReintentarEn404, refetchInterval: INTERVALO, refetchOnMount: "always" });
 }
 
 // Manifiesto (paradas). Devuelve: query de Manifiesto.
 export function useManifiesto() {
-  return useQuery({ queryKey: claves.manifiesto, queryFn: obtenerManifiesto, retry: sinReintentarEn404, refetchInterval: INTERVALO });
+  return useQuery({ queryKey: claves.manifiesto, queryFn: obtenerManifiesto, retry: sinReintentarEn404, refetchInterval: INTERVALO, refetchOnMount: "always" });
 }
 
 // Waypoints para el mapa. Devuelve: query de Navegacion.
 export function useNavegacion() {
-  return useQuery({ queryKey: claves.navegacion, queryFn: obtenerNavegacion, retry: sinReintentarEn404, refetchInterval: INTERVALO });
+  return useQuery({ queryKey: claves.navegacion, queryFn: obtenerNavegacion, retry: sinReintentarEn404, refetchInterval: INTERVALO, refetchOnMount: "always" });
 }
 
 // Inicia/optimiza la ruta desde la ubicación actual y refresca los datos.

@@ -3,16 +3,22 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.repositories import ruta_repository, pedido_repository, usuario_repository, historial_repository
+from datetime import datetime
+
+from app.repositories import ruta_repository, pedido_repository, usuario_repository, historial_repository, ubicacion_repository
 from app.schemas.dashboard import (
     RutaFlota,
     FlotaResponse,
     ResumenResponse,
     EventoHistorial,
     HistorialPedidoResponse,
+    ClienteSeguimiento,
+    ConductorUbicacion,
+    ParadaMapa,
 )
 
 ESTADOS_RUTA_ACTIVA = ("CREADA", "EN_PROGRESO")
+UMBRAL_EN_LINEA_SEG = 120  # un conductor está "en línea" si su última señal tiene < 2 min
 
 # Texto legible para cada estado, usado en la línea de tiempo (CUS-35).
 DESCRIPCIONES_ESTADO = {
@@ -43,6 +49,81 @@ def _contar_estados(detalles) -> tuple[int, int, int]:
     fallidas = sum(1 for d, _ in detalles if d.estado_entrega == "FALLIDO")
     pendientes = sum(1 for d, _ in detalles if d.estado_entrega == "PENDIENTE")
     return entregadas, fallidas, pendientes
+
+
+# Seguimiento por cliente: agrega los pedidos por empresa y los clasifica en grupos.
+def obtener_por_cliente(db: Session) -> list[ClienteSeguimiento]:
+    """Agrupa los pedidos por empresa (cliente_origen) y los clasifica en
+    entregados / fallidos / pendientes / en proceso. Recibe: la sesión de BD.
+    Cada estado cae en exactamente un grupo, así los grupos suman el total."""
+    acum: dict[str, dict] = {}
+    for cliente_origen, estado, total in pedido_repository.agrupar_por_cliente(db):
+        nombre = cliente_origen or "Sin cliente"
+        fila = acum.setdefault(
+            nombre,
+            {"cliente": nombre, "total": 0, "entregados": 0, "fallidos": 0, "pendientes": 0, "en_proceso": 0},
+        )
+        fila["total"] += total
+        if estado == "ENTREGADO":
+            fila["entregados"] += total
+        elif estado in ("FALLIDO", "GEOCODIFICACION_FALLIDA"):
+            fila["fallidos"] += total
+        elif estado in ("ASIGNADO", "EN_RUTA"):
+            fila["en_proceso"] += total
+        else:  # PENDIENTE (y cualquier estado no clasificado)
+            fila["pendientes"] += total
+
+    filas = sorted(acum.values(), key=lambda f: f["total"], reverse=True)
+    return [ClienteSeguimiento(**f) for f in filas]
+
+
+# Mapa de flota en tiempo real: posición de cada conductor activo + sus paradas pendientes.
+def obtener_ubicaciones_flota(db: Session) -> list[ConductorUbicacion]:
+    """Por cada ruta activa con conductor: su última posición conocida (con marca de
+    'en línea') y las paradas aún pendientes (con coordenadas) para el mapa del panel.
+    Recibe: la sesión de BD."""
+    from app.models.ruta import Ruta, RutaDetalle
+    from app.models.pedido import Pedido
+
+    ahora = datetime.utcnow()
+    rutas = db.query(Ruta).filter(Ruta.estado.in_(ESTADOS_RUTA_ACTIVA), Ruta.conductor_id.isnot(None)).all()
+
+    salida: list[ConductorUbicacion] = []
+    for ruta in rutas:
+        ubicacion = ubicacion_repository.obtener(db, ruta.conductor_id)
+        en_linea = bool(ubicacion) and (ahora - ubicacion.actualizado_en).total_seconds() <= UMBRAL_EN_LINEA_SEG
+
+        # Paradas pendientes de esta ruta que tengan coordenadas.
+        detalles = (
+            db.query(RutaDetalle, Pedido)
+            .join(Pedido, RutaDetalle.pedido_id == Pedido.id)
+            .filter(RutaDetalle.ruta_id == ruta.id, RutaDetalle.estado_entrega == "PENDIENTE")
+            .all()
+        )
+        paradas = [
+            ParadaMapa(
+                latitud=pedido.latitud,
+                longitud=pedido.longitud,
+                destinatario=pedido.nombre_destinatario,
+                secuencia=detalle.secuencia,
+            )
+            for detalle, pedido in detalles
+            if pedido.latitud is not None and pedido.longitud is not None
+        ]
+
+        salida.append(
+            ConductorUbicacion(
+                conductor_id=ruta.conductor_id,
+                conductor=_nombre_conductor(db, ruta.conductor_id),
+                ruta=ruta.nombre,
+                latitud=ubicacion.latitud if ubicacion else None,
+                longitud=ubicacion.longitud if ubicacion else None,
+                actualizado_en=ubicacion.actualizado_en if ubicacion else None,
+                en_linea=en_linea,
+                paradas=paradas,
+            )
+        )
+    return salida
 
 
 # CUS-33: Seguimiento de la flota
