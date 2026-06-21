@@ -116,22 +116,12 @@ class HistorialPedidoResponse(BaseModel):
     eventos: List[EventoHistorial]  # la línea de tiempo, en orden cronológico
 
 
-# CUS-34: KPIs de eficiencia (combustible/km y cajas entregadas).
-class PuntoEficiencia(BaseModel):
-    """Un día de la serie de eficiencia (últimos 7 días)."""
-    fecha: str           # 'YYYY-MM-DD'
-    cajas: int
-    km_ahorrados: float
-    soles_ahorrados: float
-
-
-class KpisEficienciaResponse(BaseModel):
-    """Resumen de eficiencia del día + serie de 7 días (gráficos automáticos)."""
-    cajas_entregadas_hoy: int
+# CUS-34: eficiencia acumulada por conductor (Km y ahorro de combustible).
+class EficienciaConductor(BaseModel):
+    """Resumen de eficiencia de UN conductor, sumando sus rutas ya cerradas."""
+    conductor_id: int
+    nombre: Optional[str] = None
     km_recorridos: float
     km_ahorrados: float
     litros_ahorrados: float
     soles_ahorrados: float
-    consumo_l_100km: float
-    precio_soles_litro: float
-    serie_7dias: List[PuntoEficiencia]

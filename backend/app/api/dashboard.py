@@ -16,7 +16,7 @@ from app.schemas.dashboard import (
     ConductorUbicacion,
     LiquidacionRequest,
     LiquidacionResponse,
-    KpisEficienciaResponse,
+    EficienciaConductor,
 )
 
 router = APIRouter()
@@ -76,7 +76,7 @@ def obtener_historial(codigo: str, db: Session = Depends(get_db)):
     return dashboard_service.obtener_historial(db, codigo)
 
 
-@router.get("/kpis-eficiencia", response_model=KpisEficienciaResponse, dependencies=[Depends(get_current_admin)])
-def obtener_kpis_eficiencia(db: Session = Depends(get_db)):
-    """CUS-34: KPIs de eficiencia (cajas entregadas hoy y ahorro de combustible)."""
-    return dashboard_service.obtener_kpis_eficiencia(db)
+@router.get("/eficiencia-conductores", response_model=List[EficienciaConductor], dependencies=[Depends(get_current_admin)])
+def obtener_eficiencia_conductores(db: Session = Depends(get_db)):
+    """CUS-34: eficiencia (km y ahorro de combustible) acumulada por cada conductor."""
+    return dashboard_service.obtener_eficiencia_conductores(db)
