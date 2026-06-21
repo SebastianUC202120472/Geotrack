@@ -27,6 +27,7 @@ const COLOR_ESTADO = {
   ENTREGADO: "#16a34a",
   FALLIDO: "#dc2626",
   GEOCODIFICACION_FALLIDA: "#dc2626",
+  CANCELADO: "#94a3b8",  // gris neutro: estado terminal sin entrega, diferente al azul de ASIGNADO
   CREADA: "#94a3b8",
 };
 

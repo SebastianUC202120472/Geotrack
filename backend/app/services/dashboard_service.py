@@ -73,7 +73,8 @@ def obtener_por_cliente(db: Session) -> list[ClienteSeguimiento]:
         fila["total"] += total
         if estado == "ENTREGADO":
             fila["entregados"] += total
-        elif estado in ("FALLIDO", "GEOCODIFICACION_FALLIDA"):
+        elif estado in ("FALLIDO", "GEOCODIFICACION_FALLIDA", "CANCELADO"):
+            # CANCELADO es terminal sin entrega: se agrupa junto a fallidos (mantiene contrato suma=total).
             fila["fallidos"] += total
         elif estado in ("ASIGNADO", "EN_RUTA"):
             fila["en_proceso"] += total
