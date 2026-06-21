@@ -39,6 +39,12 @@ class VehiculoCreate(BaseModel):
         return v
 
 
+class VehiculoUpdate(BaseModel):
+    """ENTRADA (CUS-09): reasignación del conductor de un vehículo.
+    conductor_id = None deja el vehículo como de la empresa (lo desvincula)."""
+    conductor_id: Optional[int] = None
+
+
 class VehiculoResponse(BaseModel):
     """SALIDA: datos de un vehículo."""
     id: int

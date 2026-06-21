@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models.ruta import Ruta, RutaDetalle
 from app.models.pedido import Pedido
-from app.repositories import ruta_repository, pedido_repository, historial_repository
+from app.repositories import ruta_repository, pedido_repository, historial_repository, evidencia_repository
 from app.services.router import optimizar_secuencia_pedidos
 from app.schemas.ruta import (
     RutaActivaResponse,
@@ -44,6 +44,9 @@ def _construir_parada(detalle: RutaDetalle, pedido: Pedido) -> ParadaManifiesto:
         longitud=pedido.longitud,
         peso_kg=pedido.peso_kg,
         estado_entrega=detalle.estado_entrega,
+        # Se expone la URL guardada en BD para que la App muestre la foto POD ya subida
+        # (antes la App dependía de un caché en memoria que se perdía al cerrarse).
+        url_evidencia=detalle.url_evidencia,
     )
 
 
@@ -72,6 +75,7 @@ def obtener_resumen_ruta_activa(db: Session, conductor_id: int) -> RutaActivaRes
         nombre=ruta.nombre,
         estado=ruta.estado,
         fecha_creacion=ruta.fecha_creacion,
+        fecha_salida=ruta.fecha_salida,  # CUS-23: sello de salida (la App muestra "Salida HH:MM")
         vehiculo_placa=ruta.vehiculo_placa,
         total_paradas=len(detalles),
         pendientes=pendientes,
@@ -236,9 +240,14 @@ def guardar_evidencia(
         f.write(contenido)
 
     # URL pública servida por StaticFiles (montado en /media)
-    detalle.url_evidencia = f"/media/evidencias/{nombre_final}"
+    url = f"/media/evidencias/{nombre_final}"
+    detalle.url_evidencia = url
     db.commit()
     db.refresh(detalle)
+
+    # Además del detalle, registramos la evidencia como POD propio (tabla del diagrama),
+    # así la prueba de entrega queda persistida en la BD y es consultable por pedido.
+    evidencia_repository.registrar_foto(db, pedido_id, url)
 
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     return GestionParadaResponse(
@@ -272,6 +281,14 @@ def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
 
     ruta.estado = "FINALIZADA"
     ruta.fecha_fin = datetime.utcnow()
+
+    # CUS-28: horas trabajadas = cierre - salida. Si no hubo sello de salida (ruta
+    # antigua), se usa la fecha de creación como referencia para no devolver vacío.
+    hora_inicio = ruta.fecha_salida or ruta.fecha_creacion
+    duracion_minutos = None
+    if hora_inicio:
+        duracion_minutos = max(0, int((ruta.fecha_fin - hora_inicio).total_seconds() // 60))
+
     db.commit()
 
     mensaje = "Ruta finalizada correctamente"
@@ -282,6 +299,9 @@ def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
         nombre=ruta.nombre,
         estado=ruta.estado,
         fecha_fin=ruta.fecha_fin,
+        hora_inicio=hora_inicio,
+        hora_fin=ruta.fecha_fin,
+        duracion_minutos=duracion_minutos,
         total_paradas=len(detalles),
         entregadas=entregadas,
         fallidas=fallidas,
@@ -370,6 +390,12 @@ def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -
         pedido.estado = "EN_RUTA"
         historial_repository.registrar(db, pedido.id, estado_anterior, "EN_RUTA", conductor_id)
         secuencia += 1
+
+    # CUS-23: iniciar la ruta = salir del almacén. La primera vez sellamos la salida y
+    # pasamos la ruta a EN_PROGRESO; ese sello arranca el conteo de horas (CUS-28).
+    if ruta.fecha_salida is None:
+        ruta.fecha_salida = datetime.utcnow()
+        ruta.estado = "EN_PROGRESO"
 
     ruta_repository.guardar_cambios(db)
 
