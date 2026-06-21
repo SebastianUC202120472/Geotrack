@@ -8,6 +8,7 @@ PREFIJO_RUTA = "RT"
 PREFIJO_DETALLE = "RD"
 PREFIJO_HISTORIAL = "HP"
 PREFIJO_VEHICULO = "VE"
+PREFIJO_INCIDENCIA = "IN"
 # Usuarios: el prefijo depende del ROL (se distinguen a simple vista).
 PREFIJO_ADMIN = "AD"
 PREFIJO_JEFE = "JE"

@@ -44,3 +44,29 @@ def eliminar(db: Session, parametro: ParametroSistema) -> None:
     """Borra un parámetro del catálogo (borrado físico: son datos de configuración)."""
     db.delete(parametro)
     db.commit()
+
+
+def crear_con_valor(db: Session, categoria: str, clave: str, valor) -> ParametroSistema:
+    """Crea un parámetro con valor_json (config numérica/estructurada). Recibe: categoría,
+    clave y el valor a guardar en valor_json."""
+    parametro = ParametroSistema(categoria=categoria, clave=clave, valor_json=valor)
+    db.add(parametro)
+    db.commit()
+    db.refresh(parametro)
+    return parametro
+
+
+def fijar_valor(db: Session, categoria: str, clave: str, valor) -> ParametroSistema:
+    """Crea o actualiza el valor_json de un parámetro (categoria+clave únicos). Recibe:
+    categoría, clave y el nuevo valor."""
+    fila = (
+        db.query(ParametroSistema)
+        .filter(ParametroSistema.categoria == categoria, ParametroSistema.clave == clave)
+        .first()
+    )
+    if fila is None:
+        return crear_con_valor(db, categoria, clave, valor)
+    fila.valor_json = valor
+    db.commit()
+    db.refresh(fila)
+    return fila

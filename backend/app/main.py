@@ -77,6 +77,9 @@ async def lifespan(app: FastAPI):
         # CUS-06: siembra los motivos de rechazo por defecto si el catálogo está vacío.
         parametro_service.asegurar_motivos_iniciales(db)
         print("Catálogo de motivos de rechazo asegurado.")
+        # CUS-34: siembra los parámetros de combustible por defecto si faltan.
+        parametro_service.asegurar_combustible_inicial(db)
+        print("Parámetros de combustible asegurados.")
     except Exception as e:
         print(f"No se pudo completar la inicialización: {e}")
     finally:
