@@ -6,6 +6,7 @@ import { Alert, Linking, Pressable, ScrollView, StyleSheet, TextInput, View } fr
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
@@ -18,12 +19,14 @@ import { Texto } from "@/components/Texto";
 import { abrirNavegacion } from "@/services/navegacion";
 import { useManifiesto } from "@/features/ruta/hooks";
 import { useEntregarConEvidencia, useReportarFalla } from "@/features/entrega/hooks";
+import { obtenerMotivos } from "@/api/conductor";
 import { mensajeDeError } from "@/api/client";
 import { urlMedia } from "@/api/config";
 import { useTheme, fontSize, radius, spacing } from "@/theme";
 import type { ParadaManifiesto } from "@/types/api";
 
-const MOTIVOS = ["Cliente ausente", "Dirección incorrecta", "Pedido rechazado", "Zona inaccesible", "Otro"];
+// Lista por defecto si aún no llegan los motivos del backend (CUS-06).
+const MOTIVOS_DEFECTO = ["Cliente ausente", "Dirección incorrecta", "Pedido rechazado", "Zona inaccesible", "Otro"];
 
 export default function ParadaScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -34,9 +37,13 @@ export default function ParadaScreen() {
   const entregar = useEntregarConEvidencia();
   const reportar = useReportarFalla();
 
+  // CUS-06: los motivos vienen del catálogo del backend (con respaldo por defecto).
+  const motivosQuery = useQuery({ queryKey: ["motivos"], queryFn: obtenerMotivos, staleTime: 60_000 });
+  const motivos = motivosQuery.data && motivosQuery.data.length ? motivosQuery.data : MOTIVOS_DEFECTO;
+
   const [foto, setFoto] = useState<string | null>(null);
   const [modoReporte, setModoReporte] = useState(false);
-  const [motivo, setMotivo] = useState(MOTIVOS[0]);
+  const [motivo, setMotivo] = useState(MOTIVOS_DEFECTO[0]);
   const [descripcion, setDescripcion] = useState("");
   // Estado para mostrar el check animado tras confirmar entrega.
   const [exito, setExito] = useState(false);
@@ -177,7 +184,7 @@ export default function ParadaScreen() {
               <Texto variante="subtitle" color={colors.ink} style={estilos.titulo}>Reportar problema</Texto>
               <Texto variante="caption" color={colors.muted} style={estilos.sub}>Motivo de la falla</Texto>
               <View style={estilos.motivos}>
-                {MOTIVOS.map((m) => {
+                {motivos.map((m: string) => {
                   const activo = motivo === m;
                   return (
                     <Pressable key={m} onPress={() => setMotivo(m)} accessibilityRole="button" accessibilityLabel={m}

@@ -1,5 +1,6 @@
 # app/repositories/vehiculo_repository.py
 # Consultas/escritura de la tabla 'vehiculos'.
+from datetime import datetime
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
@@ -32,12 +33,13 @@ def obtener_por_id(db: Session, vehiculo_id: int) -> Optional[Vehiculo]:
 
 
 def crear(db: Session, placa: str, marca=None, capacidad_volumetrica=None,
-          estado="DISPONIBLE", conductor_id=None) -> Vehiculo:
+          capacidad_cajas=None, estado="DISPONIBLE", conductor_id=None) -> Vehiculo:
     """Crea un vehículo con su código legible VE-001 (hace flush para obtener id)."""
     vehiculo = Vehiculo(
         placa=placa,
         marca=marca,
         capacidad_volumetrica=capacidad_volumetrica,
+        capacidad_cajas=capacidad_cajas,
         estado=estado or "DISPONIBLE",
         conductor_id=conductor_id,
     )
@@ -62,3 +64,11 @@ def reasignar_conductor(db: Session, vehiculo: Vehiculo, conductor_id: Optional[
     db.commit()
     db.refresh(vehiculo)
     return vehiculo
+
+
+def eliminar(db: Session, vehiculo: Vehiculo) -> None:
+    """Baja lógica de un vehículo (CUS-08): marca eliminado_en y libera su conductor.
+    Recibe: el vehículo. No borra físicamente (conserva trazabilidad)."""
+    vehiculo.eliminado_en = datetime.utcnow()
+    vehiculo.conductor_id = None
+    db.commit()
