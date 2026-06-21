@@ -23,6 +23,8 @@ export default function Badge({ tono = "neutral", className = "", children }) {
 
 // Estado -> tono. Lo que no esté mapeado cae en "neutral".
 const mapaEstados = {
+  SOLICITADO: "warning",
+  RECOGIDO: "success",
   PENDIENTE: "warning",
   ASIGNADO: "info",
   EN_RUTA: "info",
