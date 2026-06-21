@@ -23,6 +23,7 @@ export interface RutaActiva {
   fallidas: number;
   pausada?: boolean;          // CUS-30: la ruta está pausada por un auxilio mecánico
   incidencia_id?: number | null;
+  tipo?: string; // "ENTREGA" | "RECOJO" — la app elige el flujo de entregas o recepción
 }
 
 // Una parada del manifiesto (GET /conductor/ruta-activa/manifiesto).
@@ -155,4 +156,40 @@ export interface Incidencia {
   creado_en?: string | null;
   resuelto_en?: string | null;
   nota_resolucion?: string | null;
+}
+
+// Un punto de origen de la ruta de recojo (GET /conductor/recojo/manifiesto).
+export interface ParadaRecojo {
+  secuencia: number;
+  recojo_id: number;
+  codigo?: string | null;
+  cliente_origen: string;
+  direccion_origen: string;
+  distrito?: string | null;
+  latitud?: number | null;
+  longitud?: number | null;
+  volumen_estimado_m3?: number | null;
+  estado: string; // SOLICITADO | ASIGNADO | EN_RUTA | RECOGIDO
+  cantidad_declarada?: number | null;
+  url_guia?: string | null;
+}
+
+export interface ManifiestoRecojo {
+  ruta_id: number;
+  codigo?: string | null;
+  nombre: string;
+  estado: string;
+  total_paradas: number;
+  paradas: ParadaRecojo[];
+}
+
+// Resultado de registrar la recepción condicionada (CUS-12).
+export interface Recepcion {
+  recojo_id: number;
+  codigo?: string | null;
+  estado: string;
+  cantidad_declarada?: number | null;
+  url_guia?: string | null;
+  fecha_recojo?: string | null;
+  mensaje: string;
 }

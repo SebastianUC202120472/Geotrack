@@ -21,6 +21,7 @@ import SeguimientoConductores from "./pages/SeguimientoConductores";
 import Reportes from "./pages/Reportes";
 import AuxilioMecanico from "./pages/AuxilioMecanico";
 import Trazabilidad from "./pages/Trazabilidad";
+import Recojos from "./pages/Recojos";
 
 // Mapa de rutas del panel de administración.
 // /login va suelto (sin barra lateral). Todo lo demás cuelga del layout del
@@ -54,6 +55,7 @@ export default function App() {
         <Route path="/reportes" element={<Reportes />} />
         <Route path="/auxilio" element={<AuxilioMecanico />} />
         <Route path="/trazabilidad" element={<Trazabilidad />} />
+        <Route path="/recojos" element={<Recojos />} />
       </Route>
 
       {/* Cualquier ruta desconocida vuelve al inicio. */}

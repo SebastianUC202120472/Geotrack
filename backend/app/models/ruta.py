@@ -12,6 +12,9 @@ class Ruta(Base):
     id = Column(Integer, primary_key=True, index=True)
     codigo = Column(String(20), unique=True, index=True, nullable=True)  # legible: RT-001
     nombre = Column(String(100), nullable=False)  # ej: "Ruta San Miguel - Tarde"
+    # ENTREGA (outbound, por defecto) | RECOJO (inbound, CUS-11). server_default deja
+    # las rutas existentes como ENTREGA sin tocar datos.
+    tipo = Column(String(20), default="ENTREGA", server_default="ENTREGA", nullable=False)
     # Estado de la operación: CREADA -> EN_PROGRESO -> FINALIZADA
     estado = Column(String(50), default="CREADA")
     fecha_creacion = Column(DateTime, default=datetime.utcnow)  # cuándo la creó el admin
