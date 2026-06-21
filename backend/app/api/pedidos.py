@@ -49,12 +49,6 @@ def agrupar_pedidos_por_zona(db: Session = Depends(get_db)):
     return pedido_service.agrupar_por_zona(db)
 
 
-@router.get("/devueltos", dependencies=[Depends(get_current_admin)])
-def listar_devueltos(db: Session = Depends(get_db)):
-    """CUS-31: pedidos FALLIDOS para decidir reprogramar o cancelar."""
-    return pedido_service.listar_devueltos(db)
-
-
 @router.get("/por-ubicar", response_model=List[PedidoResponse], dependencies=[Depends(get_current_admin)])
 def listar_por_ubicar(db: Session = Depends(get_db)):
     """CUS-17: pedidos cuya dirección no se pudo geocodificar (para resolver a mano)."""

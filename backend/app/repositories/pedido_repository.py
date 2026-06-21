@@ -101,11 +101,6 @@ def listar_por_cliente(db: Session, cliente: str, desde=None, hasta=None) -> Lis
     return consulta.order_by(Pedido.codigo.asc()).all()
 
 
-def listar_fallidos(db: Session) -> List[Pedido]:
-    """CUS-31: pedidos en estado FALLIDO (paquetes devueltos a decidir). Recibe: la sesión."""
-    return db.query(Pedido).filter(Pedido.estado == "FALLIDO").order_by(Pedido.fecha_creacion.desc()).all()
-
-
 def agrupar_por_cliente(db: Session):
     """Cuenta pedidos por empresa (cliente_origen) y estado EFECTIVO, para el
     seguimiento por cliente. Si el pedido está en una ruta, su estado real es el del
