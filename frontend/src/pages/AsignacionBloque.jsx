@@ -19,20 +19,54 @@ export default function AsignacionBloque() {
   const [vehiculoId, setVehiculoId] = useState("");
   const [cargando, setCargando] = useState(false);
   const [aviso, setAviso] = useState(null);
+  const [selZona, setSelZona] = useState({});   // distrito -> vehiculoId (asignación rápida, CUS-15)
+  const [rutando, setRutando] = useState({});   // distrito -> bool (en curso)
 
+  // Carga zonas + vehículos + conductores. Definida en el componente para poder
+  // recargar tras rutear una zona (los setState van tras el await -> sin lint de effect).
+  const cargar = async () => {
+    try {
+      const [z, v, c] = await Promise.all([listarZonas(), listarVehiculos(), listarConductores()]);
+      setZonas(z.zonas_operativas || []);
+      setVehiculos(v || []);
+      setNombrePorId(Object.fromEntries((c || []).map((x) => [x.usuario_id, x.nombre || x.codigo])));
+    } catch (err) {
+      console.error("Error al cargar datos:", err.message);
+    }
+  };
+
+  // Carga inicial con setState en el callback de la promesa (evita el lint de effect).
   useEffect(() => {
-    const cargar = async () => {
-      try {
-        const [z, v, c] = await Promise.all([listarZonas(), listarVehiculos(), listarConductores()]);
+    let activo = true;
+    Promise.all([listarZonas(), listarVehiculos(), listarConductores()])
+      .then(([z, v, c]) => {
+        if (!activo) return;
         setZonas(z.zonas_operativas || []);
         setVehiculos(v || []);
         setNombrePorId(Object.fromEntries((c || []).map((x) => [x.usuario_id, x.nombre || x.codigo])));
-      } catch (err) {
-        console.error("Error al cargar datos:", err.message);
-      }
-    };
-    cargar();
+      })
+      .catch((err) => console.error("Error al cargar datos:", err.message));
+    return () => { activo = false; };
   }, []);
+
+  // CUS-15: rutea UNA zona con el vehículo elegido en su fila (asignación consolidada).
+  const rutearZona = async (zonaDistrito) => {
+    const vid = selZona[zonaDistrito];
+    const veh = vehiculos.find((v) => String(v.id) === String(vid));
+    if (!veh) { setAviso({ ok: false, texto: "Elige un vehículo para esa zona." }); return; }
+    setRutando((m) => ({ ...m, [zonaDistrito]: true }));
+    setAviso(null);
+    try {
+      const res = await asignarBloque({ distrito: zonaDistrito, conductor_id: veh.conductor_id });
+      setAviso({ ok: true, texto: `${res.mensaje} (ruta ${res.codigo || res.ruta_id}).` });
+      setSelZona((m) => ({ ...m, [zonaDistrito]: "" }));
+      await cargar();
+    } catch (err) {
+      setAviso({ ok: false, texto: err.message });
+    } finally {
+      setRutando((m) => ({ ...m, [zonaDistrito]: false }));
+    }
+  };
 
   const vehiculosConConductor = vehiculos.filter((v) => v.conductor_id);
   const zonaSel = zonas.find((z) => z.distrito === distrito);
@@ -114,6 +148,43 @@ export default function AsignacionBloque() {
           hint={zonaSel ? "En la zona seleccionada" : "Total en todas las zonas"}
         />
       </div>
+
+      {/* CUS-15: vista consolidada — todas las zonas con asignación rápida */}
+      {zonas.length > 0 && (
+        <div className="animate-fade-up" style={{ animationDelay: "100ms" }}>
+          <SectionCard
+            title="Armar rutas por zona"
+            subtitle="Asigna cada zona a un vehículo y rutéala con un clic, sin re-seleccionar."
+          >
+            <div className="space-y-2">
+              {zonas.map((z) => (
+                <div key={z.distrito} className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-slate-800">{z.distrito || "Sin zona"}</p>
+                    <p className="text-xs text-slate-400 nums">{z.total_pedidos} pedido(s) en cola</p>
+                  </div>
+                  <select
+                    value={selZona[z.distrito] || ""}
+                    onChange={(e) => setSelZona((m) => ({ ...m, [z.distrito]: e.target.value }))}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                  >
+                    <option value="">Vehículo (con conductor)…</option>
+                    {vehiculosConConductor.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.placa} · {nombrePorId[v.conductor_id] || `id ${v.conductor_id}`}
+                      </option>
+                    ))}
+                  </select>
+                  <Button size="sm" icon={Route} disabled={!selZona[z.distrito] || rutando[z.distrito]}
+                    onClick={() => rutearZona(z.distrito)}>
+                    {rutando[z.distrito] ? "Ruteando…" : "Rutear"}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        </div>
+      )}
 
       {/* Cuerpo principal: formulario + resumen */}
       <div className="grid gap-6 lg:grid-cols-2">

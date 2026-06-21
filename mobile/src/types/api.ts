@@ -81,6 +81,13 @@ export interface OptimizacionResultado {
   total_paradas: number;
 }
 
+// Resultado de validar un paquete por QR contra la ruta activa (CUS-22).
+export interface ValidacionQR {
+  pertenece: boolean;
+  mensaje: string;
+  parada?: ParadaManifiesto | null;
+}
+
 export interface CierreRuta {
   ruta_id: number;
   estado: string;

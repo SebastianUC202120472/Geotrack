@@ -196,3 +196,46 @@ def agrupar_por_zona(db: Session) -> dict:
     resultados = pedido_repository.agrupar_por_zona(db)
     zonas = [{"distrito": r.distrito, "total_pedidos": r.total_pedidos} for r in resultados]
     return {"zonas_operativas": zonas}
+
+
+# --- CUS-17: resolución manual de direcciones ---
+def listar_para_ubicar(db: Session):
+    """CUS-17: pedidos con la geocodificación fallida, para resolverlos a mano."""
+    return pedido_repository.listar_geocodificacion_fallida(db)
+
+
+def buscar_direccion(direccion: str) -> dict:
+    """CUS-17: geocodifica un texto de búsqueda (dirección/lugar) usando Nominatim,
+    para ayudar al admin a ubicar el pin en el mapa. Recibe: el texto. Devuelve:
+    {encontrado, latitud, longitud}."""
+    lat, lng = obtener_coordenadas((direccion or "").strip())
+    if lat is None or lng is None:
+        return {"encontrado": False, "latitud": None, "longitud": None}
+    return {"encontrado": True, "latitud": lat, "longitud": lng}
+
+
+def fijar_ubicacion(db: Session, pedido_id: int, latitud: float, longitud: float,
+                    direccion: str | None = None, usuario_id: int | None = None) -> dict:
+    """CUS-17: fija a mano las coordenadas de un pedido (y opcionalmente corrige su
+    dirección). Si estaba en GEOCODIFICACION_FALLIDA, vuelve a PENDIENTE para poder
+    rutearlo. Recibe: id, lat/lng, dirección opcional y el id del admin."""
+    pedido = pedido_repository.obtener_por_id(db, pedido_id)
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+
+    pedido.latitud = latitud
+    pedido.longitud = longitud
+    if direccion and direccion.strip():
+        pedido.direccion_destino = direccion.strip()
+    # Deducimos el distrito del texto de la dirección (igual que en la geocodificación):
+    # si no hay coma, queda 'ZONA_DESCONOCIDA' para que igual sea agrupable/ruteable.
+    partes = (pedido.direccion_destino or "").split(",")
+    pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
+
+    # Si la dirección estaba fallida, ya quedó resuelta: vuelve a la cola (PENDIENTE).
+    if pedido.estado == "GEOCODIFICACION_FALLIDA":
+        historial_repository.registrar(db, pedido.id, pedido.estado, "PENDIENTE", usuario_id)
+        pedido.estado = "PENDIENTE"
+
+    db.commit()
+    return {"mensaje": "Ubicación actualizada", "codigo": pedido.codigo}
