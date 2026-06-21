@@ -19,6 +19,7 @@ import { Texto } from "@/components/Texto";
 import { useRutaActiva, useManifiesto, useNavegacion, useIniciarRuta, useFinalizarRuta, claves } from "@/features/ruta/hooks";
 import { useUbicacionActual } from "@/hooks/useUbicacionActual";
 import { useEnviarUbicacion } from "@/hooks/useEnviarUbicacion";
+import { useReanudarRuta } from "@/features/incidencia/hooks";
 import { mensajeDeError } from "@/api/client";
 import { useTheme, spacing } from "@/theme";
 
@@ -31,6 +32,8 @@ export default function RutaScreen() {
   const ubicacion = useUbicacionActual();
   const iniciar = useIniciarRuta();
   const finalizar = useFinalizarRuta();
+  const reanudar = useReanudarRuta();
+  const pausada = !!ruta.data?.pausada;
   const qc = useQueryClient();
 
   // Envía la posición del conductor mientras tenga una ruta activa (foreground).
@@ -104,10 +107,19 @@ export default function RutaScreen() {
     ]);
   };
 
-  // Total y pendientes de la ruta; solo se puede cerrar el día sin pendientes.
+  // Reanuda la ruta cerrando la incidencia abierta (CUS-30).
+  const reanudarRutaActiva = () => {
+    if (!ruta.data?.incidencia_id) return;
+    reanudar.mutate(
+      { incidenciaId: ruta.data.incidencia_id },
+      { onError: (e) => Alert.alert("No se pudo reanudar", mensajeDeError(e)) }
+    );
+  };
+
+  // Total y pendientes de la ruta; solo se puede cerrar el día sin pendientes ni pausa activa.
   const totalParadas = ruta.data?.total_paradas ?? 0;
   const pendientes = ruta.data?.pendientes ?? 0;
-  const puedeCerrar = !!ruta.data && totalParadas > 0 && pendientes === 0;
+  const puedeCerrar = !!ruta.data && totalParadas > 0 && pendientes === 0 && !pausada;
 
   // Encabezado de la lista: degradado con resumen, mapa montado y acciones.
   const Encabezado = (
@@ -149,6 +161,19 @@ export default function RutaScreen() {
         <Button titulo="Iniciar ruta desde mi ubicación" onPress={iniciarRuta} cargando={ubicacion.cargando || iniciar.isPending} />
         {/* CUS-22: validar la carga escaneando el QR de cada caja antes de salir */}
         <Button titulo="Validar carga (escanear QR)" variante="secondary" onPress={() => router.push("/validar-carga")} />
+
+        {/* CUS-30: banner de pausa activa o botón para reportar auxilio mecánico */}
+        {pausada ? (
+          <Card style={{ backgroundColor: colors.dangerSoft }}>
+            <Texto variante="bodyMedium" color={colors.danger}>🛠️ Ruta pausada por avería</Texto>
+            <Texto variante="caption" color={colors.danger} style={{ marginTop: 2, marginBottom: spacing.sm }}>
+              Reanúdala cuando el vehículo esté listo para seguir entregando.
+            </Texto>
+            <Button titulo="Reanudar ruta" onPress={reanudarRutaActiva} cargando={reanudar.isPending} />
+          </Card>
+        ) : (
+          <Button titulo="Auxilio mecánico" variante="danger" onPress={() => router.push("/auxilio")} />
+        )}
 
         <View style={estilos.seccion}>
           <Texto variante="subtitle" color={colors.ink}>Próximas paradas</Texto>
