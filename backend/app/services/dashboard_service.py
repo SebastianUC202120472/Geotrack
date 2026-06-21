@@ -2,10 +2,12 @@
 # La inteligencia del panel de monitoreo del admin.
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func as _sa_func
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.repositories import ruta_repository, pedido_repository, usuario_repository, historial_repository, ubicacion_repository, incidencia_repository
+from app.services import parametro_service
 from app.schemas.dashboard import (
     RutaFlota,
     FlotaResponse,
@@ -16,6 +18,11 @@ from app.schemas.dashboard import (
     ConductorUbicacion,
     ParadaMapa,
 )
+
+
+def sa_func_date(columna):
+    """Trunca un DateTime a fecha (para comparar por día) de forma portable."""
+    return _sa_func.date(columna)
 
 ESTADOS_RUTA_ACTIVA = ("CREADA", "EN_PROGRESO")
 UMBRAL_EN_LINEA_SEG = 120  # un conductor está "en línea" si su última señal tiene < 2 min
@@ -267,3 +274,57 @@ def obtener_historial(db: Session, codigo: str) -> HistorialPedidoResponse:
         motivo_fallo=motivo_fallo,
         eventos=eventos,
     )
+
+
+def obtener_kpis_eficiencia(db: Session) -> dict:
+    """CUS-34: cajas entregadas hoy y ahorro estimado de combustible (de la optimización
+    de rutas). Devuelve el resumen del día + una serie de los últimos 7 días. Recibe: la sesión."""
+    from app.models.ruta import Ruta, RutaDetalle
+
+    combustible = parametro_service.obtener_combustible(db)
+    consumo = combustible["consumo_l_100km"]
+    precio = combustible["precio_soles_litro"]
+    hoy = datetime.utcnow().date()
+
+    # Cajas entregadas hoy (por la fecha de gestión de cada parada ENTREGADA).
+    cajas_hoy = (
+        db.query(RutaDetalle)
+        .filter(RutaDetalle.estado_entrega == "ENTREGADO", sa_func_date(RutaDetalle.fecha_gestion) == hoy)
+        .count()
+    )
+
+    # Km de rutas cerradas hoy.
+    rutas_hoy = db.query(Ruta).filter(Ruta.fecha_fin.isnot(None), sa_func_date(Ruta.fecha_fin) == hoy).all()
+    km_recorridos = round(sum(r.km_estimado or 0.0 for r in rutas_hoy), 2)
+    km_ahorrados = round(sum(r.km_ahorrado or 0.0 for r in rutas_hoy), 2)
+    litros_ahorrados = round(km_ahorrados * (consumo / 100.0), 2)
+    soles_ahorrados = round(litros_ahorrados * precio, 2)
+
+    # Serie de los últimos 7 días (incluye hoy).
+    serie = []
+    for i in range(6, -1, -1):
+        dia = hoy - timedelta(days=i)
+        cajas_dia = (
+            db.query(RutaDetalle)
+            .filter(RutaDetalle.estado_entrega == "ENTREGADO", sa_func_date(RutaDetalle.fecha_gestion) == dia)
+            .count()
+        )
+        rutas_dia = db.query(Ruta).filter(Ruta.fecha_fin.isnot(None), sa_func_date(Ruta.fecha_fin) == dia).all()
+        km_ah_dia = sum(r.km_ahorrado or 0.0 for r in rutas_dia)
+        serie.append({
+            "fecha": dia.isoformat(),
+            "cajas": cajas_dia,
+            "km_ahorrados": round(km_ah_dia, 2),
+            "soles_ahorrados": round(km_ah_dia * (consumo / 100.0) * precio, 2),
+        })
+
+    return {
+        "cajas_entregadas_hoy": cajas_hoy,
+        "km_recorridos": km_recorridos,
+        "km_ahorrados": km_ahorrados,
+        "litros_ahorrados": litros_ahorrados,
+        "soles_ahorrados": soles_ahorrados,
+        "consumo_l_100km": consumo,
+        "precio_soles_litro": precio,
+        "serie_7dias": serie,
+    }
