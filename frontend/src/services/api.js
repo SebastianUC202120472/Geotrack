@@ -243,19 +243,8 @@ export const asignarBloque = ({ nombre_ruta, distrito, conductor_id }) =>
   });
 
 /* ============================================================
-   AJUSTE DE RUTA Y MANIFIESTO  (CUS-20 / CUS-21)
+   MANIFIESTO  (CUS-21)
 ============================================================ */
-
-// CUS-20: paradas de una ruta (ordenadas) para reordenar/quitar.
-export const listarParadasRuta = (rutaId) => request(`/rutas/${rutaId}/paradas`);
-
-// CUS-20: reordena las paradas según el nuevo orden (lista de pedido_id).
-export const reordenarParadas = (rutaId, orden) =>
-  request(`/rutas/${rutaId}/reordenar`, { method: "PATCH", body: { orden } });
-
-// CUS-20: quita un pedido de la ruta (vuelve a PENDIENTE).
-export const quitarParada = (rutaId, pedidoId) =>
-  request(`/rutas/${rutaId}/paradas/${pedidoId}`, { method: "DELETE" });
 
 // CUS-21: descarga el manifiesto de carga de una ruta en Excel (autenticado).
 export async function descargarManifiesto(rutaId, nombre) {
