@@ -12,7 +12,7 @@ class RutaFlota(BaseModel):
     nombre: str
     estado: str  # CREADA, EN_PROGRESO, FINALIZADA
     conductor_id: Optional[int] = None
-    conductor_correo: Optional[str] = None
+    conductor_nombre: Optional[str] = None
     vehiculo_placa: Optional[str] = None
     total_paradas: int
     entregadas: int

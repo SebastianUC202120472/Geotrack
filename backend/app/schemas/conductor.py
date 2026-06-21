@@ -122,6 +122,7 @@ class ConductorResponse(BaseModel):
     codigo: Optional[str] = None   # CO-001
     correo: str
     estado: bool
+    en_ruta: bool = False   # True si tiene una ruta activa (CREADA/EN_PROGRESO)
     nombre: Optional[str] = None
     telefono: Optional[str] = None
     dni: Optional[str] = None
