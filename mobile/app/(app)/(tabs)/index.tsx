@@ -16,6 +16,7 @@ import { Cabecera } from "@/components/Cabecera";
 import { DeslizarPestanas } from "@/components/DeslizarPestanas";
 import { Aparecer, ItemLista, BarraProgreso, Contador, IndicadorEnVivo } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
+import { RutaRecojoView } from "@/features/recojo/RutaRecojoView";
 import { useRutaActiva, useManifiesto, useNavegacion, useIniciarRuta, useFinalizarRuta, claves } from "@/features/ruta/hooks";
 import { useUbicacionActual } from "@/hooks/useUbicacionActual";
 import { useEnviarUbicacion } from "@/hooks/useEnviarUbicacion";
@@ -23,7 +24,14 @@ import { useReanudarRuta } from "@/features/incidencia/hooks";
 import { mensajeDeError } from "@/api/client";
 import { useTheme, spacing } from "@/theme";
 
+// El tab "Ruta" muestra el flujo de entregas o el de recojo según el tipo de la ruta activa.
 export default function RutaScreen() {
+  const rutaActiva = useRutaActiva();
+  if (rutaActiva.data?.tipo === "RECOJO") return <RutaRecojoView />;
+  return <RutaEntregaView />;
+}
+
+function RutaEntregaView() {
   const router = useRouter();
   const { colors } = useTheme();
   const ruta = useRutaActiva();
