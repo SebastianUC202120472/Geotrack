@@ -121,7 +121,7 @@ export default function Conductores() {
     {
       key: "estado",
       header: "Estado",
-      render: (c) => <EstadoBadge estado={c.estado ? "DISPONIBLE" : "INACTIVO"} />,
+      render: (c) => <EstadoBadge estado={!c.estado ? "INACTIVO" : c.en_ruta ? "EN_RUTA" : "DISPONIBLE"} />,
     },
   ];
 

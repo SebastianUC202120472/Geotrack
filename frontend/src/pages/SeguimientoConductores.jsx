@@ -11,11 +11,15 @@ import { obtenerUbicacionesFlota } from "../services/api";
 
 const REFRESCO_MS = 15000; // el mapa se actualiza solo cada 15 s (polling)
 
+// Colores distintos por conductor (el marcador del conductor y sus paradas comparten color).
+const COLORES = ["#2563EB", "#DC2626", "#059669", "#D97706", "#7C3AED", "#DB2777", "#0891B2", "#65A30D"];
+
 // Seguimiento de conductores en el mapa: posición en vivo de cada conductor con
 // ruta activa y sus pedidos pendientes (Leaflet + OpenStreetMap).
 export default function SeguimientoConductores() {
   const [ubicaciones, setUbicaciones] = useState([]);
   const [cargando, setCargando] = useState(true);
+  const [seleccionado, setSeleccionado] = useState(null); // conductor_id a centrar en el mapa
 
   // Carga manual (botón "Actualizar"), con indicador de carga.
   const actualizar = () => {
@@ -48,6 +52,9 @@ export default function SeguimientoConductores() {
   const enLinea = ubicaciones.filter((c) => c.en_linea).length;
   const sinSenal = totalConductores - enLinea;
   const totalParadas = ubicaciones.reduce((acc, c) => acc + (c.paradas?.length ?? 0), 0);
+
+  // A cada conductor se le asigna un color (compartido con sus paradas en el mapa).
+  const conductores = ubicaciones.map((c, i) => ({ ...c, _color: COLORES[i % COLORES.length] }));
 
   return (
     <div className="space-y-6 p-6 lg:p-8">
@@ -125,37 +132,45 @@ export default function SeguimientoConductores() {
               subtitle={`${totalConductores} en ruta`}
               className="h-full"
             >
-              <ul className="space-y-2 -mx-5 px-0">
-                {ubicaciones.map((c) => (
-                  <li
-                    key={c.conductor_id}
-                    className="flex items-start gap-3 rounded-lg px-5 py-3 transition-colors hover:bg-slate-50"
-                  >
-                    {/* Indicador de estado en línea */}
-                    <span
-                      className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
-                        c.en_linea ? "bg-success live-dot" : "bg-slate-300"
-                      }`}
-                      aria-hidden="true"
-                    />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-900">
-                        {c.conductor || "Conductor"}
-                      </p>
-                      <p className="truncate text-xs text-slate-500">{c.ruta || "Sin ruta"}</p>
-                      <p className="mt-0.5 text-xs text-slate-400">
-                        {c.paradas?.length ?? 0} parada{(c.paradas?.length ?? 0) !== 1 ? "s" : ""}
-                      </p>
-                    </div>
-                  </li>
-                ))}
+              <ul className="space-y-1 -mx-5 px-0">
+                {conductores.map((c) => {
+                  const activo = seleccionado === c.conductor_id;
+                  return (
+                    <li key={c.conductor_id}>
+                      <button
+                        type="button"
+                        onClick={() => setSeleccionado(c.conductor_id)}
+                        className={`flex w-full items-start gap-3 rounded-lg px-5 py-3 text-left transition-colors ${
+                          activo ? "bg-brand-50" : "hover:bg-slate-50"
+                        }`}
+                      >
+                        {/* Punto del color del conductor (coincide con sus marcadores en el mapa) */}
+                        <span
+                          className={`mt-1 h-3 w-3 shrink-0 rounded-full border border-white shadow ${c.en_linea ? "live-dot" : ""}`}
+                          style={{ backgroundColor: c._color, opacity: c.en_linea ? 1 : 0.5 }}
+                          aria-hidden="true"
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-900">
+                            {c.conductor || "Conductor"}
+                          </p>
+                          <p className="truncate text-xs text-slate-500">{c.ruta || "Sin ruta"}</p>
+                          <p className="mt-0.5 text-xs text-slate-400">
+                            {c.paradas?.length ?? 0} parada{(c.paradas?.length ?? 0) !== 1 ? "s" : ""} ·{" "}
+                            {c.en_linea ? "en línea" : "sin señal"}
+                          </p>
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             </SectionCard>
           </div>
 
           {/* Mapa de flota — props idénticas al original */}
           <div className="flex-1 overflow-hidden rounded-xl border border-slate-200">
-            <MapaFlota conductores={ubicaciones} />
+            <MapaFlota conductores={conductores} seleccionado={seleccionado} />
           </div>
         </div>
       )}

@@ -20,6 +20,9 @@ def _a_respuesta(db: Session, usuario) -> dict:
         "codigo": usuario.codigo,
         "correo": usuario.correo,
         "estado": usuario.estado,
+        # En ruta = tiene una ruta sin cerrar (CREADA/EN_PROGRESO). El panel lo muestra
+        # como "En ruta" en vez de "Disponible" hasta que cierre el día.
+        "en_ruta": conductor_repository.tiene_ruta_activa(db, usuario.id),
         "nombre": perfil.nombre if perfil else None,
         "telefono": perfil.telefono if perfil else None,
         "dni": perfil.dni if perfil else None,
