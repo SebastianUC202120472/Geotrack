@@ -20,18 +20,18 @@ export default function AsignacionBloque() {
   const [cargando, setCargando] = useState(false);
   const [aviso, setAviso] = useState(null);
 
+  // Carga inicial con setState en el callback de la promesa (evita el lint de effect).
   useEffect(() => {
-    const cargar = async () => {
-      try {
-        const [z, v, c] = await Promise.all([listarZonas(), listarVehiculos(), listarConductores()]);
+    let activo = true;
+    Promise.all([listarZonas(), listarVehiculos(), listarConductores()])
+      .then(([z, v, c]) => {
+        if (!activo) return;
         setZonas(z.zonas_operativas || []);
         setVehiculos(v || []);
         setNombrePorId(Object.fromEntries((c || []).map((x) => [x.usuario_id, x.nombre || x.codigo])));
-      } catch (err) {
-        console.error("Error al cargar datos:", err.message);
-      }
-    };
-    cargar();
+      })
+      .catch((err) => console.error("Error al cargar datos:", err.message));
+    return () => { activo = false; };
   }, []);
 
   const vehiculosConConductor = vehiculos.filter((v) => v.conductor_id);

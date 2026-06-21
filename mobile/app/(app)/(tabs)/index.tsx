@@ -19,6 +19,7 @@ import { Texto } from "@/components/Texto";
 import { useRutaActiva, useManifiesto, useNavegacion, useIniciarRuta, useFinalizarRuta, claves } from "@/features/ruta/hooks";
 import { useUbicacionActual } from "@/hooks/useUbicacionActual";
 import { useEnviarUbicacion } from "@/hooks/useEnviarUbicacion";
+import { useReanudarRuta } from "@/features/incidencia/hooks";
 import { mensajeDeError } from "@/api/client";
 import { useTheme, spacing } from "@/theme";
 
@@ -31,6 +32,8 @@ export default function RutaScreen() {
   const ubicacion = useUbicacionActual();
   const iniciar = useIniciarRuta();
   const finalizar = useFinalizarRuta();
+  const reanudar = useReanudarRuta();
+  const pausada = !!ruta.data?.pausada;
   const qc = useQueryClient();
 
   // Envía la posición del conductor mientras tenga una ruta activa (foreground).
@@ -93,17 +96,30 @@ export default function RutaScreen() {
         style: "destructive",
         onPress: () =>
           finalizar.mutate(undefined, {
-            onSuccess: (r) => Alert.alert("Día cerrado", r.mensaje),
+            // CUS-28: el backend devuelve la duración; la mostramos como horas trabajadas.
+            onSuccess: (r) => {
+              const dur = formatDuracion(r.duracion_minutos);
+              Alert.alert("Día cerrado", dur ? `${r.mensaje}\nTrabajaste ${dur}.` : r.mensaje);
+            },
             onError: (e) => Alert.alert("No se pudo cerrar", mensajeDeError(e)),
           }),
       },
     ]);
   };
 
-  // Total y pendientes de la ruta; solo se puede cerrar el día sin pendientes.
+  // Reanuda la ruta cerrando la incidencia abierta (CUS-30).
+  const reanudarRutaActiva = () => {
+    if (!ruta.data?.incidencia_id) return;
+    reanudar.mutate(
+      { incidenciaId: ruta.data.incidencia_id },
+      { onError: (e) => Alert.alert("No se pudo reanudar", mensajeDeError(e)) }
+    );
+  };
+
+  // Total y pendientes de la ruta; solo se puede cerrar el día sin pendientes ni pausa activa.
   const totalParadas = ruta.data?.total_paradas ?? 0;
   const pendientes = ruta.data?.pendientes ?? 0;
-  const puedeCerrar = !!ruta.data && totalParadas > 0 && pendientes === 0;
+  const puedeCerrar = !!ruta.data && totalParadas > 0 && pendientes === 0 && !pausada;
 
   // Encabezado de la lista: degradado con resumen, mapa montado y acciones.
   const Encabezado = (
@@ -118,6 +134,12 @@ export default function RutaScreen() {
           <Texto variante="body" color={colors.white} style={{ opacity: 0.9, textTransform: "lowercase" }}>
             {(ruta.data.codigo ?? "—")} · {ruta.data.estado.replace("_", " ").toLowerCase()}
           </Texto>
+          {/* CUS-23: sello de salida del almacén (cuando la ruta ya inició) */}
+          {horaLocal(ruta.data.fecha_salida) && (
+            <Texto variante="caption" color={colors.white} style={{ opacity: 0.9, marginTop: 2 }}>
+              🕑 Salida {horaLocal(ruta.data.fecha_salida)}
+            </Texto>
+          )}
 
           <View style={{ marginTop: spacing.lg }}>
             <BarraProgreso valor={ruta.data.entregadas} total={ruta.data.total_paradas} porEstado />
@@ -137,6 +159,21 @@ export default function RutaScreen() {
         </Card>
 
         <Button titulo="Iniciar ruta desde mi ubicación" onPress={iniciarRuta} cargando={ubicacion.cargando || iniciar.isPending} />
+        {/* CUS-22: validar la carga escaneando el QR de cada caja antes de salir */}
+        <Button titulo="Validar carga (escanear QR)" variante="secondary" onPress={() => router.push("/validar-carga")} />
+
+        {/* CUS-30: banner de pausa activa o botón para reportar auxilio mecánico */}
+        {pausada ? (
+          <Card style={{ backgroundColor: colors.dangerSoft }}>
+            <Texto variante="bodyMedium" color={colors.danger}>🛠️ Ruta pausada por avería</Texto>
+            <Texto variante="caption" color={colors.danger} style={{ marginTop: 2, marginBottom: spacing.sm }}>
+              Reanúdala cuando el vehículo esté listo para seguir entregando.
+            </Texto>
+            <Button titulo="Reanudar ruta" onPress={reanudarRutaActiva} cargando={reanudar.isPending} />
+          </Card>
+        ) : (
+          <Button titulo="Auxilio mecánico" variante="danger" onPress={() => router.push("/auxilio")} />
+        )}
 
         <View style={estilos.seccion}>
           <Texto variante="subtitle" color={colors.ink}>Próximas paradas</Texto>
@@ -227,6 +264,25 @@ export default function RutaScreen() {
       </DeslizarPestanas>
     </Screen>
   );
+}
+
+// Convierte una hora ISO del backend (UTC) a "HH:MM" en la zona del dispositivo.
+// Recibe: la fecha ISO o null. Devuelve: el texto de la hora, o null.
+function horaLocal(iso?: string | null): string | null {
+  if (!iso) return null;
+  const tieneZona = /[zZ]|[+-]\d\d:?\d\d$/.test(iso);
+  const fecha = new Date(tieneZona ? iso : `${iso}Z`);
+  return fecha.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" });
+}
+
+// Formatea una duración en minutos como "Xh Ymin". Recibe: minutos o null.
+function formatDuracion(min?: number | null): string | null {
+  if (min == null) return null;
+  const horas = Math.floor(min / 60);
+  const minutos = min % 60;
+  if (horas && minutos) return `${horas}h ${minutos}min`;
+  if (horas) return `${horas}h`;
+  return `${minutos}min`;
 }
 
 // Cifra animada con su etiqueta (texto blanco sobre el degradado). Recibe: { valor, etiqueta }.

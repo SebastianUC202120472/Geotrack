@@ -8,7 +8,7 @@ from typing import List
 from app.db.database import get_db
 from app.api.deps import get_current_conductor
 from app.models.usuario import Usuario
-from app.services import ruta_service, reporte_service, conductor_service
+from app.services import ruta_service, reporte_service, conductor_service, parametro_service, incidencia_service
 from app.schemas.ruta import (
     RutaActivaResponse,
     ManifiestoResponse,
@@ -20,6 +20,7 @@ from app.schemas.ruta import (
     CierreRutaResponse,
 )
 from app.schemas.reporte import ReporteCreate, ReporteResponse
+from app.schemas.incidencia import IncidenciaCreate, ResolverIncidenciaRequest, IncidenciaResponse
 from app.schemas.conductor import ConductorResponse, UbicacionRequest
 
 router = APIRouter()
@@ -43,6 +44,17 @@ def mi_perfil(
     conductor: Usuario = Depends(get_current_conductor),
 ):
     return conductor_service.obtener_uno(db, conductor)
+
+
+# --- CUS-06: motivos de rechazo del catálogo (para el reporte de falla en la app) ---
+@router.get("/motivos", response_model=List[str])
+def listar_motivos(
+    db: Session = Depends(get_db),
+    conductor: Usuario = Depends(get_current_conductor),
+):
+    """Devuelve los textos de los motivos de rechazo configurados por el admin, para
+    que la app los muestre al reportar una entrega fallida (antes estaban fijos)."""
+    return [m["texto"] for m in parametro_service.listar_motivos(db)]
 
 
 # --- Reporta una falla de un pedido (incidencia) ---
@@ -135,3 +147,39 @@ def finalizar_ruta(
     conductor: Usuario = Depends(get_current_conductor),
 ):
     return ruta_service.finalizar_ruta(db, conductor.id)
+
+
+# --- CUS-30: el conductor reporta un auxilio mecánico (pausa su ruta) ---
+@router.post("/incidencias", response_model=IncidenciaResponse)
+def reportar_incidencia(
+    datos: IncidenciaCreate,
+    db: Session = Depends(get_db),
+    conductor: Usuario = Depends(get_current_conductor),
+):
+    """Crea una incidencia sobre la ruta activa del conductor; la ruta queda pausada."""
+    return incidencia_service.reportar(db, conductor.id, datos)
+
+
+# --- CUS-30: foto opcional de la avería ---
+@router.post("/incidencias/{incidencia_id}/evidencia", response_model=IncidenciaResponse)
+async def cargar_evidencia_incidencia(
+    incidencia_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    conductor: Usuario = Depends(get_current_conductor),
+):
+    """Adjunta la foto de la avería a una incidencia del conductor."""
+    contenido = await file.read()
+    return incidencia_service.guardar_evidencia(db, incidencia_id, conductor.id, contenido, file.filename)
+
+
+# --- CUS-30: el conductor reanuda la ruta (cierra la incidencia) ---
+@router.post("/incidencias/{incidencia_id}/reanudar", response_model=IncidenciaResponse)
+def reanudar_ruta(
+    incidencia_id: int,
+    datos: ResolverIncidenciaRequest,
+    db: Session = Depends(get_db),
+    conductor: Usuario = Depends(get_current_conductor),
+):
+    """Reanuda la ruta del conductor marcando la incidencia como resuelta."""
+    return incidencia_service.reanudar(db, incidencia_id, conductor.id, datos.nota)

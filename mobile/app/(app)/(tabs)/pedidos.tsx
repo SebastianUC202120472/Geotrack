@@ -18,6 +18,7 @@ import { ItemLista } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
 import { useRutaActiva, useManifiesto, claves } from "@/features/ruta/hooks";
 import { obtenerEvidencia } from "@/store/evidenciaCache";
+import { urlMedia } from "@/api/config";
 import { useTheme, spacing, radius, fuentes } from "@/theme";
 import type { ParadaManifiesto } from "@/types/api";
 
@@ -140,7 +141,11 @@ export default function PedidosScreen() {
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={<Texto variante="body" color={colors.muted} style={estilos.vacioFiltro}>Sin resultados para tu búsqueda.</Texto>}
         renderItem={({ item, index }: { item: ParadaManifiesto; index: number }) => {
-          const evidencia = item.estado_entrega === "ENTREGADO" ? obtenerEvidencia(item.pedido_id) : undefined;
+          // La foto POD viene del backend (url_evidencia, persistida en BD); si aún no
+          // llegó por el refresco, usamos la caché de esta sesión como respaldo.
+          const evidencia = item.estado_entrega === "ENTREGADO"
+            ? (urlMedia(item.url_evidencia) ?? obtenerEvidencia(item.pedido_id))
+            : undefined;
           return (
             <ItemLista index={index}>
               <ParadaItem parada={item} onPress={() => router.push(`/parada/${item.pedido_id}`)} />

@@ -13,6 +13,7 @@ class Vehiculo(Base):
     placa = Column(String(20), unique=True, index=True, nullable=False)
     marca = Column(String(60), nullable=True)
     capacidad_volumetrica = Column(Float, nullable=True)  # m3 que puede cargar
+    capacidad_cajas = Column(Integer, nullable=True)      # CUS-08: cuántas cajas soporta
     estado = Column(String(30), default="DISPONIBLE")     # DISPONIBLE, EN_RUTA, INACTIVO
     # Dueño/asignado: el conductor (usuario). NULL = vehículo de la empresa.
     conductor_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True, index=True)

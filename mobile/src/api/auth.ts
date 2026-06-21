@@ -14,3 +14,11 @@ export async function login(correo: string, contrasena: string): Promise<TokenRe
   });
   return data;
 }
+
+// Extra CUS-04: el conductor que olvidó su clave pide que el admin la restablezca.
+// Endpoint público (no requiere token). Recibe: el correo. Devuelve: { mensaje }
+// genérico (el backend nunca revela si el correo existe o no).
+export async function solicitarRestablecimiento(correo: string): Promise<{ mensaje: string }> {
+  const { data } = await api.post<{ mensaje: string }>("/auth/solicitar-restablecimiento", { correo });
+  return data;
+}

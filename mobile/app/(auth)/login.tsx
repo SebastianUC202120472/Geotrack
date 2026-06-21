@@ -1,7 +1,7 @@
 // Pantalla de login del conductor (correo + contraseña). No hay registro: las
 // cuentas se crean desde el panel admin.
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Screen } from "@/components/Screen";
 import { Field } from "@/components/Field";
@@ -10,6 +10,7 @@ import { GradientHeader } from "@/components/GradientHeader";
 import { Aparecer } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
 import { useAuth } from "@/store/auth";
+import { solicitarRestablecimiento } from "@/api/auth";
 import { mensajeDeError } from "@/api/client";
 import { useTheme, sombra, spacing, radius } from "@/theme";
 
@@ -22,6 +23,9 @@ export default function LoginScreen() {
   const [contrasena, setContrasena] = useState("");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
+  // Extra CUS-04: solicitud de restablecimiento de contraseña.
+  const [mensajeSolicitud, setMensajeSolicitud] = useState("");
+  const [solicitando, setSolicitando] = useState(false);
 
   // Valida y ejecuta el inicio de sesión. Sin parámetros (usa el estado local).
   const entrar = async () => {
@@ -37,6 +41,26 @@ export default function LoginScreen() {
       setError(mensajeDeError(e));
     } finally {
       setCargando(false);
+    }
+  };
+
+  // Pide al admin que restablezca la clave (usa el correo escrito arriba). El backend
+  // responde un mensaje genérico exista o no la cuenta.
+  const solicitarReset = async () => {
+    if (!correo.trim()) {
+      setError("Escribe tu correo arriba y vuelve a tocar para solicitar el restablecimiento.");
+      return;
+    }
+    setError("");
+    setMensajeSolicitud("");
+    setSolicitando(true);
+    try {
+      const r = await solicitarRestablecimiento(correo.trim());
+      setMensajeSolicitud(r.mensaje);
+    } catch (e) {
+      setError(mensajeDeError(e));
+    } finally {
+      setSolicitando(false);
     }
   };
 
@@ -67,6 +91,19 @@ export default function LoginScreen() {
             ) : null}
 
             <Button titulo={cargando ? "Ingresando…" : "Iniciar sesión"} onPress={entrar} cargando={cargando} />
+
+            {/* Extra CUS-04: solicitar restablecimiento de contraseña */}
+            <Pressable onPress={solicitarReset} disabled={solicitando} accessibilityRole="button"
+              accessibilityLabel="Olvidé mi contraseña" style={estilos.olvide}>
+              <Texto variante="body" color={colors.brand}>
+                {solicitando ? "Enviando solicitud…" : "¿Olvidaste tu contraseña?"}
+              </Texto>
+            </Pressable>
+            {mensajeSolicitud ? (
+              <Texto variante="caption" color={colors.text} style={[estilos.info, { backgroundColor: colors.brandSoft }]}>
+                {mensajeSolicitud}
+              </Texto>
+            ) : null}
           </View>
         </Aparecer>
       </KeyboardAvoidingView>
@@ -85,4 +122,6 @@ const estilos = StyleSheet.create({
   cuerpo: { paddingHorizontal: spacing.lg, marginTop: -spacing.xl },
   tarjeta: { borderRadius: radius.xl, borderWidth: 1, padding: spacing.lg, gap: spacing.lg },
   error: { padding: spacing.md, borderRadius: radius.md, textAlign: "center" },
+  olvide: { alignItems: "center", paddingVertical: spacing.xs },
+  info: { padding: spacing.md, borderRadius: radius.md, textAlign: "center" },
 });

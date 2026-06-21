@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 // Modal/overlay animado y reutilizable. Mantiene el contenido montado durante el
 // cierre para animar la salida; cierra con Escape o clic fuera del panel.
@@ -64,7 +65,10 @@ export default function Modal({ open, onClose, variant = "center", className = "
 
   const posicion = variant === "right" ? "justify-end" : "items-center justify-center p-4";
 
-  return (
+  // Portal a document.body: el fixed inset-0 se mide contra el viewport real,
+  // eliminando las franjas blancas que aparecían cuando el modal estaba dentro
+  // del árbol del layout (barra superior, sidebar, wrapper animate-fade-up).
+  return createPortal(
     <div className="fixed inset-0 z-50" role="dialog" aria-modal="true">
       <div className={`absolute inset-0 bg-slate-900/50 transition-opacity duration-200 ${visible ? "opacity-100" : "opacity-0"}`} />
       <div
@@ -72,9 +76,11 @@ export default function Modal({ open, onClose, variant = "center", className = "
         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
         <div className={`relative ${panelBase[variant]} ${transicion} ${className}`}>
-          {contenido}
+          {/* Abierto: render en vivo (sin frame vacío). Cerrando: último snapshot para animar la salida. */}
+          {open ? children : contenido}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

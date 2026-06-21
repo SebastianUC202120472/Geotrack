@@ -73,3 +73,16 @@ def optimizar_secuencia_pedidos(pedidos, lat_origen, lon_origen):
             break
 
     return ruta_optima
+
+
+def distancia_total(origen_lat, origen_lon, pedidos) -> float:
+    """Suma la distancia (km) de recorrer 'pedidos' EN EL ORDEN DADO partiendo del origen.
+    Ignora los pedidos sin coordenadas. Recibe: lat/lon de origen y la lista de pedidos."""
+    total = 0.0
+    actual = (origen_lat, origen_lon)
+    for pedido in pedidos:
+        if pedido.latitud is None or pedido.longitud is None:
+            continue
+        total += calcular_distancia(actual[0], actual[1], pedido.latitud, pedido.longitud)
+        actual = (pedido.latitud, pedido.longitud)
+    return total

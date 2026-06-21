@@ -6,13 +6,15 @@ import glob
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.repositories import conductor_repository, usuario_repository, ubicacion_repository
+from app.repositories import conductor_repository, usuario_repository, ubicacion_repository, solicitud_restablecimiento_repository
 from app.core.security import get_password_hash
-from app.schemas.conductor import ConductorCreate, ConductorUpdate, UbicacionRequest
+from app.schemas.conductor import ConductorCreate, ConductorUpdate, UbicacionRequest, ConductorResetContrasena
 
 
-def _a_respuesta(db: Session, usuario) -> dict:
-    """Arma la ficha del conductor cruzando perfil + vehículo asignado."""
+def _a_respuesta(db: Session, usuario, ids_pendientes=None) -> dict:
+    """Arma la ficha del conductor cruzando perfil + vehículo asignado.
+    `ids_pendientes` (set opcional) marca si el conductor pidió restablecer su clave;
+    se pasa precalculado al listar para no consultar uno por uno."""
     perfil = conductor_repository.obtener_perfil(db, usuario.id)
     vehiculo = conductor_repository.vehiculo_de(db, usuario.id)
     return {
@@ -23,6 +25,8 @@ def _a_respuesta(db: Session, usuario) -> dict:
         # En ruta = tiene una ruta sin cerrar (CREADA/EN_PROGRESO). El panel lo muestra
         # como "En ruta" en vez de "Disponible" hasta que cierre el día.
         "en_ruta": conductor_repository.tiene_ruta_activa(db, usuario.id),
+        # True si el conductor solicitó restablecer su contraseña y sigue pendiente.
+        "solicito_restablecimiento": (usuario.id in ids_pendientes) if ids_pendientes is not None else False,
         "nombre": perfil.nombre if perfil else None,
         "telefono": perfil.telefono if perfil else None,
         "dni": perfil.dni if perfil else None,
@@ -32,7 +36,9 @@ def _a_respuesta(db: Session, usuario) -> dict:
 
 
 def listar(db: Session) -> list:
-    return [_a_respuesta(db, u) for u in conductor_repository.listar_usuarios_conductores(db)]
+    # Se calcula UNA vez el conjunto de conductores con solicitud pendiente (evita N+1).
+    pendientes = solicitud_restablecimiento_repository.ids_pendientes(db)
+    return [_a_respuesta(db, u, pendientes) for u in conductor_repository.listar_usuarios_conductores(db)]
 
 
 # Ficha del propio conductor (su perfil). Recibe: el Usuario del token.
@@ -68,6 +74,17 @@ def actualizar(db: Session, usuario_id: int, datos: ConductorUpdate) -> dict:
         db, usuario_id, nombre=datos.nombre, telefono=datos.telefono, dni=datos.dni
     )
     return _a_respuesta(db, usuario)
+
+
+def restablecer_contrasena(db: Session, usuario_id: int, datos: ConductorResetContrasena) -> dict:
+    """CUS-04: el admin fija una NUEVA contraseña para un conductor activo (p. ej. si
+    la olvidó). Recibe: id del conductor y la nueva clave (ya validada por el schema).
+    La clave se guarda hasheada (Argon2); nunca en texto plano."""
+    usuario = _conductor_activo(db, usuario_id)
+    usuario_repository.actualizar_hash(db, usuario.id, get_password_hash(datos.contrasena))
+    # Si el conductor había solicitado el restablecimiento, su solicitud queda atendida.
+    solicitud_restablecimiento_repository.marcar_atendidas(db, usuario.id)
+    return {"mensaje": "Contraseña restablecida correctamente"}
 
 
 def registrar_ubicacion(db: Session, conductor_id: int, datos: UbicacionRequest) -> dict:

@@ -2,10 +2,12 @@
 # La inteligencia del panel de monitoreo del admin.
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from datetime import datetime
 
-from app.repositories import ruta_repository, pedido_repository, usuario_repository, historial_repository, ubicacion_repository
+from app.models.usuario import Usuario
+from app.repositories import ruta_repository, pedido_repository, usuario_repository, historial_repository, ubicacion_repository, incidencia_repository
 from app.schemas.dashboard import (
     RutaFlota,
     FlotaResponse,
@@ -16,6 +18,7 @@ from app.schemas.dashboard import (
     ConductorUbicacion,
     ParadaMapa,
 )
+
 
 ESTADOS_RUTA_ACTIVA = ("CREADA", "EN_PROGRESO")
 UMBRAL_EN_LINEA_SEG = 120  # un conductor está "en línea" si su última señal tiene < 2 min
@@ -66,7 +69,8 @@ def obtener_por_cliente(db: Session) -> list[ClienteSeguimiento]:
         fila["total"] += total
         if estado == "ENTREGADO":
             fila["entregados"] += total
-        elif estado in ("FALLIDO", "GEOCODIFICACION_FALLIDA"):
+        elif estado in ("FALLIDO", "GEOCODIFICACION_FALLIDA", "CANCELADO"):
+            # CANCELADO es terminal sin entrega: se agrupa junto a fallidos (mantiene contrato suma=total).
             fila["fallidos"] += total
         elif estado in ("ASIGNADO", "EN_RUTA"):
             fila["en_proceso"] += total
@@ -87,6 +91,9 @@ def obtener_ubicaciones_flota(db: Session) -> list[ConductorUbicacion]:
 
     ahora = datetime.utcnow()
     rutas = db.query(Ruta).filter(Ruta.estado.in_(ESTADOS_RUTA_ACTIVA), Ruta.conductor_id.isnot(None)).all()
+
+    # CUS-30: rutas con incidencia abierta (para marcar al conductor como pausado en el mapa).
+    rutas_pausadas = incidencia_repository.rutas_con_incidencia_abierta(db)
 
     # Un conductor podría (excepcionalmente) tener más de una ruta activa: se agrupa
     # por conductor para NO duplicarlo en el mapa; sus paradas se fusionan.
@@ -116,6 +123,8 @@ def obtener_ubicaciones_flota(db: Session) -> list[ConductorUbicacion]:
         existente = salida.get(ruta.conductor_id)
         if existente:
             existente.paradas.extend(paradas)  # mismo conductor en otra ruta: fusiona paradas
+            # CUS-30: si cualquiera de sus rutas está pausada, el conductor aparece pausado.
+            existente.pausado = existente.pausado or (ruta.id in rutas_pausadas)
         else:
             salida[ruta.conductor_id] = ConductorUbicacion(
                 conductor_id=ruta.conductor_id,
@@ -125,6 +134,7 @@ def obtener_ubicaciones_flota(db: Session) -> list[ConductorUbicacion]:
                 longitud=ubicacion.longitud if ubicacion else None,
                 actualizado_en=ubicacion.actualizado_en if ubicacion else None,
                 en_linea=en_linea,
+                pausado=ruta.id in rutas_pausadas,
                 paradas=paradas,
             )
 
@@ -261,3 +271,48 @@ def obtener_historial(db: Session, codigo: str) -> HistorialPedidoResponse:
         motivo_fallo=motivo_fallo,
         eventos=eventos,
     )
+
+
+def obtener_eficiencia_conductores(db: Session) -> list[dict]:
+    """CUS-34: por cada conductor activo, suma los km de sus rutas YA cerradas
+    (fecha_fin no nula) y calcula el ahorro de combustible con los parámetros
+    administrables. Acumulado (no solo hoy). Recibe: la sesión de BD."""
+    from app.models.ruta import Ruta
+    from app.services import parametro_service
+
+    combustible = parametro_service.obtener_combustible(db)
+    consumo = combustible["consumo_l_100km"]
+    precio = combustible["precio_soles_litro"]
+
+    # Sumas de km por conductor en una sola consulta (rutas cerradas con conductor).
+    filas = (
+        db.query(
+            Ruta.conductor_id,
+            func.coalesce(func.sum(Ruta.km_estimado), 0.0),
+            func.coalesce(func.sum(Ruta.km_ahorrado), 0.0),
+        )
+        .filter(Ruta.fecha_fin.isnot(None), Ruta.conductor_id.isnot(None))
+        .group_by(Ruta.conductor_id)
+        .all()
+    )
+    sumas = {cid: (float(km_e or 0.0), float(km_a or 0.0)) for cid, km_e, km_a in filas}
+
+    # Lista de conductores activos (aunque no tengan rutas cerradas -> 0).
+    conductores = (
+        db.query(Usuario)
+        .filter(Usuario.rol == "conductor", Usuario.estado == True)  # noqa: E712
+        .all()
+    )
+    resultado = []
+    for u in conductores:
+        km_recorridos, km_ahorrados = sumas.get(u.id, (0.0, 0.0))
+        litros = km_ahorrados * (consumo / 100.0)
+        resultado.append({
+            "conductor_id": u.id,
+            "nombre": _nombre_conductor(db, u.id),
+            "km_recorridos": round(km_recorridos, 2),
+            "km_ahorrados": round(km_ahorrados, 2),
+            "litros_ahorrados": round(litros, 2),
+            "soles_ahorrados": round(litros * precio, 2),
+        })
+    return resultado

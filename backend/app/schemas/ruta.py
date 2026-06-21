@@ -29,6 +29,7 @@ class ParadaManifiesto(BaseModel):
     longitud: Optional[float] = None
     peso_kg: Optional[float] = None
     estado_entrega: str  # PENDIENTE, ENTREGADO, FALLIDO
+    url_evidencia: Optional[str] = None  # foto POD ya subida (CUS-26), servida en /media
 
 
 # --- CUS-21: resumen de la ruta activa del conductor ---
@@ -38,11 +39,15 @@ class RutaActivaResponse(BaseModel):
     nombre: str
     estado: str  # CREADA, EN_PROGRESO
     fecha_creacion: datetime
+    fecha_salida: Optional[datetime] = None  # CUS-23: salida del almacén (None si no inició)
     vehiculo_placa: Optional[str] = None
     total_paradas: int
     pendientes: int
     entregadas: int
     fallidas: int
+    # CUS-30: la ruta está pausada si tiene una incidencia abierta (auxilio mecánico).
+    pausada: bool = False
+    incidencia_id: Optional[int] = None
 
 
 # --- CUS-24: manifiesto completo y ordenado ---
@@ -105,6 +110,9 @@ class CierreRutaResponse(BaseModel):
     nombre: str
     estado: str
     fecha_fin: Optional[datetime] = None
+    hora_inicio: Optional[datetime] = None   # CUS-28: salida (o creación si no hubo salida)
+    hora_fin: Optional[datetime] = None      # CUS-28: cierre de la ruta
+    duracion_minutos: Optional[int] = None   # CUS-28: horas trabajadas, en minutos
     total_paradas: int
     entregadas: int
     fallidas: int
@@ -140,3 +148,31 @@ class OptimizacionResponse(BaseModel):
     """SALIDA (CUS-19): confirmación con el número total de paradas optimizadas."""
     mensaje: str
     total_paradas: int
+
+
+# --- CUS-20: ajuste manual de la ruta desde el panel ---
+class ParadaAdmin(BaseModel):
+    """Una parada de la ruta, vista por el admin para reordenar/quitar."""
+    secuencia: int
+    pedido_id: int
+    codigo: Optional[str] = None
+    cliente_origen: str
+    nombre_destinatario: Optional[str] = None
+    direccion_destino: str
+    distrito: Optional[str] = None
+    estado_entrega: str
+
+
+class RutaParadasResponse(BaseModel):
+    """SALIDA (CUS-20): la ruta y sus paradas ordenadas, para editarlas en el panel."""
+    ruta_id: int
+    codigo: Optional[str] = None
+    nombre: str
+    estado: str
+    total_paradas: int
+    paradas: List[ParadaAdmin]
+
+
+class ReordenarRequest(BaseModel):
+    """ENTRADA (CUS-20): el nuevo orden de las paradas (lista de pedido_id en orden)."""
+    orden: List[int]

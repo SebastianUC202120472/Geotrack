@@ -1,10 +1,37 @@
 # app/repositories/usuario_repository.py
 # Es la ÚNICA capa que habla directamente con la tabla 'usuarios'.
-from typing import Optional
+from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.models.usuario import Usuario
 from app.core.codigos import asignar_codigo, prefijo_por_rol
+
+
+def listar_personal(db: Session) -> List[Usuario]:
+    """Lista los usuarios del PANEL (admin/jefe/almacén), no los conductores.
+    Recibe: la sesión. Devuelve la lista ordenada por código."""
+    return (
+        db.query(Usuario)
+        .filter(Usuario.rol != "conductor")
+        .order_by(Usuario.codigo.asc())
+        .all()
+    )
+
+
+def actualizar_rol(db: Session, usuario: Usuario, rol: str) -> Usuario:
+    """Cambia el rol de un usuario. Recibe: el usuario y el nuevo rol (texto)."""
+    usuario.rol = rol
+    db.commit()
+    db.refresh(usuario)
+    return usuario
+
+
+def actualizar_estado(db: Session, usuario: Usuario, estado: bool) -> Usuario:
+    """Activa/desactiva un usuario. Recibe: el usuario y el nuevo estado (bool)."""
+    usuario.estado = estado
+    db.commit()
+    db.refresh(usuario)
+    return usuario
 
 
 def obtener_por_correo(db: Session, correo: str) -> Optional[Usuario]:
@@ -28,3 +55,15 @@ def crear_usuario(db: Session, correo: str, hash_contrasena: str, rol: str) -> U
     db.commit()                                     # confirma el cambio en PostgreSQL
     db.refresh(nuevo)                               # recarga el objeto con el id ya asignado
     return nuevo
+
+
+def actualizar_hash(db: Session, usuario_id: int, hash_contrasena: str) -> Optional[Usuario]:
+    """Reemplaza el hash de la contraseña de un usuario (CUS-04: restablecer clave).
+    Recibe: el id del usuario y el hash ya generado por el servicio."""
+    usuario = obtener_por_id(db, usuario_id)
+    if usuario is None:
+        return None
+    usuario.hash_contrasena = hash_contrasena
+    db.commit()
+    db.refresh(usuario)
+    return usuario

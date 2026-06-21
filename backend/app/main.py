@@ -13,7 +13,7 @@ from app.core.config import settings
 from app.db.database import engine, Base, SessionLocal
 # Importar los modelos registra sus tablas en Base.metadata (necesario para create_all).
 from app.models import Usuario, Pedido, Ruta, RutaDetalle
-from app.services import usuario_service
+from app.services import usuario_service, parametro_service
 
 # Routers (cada uno agrupa los endpoints de un módulo).
 from app.api.auth import router as auth_router
@@ -26,6 +26,9 @@ from app.api.vehiculos import router as vehiculos_router  # Fase 4: flota de veh
 from app.api.correos import router as correos_router      # Bandeja de solicitudes de recojo
 from app.api.conductores import router as conductores_router  # Gestión de conductores
 from app.api.reportes import router as reportes_router      # Reportes de incidencia
+from app.api.usuarios import router as usuarios_router        # CUS-03: gestión de usuarios del panel
+from app.api.parametros import router as parametros_router    # CUS-06: catálogos (motivos)
+from app.api.incidencias import router as incidencias_router    # CUS-30: auxilio mecánico
 
 
 async def tarea_limpieza_usuarios():
@@ -72,8 +75,14 @@ async def lifespan(app: FastAPI):
     try:
         usuario_service.crear_admin_inicial(db, settings.ADMIN_EMAIL, settings.ADMIN_PASSWORD)
         print(f"Admin inicial asegurado: {settings.ADMIN_EMAIL}")
+        # CUS-06: siembra los motivos de rechazo por defecto si el catálogo está vacío.
+        parametro_service.asegurar_motivos_iniciales(db)
+        print("Catálogo de motivos de rechazo asegurado.")
+        # CUS-34: siembra los parámetros de combustible por defecto si faltan.
+        parametro_service.asegurar_combustible_inicial(db)
+        print("Parámetros de combustible asegurados.")
     except Exception as e:
-        print(f"No se pudo crear el admin inicial: {e}")
+        print(f"No se pudo completar la inicialización: {e}")
     finally:
         db.close()
 
@@ -106,7 +115,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Servir las evidencias POD (CUS-29) como archivos estáticos en /media.
+# Servir las evidencias POD (CUS-26/29) como archivos estáticos en /media.
+# NOTA: las liquidaciones (CUS-36) NO van aquí: contienen datos personales y se
+# guardan en una carpeta privada, descargables solo por un endpoint autenticado.
 os.makedirs(os.path.join("uploads", "evidencias"), exist_ok=True)
 app.mount("/media", StaticFiles(directory="uploads"), name="media")
 
@@ -121,6 +132,9 @@ app.include_router(dashboard_router, prefix="/api/dashboard", tags=["Dashboard y
 app.include_router(correos_router, prefix="/api/correos", tags=["Bandeja de Correos"])
 app.include_router(conductores_router, prefix="/api/conductores", tags=["Conductores"])
 app.include_router(reportes_router, prefix="/api/reportes", tags=["Reportes"])
+app.include_router(usuarios_router, prefix="/api/usuarios", tags=["Usuarios del Panel"])
+app.include_router(parametros_router, prefix="/api/parametros", tags=["Parámetros"])
+app.include_router(incidencias_router, prefix="/api/incidencias", tags=["Incidencias"])
 
 
 @app.get("/")
