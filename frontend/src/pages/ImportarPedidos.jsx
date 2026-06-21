@@ -150,6 +150,21 @@ export default function ImportarPedidos() {
                 Ver agrupación por zonas
               </Button>
             </div>
+
+            {/* Panel de filas rechazadas por cliente no registrado */}
+            {resultado.total_rechazados > 0 && (
+              <div className="mt-4 rounded-card border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-semibold text-amber-800">
+                  {resultado.total_rechazados} fila(s) no se importaron: el cliente no está registrado.
+                  Registra primero al cliente (Clientes) y vuelve a subir el Excel.
+                </p>
+                <ul className="mt-2 space-y-1 text-sm text-amber-700">
+                  {resultado.rechazados.map((r, i) => (
+                    <li key={i} className="nums">Fila {r.fila}: &quot;{r.cliente}&quot; — {r.motivo}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
       )}
