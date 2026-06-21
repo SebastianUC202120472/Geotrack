@@ -21,6 +21,8 @@ export interface RutaActiva {
   pendientes: number;
   entregadas: number;
   fallidas: number;
+  pausada?: boolean;          // CUS-30: la ruta está pausada por un auxilio mecánico
+  incidencia_id?: number | null;
 }
 
 // Una parada del manifiesto (GET /conductor/ruta-activa/manifiesto).
@@ -133,4 +135,24 @@ export interface Reporte {
   accion?: string | null;
   creado_en?: string | null;
   respondido_en?: string | null;
+}
+
+// Incidencia de auxilio mecánico (CUS-30).
+export interface Incidencia {
+  id: number;
+  codigo?: string | null;
+  ruta_id: number;
+  ruta_nombre?: string | null;
+  conductor_id: number;
+  conductor_nombre?: string | null;
+  vehiculo_placa?: string | null;
+  tipo: string;
+  descripcion?: string | null;
+  url_evidencia?: string | null;
+  latitud?: number | null;
+  longitud?: number | null;
+  estado: string; // ABIERTA | RESUELTA
+  creado_en?: string | null;
+  resuelto_en?: string | null;
+  nota_resolucion?: string | null;
 }

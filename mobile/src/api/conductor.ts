@@ -10,6 +10,7 @@ import type {
   PerfilConductor,
   Reporte,
   ValidacionQR,
+  Incidencia,
 } from "@/types/api";
 
 // Perfil del propio conductor (nombre, teléfono, DNI, vehículo). GET /conductor/perfil.
@@ -111,4 +112,40 @@ export async function finalizarRuta(): Promise<CierreRuta> {
 // Recibe: latitud y longitud. Best-effort: no devuelve datos.
 export async function enviarUbicacion(latitud: number, longitud: number): Promise<void> {
   await api.post("/conductor/ubicacion", { latitud, longitud });
+}
+
+// CUS-30: reporta un auxilio mecánico sobre la ruta activa (la ruta queda pausada).
+// Recibe: descripcion opcional y coords opcionales {latitud, longitud}.
+export async function reportarIncidencia(
+  descripcion?: string,
+  coords?: { latitud: number; longitud: number }
+): Promise<Incidencia> {
+  const { data } = await api.post<Incidencia>("/conductor/incidencias", {
+    tipo: "AVERIA_MECANICA",
+    descripcion: descripcion ?? null,
+    latitud: coords?.latitud ?? null,
+    longitud: coords?.longitud ?? null,
+  });
+  return data;
+}
+
+// CUS-30: sube la foto de la avería (multipart). Recibe: id de incidencia y uri local.
+export async function subirEvidenciaIncidencia(incidenciaId: number, uriFoto: string): Promise<Incidencia> {
+  const nombre = uriFoto.split("/").pop() ?? `inc_${incidenciaId}.jpg`;
+  const form = new FormData();
+  form.append("file", { uri: uriFoto, name: nombre, type: "image/jpeg" } as unknown as Blob);
+  const { data } = await api.post<Incidencia>(
+    `/conductor/incidencias/${incidenciaId}/evidencia`,
+    form,
+    { headers: { "Content-Type": "multipart/form-data" } }
+  );
+  return data;
+}
+
+// CUS-30: reanuda la ruta cerrando la incidencia. Recibe: id de incidencia y nota opcional.
+export async function reanudarRuta(incidenciaId: number, nota?: string): Promise<Incidencia> {
+  const { data } = await api.post<Incidencia>(`/conductor/incidencias/${incidenciaId}/reanudar`, {
+    nota: nota ?? null,
+  });
+  return data;
 }
