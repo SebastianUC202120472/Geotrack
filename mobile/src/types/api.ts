@@ -15,6 +15,7 @@ export interface RutaActiva {
   nombre: string;
   estado: string; // CREADA | EN_PROGRESO | FINALIZADA
   fecha_creacion: string;
+  fecha_salida?: string | null; // CUS-23: salida del almacén (null si aún no inició)
   vehiculo_placa?: string | null;
   total_paradas: number;
   pendientes: number;
@@ -37,6 +38,7 @@ export interface ParadaManifiesto {
   longitud?: number | null;
   peso_kg?: number | null;
   estado_entrega: EstadoEntrega;
+  url_evidencia?: string | null; // foto POD ya subida (CUS-26), servida en /media
 }
 
 export interface Manifiesto {
@@ -82,6 +84,10 @@ export interface OptimizacionResultado {
 export interface CierreRuta {
   ruta_id: number;
   estado: string;
+  fecha_fin?: string | null;
+  hora_inicio?: string | null;      // CUS-28: salida (o creación si no hubo salida)
+  hora_fin?: string | null;         // CUS-28: cierre de la ruta
+  duracion_minutos?: number | null; // CUS-28: horas trabajadas, en minutos
   total_paradas: number;
   entregadas: number;
   fallidas: number;

@@ -72,6 +72,19 @@ def contar_por_estado(db: Session):
     )
 
 
+def listar_por_cliente(db: Session, cliente: str, desde=None, hasta=None) -> List[Pedido]:
+    """Pedidos de UNA empresa (por su nombre snapshot 'cliente_origen'), para armar la
+    liquidación (CUS-36). `desde`/`hasta` (date, opcionales) acotan por fecha_creacion.
+    Recibe: nombre del cliente y el rango de fechas. Devuelve la lista de pedidos."""
+    from datetime import datetime, time
+    consulta = db.query(Pedido).filter(Pedido.cliente_origen == cliente)
+    if desde is not None:
+        consulta = consulta.filter(Pedido.fecha_creacion >= datetime.combine(desde, time.min))
+    if hasta is not None:
+        consulta = consulta.filter(Pedido.fecha_creacion <= datetime.combine(hasta, time.max))
+    return consulta.order_by(Pedido.codigo.asc()).all()
+
+
 def agrupar_por_cliente(db: Session):
     """Cuenta pedidos por empresa (cliente_origen) y estado EFECTIVO, para el
     seguimiento por cliente. Si el pedido está en una ruta, su estado real es el del
