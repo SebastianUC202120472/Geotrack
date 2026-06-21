@@ -303,6 +303,16 @@ def asignar_bloque(db: Session, datos: AsignacionBloqueRequest, usuario_id: int 
     if not pedidos:
         raise HTTPException(status_code=400, detail="No hay pedidos pendientes para esa zona")
 
+    # Un conductor no puede tener dos rutas activas a la vez (evita duplicados):
+    # debe cerrar la actual antes de que se le asigne otra.
+    if datos.conductor_id:
+        activa = ruta_repository.obtener_ruta_activa_por_conductor(db, datos.conductor_id)
+        if activa:
+            raise HTTPException(
+                status_code=400,
+                detail=f"El conductor ya tiene una ruta activa ('{activa.nombre}'). Debe cerrarla antes de asignar otra.",
+            )
+
     # El nombre se deriva de la zona ("Ruta Miraflores"). Si llega un nombre
     # explícito no vacío se respeta (override opcional); si no, se genera.
     nombre = (datos.nombre_ruta or "").strip() or f"Ruta {datos.distrito or 'sin zona'}"
