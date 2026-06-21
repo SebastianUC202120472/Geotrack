@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models.ruta import Ruta, RutaDetalle
 from app.models.pedido import Pedido
-from app.repositories import ruta_repository, pedido_repository, historial_repository, evidencia_repository
+from app.repositories import ruta_repository, pedido_repository, historial_repository, evidencia_repository, incidencia_repository
 from app.services.router import optimizar_secuencia_pedidos
 from app.schemas.ruta import (
     RutaActivaResponse,
@@ -69,6 +69,9 @@ def obtener_resumen_ruta_activa(db: Session, conductor_id: int) -> RutaActivaRes
     entregadas = sum(1 for d, _ in detalles if d.estado_entrega == "ENTREGADO")
     fallidas = sum(1 for d, _ in detalles if d.estado_entrega == "FALLIDO")
 
+    # CUS-30: comprueba si existe una incidencia abierta (auxilio mecánico) para esta ruta.
+    abierta = incidencia_repository.obtener_abierta_por_ruta(db, ruta.id)
+
     return RutaActivaResponse(
         ruta_id=ruta.id,
         codigo=ruta.codigo,
@@ -81,6 +84,8 @@ def obtener_resumen_ruta_activa(db: Session, conductor_id: int) -> RutaActivaRes
         pendientes=pendientes,
         entregadas=entregadas,
         fallidas=fallidas,
+        pausada=abierta is not None,
+        incidencia_id=abierta.id if abierta else None,
     )
 
 
@@ -183,6 +188,11 @@ def actualizar_estado_parada(
         )
 
     detalle = _obtener_detalle_de_mi_ruta(db, conductor_id, pedido_id)
+
+    # CUS-30: bloquear si la ruta está pausada por una incidencia de auxilio mecánico.
+    if incidencia_repository.tiene_abierta(db, detalle.ruta_id):
+        raise HTTPException(status_code=400, detail="La ruta está pausada por una incidencia. Reanúdala antes de continuar.")
+
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
 
     ahora = datetime.utcnow()
@@ -265,6 +275,11 @@ def guardar_evidencia(
 def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
     """CUS-28: da por finalizada la ruta del día del conductor."""
     ruta = _obtener_ruta_activa_o_404(db, conductor_id)
+
+    # CUS-30: no se puede cerrar el día con una incidencia (auxilio mecánico) abierta.
+    if incidencia_repository.tiene_abierta(db, ruta.id):
+        raise HTTPException(status_code=400, detail="La ruta está pausada por una incidencia. Reanúdala antes de cerrar el día.")
+
     detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
 
     pendientes = sum(1 for d, _ in detalles if d.estado_entrega == "PENDIENTE")

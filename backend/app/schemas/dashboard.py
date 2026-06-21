@@ -56,6 +56,7 @@ class ConductorUbicacion(BaseModel):
     longitud: Optional[float] = None
     actualizado_en: Optional[datetime] = None
     en_linea: bool = False                # True si la última señal es reciente (< 2 min)
+    pausado: bool = False  # CUS-30: tiene una incidencia (auxilio mecánico) abierta
     paradas: List[ParadaMapa] = []
 
 
