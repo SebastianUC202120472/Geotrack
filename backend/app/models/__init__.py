@@ -13,3 +13,5 @@ from .correo import Conversacion, MensajeCorreo, MensajeAdjunto
 from .conductor import PerfilConductor
 from .reporte import Reporte
 from .ubicacion import UbicacionConductor
+from .liquidacion import Liquidacion
+from .evidencia import EvidenciaEntrega

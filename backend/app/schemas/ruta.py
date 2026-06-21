@@ -29,6 +29,7 @@ class ParadaManifiesto(BaseModel):
     longitud: Optional[float] = None
     peso_kg: Optional[float] = None
     estado_entrega: str  # PENDIENTE, ENTREGADO, FALLIDO
+    url_evidencia: Optional[str] = None  # foto POD ya subida (CUS-26), servida en /media
 
 
 # --- CUS-21: resumen de la ruta activa del conductor ---
@@ -38,6 +39,7 @@ class RutaActivaResponse(BaseModel):
     nombre: str
     estado: str  # CREADA, EN_PROGRESO
     fecha_creacion: datetime
+    fecha_salida: Optional[datetime] = None  # CUS-23: salida del almacén (None si no inició)
     vehiculo_placa: Optional[str] = None
     total_paradas: int
     pendientes: int
@@ -105,6 +107,9 @@ class CierreRutaResponse(BaseModel):
     nombre: str
     estado: str
     fecha_fin: Optional[datetime] = None
+    hora_inicio: Optional[datetime] = None   # CUS-28: salida (o creación si no hubo salida)
+    hora_fin: Optional[datetime] = None      # CUS-28: cierre de la ruta
+    duracion_minutos: Optional[int] = None   # CUS-28: horas trabajadas, en minutos
     total_paradas: int
     entregadas: int
     fallidas: int

@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { Truck, Plus, CheckCircle2, AlertCircle } from "lucide-react";
+import { Truck, Plus, CheckCircle2, AlertCircle, UserCog, X } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
 import SectionCard from "../components/ui/SectionCard";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
+import Modal from "../components/ui/Modal";
 import { EstadoBadge } from "../components/ui/Badge";
-import { listarVehiculos, crearVehiculo, listarConductores } from "../services/api";
+import { listarVehiculos, crearVehiculo, listarConductores, actualizarVehiculo } from "../services/api";
 import { validarPlaca, validarCapacidad } from "../utils/validaciones";
 
 // Registro de vehículos y su asignación a un conductor. El alta de conductores
@@ -23,6 +24,7 @@ export default function Flota() {
   const [conductorId, setConductorId] = useState("");
   const [errores, setErrores] = useState({});
   const [aviso, setAviso] = useState(null);
+  const [reasignar, setReasignar] = useState(null);  // vehículo cuyo conductor se reasigna (CUS-09)
 
   const cargar = async () => {
     setCargando(true);
@@ -115,6 +117,15 @@ export default function Flota() {
       header: "Estado",
       render: (v) => <EstadoBadge estado={v.estado} />,
     },
+    {
+      key: "acciones",
+      header: "",
+      render: (v) => (
+        <Button variant="ghost" size="sm" icon={UserCog} onClick={() => { setAviso(null); setReasignar(v); }}>
+          Reasignar
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -178,6 +189,73 @@ export default function Flota() {
           />
         </div>
       </div>
+
+      {/* CUS-09: reasignar (o liberar) el conductor de un vehículo */}
+      <Modal open={!!reasignar} onClose={() => setReasignar(null)} variant="center">
+        {reasignar && (
+          <ReasignarConductor
+            vehiculo={reasignar}
+            conductores={conductores}
+            onCerrar={() => setReasignar(null)}
+            onCambios={() => { setReasignar(null); cargar(); }}
+          />
+        )}
+      </Modal>
     </div>
+  );
+}
+
+// Formulario para cambiar el conductor asignado a un vehículo (CUS-09). Recibe: el
+// vehículo, la lista de conductores y los callbacks de cierre/recarga.
+function ReasignarConductor({ vehiculo, conductores, onCerrar, onCambios }) {
+  const [conductorId, setConductorId] = useState(vehiculo.conductor_id ? String(vehiculo.conductor_id) : "");
+  const [trabajando, setTrabajando] = useState(false);
+  const [error, setError] = useState(null);
+
+  const guardar = async () => {
+    setTrabajando(true);
+    setError(null);
+    try {
+      await actualizarVehiculo(vehiculo.id, { conductor_id: conductorId ? Number(conductorId) : null });
+      onCambios();
+    } catch (err) {
+      setError(err.message);
+      setTrabajando(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="font-bold text-slate-900">Reasignar conductor</h2>
+          <p className="text-sm text-slate-500 nums">Vehículo {vehiculo.placa}{vehiculo.codigo ? ` · ${vehiculo.codigo}` : ""}</p>
+        </div>
+        <button onClick={onCerrar} aria-label="Cerrar" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100">
+          <X size={20} />
+        </button>
+      </div>
+
+      {error && (
+        <div className="mt-4 flex items-center gap-2 rounded-xl bg-danger-soft px-3.5 py-3 text-sm text-danger-strong">
+          <AlertCircle size={18} /> <span>{error}</span>
+        </div>
+      )}
+
+      <div className="mt-6 space-y-4">
+        <Input as="select" label="Conductor asignado" value={conductorId} onChange={(e) => setConductorId(e.target.value)}>
+          <option value="">Sin conductor (de la empresa)</option>
+          {conductores.map((c) => (
+            <option key={c.usuario_id} value={c.usuario_id}>
+              {c.nombre || c.correo} {c.codigo ? `· ${c.codigo}` : ""}
+            </option>
+          ))}
+        </Input>
+        <div className="flex gap-2">
+          <Button variant="secondary" block onClick={onCerrar} disabled={trabajando}>Cancelar</Button>
+          <Button icon={UserCog} block onClick={guardar} disabled={trabajando}>{trabajando ? "Guardando…" : "Guardar"}</Button>
+        </div>
+      </div>
+    </>
   );
 }

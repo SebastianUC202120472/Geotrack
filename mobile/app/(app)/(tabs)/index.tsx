@@ -93,7 +93,11 @@ export default function RutaScreen() {
         style: "destructive",
         onPress: () =>
           finalizar.mutate(undefined, {
-            onSuccess: (r) => Alert.alert("Día cerrado", r.mensaje),
+            // CUS-28: el backend devuelve la duración; la mostramos como horas trabajadas.
+            onSuccess: (r) => {
+              const dur = formatDuracion(r.duracion_minutos);
+              Alert.alert("Día cerrado", dur ? `${r.mensaje}\nTrabajaste ${dur}.` : r.mensaje);
+            },
             onError: (e) => Alert.alert("No se pudo cerrar", mensajeDeError(e)),
           }),
       },
@@ -118,6 +122,12 @@ export default function RutaScreen() {
           <Texto variante="body" color={colors.white} style={{ opacity: 0.9, textTransform: "lowercase" }}>
             {(ruta.data.codigo ?? "—")} · {ruta.data.estado.replace("_", " ").toLowerCase()}
           </Texto>
+          {/* CUS-23: sello de salida del almacén (cuando la ruta ya inició) */}
+          {horaLocal(ruta.data.fecha_salida) && (
+            <Texto variante="caption" color={colors.white} style={{ opacity: 0.9, marginTop: 2 }}>
+              🕑 Salida {horaLocal(ruta.data.fecha_salida)}
+            </Texto>
+          )}
 
           <View style={{ marginTop: spacing.lg }}>
             <BarraProgreso valor={ruta.data.entregadas} total={ruta.data.total_paradas} porEstado />
@@ -227,6 +237,25 @@ export default function RutaScreen() {
       </DeslizarPestanas>
     </Screen>
   );
+}
+
+// Convierte una hora ISO del backend (UTC) a "HH:MM" en la zona del dispositivo.
+// Recibe: la fecha ISO o null. Devuelve: el texto de la hora, o null.
+function horaLocal(iso?: string | null): string | null {
+  if (!iso) return null;
+  const tieneZona = /[zZ]|[+-]\d\d:?\d\d$/.test(iso);
+  const fecha = new Date(tieneZona ? iso : `${iso}Z`);
+  return fecha.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" });
+}
+
+// Formatea una duración en minutos como "Xh Ymin". Recibe: minutos o null.
+function formatDuracion(min?: number | null): string | null {
+  if (min == null) return null;
+  const horas = Math.floor(min / 60);
+  const minutos = min % 60;
+  if (horas && minutos) return `${horas}h ${minutos}min`;
+  if (horas) return `${horas}h`;
+  return `${minutos}min`;
 }
 
 // Cifra animada con su etiqueta (texto blanco sobre el degradado). Recibe: { valor, etiqueta }.

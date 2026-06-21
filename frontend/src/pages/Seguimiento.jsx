@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { RefreshCw, Truck, CircleCheck, CircleX, Clock, Building2, Loader2, Route } from "lucide-react";
+import { RefreshCw, Truck, CircleCheck, CircleX, Clock, Building2, Loader2, Route, FileSpreadsheet } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import Card from "../components/ui/Card";
 import SectionCard from "../components/ui/SectionCard";
@@ -8,7 +8,7 @@ import EmptyState from "../components/ui/EmptyState";
 import LiveBadge from "../components/ui/LiveBadge";
 import Button from "../components/ui/Button";
 import { EstadoBadge } from "../components/ui/Badge";
-import { obtenerFlota, obtenerSeguimientoClientes } from "../services/api";
+import { obtenerFlota, obtenerSeguimientoClientes, generarLiquidacion, descargarLiquidacion } from "../services/api";
 
 // Seguimiento de PEDIDOS con dos vistas (pestañas):
 //  - "Por ruta": avance de cada ruta (CUS-33, /dashboard/flota).
@@ -271,6 +271,24 @@ function Mini({ tono, valor, etiqueta }) {
 // Entrada: c (objeto cliente con campos total, entregados, en_proceso, pendientes, fallidos).
 function ClienteCard({ c }) {
   const avance = c.total ? Math.round((c.entregados / c.total) * 100) : 0;
+  const [generando, setGenerando] = useState(false);
+  const [error, setError] = useState(null);
+
+  // CUS-36: genera la liquidación del cliente en el backend (la guarda en la BD) y
+  // descarga el .xlsx resultante (autenticado) en el navegador.
+  const descargar = async () => {
+    setGenerando(true);
+    setError(null);
+    try {
+      const res = await generarLiquidacion({ cliente: c.cliente });
+      await descargarLiquidacion(res.descarga_url, res.archivo);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGenerando(false);
+    }
+  };
+
   return (
     <Card hover>
       <div className="mb-4 flex items-start justify-between gap-2">
@@ -306,6 +324,20 @@ function ClienteCard({ c }) {
         <Mini tono="warning" valor={c.pendientes} etiqueta="Pendientes" />
         <Mini tono="danger" valor={c.fallidos} etiqueta="Fallidos" />
       </div>
+
+      {/* CUS-36: liquidación del cliente (genera y descarga el Excel) */}
+      <Button
+        variant="secondary"
+        size="sm"
+        block
+        className="mt-4"
+        icon={generando ? Loader2 : FileSpreadsheet}
+        onClick={descargar}
+        disabled={generando}
+      >
+        {generando ? "Generando…" : "Descargar liquidación (Excel)"}
+      </Button>
+      {error && <p className="mt-2 text-xs text-danger-strong">{error}</p>}
     </Card>
   );
 }

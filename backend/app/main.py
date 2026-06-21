@@ -106,7 +106,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Servir las evidencias POD (CUS-29) como archivos estáticos en /media.
+# Servir las evidencias POD (CUS-26/29) como archivos estáticos en /media.
+# NOTA: las liquidaciones (CUS-36) NO van aquí: contienen datos personales y se
+# guardan en una carpeta privada, descargables solo por un endpoint autenticado.
 os.makedirs(os.path.join("uploads", "evidencias"), exist_ok=True)
 app.mount("/media", StaticFiles(directory="uploads"), name="media")
 

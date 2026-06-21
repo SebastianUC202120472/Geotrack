@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check, Pencil, Trash2, Camera } from "lucide-react";
+import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check, Pencil, Trash2, Camera, KeyRound } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -9,7 +9,7 @@ import Button from "../components/ui/Button";
 import Badge, { EstadoBadge } from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
 import SectionCard from "../components/ui/SectionCard";
-import { listarConductores, crearConductor, actualizarConductor, eliminarConductor, subirFotoConductor, urlMedia } from "../services/api";
+import { listarConductores, crearConductor, actualizarConductor, eliminarConductor, subirFotoConductor, restablecerContrasenaConductor, urlMedia } from "../services/api";
 import { validarNombre, validarCorreo, validarPassword, validarTelefono, validarDni, soloDigitos } from "../utils/validaciones";
 
 // Apartado de conductores: ficha completa (nombre, teléfono, DNI), vehículo
@@ -204,12 +204,16 @@ export default function Conductores() {
 // Detalle del conductor con tres modos: ver la ficha, editarla, o confirmar su
 // eliminación. `onCambios` se llama tras editar/eliminar (cierra + recarga lista).
 function DetalleConductor({ conductor: c, onCerrar, onCambios }) {
-  const [modo, setModo] = useState("ver"); // "ver" | "editar" | "confirmar"
+  const [modo, setModo] = useState("ver"); // "ver" | "editar" | "confirmar" | "clave"
   const [form, setForm] = useState({ nombre: c.nombre || "", telefono: c.telefono || "", dni: c.dni || "" });
   const [errores, setErrores] = useState({});
   const [aviso, setAviso] = useState(null);
   const [trabajando, setTrabajando] = useState(false);
   const [subiendoFoto, setSubiendoFoto] = useState(false);
+  // CUS-04: restablecer contraseña (nueva clave + estado del proceso).
+  const [nuevaClave, setNuevaClave] = useState("");
+  const [errorClave, setErrorClave] = useState("");
+  const [claveOk, setClaveOk] = useState(false);
 
   // Actualiza un campo del formulario y limpia su error.
   const set = (campo, transform) => (e) => {
@@ -273,6 +277,27 @@ function DetalleConductor({ conductor: c, onCerrar, onCambios }) {
     }
   };
 
+  // CUS-04: valida y fija la nueva contraseña del conductor. No cierra el modal:
+  // muestra confirmación para que el admin pueda comunicarle la clave.
+  const restablecer = async () => {
+    const error = validarPassword(nuevaClave);
+    if (error) {
+      setErrorClave(error);
+      return;
+    }
+    setTrabajando(true);
+    setAviso(null);
+    try {
+      await restablecerContrasenaConductor(c.usuario_id, nuevaClave);
+      setClaveOk(true);
+      setNuevaClave("");
+    } catch (err) {
+      setAviso({ texto: err.message });
+    } finally {
+      setTrabajando(false);
+    }
+  };
+
   return (
     <>
       <div className="flex items-start justify-between">
@@ -317,7 +342,41 @@ function DetalleConductor({ conductor: c, onCerrar, onCambios }) {
             <Button variant="secondary" icon={Pencil} block onClick={() => { setAviso(null); setModo("editar"); }}>Editar</Button>
             <Button variant="danger" icon={Trash2} block onClick={() => { setAviso(null); setModo("confirmar"); }}>Eliminar</Button>
           </div>
+          <Button variant="secondary" icon={KeyRound} block className="mt-2"
+            onClick={() => { setAviso(null); setClaveOk(false); setErrorClave(""); setNuevaClave(""); setModo("clave"); }}>
+            Restablecer contraseña
+          </Button>
         </>
+      )}
+
+      {modo === "clave" && (
+        <div className="mt-6 space-y-4">
+          {claveOk ? (
+            <>
+              <div className="flex items-start gap-3 rounded-xl bg-success-soft px-4 py-3 text-sm text-success-strong">
+                <CheckCircle2 size={20} className="shrink-0" />
+                <span>Contraseña restablecida. Comunícasela a <b>{c.nombre || "el conductor"}</b> para que entre a la app.</span>
+              </div>
+              <Button block onClick={() => setModo("ver")}>Listo</Button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-slate-500">
+                Define una nueva contraseña para <b>{c.nombre || "el conductor"}</b>. La usará para iniciar sesión en la app móvil.
+              </p>
+              <div>
+                <PasswordInput label="Nueva contraseña" value={nuevaClave}
+                  onChange={(e) => { setNuevaClave(e.target.value); setErrorClave(""); }}
+                  placeholder="Escribe la nueva contraseña" error={errorClave} autoComplete="new-password" />
+                <RequisitosPassword value={nuevaClave} />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="secondary" block onClick={() => { setModo("ver"); setErrorClave(""); setNuevaClave(""); }} disabled={trabajando}>Cancelar</Button>
+                <Button icon={KeyRound} block onClick={restablecer} disabled={trabajando}>{trabajando ? "Guardando…" : "Restablecer"}</Button>
+              </div>
+            </>
+          )}
+        </div>
       )}
 
       {modo === "editar" && (
