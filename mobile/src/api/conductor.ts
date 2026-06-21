@@ -91,3 +91,9 @@ export async function finalizarRuta(): Promise<CierreRuta> {
   const { data } = await api.post<CierreRuta>("/conductor/ruta-activa/finalizar");
   return data;
 }
+
+// Envía la posición actual del conductor (mapa de flota en vivo del panel admin).
+// Recibe: latitud y longitud. Best-effort: no devuelve datos.
+export async function enviarUbicacion(latitud: number, longitud: number): Promise<void> {
+  await api.post("/conductor/ubicacion", { latitud, longitud });
+}

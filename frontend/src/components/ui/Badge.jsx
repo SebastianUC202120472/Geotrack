@@ -35,10 +35,25 @@ const mapaEstados = {
   GEOCODIFICACION_FALLIDA: "danger",
 };
 
+// Color del punto por tono (coincide con los semánticos).
+const puntoPorTono = {
+  neutral: "bg-slate-400",
+  info: "bg-info",
+  brand: "bg-brand-600",
+  success: "bg-success",
+  warning: "bg-warning",
+  danger: "bg-danger",
+};
+
 export function EstadoBadge({ estado }) {
   if (!estado) return <Badge>—</Badge>;
   const tono = mapaEstados[estado] || "neutral";
   // Mostramos el texto en minúscula con la inicial en mayúscula, más legible.
   const texto = estado.replaceAll("_", " ").toLowerCase();
-  return <Badge tono={tono} className="capitalize">{texto}</Badge>;
+  return (
+    <Badge tono={tono} className="capitalize">
+      <span className={`h-1.5 w-1.5 rounded-full ${puntoPorTono[tono]}`} />
+      {texto}
+    </Badge>
+  );
 }

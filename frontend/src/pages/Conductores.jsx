@@ -1,12 +1,15 @@
-import { useEffect, useState } from "react";
-import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check, Pencil, Trash2, Camera } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
-import Card from "../components/ui/Card";
+import KpiCard from "../components/ui/KpiCard";
+import DataTable from "../components/ui/DataTable";
 import Input from "../components/ui/Input";
 import PasswordInput from "../components/ui/PasswordInput";
 import Button from "../components/ui/Button";
 import Badge, { EstadoBadge } from "../components/ui/Badge";
-import { listarConductores, crearConductor } from "../services/api";
+import Modal from "../components/ui/Modal";
+import SectionCard from "../components/ui/SectionCard";
+import { listarConductores, crearConductor, actualizarConductor, eliminarConductor, subirFotoConductor, urlMedia } from "../services/api";
 import { validarNombre, validarCorreo, validarPassword, validarTelefono, validarDni, soloDigitos } from "../utils/validaciones";
 
 // Apartado de conductores: ficha completa (nombre, teléfono, DNI), vehículo
@@ -36,6 +39,15 @@ export default function Conductores() {
   useEffect(() => {
     cargar();
   }, []);
+
+  // KPIs calculados desde el array ya cargado (sin petición extra).
+  const kpis = useMemo(() => {
+    const total = conductores.length;
+    const activos = conductores.filter((c) => c.estado).length;
+    const sinVehiculo = conductores.filter((c) => c.estado && !c.vehiculo).length;
+    const inactivos = conductores.filter((c) => !c.estado).length;
+    return { total, activos, sinVehiculo, inactivos };
+  }, [conductores]);
 
   // Actualiza un campo y limpia su error mientras el usuario corrige.
   const set = (campo, transform) => (e) => {
@@ -81,13 +93,56 @@ export default function Conductores() {
     }
   };
 
-  return (
-    <div className="space-y-6 p-6 lg:p-8">
-      <PageHeader titulo="Conductores" subtitulo="Registra y consulta a los conductores de reparto." />
+  // Columnas para DataTable
+  const columnas = [
+    {
+      key: "codigo",
+      header: "Código",
+      render: (c) => <span className="font-medium text-slate-800 nums">{c.codigo || "—"}</span>,
+    },
+    {
+      key: "nombre",
+      header: "Nombre",
+      render: (c) => <span className="text-slate-700">{c.nombre || "—"}</span>,
+    },
+    {
+      key: "telefono",
+      header: "Teléfono",
+      render: (c) => <span className="text-slate-600 nums">{c.telefono || "—"}</span>,
+    },
+    {
+      key: "vehiculo",
+      header: "Vehículo",
+      render: (c) =>
+        c.vehiculo
+          ? <Badge tono="info"><Truck size={13} className="inline mr-1" />{c.vehiculo.placa}</Badge>
+          : <span className="text-slate-400">Sin vehículo</span>,
+    },
+    {
+      key: "estado",
+      header: "Estado",
+      render: (c) => <EstadoBadge estado={c.estado ? "DISPONIBLE" : "INACTIVO"} />,
+    },
+  ];
 
-      <div className="grid gap-6 lg:grid-cols-3">
+  return (
+    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
+      <PageHeader
+        titulo="Conductores"
+        subtitulo="Registra y consulta a los conductores de reparto."
+      />
+
+      {/* KPIs derivados de la lista cargada */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 animate-fade-up">
+        <KpiCard label="Total" value={kpis.total} icon={Users} tone="brand" />
+        <KpiCard label="Activos" value={kpis.activos} icon={Users} tone="success" />
+        <KpiCard label="Sin vehículo" value={kpis.sinVehiculo} icon={Truck} tone="warning" />
+        <KpiCard label="Inactivos" value={kpis.inactivos} icon={Users} tone="danger" />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
         {/* Formulario de alta */}
-        <Card title="Registrar conductor" className="lg:col-span-1">
+        <SectionCard title="Registrar conductor" className="lg:col-span-1">
           <form onSubmit={registrar} noValidate className="space-y-4">
             <Input label="Nombre completo" required value={form.nombre} onChange={set("nombre")}
               placeholder="Ej. Juan Pérez" error={errores.nombre} hint="Al menos 3 caracteres" />
@@ -114,88 +169,191 @@ export default function Conductores() {
               </div>
             )}
           </form>
-        </Card>
+        </SectionCard>
 
-        {/* Lista */}
-        <Card
-          title="Conductores registrados"
-          className="lg:col-span-2"
-          action={<span className="text-sm text-slate-400 nums">{conductores.length}</span>}
-        >
-          {cargando ? (
-            <p className="py-10 text-center text-sm text-slate-500">Cargando…</p>
-          ) : conductores.length === 0 ? (
-            <div className="py-12 text-center text-sm text-slate-400">
-              <Users className="mx-auto mb-2 opacity-40" size={32} />
-              <p>Aún no hay conductores registrados.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
-                    <th className="pb-3 font-semibold">Código</th>
-                    <th className="pb-3 font-semibold">Nombre</th>
-                    <th className="pb-3 font-semibold">Teléfono</th>
-                    <th className="pb-3 font-semibold">Vehículo</th>
-                    <th className="pb-3 font-semibold">Estado</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {conductores.map((c) => (
-                    <tr key={c.usuario_id} className="cursor-pointer hover:bg-slate-50" onClick={() => setSeleccionado(c)}>
-                      <td className="py-3 font-medium text-slate-800 nums">{c.codigo || "—"}</td>
-                      <td className="py-3 text-slate-700">{c.nombre || "—"}</td>
-                      <td className="py-3 text-slate-600 nums">{c.telefono || "—"}</td>
-                      <td className="py-3">
-                        {c.vehiculo
-                          ? <Badge tono="info"><Truck size={13} /> {c.vehiculo.placa}</Badge>
-                          : <span className="text-slate-400">Sin vehículo</span>}
-                      </td>
-                      <td className="py-3"><EstadoBadge estado={c.estado ? "DISPONIBLE" : "INACTIVO"} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Card>
+        {/* Tabla de conductores */}
+        <div className="lg:col-span-2">
+          <DataTable
+            columns={columnas}
+            rows={conductores}
+            rowKey={(c) => c.usuario_id}
+            loading={cargando}
+            empty={{
+              icon: Users,
+              title: "Aún no hay conductores registrados",
+              description: "Usa el formulario de la izquierda para añadir el primer conductor.",
+            }}
+            onRowClick={(c) => setSeleccionado(c)}
+          />
+        </div>
       </div>
 
-      {seleccionado && <DetalleConductor conductor={seleccionado} onCerrar={() => setSeleccionado(null)} />}
+      <Modal open={!!seleccionado} onClose={() => setSeleccionado(null)} variant="center">
+        {seleccionado && (
+          <DetalleConductor
+            conductor={seleccionado}
+            onCerrar={() => setSeleccionado(null)}
+            onCambios={() => { setSeleccionado(null); cargar(); }}
+          />
+        )}
+      </Modal>
     </div>
   );
 }
 
-function DetalleConductor({ conductor: c, onCerrar }) {
+// Detalle del conductor con tres modos: ver la ficha, editarla, o confirmar su
+// eliminación. `onCambios` se llama tras editar/eliminar (cierra + recarga lista).
+function DetalleConductor({ conductor: c, onCerrar, onCambios }) {
+  const [modo, setModo] = useState("ver"); // "ver" | "editar" | "confirmar"
+  const [form, setForm] = useState({ nombre: c.nombre || "", telefono: c.telefono || "", dni: c.dni || "" });
+  const [errores, setErrores] = useState({});
+  const [aviso, setAviso] = useState(null);
+  const [trabajando, setTrabajando] = useState(false);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+
+  // Actualiza un campo del formulario y limpia su error.
+  const set = (campo, transform) => (e) => {
+    const valor = transform ? transform(e.target.value) : e.target.value;
+    setForm((f) => ({ ...f, [campo]: valor }));
+    setErrores((er) => ({ ...er, [campo]: "" }));
+  };
+
+  // Valida y guarda la edición de la ficha.
+  const guardar = async () => {
+    const errs = {
+      nombre: validarNombre(form.nombre),
+      telefono: validarTelefono(form.telefono),
+      dni: validarDni(form.dni),
+    };
+    if (Object.values(errs).some(Boolean)) {
+      setErrores(errs);
+      return;
+    }
+    setTrabajando(true);
+    setAviso(null);
+    try {
+      await actualizarConductor(c.usuario_id, {
+        nombre: form.nombre,
+        telefono: form.telefono || null,
+        dni: form.dni || null,
+      });
+      onCambios();
+    } catch (err) {
+      setAviso({ texto: err.message });
+      setTrabajando(false);
+    }
+  };
+
+  // Elimina (desactiva) el conductor.
+  const eliminar = async () => {
+    setTrabajando(true);
+    setAviso(null);
+    try {
+      await eliminarConductor(c.usuario_id);
+      onCambios();
+    } catch (err) {
+      setAviso({ texto: err.message });
+      setTrabajando(false);
+      setModo("ver");
+    }
+  };
+
+  // Sube la foto elegida y recarga la lista. Recibe: el evento del <input file>.
+  const cambiarFoto = async (e) => {
+    const archivo = e.target.files?.[0];
+    if (!archivo) return;
+    setSubiendoFoto(true);
+    setAviso(null);
+    try {
+      await subirFotoConductor(c.usuario_id, archivo);
+      onCambios();
+    } catch (err) {
+      setAviso({ texto: err.message });
+      setSubiendoFoto(false);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/50" onClick={onCerrar} />
-      <div className="relative w-full max-w-md rounded-card bg-white p-6 shadow-xl">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
+    <>
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-3">
+          {c.foto_url ? (
+            <img
+              src={urlMedia(c.foto_url)}
+              alt={c.nombre || "Conductor"}
+              className="h-12 w-12 rounded-full object-cover ring-2 ring-brand-100"
+            />
+          ) : (
             <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 text-lg font-bold text-white">
               {(c.nombre || "?").charAt(0).toUpperCase()}
             </span>
-            <div>
-              <h2 className="font-bold text-slate-900">{c.nombre || "Conductor"}</h2>
-              <p className="text-sm text-slate-500 nums">{c.codigo}</p>
-            </div>
+          )}
+          <div>
+            <h2 className="font-bold text-slate-900">{c.nombre || "Conductor"}</h2>
+            <p className="text-sm text-slate-500 nums">{c.codigo}</p>
           </div>
-          <button onClick={onCerrar} aria-label="Cerrar" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100">
-            <X size={20} />
-          </button>
         </div>
-
-        <div className="mt-6 space-y-3">
-          <Dato icono={Mail} etiqueta="Correo" valor={c.correo} />
-          <Dato icono={Phone} etiqueta="Teléfono" valor={c.telefono || "—"} />
-          <Dato icono={IdCard} etiqueta="DNI" valor={c.dni || "—"} />
-          <Dato icono={Truck} etiqueta="Vehículo asignado"
-            valor={c.vehiculo ? `${c.vehiculo.placa}${c.vehiculo.codigo ? ` (${c.vehiculo.codigo})` : ""}` : "Sin vehículo asignado"} />
-        </div>
+        <button onClick={onCerrar} aria-label="Cerrar" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100">
+          <X size={20} />
+        </button>
       </div>
-    </div>
+
+      {aviso && (
+        <div className="mt-4 flex items-center gap-2 rounded-xl bg-danger-soft px-3.5 py-3 text-sm text-danger-strong">
+          <AlertCircle size={18} /> <span>{aviso.texto}</span>
+        </div>
+      )}
+
+      {modo === "ver" && (
+        <>
+          <div className="mt-6 space-y-3">
+            <Dato icono={Mail} etiqueta="Correo" valor={c.correo} />
+            <Dato icono={Phone} etiqueta="Teléfono" valor={c.telefono || "—"} />
+            <Dato icono={IdCard} etiqueta="DNI" valor={c.dni || "—"} />
+            <Dato icono={Truck} etiqueta="Vehículo asignado"
+              valor={c.vehiculo ? `${c.vehiculo.placa}${c.vehiculo.codigo ? ` (${c.vehiculo.codigo})` : ""}` : "Sin vehículo asignado"} />
+          </div>
+          <div className="mt-6 flex gap-2">
+            <Button variant="secondary" icon={Pencil} block onClick={() => { setAviso(null); setModo("editar"); }}>Editar</Button>
+            <Button variant="danger" icon={Trash2} block onClick={() => { setAviso(null); setModo("confirmar"); }}>Eliminar</Button>
+          </div>
+        </>
+      )}
+
+      {modo === "editar" && (
+        <div className="mt-6 space-y-4">
+          <Input label="Nombre completo" value={form.nombre} onChange={set("nombre")} error={errores.nombre} hint="Al menos 3 caracteres" />
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Teléfono" inputMode="numeric" value={form.telefono} onChange={set("telefono", (v) => soloDigitos(v, 9))}
+              error={errores.telefono} hint="9 dígitos" />
+            <Input label="DNI" inputMode="numeric" value={form.dni} onChange={set("dni", (v) => soloDigitos(v, 8))}
+              error={errores.dni} hint="8 dígitos" />
+          </div>
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50">
+            <Camera size={18} className="text-slate-400" />
+            {subiendoFoto ? "Subiendo…" : c.foto_url ? "Cambiar foto" : "Subir foto"}
+            <input type="file" accept="image/*" className="hidden" onChange={cambiarFoto} disabled={subiendoFoto} />
+          </label>
+          <div className="flex gap-2">
+            <Button variant="secondary" block onClick={() => { setModo("ver"); setErrores({}); }} disabled={trabajando}>Cancelar</Button>
+            <Button icon={Check} block onClick={guardar} disabled={trabajando}>{trabajando ? "Guardando…" : "Guardar"}</Button>
+          </div>
+        </div>
+      )}
+
+      {modo === "confirmar" && (
+        <div className="mt-6 space-y-4">
+          <div className="flex items-start gap-3 rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger-strong">
+            <AlertCircle size={20} className="shrink-0" />
+            <span>¿Eliminar a <b>{c.nombre || "este conductor"}</b>? Se quitará de la lista (su historial se conserva).</span>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="secondary" block onClick={() => setModo("ver")} disabled={trabajando}>Cancelar</Button>
+            <Button variant="danger" icon={Trash2} block onClick={eliminar} disabled={trabajando}>{trabajando ? "Eliminando…" : "Sí, eliminar"}</Button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

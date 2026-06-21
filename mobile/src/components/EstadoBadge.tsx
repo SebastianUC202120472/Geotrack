@@ -1,6 +1,7 @@
 // Etiqueta de color según el estado de entrega de una parada.
-import { StyleSheet, Text, View } from "react-native";
-import { useTheme, fontSize, radius, spacing } from "@/theme";
+import { StyleSheet, View } from "react-native";
+import { useTheme, radius, spacing } from "@/theme";
+import { Texto } from "@/components/Texto";
 import type { EstadoEntrega } from "@/types/api";
 
 // Badge de estado. Recibe: estado (EstadoEntrega).
@@ -14,7 +15,7 @@ export function EstadoBadge({ estado }: { estado: EstadoEntrega }) {
   const cfg = mapa[estado] ?? mapa.PENDIENTE;
   return (
     <View style={[estilos.badge, { backgroundColor: cfg.fondo }]}>
-      <Text style={[estilos.texto, { color: cfg.texto }]}>{cfg.etiqueta}</Text>
+      <Texto variante="caption" color={cfg.texto}>{cfg.etiqueta}</Texto>
     </View>
   );
 }
@@ -26,5 +27,4 @@ const estilos = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
   },
-  texto: { fontSize: fontSize.caption, fontWeight: "700" },
 });

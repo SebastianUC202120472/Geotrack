@@ -8,6 +8,7 @@ import {
   Truck,
   Users,
   Radar,
+  MapPin,
   Search,
   AlertTriangle,
   LogOut,
@@ -37,6 +38,7 @@ const secciones = [
       { icon: Truck, label: "Flota de Vehículos", path: "/flota" },
       { icon: Users, label: "Conductores", path: "/conductores" },
       { icon: Radar, label: "Seguimiento", path: "/seguimiento" },
+      { icon: MapPin, label: "Seguimiento de Conductores", path: "/seguimiento-conductores" },
     ],
   },
   {
@@ -58,8 +60,8 @@ export default function Sidebar({ onNavigate }) {
   };
 
   return (
-    <aside className="flex h-full w-72 flex-col border-r border-slate-800 bg-slate-900 text-slate-300">
-      <div className="px-6 py-5 border-b border-slate-800">
+    <aside className="flex h-full w-72 flex-col border-r border-[#222b38] bg-[#1f2733] text-slate-300">
+      <div className="px-6 py-5 border-b border-[#2b3543]">
         <Logo light />
       </div>
 
@@ -77,9 +79,9 @@ export default function Sidebar({ onNavigate }) {
                   end={path === "/"}
                   onClick={onNavigate}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                    `group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
                       isActive
-                        ? "bg-brand-600 text-white"
+                        ? "bg-gradient-to-r from-brand-600 to-brand-700 text-white shadow-[0_4px_12px_rgba(37,99,235,0.35)]"
                         : "text-slate-300 hover:bg-slate-800 hover:text-white"
                     }`
                   }

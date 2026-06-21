@@ -28,10 +28,16 @@ async function request(ruta, { method = "GET", body, headers = {}, auth = true }
 
   const respuesta = await fetch(`${API_URL}${ruta}`, opciones);
 
-  if (respuesta.status === 401) {
+  // 401 (token inválido/expirado) o 403 (la cuenta no tiene permisos de admin):
+  // cerramos sesión y mandamos a login para no quedar en un panel "colgado".
+  if (respuesta.status === 401 || respuesta.status === 403) {
     borrarToken();
     if (window.location.pathname !== "/login") window.location.href = "/login";
-    throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
+    throw new Error(
+      respuesta.status === 403
+        ? "Tu cuenta no tiene permisos para el panel. Inicia sesión como administrador."
+        : "Tu sesión expiró. Vuelve a iniciar sesión."
+    );
   }
 
   // Intentamos leer el cuerpo (puede venir vacío en algunos POST).
@@ -50,8 +56,20 @@ async function request(ruta, { method = "GET", body, headers = {}, auth = true }
    AUTENTICACIÓN
 ============================================================ */
 
-// Login (CUS-02). El backend usa OAuth2: espera 'username' y 'password' como
-// formulario, no como JSON.
+// Decodifica el payload de un JWT (base64url) para leer el rol sin librerías.
+// Entrada: token (string JWT). Salida: objeto payload, o null si no se puede leer.
+function leerPayload(token) {
+  try {
+    const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(decodeURIComponent(escape(atob(base64))));
+  } catch {
+    return null;
+  }
+}
+
+// Login del panel (CUS-02). El backend usa OAuth2: 'username' y 'password' como
+// formulario. Solo se permite el acceso a usuarios con rol 'admin' (la app móvil
+// es para conductores), así que validamos el rol antes de guardar el token.
 export const loginAdmin = async (correo, contrasena) => {
   const formulario = new URLSearchParams();
   formulario.append("username", correo);
@@ -66,6 +84,12 @@ export const loginAdmin = async (correo, contrasena) => {
   if (!respuesta.ok) throw new Error("Correo o contraseña incorrectos");
 
   const datos = await respuesta.json();
+
+  const payload = leerPayload(datos.access_token);
+  if (payload?.rol !== "admin") {
+    throw new Error("Esta cuenta no tiene acceso al panel de administración.");
+  }
+
   guardarToken(datos.access_token);
   return datos;
 };
@@ -75,6 +99,26 @@ export const listarConductores = () => request("/conductores/");
 
 export const crearConductor = (datos) =>
   request("/conductores/", { method: "POST", body: datos });
+
+// Editar la ficha (nombre/teléfono/DNI) de un conductor.
+export const actualizarConductor = (id, datos) =>
+  request(`/conductores/${id}`, { method: "PATCH", body: datos });
+
+// Eliminar (desactivar) un conductor; el backend preserva su historial.
+export const eliminarConductor = (id) =>
+  request(`/conductores/${id}`, { method: "DELETE" });
+
+// Sube/reemplaza la foto de un conductor (multipart). La verá en su app móvil.
+export const subirFotoConductor = (usuarioId, file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request(`/conductores/${usuarioId}/foto`, { method: "POST", body: formData });
+};
+
+// Construye la URL absoluta de un recurso de /media a partir de la ruta del backend.
+// Entrada: ruta (ej. "/media/conductores/cond_1.jpg?v=..."). Salida: URL o null.
+export const urlMedia = (ruta) =>
+  ruta ? `${API_URL.replace(/\/api\/?$/, "")}${ruta}` : null;
 
 /* ============================================================
    REPORTES DE INCIDENCIA  (el conductor reporta fallas; el admin responde)
@@ -106,6 +150,12 @@ export const reabrirPedido = (id) => request(`/pedidos/${id}/reabrir`, { method:
 
 // Devuelve { zonas_operativas: [{ distrito, total_pedidos }] }
 export const listarZonas = () => request("/pedidos/zonas");
+
+// Seguimiento de repartos agregado por empresa cliente (no por ruta).
+export const obtenerSeguimientoClientes = () => request("/dashboard/clientes");
+
+// Posición en vivo de cada conductor con ruta activa + sus paradas pendientes.
+export const obtenerUbicacionesFlota = () => request("/dashboard/flota/ubicaciones");
 
 /* ============================================================
    VEHÍCULOS Y FLOTA  (gestión del admin)

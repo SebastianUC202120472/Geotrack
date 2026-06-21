@@ -6,6 +6,7 @@
 #   - backend:   instala deps, verifica que la app importa y corre pytest.
 #   - seguridad: análisis estático (bandit) + vulnerabilidades de deps (pip-audit).
 #   - frontend:  instala deps (npm ci), corre lint y compila el build de Vite.
+#   - movil:     instala deps (npm ci) y verifica el typecheck de TypeScript (tsc --noEmit).
 #
 # IMPORTANTE (monorepo): el backend vive en ./backend y el frontend en ./frontend,
 # por eso cada job usa `working-directory` y los caches apuntan a su subcarpeta.
@@ -117,3 +118,30 @@ jobs:
           VITE_API_URL: /api
           VITE_WS_URL: /
         run: npm run build
+
+  # ==========================================================================
+  # MÓVIL — Expo + React Native + TypeScript (subcarpeta ./mobile)
+  # No se compila el binario (eso sería EAS/CD); aquí solo se valida el tipado.
+  # ==========================================================================
+  movil:
+    name: Móvil · typecheck (Expo / TypeScript)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Clonar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Instalar dependencias (npm ci)
+        run: npm ci
+
+      - name: Typecheck (tsc --noEmit)
+        run: npm run typecheck

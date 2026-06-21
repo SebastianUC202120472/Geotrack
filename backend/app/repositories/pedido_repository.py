@@ -70,3 +70,13 @@ def contar_por_estado(db: Session):
         .group_by(Pedido.estado)
         .all()
     )
+
+
+def agrupar_por_cliente(db: Session):
+    """Cuenta pedidos por empresa (cliente_origen) y estado, para el seguimiento
+    por cliente. Devuelve filas (cliente_origen, estado, total)."""
+    return (
+        db.query(Pedido.cliente_origen, Pedido.estado, func.count(Pedido.id).label("total"))
+        .group_by(Pedido.cliente_origen, Pedido.estado)
+        .all()
+    )

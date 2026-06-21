@@ -1,150 +1,86 @@
-// Perfil del conductor: sus datos, ajustes de tema (claro/oscuro + color),
-// contacto con coordinación, sus reportes y cierre de sesión.
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+// Perfil del conductor: SUS DATOS PERSONALES (foto, nombre, correo, código, DNI,
+// teléfono, vehículo). Los reportes están en su propia pestaña (reportes.tsx) y
+// los ajustes en la suya (ajustes.tsx). Se abre desde la foto de la cabecera.
+import { ScrollView, StyleSheet, View } from "react-native";
+import { Image } from "expo-image";
 import { useQuery } from "@tanstack/react-query";
+import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
-import { Button } from "@/components/Button";
+import { Cabecera } from "@/components/Cabecera";
 import { Cargando } from "@/components/Estados";
-import { useAuth } from "@/store/auth";
-import { obtenerPerfil, obtenerMisReportes } from "@/api/conductor";
-import { useTheme, spacing, fontSize, radius, ACENTOS, type Modo, type Acento } from "@/theme";
-import type { Reporte } from "@/types/api";
-
-// Número de coordinación para llamar/escribir. Cámbialo por el real (o usa env).
-const TELEFONO_COORDINACION = process.env.EXPO_PUBLIC_COORDINACION_TEL ?? "+51999888777";
-const MODOS: { valor: Modo; etiqueta: string }[] = [
-  { valor: "system", etiqueta: "Sistema" },
-  { valor: "light", etiqueta: "Claro" },
-  { valor: "dark", etiqueta: "Oscuro" },
-];
+import { Aparecer } from "@/components/Animations";
+import { Texto } from "@/components/Texto";
+import { obtenerPerfil } from "@/api/conductor";
+import { useTheme, spacing, radius } from "@/theme";
+import { colorDeNombre } from "@/utils/colorDeNombre";
+import { urlMedia } from "@/api/config";
 
 export default function PerfilScreen() {
-  const { colors, modo, setModo, acento, setAcento } = useTheme();
-  const { cerrarSesion } = useAuth();
-  const perfil = useQuery({ queryKey: ["perfil"], queryFn: obtenerPerfil });
-  const reportes = useQuery({ queryKey: ["mis-reportes"], queryFn: obtenerMisReportes });
+  const { colors } = useTheme();
+  const perfil = useQuery({ queryKey: ["perfil"], queryFn: obtenerPerfil, refetchInterval: 10_000, refetchOnMount: "always" });
 
-  // Abre el marcador con el número de coordinación.
-  const llamar = () => Linking.openURL(`tel:${TELEFONO_COORDINACION.replace(/\s/g, "")}`);
-  // Abre WhatsApp con el número de coordinación.
-  const whatsapp = () =>
-    Linking.openURL(`https://wa.me/${TELEFONO_COORDINACION.replace(/[^\d]/g, "")}`);
-
-  if (perfil.isLoading) return <Screen><Cargando /></Screen>;
+  if (perfil.isLoading) return <Screen conPadding={false}><Cabecera titulo="Mi perfil" atras /><Cargando /></Screen>;
 
   const p = perfil.data;
   const inicial = (p?.nombre || p?.correo || "?").charAt(0).toUpperCase();
+  const fotoUri = urlMedia(p?.foto_url);
 
   return (
     <Screen conPadding={false}>
-      <ScrollView contentContainerStyle={estilos.contenido}>
-        {/* Identidad */}
-        <Card>
-          <View style={estilos.cabecera}>
-            <View style={[estilos.avatar, { backgroundColor: colors.brand }]}>
-              <Text style={[estilos.avatarTexto, { color: colors.white }]}>{inicial}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[estilos.nombre, { color: colors.ink }]}>{p?.nombre || "Conductor"}</Text>
-              <Text style={[estilos.dato, { color: colors.muted }]}>{p?.codigo} · {p?.correo}</Text>
-              {p?.vehiculo && (
-                <Text style={[estilos.dato, { color: colors.muted }]}>Vehículo: {p.vehiculo.placa}</Text>
-              )}
-            </View>
-          </View>
-        </Card>
-
-        {/* Ajustes de tema */}
-        <Card>
-          <Text style={[estilos.titulo, { color: colors.ink }]}>Apariencia</Text>
-          <Text style={[estilos.sub, { color: colors.muted }]}>Tema</Text>
-          <View style={estilos.fila}>
-            {MODOS.map((m) => {
-              const activo = modo === m.valor;
-              return (
-                <Pressable
-                  key={m.valor}
-                  onPress={() => setModo(m.valor)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Tema ${m.etiqueta}`}
-                  style={[
-                    estilos.chip,
-                    { borderColor: activo ? colors.brand : colors.border, backgroundColor: activo ? colors.brandSoft : colors.surface },
-                  ]}
-                >
-                  <Text style={{ color: activo ? colors.brand : colors.text, fontWeight: "700" }}>{m.etiqueta}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <Text style={[estilos.sub, { color: colors.muted, marginTop: spacing.md }]}>Color de acento</Text>
-          <View style={estilos.fila}>
-            {ACENTOS.map((a) => (
-              <Pressable
-                key={a}
-                onPress={() => setAcento(a)}
-                accessibilityRole="button"
-                accessibilityLabel={`Color ${a}`}
-                style={[estilos.colorChip, { borderColor: acento === a ? colors.ink : colors.border }]}
-              >
-                <View style={[estilos.colorPunto, { backgroundColor: COLOR_ACENTO[a] }]} />
-                <Text style={{ color: colors.text, textTransform: "capitalize" }}>{a}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </Card>
-
-        {/* Contacto con coordinación */}
-        <Card>
-          <Text style={[estilos.titulo, { color: colors.ink }]}>¿Algún problema?</Text>
-          <Text style={[estilos.sub, { color: colors.muted }]}>Contacta a coordinación o repórtalo desde el pedido.</Text>
-          <View style={[estilos.fila, { marginTop: spacing.md }]}>
-            <View style={{ flex: 1 }}><Button titulo="Llamar" variante="secondary" onPress={llamar} /></View>
-            <View style={{ flex: 1 }}><Button titulo="WhatsApp" variante="secondary" onPress={whatsapp} /></View>
-          </View>
-        </Card>
-
-        {/* Mis reportes */}
-        <Card>
-          <Text style={[estilos.titulo, { color: colors.ink }]}>Mis reportes</Text>
-          {(reportes.data?.length ?? 0) === 0 ? (
-            <Text style={[estilos.sub, { color: colors.muted }]}>No has enviado reportes.</Text>
-          ) : (
-            reportes.data!.map((r: Reporte) => (
-              <View key={r.id} style={[estilos.reporte, { borderColor: colors.border }]}>
-                <Text style={{ color: colors.ink, fontWeight: "700" }}>{r.pedido_codigo} · {r.motivo}</Text>
-                <Text style={{ color: r.estado === "RESUELTO" ? colors.success : colors.warning, fontWeight: "700", fontSize: fontSize.caption }}>
-                  {r.estado === "RESUELTO" ? "Respondido" : "En revisión"}
-                </Text>
-                {r.respuesta ? <Text style={{ color: colors.text, marginTop: 2 }}>{r.respuesta}</Text> : null}
+      <Cabecera titulo="Mi perfil" atras />
+      <ScrollView contentContainerStyle={estilos.cuerpo}>
+        {/* Identidad: foto grande + nombre + código */}
+        <Aparecer>
+          <View style={estilos.identidad}>
+            {fotoUri ? (
+              <Image source={{ uri: fotoUri }} style={estilos.fotoGrande} contentFit="cover" transition={250} />
+            ) : (
+              <View style={[estilos.fotoGrande, estilos.fallback, { backgroundColor: colorDeNombre(p?.nombre) }]}>
+                <Texto variante="display" color={colors.white}>{inicial}</Texto>
               </View>
-            ))
-          )}
-        </Card>
+            )}
+            <Texto variante="title" color={colors.ink} style={{ marginTop: spacing.md }} numberOfLines={1}>{p?.nombre || "Conductor"}</Texto>
+            <Texto variante="caption" color={colors.muted}>{p?.codigo || "—"}</Texto>
+          </View>
+        </Aparecer>
 
-        <Button titulo="Cerrar sesión" variante="danger" onPress={cerrarSesion} />
+        {/* Datos personales */}
+        <Aparecer delay={60}>
+          <Card>
+            <Texto variante="subtitle" color={colors.ink} style={estilos.titulo}>Datos personales</Texto>
+            <Dato icono="mail-outline" etiqueta="Correo" valor={p?.correo || "—"} c={colors} />
+            <Dato icono="card-outline" etiqueta="DNI" valor={p?.dni || "—"} c={colors} />
+            <Dato icono="call-outline" etiqueta="Teléfono" valor={p?.telefono || "—"} c={colors} />
+            <Dato icono="car-outline" etiqueta="Vehículo" valor={p?.vehiculo ? p.vehiculo.placa : "Sin asignar"} c={colors} />
+          </Card>
+        </Aparecer>
       </ScrollView>
     </Screen>
   );
 }
 
-// Color de muestra de cada acento (solo para los botones de selección).
-const COLOR_ACENTO: Record<Acento, string> = { azul: "#2563EB", verde: "#16A34A", naranja: "#EA580C" };
+// Fila etiqueta/valor con icono. Recibe: { icono, etiqueta, valor, c (paleta) }.
+function Dato({ icono, etiqueta, valor, c }: { icono: keyof typeof Ionicons.glyphMap; etiqueta: string; valor: string; c: { muted: string; ink: string; brandSoft: string; brand: string } }) {
+  return (
+    <View style={estilos.dato}>
+      <View style={[estilos.datoIcono, { backgroundColor: c.brandSoft }]}>
+        <Ionicons name={icono} size={18} color={c.brand} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Texto variante="caption" color={c.muted}>{etiqueta}</Texto>
+        <Texto variante="bodyMedium" color={c.ink}>{valor}</Texto>
+      </View>
+    </View>
+  );
+}
 
 const estilos = StyleSheet.create({
-  contenido: { padding: spacing.lg, gap: spacing.lg },
-  cabecera: { flexDirection: "row", gap: spacing.md, alignItems: "center" },
-  avatar: { width: 56, height: 56, borderRadius: radius.pill, alignItems: "center", justifyContent: "center" },
-  avatarTexto: { fontSize: fontSize.title, fontWeight: "800" },
-  nombre: { fontSize: fontSize.title, fontWeight: "800" },
-  dato: { fontSize: fontSize.caption, marginTop: 2 },
-  titulo: { fontSize: fontSize.subtitle, fontWeight: "700", marginBottom: spacing.sm },
-  sub: { fontSize: fontSize.caption },
-  fila: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs },
-  chip: { flex: 1, alignItems: "center", paddingVertical: spacing.md, borderRadius: radius.md, borderWidth: 1 },
-  colorChip: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1 },
-  colorPunto: { width: 18, height: 18, borderRadius: radius.pill },
-  reporte: { borderTopWidth: 1, paddingTop: spacing.sm, marginTop: spacing.sm },
+  cuerpo: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xl },
+  identidad: { alignItems: "center" },
+  fotoGrande: { width: 96, height: 96, borderRadius: radius.pill, borderWidth: 3, borderColor: "#FFFFFF" },
+  fallback: { alignItems: "center", justifyContent: "center" },
+  titulo: { marginBottom: spacing.md },
+  dato: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.md },
+  datoIcono: { width: 40, height: 40, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
 });

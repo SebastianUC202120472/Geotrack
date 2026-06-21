@@ -1,50 +1,24 @@
-// Navegación interna (protegida) por pestañas: Ruta, Entregados y Perfil.
-// El detalle de parada (parada/[id]) es navegable pero no aparece como pestaña.
-import { Tabs } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+// Stack interno (protegido): contiene el grupo de pestañas (tabs) y, POR ENCIMA,
+// las pantallas de detalle (perfil, notificaciones, reportes, ayuda, feedback,
+// cuenta, acerca, parada). Al estar en un Stack, el botón "atrás" vuelve a la
+// pantalla anterior real (no a una pestaña por defecto). Todas ocultan la cabecera
+// nativa: el grupo (tabs) usa <Cabecera> y las de detalle usan <Cabecera atras>.
+import { Stack } from "expo-router";
 import { useTheme } from "@/theme";
 
 export default function AppLayout() {
   const { colors } = useTheme();
-
   return (
-    <Tabs
-      screenOptions={{
-        headerStyle: { backgroundColor: colors.ink },
-        headerTintColor: colors.white,
-        headerTitleStyle: { fontWeight: "700" },
-        tabBarActiveTintColor: colors.brand,
-        tabBarInactiveTintColor: colors.muted,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
-        sceneStyle: { backgroundColor: colors.canvas },
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Mi ruta",
-          tabBarLabel: "Ruta",
-          tabBarIcon: ({ color, size }) => <Ionicons name="map" color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="historial"
-        options={{
-          title: "Entregados",
-          tabBarLabel: "Historial",
-          tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-done" color={color} size={size} />,
-        }}
-      />
-      <Tabs.Screen
-        name="perfil"
-        options={{
-          title: "Mi perfil",
-          tabBarLabel: "Perfil",
-          tabBarIcon: ({ color, size }) => <Ionicons name="person" color={color} size={size} />,
-        }}
-      />
-      {/* Detalle de parada: navegable por push, oculto del tab bar. */}
-      <Tabs.Screen name="parada/[id]" options={{ href: null, title: "Entrega" }} />
-    </Tabs>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas } }}>
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="perfil" />
+      <Stack.Screen name="notificaciones" />
+      <Stack.Screen name="reporte/[id]" />
+      <Stack.Screen name="parada/[id]" />
+      <Stack.Screen name="ayuda" />
+      <Stack.Screen name="feedback" />
+      <Stack.Screen name="cuenta" />
+      <Stack.Screen name="acerca" />
+    </Stack>
   );
 }

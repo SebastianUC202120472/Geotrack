@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, Package, User, Loader2, CheckCircle2, Clock } from "lucide-react";
+import { AlertTriangle, Package, User, Loader2, CheckCircle2, Clock, FileX, MessageSquare } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
-import Card from "../components/ui/Card";
+import SectionCard from "../components/ui/SectionCard";
+import KpiCard from "../components/ui/KpiCard";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
+import EmptyState from "../components/ui/EmptyState";
 import { listarReportes, responderReporte } from "../services/api";
 
 const fmt = (f) => (f ? new Date(f).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—");
@@ -61,10 +63,14 @@ export default function Reportes() {
     }
   };
 
+  // Derivados de los datos existentes (sin inventar nada)
   const abiertos = reportes.filter((r) => r.estado === "ABIERTO").length;
+  const resueltos = reportes.filter((r) => r.estado === "RESUELTO").length;
+  const total = reportes.length;
 
   return (
-    <div className="space-y-6 p-6 lg:p-8">
+    <div className="space-y-6 p-6 lg:p-8 animate-fade-up">
+      {/* Cabecera */}
       <PageHeader titulo="Reportes de Incidencias" subtitulo="Pedidos con falla reportados por los conductores.">
         <Input as="select" value={filtro} onChange={(e) => setFiltro(e.target.value)} aria-label="Filtrar por estado">
           <option value="">Todos</option>
@@ -73,6 +79,16 @@ export default function Reportes() {
         </Input>
       </PageHeader>
 
+      {/* KPIs — solo cuando hay datos cargados */}
+      {!cargando && (
+        <div className="grid gap-4 sm:grid-cols-3 animate-fade-up">
+          <KpiCard label="Total reportes" value={total} icon={FileX} tone="brand" />
+          <KpiCard label="Abiertos" value={abiertos} icon={AlertTriangle} tone="warning" />
+          <KpiCard label="Resueltos" value={resueltos} icon={CheckCircle2} tone="success" />
+        </div>
+      )}
+
+      {/* Aviso de operación */}
       {aviso && (
         <div className={`flex items-center gap-2 rounded-xl px-4 py-3 text-sm ${aviso.ok ? "bg-success-soft text-success-strong" : "bg-danger-soft text-danger-strong"}`}>
           {aviso.ok ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
@@ -80,21 +96,33 @@ export default function Reportes() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Lista */}
-        <Card className="lg:col-span-1" title="Reportes" action={<span className="text-sm text-slate-400">{abiertos} abiertos</span>}>
+      {/* Panel principal: lista + detalle */}
+      <div className="grid gap-6 lg:grid-cols-3 animate-fade-up">
+        {/* Lista de reportes */}
+        <SectionCard
+          className="lg:col-span-1"
+          title="Reportes"
+          subtitle="Selecciona uno para ver el detalle"
+          action={
+            <Badge tono="warning">{abiertos} abiertos</Badge>
+          }
+        >
           {cargando ? (
             <p className="py-10 text-center text-sm text-slate-500">Cargando…</p>
           ) : reportes.length === 0 ? (
-            <div className="py-10 text-center text-sm text-slate-400">
-              <AlertTriangle className="mx-auto mb-2 opacity-40" size={28} />
-              <p>No hay reportes.</p>
-            </div>
+            <EmptyState
+              icon={FileX}
+              title="Sin reportes"
+              description="No hay reportes que coincidan con el filtro seleccionado."
+            />
           ) : (
             <ul className="-m-2 divide-y divide-slate-50">
               {reportes.map((r) => (
                 <li key={r.id}>
-                  <button onClick={() => abrir(r)} className={`flex w-full flex-col gap-1 rounded-lg p-3 text-left transition-colors ${sel?.id === r.id ? "bg-brand-50" : "hover:bg-slate-50"}`}>
+                  <button
+                    onClick={() => abrir(r)}
+                    className={`flex w-full flex-col gap-1 rounded-lg p-3 text-left transition-colors ${sel?.id === r.id ? "bg-brand-50" : "hover:bg-slate-50"}`}
+                  >
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-slate-800 nums">{r.pedido_codigo || `#${r.pedido_id}`}</span>
                       <Badge tono={r.estado === "ABIERTO" ? "warning" : "success"}>
@@ -108,20 +136,26 @@ export default function Reportes() {
               ))}
             </ul>
           )}
-        </Card>
+        </SectionCard>
 
-        {/* Detalle + respuesta */}
-        <Card className="lg:col-span-2" title={sel ? `Reporte · ${sel.pedido_codigo || sel.pedido_id}` : "Detalle"}>
+        {/* Panel de detalle y respuesta */}
+        <SectionCard
+          className="lg:col-span-2"
+          title={sel ? `Reporte · ${sel.pedido_codigo || sel.pedido_id}` : "Detalle del reporte"}
+          subtitle={sel ? `Estado: ${sel.estado === "ABIERTO" ? "Abierto — pendiente de respuesta" : "Resuelto"}` : undefined}
+        >
           {!sel ? (
-            <div className="py-16 text-center text-sm text-slate-400">
-              <Package className="mx-auto mb-2 opacity-40" size={32} />
-              <p>Selecciona un reporte para ver el detalle y responder.</p>
-            </div>
+            <EmptyState
+              icon={MessageSquare}
+              title="Selecciona un reporte"
+              description="Haz clic en un reporte de la lista para ver el detalle y responder."
+            />
           ) : (
             <div className="space-y-4">
               <Dato icono={Package} etiqueta="Pedido" valor={`${sel.pedido_codigo || sel.pedido_id} — ${sel.direccion_destino || ""}`} />
               <Dato icono={User} etiqueta="Conductor" valor={sel.conductor_nombre || `id ${sel.conductor_id}`} />
               <Dato icono={Clock} etiqueta="Reportado" valor={fmt(sel.creado_en)} />
+
               <div className="rounded-xl bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Motivo</p>
                 <p className="font-medium text-slate-800">{sel.motivo}</p>
@@ -156,7 +190,7 @@ export default function Reportes() {
               )}
             </div>
           )}
-        </Card>
+        </SectionCard>
       </div>
     </div>
   );
