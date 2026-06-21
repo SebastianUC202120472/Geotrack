@@ -240,6 +240,9 @@ def cancelar(db: Session, pedido_id: int, usuario_id: int | None = None) -> dict
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     _exigir_fallido(pedido)
     estado_anterior = pedido.estado
+    # Desvincula el detalle de ruta para que el estado efectivo caiga en pedido.estado = CANCELADO
+    # (mismo patrón que reprogramar, evita que siga apareciendo como FALLIDO en seguimiento).
+    ruta_repository.eliminar_detalles_de_pedido(db, pedido_id)
     pedido.estado = "CANCELADO"
     pedido.fecha_entrega = None
     historial_repository.registrar(db, pedido.id, estado_anterior, "CANCELADO", usuario_id)
