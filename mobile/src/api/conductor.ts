@@ -11,6 +11,10 @@ import type {
   Reporte,
   ValidacionQR,
   Incidencia,
+  ManifiestoRecojo,
+  Recepcion,
+  OptimizacionResultado,
+  Coordenadas,
 } from "@/types/api";
 
 // Perfil del propio conductor (nombre, teléfono, DNI, vehículo). GET /conductor/perfil.
@@ -147,5 +151,36 @@ export async function reanudarRuta(incidenciaId: number, nota?: string): Promise
   const { data } = await api.post<Incidencia>(`/conductor/incidencias/${incidenciaId}/reanudar`, {
     nota: nota ?? null,
   });
+  return data;
+}
+
+// CUS-12: manifiesto de la ruta de recojo activa. Devuelve: ManifiestoRecojo.
+export async function obtenerManifiestoRecojo(): Promise<ManifiestoRecojo> {
+  const { data } = await api.get<ManifiestoRecojo>("/conductor/recojo/manifiesto");
+  return data;
+}
+
+// CUS-19 (recojo): optimiza la ruta de recojo desde la ubicación actual. Recibe: rutaId y coords.
+export async function optimizarRecojo(rutaId: number, coords: Coordenadas): Promise<OptimizacionResultado> {
+  const { data } = await api.post<OptimizacionResultado>("/conductor/recojo/optimizar", {
+    ruta_id: rutaId,
+    latitud_actual_conductor: coords.latitud,
+    longitud_actual_conductor: coords.longitud,
+  });
+  return data;
+}
+
+// CUS-12: registra la recepción (cantidad declarada + foto de la guía) por multipart.
+// Recibe: recojoId, cantidad (>0) y uri local de la foto. Devuelve: Recepcion.
+export async function registrarRecepcion(recojoId: number, cantidad: number, uriFoto: string): Promise<Recepcion> {
+  const nombre = uriFoto.split("/").pop() ?? `guia_${recojoId}.jpg`;
+  const form = new FormData();
+  form.append("cantidad_declarada", String(cantidad));
+  form.append("file", { uri: uriFoto, name: nombre, type: "image/jpeg" } as unknown as Blob);
+  const { data } = await api.post<Recepcion>(
+    `/conductor/recojo/${recojoId}/recepcion`,
+    form,
+    { headers: { "Content-Type": "multipart/form-data" } }
+  );
   return data;
 }
