@@ -19,6 +19,8 @@ import Parametros from "./pages/Parametros";
 import Seguimiento from "./pages/Seguimiento";
 import SeguimientoConductores from "./pages/SeguimientoConductores";
 import Reportes from "./pages/Reportes";
+import AuxilioMecanico from "./pages/AuxilioMecanico";
+import Devueltos from "./pages/Devueltos";
 import Trazabilidad from "./pages/Trazabilidad";
 
 // Mapa de rutas del panel de administración.
@@ -51,6 +53,8 @@ export default function App() {
         <Route path="/seguimiento" element={<Seguimiento />} />
         <Route path="/seguimiento-conductores" element={<SeguimientoConductores />} />
         <Route path="/reportes" element={<Reportes />} />
+        <Route path="/auxilio" element={<AuxilioMecanico />} />
+        <Route path="/devueltos" element={<Devueltos />} />
         <Route path="/trazabilidad" element={<Trazabilidad />} />
       </Route>
 

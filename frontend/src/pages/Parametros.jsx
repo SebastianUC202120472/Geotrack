@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { SlidersHorizontal, Plus, Trash2, AlertCircle, Ban } from "lucide-react";
+import { SlidersHorizontal, Plus, Trash2, AlertCircle, Ban, Save } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import SectionCard from "../components/ui/SectionCard";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
-import { listarMotivos, crearMotivo, eliminarMotivo } from "../services/api";
+import { listarMotivos, crearMotivo, eliminarMotivo, obtenerCombustible, actualizarCombustible } from "../services/api";
 
 // Parámetros del sistema (CUS-06). Por ahora: motivos de rechazo, que la app del
 // conductor usa al reportar una entrega fallida (antes estaban fijos en el código).
@@ -14,6 +14,29 @@ export default function Parametros() {
   const [texto, setTexto] = useState("");
   const [aviso, setAviso] = useState(null);
   const [guardando, setGuardando] = useState(false);
+
+  // Estado de los parámetros de combustible (CUS-34): consumo L/100km y precio S//L.
+  const [combustible, setCombustible] = useState({ consumo_l_100km: "", precio_soles_litro: "" });
+  const [guardandoComb, setGuardandoComb] = useState(false);
+
+  // Carga los parámetros de combustible al montar (setState en callback de promesa).
+  useEffect(() => {
+    let activo = true;
+    obtenerCombustible()
+      .then((c) => activo && setCombustible({ consumo_l_100km: c.consumo_l_100km, precio_soles_litro: c.precio_soles_litro }))
+      .catch(() => {});
+    return () => { activo = false; };
+  }, []);
+
+  // Guarda los parámetros de combustible en el backend.
+  const guardarCombustible = (e) => {
+    e.preventDefault();
+    setGuardandoComb(true);
+    actualizarCombustible(Number(combustible.consumo_l_100km), Number(combustible.precio_soles_litro))
+      .then(() => alert("Parámetros de combustible guardados"))
+      .catch((err) => alert(err.message))
+      .finally(() => setGuardandoComb(false));
+  };
 
   // Sin setCargando(true) síncrono (inicia en true; refresca en callbacks de promesa)
   // para no disparar el error de lint "setState síncrono en effect".
@@ -92,6 +115,41 @@ export default function Parametros() {
               ))}
             </ul>
           )}
+        </SectionCard>
+      </div>
+
+      {/* Sección de combustible (CUS-34): consumo y precio para calcular el ahorro */}
+      <div className="grid gap-6 animate-fade-up">
+        <SectionCard
+          title="Combustible (CUS-34)"
+          subtitle="Parámetros para calcular el ahorro de combustible en los KPIs del dashboard."
+          className="lg:max-w-md"
+        >
+          <form onSubmit={guardarCombustible} noValidate className="space-y-4">
+            <Input
+              label="Consumo (L/100 km)"
+              type="number"
+              min="0"
+              step="0.1"
+              value={combustible.consumo_l_100km}
+              onChange={(e) => setCombustible((prev) => ({ ...prev, consumo_l_100km: e.target.value }))}
+              placeholder="Ej. 12.5"
+              hint="Litros consumidos por cada 100 km recorridos"
+            />
+            <Input
+              label="Precio del combustible (S/ / L)"
+              type="number"
+              min="0"
+              step="0.01"
+              value={combustible.precio_soles_litro}
+              onChange={(e) => setCombustible((prev) => ({ ...prev, precio_soles_litro: e.target.value }))}
+              placeholder="Ej. 16.50"
+              hint="Precio en soles por litro de combustible"
+            />
+            <Button type="submit" icon={Save} block disabled={guardandoComb}>
+              {guardandoComb ? "Guardando…" : "Guardar parámetros"}
+            </Button>
+          </form>
         </SectionCard>
       </div>
     </div>

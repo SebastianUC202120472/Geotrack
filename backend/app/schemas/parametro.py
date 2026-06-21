@@ -22,3 +22,9 @@ class MotivoResponse(BaseModel):
     """SALIDA (CUS-06): un motivo de rechazo del catálogo."""
     id: int
     texto: str
+
+
+class CombustibleConfig(BaseModel):
+    """Parámetros de combustible (CUS-34), editables desde el panel."""
+    consumo_l_100km: float
+    precio_soles_litro: float

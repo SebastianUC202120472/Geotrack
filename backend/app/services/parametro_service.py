@@ -42,6 +42,46 @@ def eliminar_motivo(db: Session, motivo_id: int) -> dict:
     return {"mensaje": "Motivo eliminado"}
 
 
+# CUS-34: parámetros de combustible (categoría aparte). Cada uno es una fila cuyo
+# 'clave' es el nombre del parámetro y 'valor_json' guarda el número.
+CATEGORIA_COMBUSTIBLE = "combustible"
+COMBUSTIBLE_DEFAULTS = {
+    "consumo_l_100km": 12.0,    # litros por cada 100 km (rendimiento típico de un furgón)
+    "precio_soles_litro": 16.5,  # S/ por litro
+}
+
+
+def asegurar_combustible_inicial(db: Session) -> None:
+    """Siembra los parámetros de combustible por defecto si aún no existen (al arrancar)."""
+    existentes = {p.clave for p in parametro_repository.listar_por_categoria(db, CATEGORIA_COMBUSTIBLE)}
+    for clave, valor in COMBUSTIBLE_DEFAULTS.items():
+        if clave not in existentes:
+            parametro_repository.crear_con_valor(db, CATEGORIA_COMBUSTIBLE, clave, valor)
+
+
+def obtener_combustible(db: Session) -> dict:
+    """CUS-34: devuelve {consumo_l_100km, precio_soles_litro} como floats. Si falta o es
+    inválido un valor, usa el default. Recibe: la sesión de BD."""
+    filas = {p.clave: p.valor_json for p in parametro_repository.listar_por_categoria(db, CATEGORIA_COMBUSTIBLE)}
+    resultado = {}
+    for clave, default in COMBUSTIBLE_DEFAULTS.items():
+        try:
+            resultado[clave] = float(filas.get(clave, default))
+        except (TypeError, ValueError):
+            resultado[clave] = default
+    return resultado
+
+
+def actualizar_combustible(db: Session, consumo_l_100km: float, precio_soles_litro: float) -> dict:
+    """CUS-34: guarda los dos parámetros de combustible (crea si no existen). Recibe:
+    consumo (L/100km) y precio (S//L). Devuelve el dict resultante."""
+    if consumo_l_100km <= 0 or precio_soles_litro <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Los valores deben ser mayores a 0")
+    parametro_repository.fijar_valor(db, CATEGORIA_COMBUSTIBLE, "consumo_l_100km", float(consumo_l_100km))
+    parametro_repository.fijar_valor(db, CATEGORIA_COMBUSTIBLE, "precio_soles_litro", float(precio_soles_litro))
+    return obtener_combustible(db)
+
+
 def asegurar_motivos_iniciales(db: Session) -> None:
     """Siembra los motivos por defecto SOLO si el catálogo está vacío (al arrancar)."""
     if parametro_repository.listar_por_categoria(db, CATEGORIA_MOTIVO):

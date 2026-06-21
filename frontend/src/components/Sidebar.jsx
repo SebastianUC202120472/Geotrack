@@ -15,10 +15,14 @@ import {
   MapPin,
   Search,
   AlertTriangle,
+  Wrench,
+  PackageX,
   LogOut,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { contadorIncidencias } from "../services/api";
 import Logo from "./ui/Logo";
 
 // Menú agrupado por bloques de trabajo. Cada entrada apunta a una pantalla que
@@ -55,6 +59,13 @@ const secciones = [
     ],
   },
   {
+    titulo: "Incidencias",
+    items: [
+      { icon: Wrench, label: "Auxilio Mecánico", path: "/auxilio" },
+      { icon: PackageX, label: "Paquetes Devueltos", path: "/devueltos" },
+    ],
+  },
+  {
     titulo: "Consulta",
     items: [
       { icon: AlertTriangle, label: "Reportes", path: "/reportes" },
@@ -66,6 +77,16 @@ const secciones = [
 export default function Sidebar({ onNavigate }) {
   const navigate = useNavigate();
   const { cerrarSesion } = useAuth();
+
+  const [abiertas, setAbiertas] = useState(0);
+  // Contador de incidencias abiertas para el aviso (refresco silencioso cada 20 s).
+  useEffect(() => {
+    let activo = true;
+    const traer = () => contadorIncidencias().then((d) => activo && setAbiertas(d.abiertas)).catch(() => {});
+    traer();
+    const id = setInterval(traer, 20000);
+    return () => { activo = false; clearInterval(id); };
+  }, []);
 
   const salir = () => {
     cerrarSesion();
@@ -101,6 +122,10 @@ export default function Sidebar({ onNavigate }) {
                 >
                   <Icon size={18} />
                   <span>{label}</span>
+                  {/* Chip rojo cuando hay incidencias abiertas sin atender */}
+                  {label === "Auxilio Mecánico" && abiertas > 0 && (
+                    <span className="ml-auto rounded-full bg-danger px-2 py-0.5 text-[11px] font-bold text-white">{abiertas}</span>
+                  )}
                 </NavLink>
               ))}
             </div>

@@ -49,10 +49,10 @@ def agrupar_pedidos_por_zona(db: Session = Depends(get_db)):
     return pedido_service.agrupar_por_zona(db)
 
 
-@router.post("/{pedido_id}/reabrir")
-def reabrir_pedido(pedido_id: int, db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
-    """Devuelve un pedido FALLIDO a PENDIENTE para poder reasignarlo."""
-    return pedido_service.reabrir_pedido(db, pedido_id, usuario_id=admin.id)
+@router.get("/devueltos", dependencies=[Depends(get_current_admin)])
+def listar_devueltos(db: Session = Depends(get_db)):
+    """CUS-31: pedidos FALLIDOS para decidir reprogramar o cancelar."""
+    return pedido_service.listar_devueltos(db)
 
 
 @router.get("/por-ubicar", response_model=List[PedidoResponse], dependencies=[Depends(get_current_admin)])
@@ -71,3 +71,15 @@ def buscar_direccion(q: str, db: Session = Depends(get_db)):
 def fijar_ubicacion(pedido_id: int, datos: UbicacionManualRequest, db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
     """CUS-17: fija a mano la ubicación (lat/lng) de un pedido y lo deja listo para rutear."""
     return pedido_service.fijar_ubicacion(db, pedido_id, datos.latitud, datos.longitud, datos.direccion, usuario_id=admin.id)
+
+
+@router.post("/{pedido_id}/reprogramar")
+def reprogramar_pedido(pedido_id: int, db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
+    """CUS-31: vuelve un pedido FALLIDO a PENDIENTE para reintentarlo (reasignar)."""
+    return pedido_service.reprogramar(db, pedido_id, usuario_id=admin.id)
+
+
+@router.post("/{pedido_id}/cancelar")
+def cancelar_pedido(pedido_id: int, db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
+    """CUS-31: cancela definitivamente un pedido FALLIDO (estado CANCELADO)."""
+    return pedido_service.cancelar(db, pedido_id, usuario_id=admin.id)

@@ -334,6 +334,48 @@ export const responderCorreo = (id, cuerpo) =>
 export const marcarConversacion = (id, estado) =>
   request(`/correos/conversaciones/${id}/estado?estado=${encodeURIComponent(estado)}`, { method: "PATCH" });
 
+/* ============================================================
+   EFICIENCIA / COMBUSTIBLE (CUS-34)
+============================================================ */
+
+// KPIs de eficiencia (cajas hoy + ahorro de combustible + serie 7 días). Salida: objeto.
+export const obtenerKpisEficiencia = () => request("/dashboard/kpis-eficiencia");
+
+// Lee los parámetros de combustible. Salida: { consumo_l_100km, precio_soles_litro }.
+export const obtenerCombustible = () => request("/parametros/combustible");
+
+// Actualiza los parámetros de combustible. Entrada: consumo (L/100km) y precio (S//L).
+export const actualizarCombustible = (consumo_l_100km, precio_soles_litro) =>
+  request("/parametros/combustible", { method: "PUT", body: { consumo_l_100km, precio_soles_litro } });
+
+/* ============================================================
+   PAQUETES DEVUELTOS (CUS-31)
+============================================================ */
+
+// Lista los pedidos FALLIDOS pendientes de decisión. Salida: array.
+export const listarDevueltos = () => request("/pedidos/devueltos");
+
+// Reprograma un pedido (vuelve a PENDIENTE). Entrada: id. Salida: { mensaje, codigo }.
+export const reprogramarPedido = (id) => request(`/pedidos/${id}/reprogramar`, { method: "POST" });
+
+// Cancela un pedido (estado CANCELADO). Entrada: id. Salida: { mensaje, codigo }.
+export const cancelarPedido = (id) => request(`/pedidos/${id}/cancelar`, { method: "POST" });
+
+/* ============================================================
+   INCIDENCIAS — Auxilio mecánico (CUS-30)
+============================================================ */
+
+// Lista las incidencias. Entrada: estado opcional ("ABIERTA"|"RESUELTA"). Salida: array.
+export const listarIncidencias = (estado) =>
+  request(`/incidencias${estado ? `?estado=${encodeURIComponent(estado)}` : ""}`);
+
+// Marca una incidencia como resuelta. Entrada: id y nota opcional. Salida: la incidencia.
+export const resolverIncidencia = (id, nota) =>
+  request(`/incidencias/${id}/resolver`, { method: "POST", body: { nota: nota ?? null } });
+
+// Cuántas incidencias hay abiertas (aviso del sidebar/dashboard). Salida: { abiertas }.
+export const contadorIncidencias = () => request("/incidencias/contador");
+
 // Descarga un adjunto (ej. el Excel del recojo) y dispara la descarga en el
 // navegador. Va con el token en el header, por eso no se usa un <a href> directo.
 export async function descargarAdjunto(id, nombre) {

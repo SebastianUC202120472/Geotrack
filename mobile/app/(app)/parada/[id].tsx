@@ -17,7 +17,7 @@ import { Cargando, Vacio } from "@/components/Estados";
 import { Aparecer, CheckEntrega } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
 import { abrirNavegacion } from "@/services/navegacion";
-import { useManifiesto } from "@/features/ruta/hooks";
+import { useRutaActiva, useManifiesto } from "@/features/ruta/hooks";
 import { useEntregarConEvidencia, useReportarFalla } from "@/features/entrega/hooks";
 import { obtenerMotivos } from "@/api/conductor";
 import { mensajeDeError } from "@/api/client";
@@ -33,6 +33,7 @@ export default function ParadaScreen() {
   const pedidoId = Number(id);
   const router = useRouter();
   const { colors } = useTheme();
+  const ruta = useRutaActiva();
   const manifiesto = useManifiesto();
   const entregar = useEntregarConEvidencia();
   const reportar = useReportarFalla();
@@ -101,6 +102,8 @@ export default function ParadaScreen() {
   if (!parada) return <Screen conPadding={false}><Cabecera titulo="Entrega" atras /><Vacio titulo="Pedido no encontrado" /></Screen>;
 
   const gestionada = parada.estado_entrega !== "PENDIENTE";
+  // CUS-30: la ruta está pausada por avería; no se permiten acciones hasta reanudarla.
+  const pausada = !!ruta.data?.pausada;
 
   // Capa de éxito: muestra el check animado mientras el componente navega atrás.
   if (exito) {
@@ -178,6 +181,13 @@ export default function ParadaScreen() {
                   transition={200}
                 />
               )}
+            </Card>
+          ) : pausada ? (
+            /* CUS-30: ruta pausada — bloquea las acciones de entrega y reporte. */
+            <Card style={{ backgroundColor: colors.dangerSoft }}>
+              <Texto variante="bodyMedium" color={colors.danger} style={{ textAlign: "center" }}>
+                🛠️ Ruta pausada por avería. Reanúdala desde Mi Ruta para continuar.
+              </Texto>
             </Card>
           ) : modoReporte ? (
             <Card>

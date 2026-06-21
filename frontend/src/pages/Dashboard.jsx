@@ -3,9 +3,11 @@ import { useNavigate } from "react-router-dom";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend, LabelList,
+  ComposedChart,
 } from "recharts";
-import { Package, Truck, CircleCheck, Flag, MapPin, Upload } from "lucide-react";
+import { Package, Truck, CircleCheck, Flag, MapPin, Upload, Route as RouteIcon, Fuel, PiggyBank } from "lucide-react";
 import StatCard from "../components/ui/StatCard";
+import ChartCard from "../components/ui/ChartCard";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import { EstadoBadge } from "../components/ui/Badge";
@@ -14,7 +16,7 @@ import { SkeletonStat } from "../components/ui/Skeleton";
 import EmptyState from "../components/ui/EmptyState";
 import LiveBadge from "../components/ui/LiveBadge";
 import { agruparPedidosPorDia } from "../utils/dashboard";
-import { obtenerResumen, listarPedidos } from "../services/api";
+import { obtenerResumen, listarPedidos, obtenerKpisEficiencia } from "../services/api";
 
 // Color de marca para cada estado (gráficos y puntos de la línea de tiempo).
 const COLOR_ESTADO = {
@@ -25,6 +27,7 @@ const COLOR_ESTADO = {
   ENTREGADO: "#16a34a",
   FALLIDO: "#dc2626",
   GEOCODIFICACION_FALLIDA: "#dc2626",
+  CANCELADO: "#94a3b8",  // gris neutro: estado terminal sin entrega, diferente al azul de ASIGNADO
   CREADA: "#94a3b8",
 };
 
@@ -35,6 +38,8 @@ export default function Dashboard() {
   const [cargando, setCargando] = useState(true);
   // Indica si hay un refresco silencioso en curso (no bloquea la pantalla).
   const [actualizando, setActualizando] = useState(false);
+  // KPIs de eficiencia: cajas, km recorridos/ahorrados, ahorro en soles, serie 7 días (CUS-34).
+  const [efic, setEfic] = useState(null);
 
   // Lleva a la lista de Pedidos ya filtrada (clic en gráfica/zona).
   const irAEstado = (estadoRaw) => estadoRaw && navigate(`/pedidos?estado=${encodeURIComponent(estadoRaw)}`);
@@ -49,6 +54,7 @@ export default function Dashboard() {
     Promise.allSettled([
       obtenerResumen().then(setResumen),
       listarPedidos().then(setPedidos),
+      obtenerKpisEficiencia().then(setEfic),
     ]).finally(() => {
       if (silencioso) {
         setActualizando(false);
@@ -63,6 +69,7 @@ export default function Dashboard() {
     Promise.allSettled([
       obtenerResumen().then(setResumen),
       listarPedidos().then(setPedidos),
+      obtenerKpisEficiencia().then(setEfic),
     ]).finally(() => setCargando(false));
 
     // Auto-refresco cada 20 s (silencioso) + al recuperar el foco.
@@ -151,6 +158,32 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* KPIs de eficiencia (CUS-34): cajas, km recorridos, km ahorrados y ahorro en combustible */}
+      {/* StatCard no tiene prop prefix/suffix: el valor se formatea como string directamente. */}
+      {efic && (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 animate-fade-up">
+          <StatCard label="Cajas entregadas hoy" value={efic.cajas_entregadas_hoy} tone="success" icon={Package} />
+          <StatCard label="Km recorridos (estim.)" value={`${efic.km_recorridos} km`} tone="info" icon={RouteIcon} />
+          <StatCard label="Km ahorrados" value={`${efic.km_ahorrados} km`} tone="brand" icon={Fuel} />
+          <StatCard label="Ahorro en combustible" value={`S/ ${efic.soles_ahorrados}`} tone="warning" icon={PiggyBank} />
+        </div>
+      )}
+
+      {/* Gráfico de eficiencia últimos 7 días: ahorro en S/ (barras) y cajas entregadas (línea) */}
+      {efic && (
+        <ChartCard title="Eficiencia · últimos 7 días" subtitle="Ahorro de combustible y cajas entregadas" height={260}>
+          <ComposedChart data={efic.serie_7dias} margin={{ top: 8, right: 16, left: -8, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#eef2f6" vertical={false} />
+            <XAxis dataKey="fecha" tickFormatter={(f) => f.slice(5)} tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={{ stroke: "#e2e8f0" }} />
+            <YAxis yAxisId="left" tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={false} />
+            <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={false} />
+            <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13 }} />
+            <Bar yAxisId="left" dataKey="soles_ahorrados" name="Ahorro S/" fill="#f59e0b" radius={[6, 6, 0, 0]} maxBarSize={48} />
+            <Line yAxisId="right" type="monotone" dataKey="cajas" name="Cajas" stroke="#16a34a" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+          </ComposedChart>
+        </ChartCard>
+      )}
 
       {/* Gráficos: barras + dona */}
       <div className="animate-fade-up grid gap-6 lg:grid-cols-3" style={{ animationDelay: "120ms" }}>
