@@ -335,6 +335,20 @@ export const marcarConversacion = (id, estado) =>
   request(`/correos/conversaciones/${id}/estado?estado=${encodeURIComponent(estado)}`, { method: "PATCH" });
 
 /* ============================================================
+   EFICIENCIA / COMBUSTIBLE (CUS-34)
+============================================================ */
+
+// KPIs de eficiencia (cajas hoy + ahorro de combustible + serie 7 días). Salida: objeto.
+export const obtenerKpisEficiencia = () => request("/dashboard/kpis-eficiencia");
+
+// Lee los parámetros de combustible. Salida: { consumo_l_100km, precio_soles_litro }.
+export const obtenerCombustible = () => request("/parametros/combustible");
+
+// Actualiza los parámetros de combustible. Entrada: consumo (L/100km) y precio (S//L).
+export const actualizarCombustible = (consumo_l_100km, precio_soles_litro) =>
+  request("/parametros/combustible", { method: "PUT", body: { consumo_l_100km, precio_soles_litro } });
+
+/* ============================================================
    PAQUETES DEVUELTOS (CUS-31)
 ============================================================ */
 
