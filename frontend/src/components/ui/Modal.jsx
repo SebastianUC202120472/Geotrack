@@ -72,7 +72,8 @@ export default function Modal({ open, onClose, variant = "center", className = "
         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
         <div className={`relative ${panelBase[variant]} ${transicion} ${className}`}>
-          {contenido}
+          {/* Abierto: render en vivo (sin frame vacío). Cerrando: último snapshot para animar la salida. */}
+          {open ? children : contenido}
         </div>
       </div>
     </div>
