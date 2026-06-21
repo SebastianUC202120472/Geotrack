@@ -3,10 +3,14 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.repositories import usuario_repository
+from app.repositories import usuario_repository, solicitud_restablecimiento_repository
 from app.core.security import get_password_hash, verify_password, create_access_token
 from app.models.usuario import Usuario
 from app.schemas.usuario import UsuarioCreate
+
+# Mensaje genérico para la solicitud de restablecimiento: SIEMPRE el mismo, exista o
+# no el correo, para no revelar qué cuentas están registradas (anti-enumeración).
+MENSAJE_SOLICITUD = "Si el correo corresponde a un conductor, el administrador recibió tu solicitud y te contactará con tu nueva contraseña."
 
 
 def registrar_usuario(db: Session, datos: UsuarioCreate) -> Usuario:
@@ -43,6 +47,19 @@ def crear_admin_inicial(db: Session, correo: str, contrasena: str) -> None:
     usuario_repository.crear_usuario(
         db, correo=correo, hash_contrasena=get_password_hash(contrasena), rol="admin"
     )
+
+
+def solicitar_restablecimiento(db: Session, correo: str) -> dict:
+    """Extra CUS-04: el conductor (que olvidó su clave) pide desde el Login que se la
+    restablezcan. Si el correo es de un conductor activo, registra la solicitud
+    PENDIENTE; en cualquier caso devuelve el MISMO mensaje genérico para no revelar
+    qué correos existen. Recibe: el correo escrito en la app."""
+    # Se busca igual que en el login (coincidencia exacta del correo).
+    correo = (correo or "").strip()
+    usuario = usuario_repository.obtener_por_correo(db, correo)
+    if usuario and usuario.rol == "conductor" and usuario.estado:
+        solicitud_restablecimiento_repository.crear_o_refrescar(db, usuario.id, correo)
+    return {"mensaje": MENSAJE_SOLICITUD}
 
 
 def autenticar_y_generar_token(db: Session, correo: str, contrasena: str) -> str:

@@ -138,6 +138,7 @@ class ConductorResponse(BaseModel):
     correo: str
     estado: bool
     en_ruta: bool = False   # True si tiene una ruta activa (CREADA/EN_PROGRESO)
+    solicito_restablecimiento: bool = False   # True si pidió restablecer su clave (pendiente)
     nombre: Optional[str] = None
     telefono: Optional[str] = None
     dni: Optional[str] = None
