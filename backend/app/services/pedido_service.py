@@ -51,31 +51,30 @@ def cargar_pedidos_excel(db: Session, contenido: bytes, nombre_archivo: str, usu
             detail="El Excel debe incluir 'razon_social_cliente' (o 'cliente_origen').",
         )
 
-    # 4) Construir los pedidos nuevos.
+    # 4) Construir los pedidos nuevos. El cliente DEBE estar registrado (ya no se crea).
     nuevos: list[Pedido] = []
-    for _, fila in df.iterrows():
-        # Referencia externa: el id que trae el Excel (opcional). NO es el tracking;
-        # nuestro tracking será el código PD-001 que generamos abajo.
+    rechazados: list[dict] = []
+    for i, (_, fila) in enumerate(df.iterrows()):
+        fila_num = i + 2  # fila del Excel (1 = encabezado)
         referencia = _str_o_none(_valor(fila, df, "referencia_externa", "numero_tracking", "id"))
         if referencia and pedido_repository.obtener_por_referencia_externa(db, referencia):
             continue  # ya se importó antes -> no duplicar
 
-        # Cliente (empresa que envía): se busca o se crea automáticamente.
-        razon = str(_valor(fila, df, "razon_social_cliente", "cliente_origen"))
-        ruc = _valor(fila, df, "ruc_cliente", "identificador_unico")
-        ruc = str(ruc) if ruc is not None else None
-        cliente = cliente_repository.buscar_o_crear(db, razon_social=razon, identificador_unico=ruc)
+        # Cliente (empresa que envía): DEBE existir; si no, se rechaza la fila.
+        razon = str(_valor(fila, df, "razon_social_cliente", "cliente_origen") or "").strip()
+        cliente = cliente_repository.buscar_por_razon_social_normalizada(db, razon)
+        if cliente is None:
+            rechazados.append({"fila": fila_num, "cliente": razon or "(vacío)", "motivo": "Cliente no registrado"})
+            continue
 
         peso = _valor(fila, df, "peso_kg")
         volumen = _valor(fila, df, "volumen_m3")
-
         nuevos.append(
             Pedido(
                 referencia_externa=referencia,
                 cliente_id=cliente.id,
-                cliente_origen=razon,  # snapshot del nombre del cliente
+                cliente_origen=cliente.razon_social,  # snapshot del nombre real registrado
                 direccion_destino=str(fila["direccion_destino"]),
-                # Destinatario (persona que recibe), todos opcionales:
                 nombre_destinatario=_str_o_none(_valor(fila, df, "nombre_destinatario")),
                 telefono_destinatario=_str_o_none(_valor(fila, df, "telefono_destinatario")),
                 dni_destinatario=_str_o_none(_valor(fila, df, "dni_destinatario")),
@@ -104,6 +103,8 @@ def cargar_pedidos_excel(db: Session, contenido: bytes, nombre_archivo: str, usu
         "total_filas_leidas": len(df),
         "pedidos_geocodificados": geo.get("pedidos_exitosos", 0),
         "pedidos_fallidos": geo.get("pedidos_fallidos", 0),
+        "rechazados": rechazados,
+        "total_rechazados": len(rechazados),
     }
 
 

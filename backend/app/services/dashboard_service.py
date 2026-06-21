@@ -2,12 +2,12 @@
 # La inteligencia del panel de monitoreo del admin.
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import func as _sa_func
+from sqlalchemy import func
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
+from app.models.usuario import Usuario
 from app.repositories import ruta_repository, pedido_repository, usuario_repository, historial_repository, ubicacion_repository, incidencia_repository
-from app.services import parametro_service
 from app.schemas.dashboard import (
     RutaFlota,
     FlotaResponse,
@@ -19,10 +19,6 @@ from app.schemas.dashboard import (
     ParadaMapa,
 )
 
-
-def sa_func_date(columna):
-    """Trunca un DateTime a fecha (para comparar por día) de forma portable."""
-    return _sa_func.date(columna)
 
 ESTADOS_RUTA_ACTIVA = ("CREADA", "EN_PROGRESO")
 UMBRAL_EN_LINEA_SEG = 120  # un conductor está "en línea" si su última señal tiene < 2 min
@@ -277,55 +273,46 @@ def obtener_historial(db: Session, codigo: str) -> HistorialPedidoResponse:
     )
 
 
-def obtener_kpis_eficiencia(db: Session) -> dict:
-    """CUS-34: cajas entregadas hoy y ahorro estimado de combustible (de la optimización
-    de rutas). Devuelve el resumen del día + una serie de los últimos 7 días. Recibe: la sesión."""
-    from app.models.ruta import Ruta, RutaDetalle
+def obtener_eficiencia_conductores(db: Session) -> list[dict]:
+    """CUS-34: por cada conductor activo, suma los km de sus rutas YA cerradas
+    (fecha_fin no nula) y calcula el ahorro de combustible con los parámetros
+    administrables. Acumulado (no solo hoy). Recibe: la sesión de BD."""
+    from app.models.ruta import Ruta
+    from app.services import parametro_service
 
     combustible = parametro_service.obtener_combustible(db)
     consumo = combustible["consumo_l_100km"]
     precio = combustible["precio_soles_litro"]
-    hoy = datetime.utcnow().date()
 
-    # Cajas entregadas hoy (por la fecha de gestión de cada parada ENTREGADA).
-    cajas_hoy = (
-        db.query(RutaDetalle)
-        .filter(RutaDetalle.estado_entrega == "ENTREGADO", sa_func_date(RutaDetalle.fecha_gestion) == hoy)
-        .count()
-    )
-
-    # Km de rutas cerradas hoy.
-    rutas_hoy = db.query(Ruta).filter(Ruta.fecha_fin.isnot(None), sa_func_date(Ruta.fecha_fin) == hoy).all()
-    km_recorridos = round(sum(r.km_estimado or 0.0 for r in rutas_hoy), 2)
-    km_ahorrados = round(sum(r.km_ahorrado or 0.0 for r in rutas_hoy), 2)
-    litros_ahorrados = round(km_ahorrados * (consumo / 100.0), 2)
-    soles_ahorrados = round(litros_ahorrados * precio, 2)
-
-    # Serie de los últimos 7 días (incluye hoy).
-    serie = []
-    for i in range(6, -1, -1):
-        dia = hoy - timedelta(days=i)
-        cajas_dia = (
-            db.query(RutaDetalle)
-            .filter(RutaDetalle.estado_entrega == "ENTREGADO", sa_func_date(RutaDetalle.fecha_gestion) == dia)
-            .count()
+    # Sumas de km por conductor en una sola consulta (rutas cerradas con conductor).
+    filas = (
+        db.query(
+            Ruta.conductor_id,
+            func.coalesce(func.sum(Ruta.km_estimado), 0.0),
+            func.coalesce(func.sum(Ruta.km_ahorrado), 0.0),
         )
-        rutas_dia = db.query(Ruta).filter(Ruta.fecha_fin.isnot(None), sa_func_date(Ruta.fecha_fin) == dia).all()
-        km_ah_dia = sum(r.km_ahorrado or 0.0 for r in rutas_dia)
-        serie.append({
-            "fecha": dia.isoformat(),
-            "cajas": cajas_dia,
-            "km_ahorrados": round(km_ah_dia, 2),
-            "soles_ahorrados": round(km_ah_dia * (consumo / 100.0) * precio, 2),
-        })
+        .filter(Ruta.fecha_fin.isnot(None), Ruta.conductor_id.isnot(None))
+        .group_by(Ruta.conductor_id)
+        .all()
+    )
+    sumas = {cid: (float(km_e or 0.0), float(km_a or 0.0)) for cid, km_e, km_a in filas}
 
-    return {
-        "cajas_entregadas_hoy": cajas_hoy,
-        "km_recorridos": km_recorridos,
-        "km_ahorrados": km_ahorrados,
-        "litros_ahorrados": litros_ahorrados,
-        "soles_ahorrados": soles_ahorrados,
-        "consumo_l_100km": consumo,
-        "precio_soles_litro": precio,
-        "serie_7dias": serie,
-    }
+    # Lista de conductores activos (aunque no tengan rutas cerradas -> 0).
+    conductores = (
+        db.query(Usuario)
+        .filter(Usuario.rol == "conductor", Usuario.estado == True)  # noqa: E712
+        .all()
+    )
+    resultado = []
+    for u in conductores:
+        km_recorridos, km_ahorrados = sumas.get(u.id, (0.0, 0.0))
+        litros = km_ahorrados * (consumo / 100.0)
+        resultado.append({
+            "conductor_id": u.id,
+            "nombre": _nombre_conductor(db, u.id),
+            "km_recorridos": round(km_recorridos, 2),
+            "km_ahorrados": round(km_ahorrados, 2),
+            "litros_ahorrados": round(litros, 2),
+            "soles_ahorrados": round(litros * precio, 2),
+        })
+    return resultado

@@ -9,12 +9,14 @@ import Button from "../components/ui/Button";
 import Modal from "../components/ui/Modal";
 import { listarClientes, crearCliente, actualizarCliente, eliminarCliente } from "../services/api";
 
-// Administración de empresas cliente (CUS-07): alta, edición y baja. Los clientes
-// también se crean solos al importar el Excel; aquí se gestionan a mano.
+// Administración de empresas cliente (CUS-07): alta, edición y baja.
+// Al importar pedidos el cliente debe estar registrado aquí (ya no se crea solo).
 export default function Clientes() {
   const [clientes, setClientes] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [seleccionado, setSeleccionado] = useState(null);
+  // Modo con el que se abre el modal: "ver" (click en fila), "editar" o "confirmar" (botones de acción)
+  const [modoInicial, setModoInicial] = useState("ver");
 
   const [form, setForm] = useState({ razon_social: "", identificador_unico: "", contacto: "" });
   const [error, setError] = useState("");
@@ -80,6 +82,19 @@ export default function Clientes() {
     { key: "razon_social", header: "Razón social", render: (c) => <span className="text-slate-700">{c.razon_social}</span> },
     { key: "identificador_unico", header: "RUC", render: (c) => <span className="text-slate-600 nums">{c.identificador_unico || "—"}</span> },
     { key: "contacto", header: "Contacto", render: (c) => <span className="text-slate-600">{c.contacto || "—"}</span> },
+    // Columna de acciones: abre el modal directamente en el modo correspondiente
+    {
+      key: "acciones",
+      header: "",
+      render: (c) => (
+        <div className="flex justify-end gap-1">
+          <Button variant="ghost" size="sm" icon={Pencil}
+            onClick={(e) => { e.stopPropagation(); setModoInicial("editar"); setSeleccionado(c); }}>Editar</Button>
+          <Button variant="ghost" size="sm" icon={Trash2}
+            onClick={(e) => { e.stopPropagation(); setModoInicial("confirmar"); setSeleccionado(c); }}>Baja</Button>
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -116,22 +131,25 @@ export default function Clientes() {
         <div className="lg:col-span-2">
           <DataTable columns={columnas} rows={clientes} rowKey={(c) => c.id} loading={cargando}
             empty={{ icon: Building2, title: "Aún no hay clientes", description: "Usa el formulario para registrar la primera empresa." }}
-            onRowClick={(c) => setSeleccionado(c)} />
+            onRowClick={(c) => { setModoInicial("ver"); setSeleccionado(c); }} />
         </div>
       </div>
 
-      <Modal open={!!seleccionado} onClose={() => setSeleccionado(null)} variant="center">
+      <Modal open={!!seleccionado} onClose={() => { setSeleccionado(null); setModoInicial("ver"); }} variant="center">
         {seleccionado && (
-          <DetalleCliente cliente={seleccionado} onCerrar={() => setSeleccionado(null)} onCambios={() => { setSeleccionado(null); cargar(); }} />
+          <DetalleCliente cliente={seleccionado} modoInicial={modoInicial}
+            onCerrar={() => { setSeleccionado(null); setModoInicial("ver"); }}
+            onCambios={() => { setSeleccionado(null); setModoInicial("ver"); cargar(); }} />
         )}
       </Modal>
     </div>
   );
 }
 
-// Detalle del cliente con modos ver / editar / confirmar (baja).
-function DetalleCliente({ cliente: c, onCerrar, onCambios }) {
-  const [modo, setModo] = useState("ver");
+// Detalle del cliente con modos ver / editar / confirmar (baja). Acepta modoInicial
+// para abrir directamente en el modo solicitado desde los botones de acción de la fila.
+function DetalleCliente({ cliente: c, onCerrar, onCambios, modoInicial = "ver" }) {
+  const [modo, setModo] = useState(modoInicial);
   const [form, setForm] = useState({ razon_social: c.razon_social || "", identificador_unico: c.identificador_unico || "", contacto: c.contacto || "" });
   const [aviso, setAviso] = useState(null);
   const [trabajando, setTrabajando] = useState(false);
