@@ -338,6 +338,9 @@ export const marcarConversacion = (id, estado) =>
    EFICIENCIA / COMBUSTIBLE (CUS-34)
 ============================================================ */
 
+// CUS-34: eficiencia (km y ahorro de combustible) acumulada por cada conductor.
+export const obtenerEficienciaConductores = () => request("/dashboard/eficiencia-conductores");
+
 // Lee los parámetros de combustible. Salida: { consumo_l_100km, precio_soles_litro }.
 export const obtenerCombustible = () => request("/parametros/combustible");
 

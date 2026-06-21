@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check, Pencil, Trash2, Camera, KeyRound } from "lucide-react";
+import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check, Pencil, Trash2, Camera, KeyRound, Fuel, Route as RouteIcon, PiggyBank } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -9,7 +9,7 @@ import Button from "../components/ui/Button";
 import Badge, { EstadoBadge } from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
 import SectionCard from "../components/ui/SectionCard";
-import { listarConductores, crearConductor, actualizarConductor, eliminarConductor, subirFotoConductor, restablecerContrasenaConductor, urlMedia } from "../services/api";
+import { listarConductores, crearConductor, actualizarConductor, eliminarConductor, subirFotoConductor, restablecerContrasenaConductor, urlMedia, obtenerEficienciaConductores } from "../services/api";
 import { validarNombre, validarCorreo, validarPassword, validarTelefono, validarDni, soloDigitos } from "../utils/validaciones";
 
 // Apartado de conductores: ficha completa (nombre, teléfono, DNI), vehículo
@@ -17,6 +17,8 @@ import { validarNombre, validarCorreo, validarPassword, validarTelefono, validar
 // conductor usa en la app móvil.
 export default function Conductores() {
   const [conductores, setConductores] = useState([]);
+  // Mapa conductor_id -> datos de eficiencia (km recorridos/ahorrados, ahorro en S/).
+  const [eficiencia, setEficiencia] = useState({});
   const [cargando, setCargando] = useState(true);
   const [seleccionado, setSeleccionado] = useState(null);
 
@@ -29,6 +31,11 @@ export default function Conductores() {
     setCargando(true);
     try {
       setConductores(await listarConductores());
+      // CUS-34: carga la eficiencia tras obtener conductores (setState post-await, sin lint de effect).
+      try {
+        const efs = await obtenerEficienciaConductores();
+        setEficiencia(Object.fromEntries(efs.map((e) => [e.conductor_id, e])));
+      } catch { /* si falla el endpoint de eficiencia, la tabla sigue mostrando "—" */ }
     } catch (err) {
       console.error("No se pudo cargar conductores:", err.message);
     } finally {
@@ -95,8 +102,9 @@ export default function Conductores() {
     }
   };
 
-  // Columnas para DataTable
-  const columnas = [
+  // Columnas para DataTable. Dependen de `eficiencia` para que la columna de eficiencia
+  // siempre tenga acceso al estado más reciente (useMemo con dependencia).
+  const columnas = useMemo(() => [
     {
       key: "codigo",
       header: "Código",
@@ -135,7 +143,21 @@ export default function Conductores() {
       header: "Estado",
       render: (c) => <EstadoBadge estado={!c.estado ? "INACTIVO" : c.en_ruta ? "EN_RUTA" : "DISPONIBLE"} />,
     },
-  ];
+    {
+      // CUS-34: km ahorrados y ahorro económico acumulado por conductor.
+      key: "eficiencia",
+      header: "Eficiencia",
+      render: (c) => {
+        const e = eficiencia[c.usuario_id];
+        if (!e) return <span className="text-slate-400">—</span>;
+        return (
+          <span className="text-sm text-slate-600 nums">
+            {e.km_ahorrados} km ahorr. · S/ {e.soles_ahorrados}
+          </span>
+        );
+      },
+    },
+  ], [eficiencia]);
 
   return (
     <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
@@ -215,6 +237,7 @@ export default function Conductores() {
         {seleccionado && (
           <DetalleConductor
             conductor={seleccionado}
+            efic={eficiencia[seleccionado.usuario_id]}
             onCerrar={() => setSeleccionado(null)}
             onCambios={() => { setSeleccionado(null); cargar(); }}
           />
@@ -226,7 +249,8 @@ export default function Conductores() {
 
 // Detalle del conductor con tres modos: ver la ficha, editarla, o confirmar su
 // eliminación. `onCambios` se llama tras editar/eliminar (cierra + recarga lista).
-function DetalleConductor({ conductor: c, onCerrar, onCambios }) {
+// `efic` son los datos de eficiencia CUS-34 (km recorridos/ahorrados, ahorro S/).
+function DetalleConductor({ conductor: c, efic, onCerrar, onCambios }) {
   const [modo, setModo] = useState("ver"); // "ver" | "editar" | "confirmar" | "clave"
   const [form, setForm] = useState({ nombre: c.nombre || "", telefono: c.telefono || "", dni: c.dni || "" });
   const [errores, setErrores] = useState({});
@@ -360,6 +384,20 @@ function DetalleConductor({ conductor: c, onCerrar, onCambios }) {
             <Dato icono={IdCard} etiqueta="DNI" valor={c.dni || "—"} />
             <Dato icono={Truck} etiqueta="Vehículo asignado"
               valor={c.vehiculo ? `${c.vehiculo.placa}${c.vehiculo.codigo ? ` (${c.vehiculo.codigo})` : ""}` : "Sin vehículo asignado"} />
+          </div>
+          {/* CUS-34: bloque de eficiencia de combustible acumulada del conductor */}
+          <div className="mt-5">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Eficiencia acumulada</p>
+            {efic ? (
+              <div className="space-y-2">
+                <Dato icono={RouteIcon} etiqueta="Km recorridos" valor={`${efic.km_recorridos} km`} />
+                <Dato icono={RouteIcon} etiqueta="Km ahorrados" valor={`${efic.km_ahorrados} km`} />
+                <Dato icono={Fuel} etiqueta="Litros ahorrados" valor={`${efic.litros_ahorrados} L`} />
+                <Dato icono={PiggyBank} etiqueta="Ahorro en S/" valor={`S/ ${efic.soles_ahorrados}`} />
+              </div>
+            ) : (
+              <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-400">Sin rutas cerradas aún</p>
+            )}
           </div>
           {c.solicito_restablecimiento && (
             <div className="mt-4 flex items-start gap-2 rounded-xl bg-warning-soft px-3.5 py-3 text-sm text-warning-strong">
