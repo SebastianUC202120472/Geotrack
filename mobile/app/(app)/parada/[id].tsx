@@ -151,7 +151,7 @@ export default function ParadaScreen() {
                 style={[estilos.navegar, { backgroundColor: colors.brand }]}
               >
                 <Ionicons name="navigate" size={18} color={colors.white} />
-                <Texto variante="body" color={colors.white} style={estilos.navegarTexto}>Navegar (Google Maps / Waze)</Texto>
+                <Texto variante="body" color={colors.white} style={estilos.navegarTexto}>Navegar con Google Maps</Texto>
               </Pressable>
             )}
           </Card>
