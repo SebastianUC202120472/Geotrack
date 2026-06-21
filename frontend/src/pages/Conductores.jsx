@@ -46,7 +46,9 @@ export default function Conductores() {
     const activos = conductores.filter((c) => c.estado).length;
     const sinVehiculo = conductores.filter((c) => c.estado && !c.vehiculo).length;
     const inactivos = conductores.filter((c) => !c.estado).length;
-    return { total, activos, sinVehiculo, inactivos };
+    // Conductores que pidieron restablecer su clave y siguen pendientes (extra CUS-04).
+    const solicitudes = conductores.filter((c) => c.solicito_restablecimiento).length;
+    return { total, activos, sinVehiculo, inactivos, solicitudes };
   }, [conductores]);
 
   // Actualiza un campo y limpia su error mientras el usuario corrige.
@@ -103,7 +105,17 @@ export default function Conductores() {
     {
       key: "nombre",
       header: "Nombre",
-      render: (c) => <span className="text-slate-700">{c.nombre || "—"}</span>,
+      render: (c) => (
+        <span className="flex items-center gap-2">
+          <span className="text-slate-700">{c.nombre || "—"}</span>
+          {c.solicito_restablecimiento && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning-strong"
+              title="Solicitó restablecer su contraseña">
+              <KeyRound size={12} /> Solicitó clave
+            </span>
+          )}
+        </span>
+      ),
     },
     {
       key: "telefono",
@@ -131,6 +143,17 @@ export default function Conductores() {
         titulo="Conductores"
         subtitulo="Registra y consulta a los conductores de reparto."
       />
+
+      {/* Aviso: conductores que solicitaron restablecer su contraseña (extra CUS-04) */}
+      {kpis.solicitudes > 0 && (
+        <div className="flex items-center gap-2 rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning-strong animate-fade-up">
+          <KeyRound size={18} className="shrink-0" />
+          <span>
+            <b>{kpis.solicitudes}</b> {kpis.solicitudes === 1 ? "conductor solicitó" : "conductores solicitaron"} restablecer su contraseña.
+            Ábrelos (marcados abajo) y usa <b>"Restablecer contraseña"</b>.
+          </span>
+        </div>
+      )}
 
       {/* KPIs derivados de la lista cargada */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 animate-fade-up">
@@ -338,6 +361,12 @@ function DetalleConductor({ conductor: c, onCerrar, onCambios }) {
             <Dato icono={Truck} etiqueta="Vehículo asignado"
               valor={c.vehiculo ? `${c.vehiculo.placa}${c.vehiculo.codigo ? ` (${c.vehiculo.codigo})` : ""}` : "Sin vehículo asignado"} />
           </div>
+          {c.solicito_restablecimiento && (
+            <div className="mt-4 flex items-start gap-2 rounded-xl bg-warning-soft px-3.5 py-3 text-sm text-warning-strong">
+              <KeyRound size={18} className="shrink-0" />
+              <span>Este conductor <b>solicitó restablecer su contraseña</b>. Genera una nueva y comunícasela.</span>
+            </div>
+          )}
           <div className="mt-6 flex gap-2">
             <Button variant="secondary" icon={Pencil} block onClick={() => { setAviso(null); setModo("editar"); }}>Editar</Button>
             <Button variant="danger" icon={Trash2} block onClick={() => { setAviso(null); setModo("confirmar"); }}>Eliminar</Button>

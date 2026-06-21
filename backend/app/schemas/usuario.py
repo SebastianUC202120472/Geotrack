@@ -35,3 +35,8 @@ class Token(BaseModel):
     """Molde de SALIDA del login: el token JWT y su tipo."""
     access_token: str
     token_type: str
+
+
+class SolicitudRestablecimientoRequest(BaseModel):
+    """ENTRADA (extra CUS-04): el conductor pide restablecer su clave desde el Login."""
+    correo: EmailStr
