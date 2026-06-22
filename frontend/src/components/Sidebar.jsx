@@ -18,6 +18,7 @@ import {
   Wrench,
   LogOut,
   PackageCheck,
+  Undo2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
@@ -81,6 +82,7 @@ const secciones = [
     roles: ["admin", "almacen"],
     items: [
       { icon: PackageCheck, label: "Ingreso a Almacén", path: "/almacen" },
+      { icon: Undo2, label: "Retornos de Ruta", path: "/almacen/retornos" },
     ],
   },
 ];

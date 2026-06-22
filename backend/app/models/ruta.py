@@ -52,5 +52,9 @@ class RutaDetalle(Base):
     url_evidencia = Column(String(255), nullable=True)  # CUS-29: ruta de la foto POD
     fecha_gestion = Column(DateTime, nullable=True)     # cuándo se entregó/falló
 
+    # CUS-32: logística inversa. Se sella cuando el almacén escanea el paquete FALLIDO de vuelta.
+    retornado_en = Column(DateTime, nullable=True)
+    retornado_por = Column(Integer, nullable=True)   # id del usuario de almacén que recibió el retorno
+
     # Relación inversa: cada detalle pertenece a una ruta.
     ruta = relationship("Ruta", back_populates="detalles")
