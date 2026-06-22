@@ -37,6 +37,11 @@ api.interceptors.response.use(
   }
 );
 
+// Detecta si el error es de red (sin respuesta del servidor). Recibe: error capturado.
+export function esErrorDeRed(error: unknown): boolean {
+  return axios.isAxiosError(error) && !error.response;
+}
+
 // Extrae un mensaje de error legible del backend. Recibe: error de axios.
 export function mensajeDeError(error: unknown): string {
   if (axios.isAxiosError(error)) {

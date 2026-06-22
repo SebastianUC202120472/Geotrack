@@ -2,7 +2,6 @@
 // Offline-aware (CUS-27): si no hay conexión (o la llamada falla por red), la
 // acción se ENCOLA y se actualiza el manifiesto de forma optimista; el motor de
 // sync la sube al reconectar. Devuelven { encolado } para que la UI avise.
-import axios from "axios";
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { marcarEstadoParada, subirEvidencia, crearReporte } from "@/api/conductor";
 import { guardarEvidencia } from "@/store/evidenciaCache";
@@ -10,12 +9,9 @@ import { urlEvidencia } from "@/api/config";
 import { claves } from "@/features/ruta/hooks";
 import { estaOnline } from "@/hooks/useConexion";
 import { encolar } from "@/store/colaSync";
+// MINOR 3: esErrorDeRed centralizado en client (sin duplicar).
+import { esErrorDeRed } from "@/api/client";
 import type { Manifiesto } from "@/types/api";
-
-// ¿el error es de red (sin respuesta del servidor)?
-function esErrorDeRed(e: unknown): boolean {
-  return axios.isAxiosError(e) && !e.response;
-}
 
 // UI optimista: marca la parada como gestionada en el cache del manifiesto, para
 // que la pantalla la muestre resuelta de inmediato (offline) sin tocar contadores.
@@ -83,7 +79,7 @@ export function useReportarFalla() {
       if (!res.encolado) {
         qc.invalidateQueries({ queryKey: claves.manifiesto });
         qc.invalidateQueries({ queryKey: claves.rutaActiva });
-        qc.invalidateQueries({ queryKey: ["mis-reportes"] });
+        qc.invalidateQueries({ queryKey: claves.misReportes });
       }
     },
   });

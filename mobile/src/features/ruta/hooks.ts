@@ -15,6 +15,8 @@ export const claves = {
   rutaActiva: ["ruta-activa"] as const,
   manifiesto: ["manifiesto"] as const,
   navegacion: ["navegacion"] as const,
+  // MINOR 4: clave centralizada para la query de reportes (evita literales dispersos).
+  misReportes: ["mis-reportes"] as const,
 };
 
 // Si no hay ruta (404), no reintentar en bucle.
