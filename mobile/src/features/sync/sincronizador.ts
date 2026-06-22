@@ -2,17 +2,13 @@
 // funciones API ya existentes. Ante un error de RED (sin respuesta del servidor)
 // detiene el flush y conserva el ítem; ante una respuesta HTTP del servidor lo
 // quita (evita reintentos infinitos; marcarEstadoParada es idempotente).
-import axios from "axios";
 import type { QueryClient } from "@tanstack/react-query";
 import { listar, quitar, actualizar } from "@/store/colaSync";
 import { estaOnline } from "@/hooks/useConexion";
 import { marcarEstadoParada, subirEvidencia, crearReporte } from "@/api/conductor";
+// MINOR 3: esErrorDeRed centralizado en client (sin duplicar).
+import { esErrorDeRed } from "@/api/client";
 import { claves } from "@/features/ruta/hooks";
-
-// Distingue un error de red (sin respuesta) de una respuesta HTTP del servidor.
-function esErrorDeRed(e: unknown): boolean {
-  return axios.isAxiosError(e) && !e.response;
-}
 
 let sincronizando = false;
 
@@ -41,7 +37,8 @@ export async function sincronizar(qc: QueryClient): Promise<void> {
               item.evidenciaSubida = true;
             } catch (e) {
               if (esErrorDeRed(e)) throw e;   // sin señal: reintentar luego (sin re-postear nada hecho)
-              // foto faltante / error no de red: la entrega quedó marcada; omitimos la foto
+              // MINOR 2: foto faltante / error no de red: avisamos en consola y continuamos.
+              console.warn(`[sync] No se pudo subir la evidencia del pedido ${item.pedidoId} (error no de red); la entrega quedó sin foto POD`);
             }
           }
         } else {
@@ -71,7 +68,7 @@ export async function sincronizar(qc: QueryClient): Promise<void> {
     if (huboCambios) {
       qc.invalidateQueries({ queryKey: claves.rutaActiva });
       qc.invalidateQueries({ queryKey: claves.manifiesto });
-      qc.invalidateQueries({ queryKey: ["mis-reportes"] });
+      qc.invalidateQueries({ queryKey: claves.misReportes });
     }
   }
 }
