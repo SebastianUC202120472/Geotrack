@@ -25,6 +25,7 @@ export default function Badge({ tono = "neutral", className = "", children }) {
 const mapaEstados = {
   SOLICITADO: "warning",
   RECOGIDO: "success",
+  INGRESADO: "success",
   PENDIENTE: "warning",
   ASIGNADO: "info",
   EN_RUTA: "info",
