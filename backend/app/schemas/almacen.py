@@ -67,3 +67,47 @@ class CerrarIngresoResponse(BaseModel):
     estado: str
     conteo: ConteoConciliacion
     mensaje: str
+
+
+# --- CUS-32: retorno a almacén (logística inversa) ---
+class ConteoRetorno(BaseModel):
+    """Resumen de conciliación del retorno de una ruta."""
+    esperados: int    # paquetes FALLIDO de la ruta
+    retornados: int   # FALLIDO ya escaneados de vuelta
+    faltantes: int    # FALLIDO que no regresaron
+
+
+class RutaRetornoItem(BaseModel):
+    """Una ruta de entrega con FALLIDO, en la lista de retornos."""
+    ruta_id: int
+    codigo: Optional[str] = None
+    nombre: str
+    estado: str
+    conteo: ConteoRetorno
+
+
+class FallidoItem(BaseModel):
+    """Un paquete FALLIDO de la ruta, con su estado de retorno."""
+    pedido_id: int
+    codigo: Optional[str] = None
+    cliente_origen: str
+    direccion_destino: str
+    nombre_destinatario: Optional[str] = None
+    retornado_en: Optional[datetime] = None
+
+
+class RetornoRutaResponse(BaseModel):
+    """SALIDA: detalle del retorno de una ruta (FALLIDO + conteo)."""
+    ruta_id: int
+    codigo: Optional[str] = None
+    nombre: str
+    conteo: ConteoRetorno
+    fallidos: List[FallidoItem]
+
+
+class EscaneoRetornoResponse(BaseModel):
+    """SALIDA: resultado de escanear un paquete devuelto."""
+    resultado: str  # RETORNADO | DUPLICADO | DESCONOCIDO
+    codigo: str
+    mensaje: str
+    conteo: ConteoRetorno
