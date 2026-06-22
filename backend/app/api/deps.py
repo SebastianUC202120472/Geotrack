@@ -58,3 +58,13 @@ def get_current_admin(usuario: Usuario = Depends(get_current_user)) -> Usuario:
             detail="Esta operación es exclusiva para administradores",
         )
     return usuario
+
+
+def get_current_almacen(usuario: Usuario = Depends(get_current_user)) -> Usuario:
+    """Restringe el módulo de almacén (CUS-14) a usuarios con rol 'almacen' o 'admin'."""
+    if usuario.rol not in ("almacen", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operación exclusiva del módulo de almacén",
+        )
+    return usuario

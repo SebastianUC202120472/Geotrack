@@ -30,6 +30,7 @@ from app.api.usuarios import router as usuarios_router        # CUS-03: gestión
 from app.api.parametros import router as parametros_router    # CUS-06: catálogos (motivos)
 from app.api.incidencias import router as incidencias_router    # CUS-30: auxilio mecánico
 from app.api.recojos import router as recojos_router            # Tier 3: recojos inbound
+from app.api.almacen import router as almacen_router              # Tier 3: ingreso a almacén (CUS-14)
 
 
 async def tarea_limpieza_usuarios():
@@ -137,6 +138,7 @@ app.include_router(usuarios_router, prefix="/api/usuarios", tags=["Usuarios del 
 app.include_router(parametros_router, prefix="/api/parametros", tags=["Parámetros"])
 app.include_router(incidencias_router, prefix="/api/incidencias", tags=["Incidencias"])
 app.include_router(recojos_router, prefix="/api/recojos", tags=["Recojos Inbound"])
+app.include_router(almacen_router, prefix="/api/almacen", tags=["Almacén (Ingreso)"])
 
 
 @app.get("/")
