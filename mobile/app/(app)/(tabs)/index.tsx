@@ -22,6 +22,7 @@ import { useUbicacionActual } from "@/hooks/useUbicacionActual";
 import { useEnviarUbicacion } from "@/hooks/useEnviarUbicacion";
 import { useReanudarRuta } from "@/features/incidencia/hooks";
 import { mensajeDeError } from "@/api/client";
+import { BannerSync } from "@/components/BannerSync";
 import { useTheme, spacing } from "@/theme";
 
 // El tab "Ruta" muestra el flujo de entregas o el de recojo según el tipo de la ruta activa.
@@ -162,6 +163,7 @@ function RutaEntregaView() {
       )}
 
       <Aparecer style={estilos.secciones}>
+        <BannerSync />
         <Card style={{ marginTop: spacing.md, padding: spacing.sm }}>
           <MapaWeb paradas={proximas} />
         </Card>
