@@ -21,6 +21,7 @@ import { useRutaActiva, useManifiesto, useNavegacion, useIniciarRuta, useFinaliz
 import { useUbicacionActual } from "@/hooks/useUbicacionActual";
 import { useEnviarUbicacion } from "@/hooks/useEnviarUbicacion";
 import { useReanudarRuta } from "@/features/incidencia/hooks";
+import { usePendientesPorPedido } from "@/features/sync/hooks";
 import { mensajeDeError } from "@/api/client";
 import { BannerSync } from "@/components/BannerSync";
 import { useTheme, spacing } from "@/theme";
@@ -44,6 +45,8 @@ function RutaEntregaView() {
   const reanudar = useReanudarRuta();
   const pausada = !!ruta.data?.pausada;
   const qc = useQueryClient();
+  // CUS-27: paradas con una acción en la cola offline (aún sin subir al servidor).
+  const pendientesPorPedido = usePendientesPorPedido();
 
   // Envía la posición del conductor mientras tenga una ruta activa (foreground).
   useEnviarUbicacion(!!ruta.data && ruta.data.estado !== "FINALIZADA");
@@ -60,7 +63,7 @@ function RutaEntregaView() {
   // "Ruta" muestra solo las próximas 5 paradas PENDIENTES (ventana que se va
   // llenando: al entregar una, entra la siguiente). El listado completo está en "Pedidos".
   const paradasPendientes = [...(manifiesto.data?.paradas ?? [])]
-    .filter((p) => p.estado_entrega === "PENDIENTE")
+    .filter((p) => p.estado_entrega === "PENDIENTE" && !pendientesPorPedido.has(p.pedido_id))
     .sort((a, b) => a.secuencia - b.secuencia);
   const proximas = paradasPendientes.slice(0, 5);
   const sinRuta = (ruta.error as { response?: { status?: number } } | null)?.response?.status === 404;

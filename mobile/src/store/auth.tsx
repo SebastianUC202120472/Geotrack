@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { login as loginRequest } from "@/api/auth";
 import { guardarToken, borrarToken, leerToken } from "@/api/tokenStorage";
 import { registrarCierrePorSesionExpirada } from "@/api/client";
+import { limpiar as limpiarCola } from "@/store/colaSync";
 
 interface ContextoAuth {
   token: string | null;
@@ -41,8 +42,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(access_token);
   };
 
-  // Cierra sesión: borra el token y limpia el estado.
+  // Cierra sesión: borra el token y limpia el estado. También vacía la cola de
+  // sincronización (fire-and-forget) para no reenviar acciones de un conductor
+  // bajo el token de otro; no bloqueamos el logout si la limpieza falla.
   const cerrarSesion = async () => {
+    limpiarCola().catch(() => {});
     await borrarToken();
     setToken(null);
   };
