@@ -434,3 +434,13 @@ export const importarTrama = (id, archivo) => {
   formData.append("file", archivo);
   return request(`/almacen/recojos/${id}/trama`, { method: "POST", body: formData });
 };
+
+// CUS-32: rutas de entrega con FALLIDO pendientes de retorno.
+export const listarRutasRetorno = () => request("/almacen/retornos/rutas");
+
+// Detalle del retorno de una ruta (FALLIDO + conteo).
+export const obtenerRetornoRuta = (id) => request(`/almacen/retornos/rutas/${id}`);
+
+// Escanea un paquete devuelto. Salida: { resultado, codigo, mensaje, conteo }.
+export const escanearRetorno = (id, codigo) =>
+  request(`/almacen/retornos/rutas/${id}/escanear`, { method: "POST", body: { codigo } });

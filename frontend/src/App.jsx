@@ -23,6 +23,7 @@ import AuxilioMecanico from "./pages/AuxilioMecanico";
 import Trazabilidad from "./pages/Trazabilidad";
 import Recojos from "./pages/Recojos";
 import IngresoAlmacen from "./pages/IngresoAlmacen";
+import RetornosAlmacen from "./pages/RetornosAlmacen";
 
 // Mapa de rutas del panel de administración.
 // /login va suelto (sin barra lateral). Todo lo demás cuelga del layout del
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="/trazabilidad" element={<Trazabilidad />} />
         <Route path="/recojos" element={<Recojos />} />
         <Route path="/almacen" element={<IngresoAlmacen />} />
+        <Route path="/almacen/retornos" element={<RetornosAlmacen />} />
       </Route>
 
       {/* Cualquier ruta desconocida vuelve al inicio. */}
