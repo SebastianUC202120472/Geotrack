@@ -86,13 +86,18 @@ export const loginAdmin = async (correo, contrasena) => {
   const datos = await respuesta.json();
 
   const payload = leerPayload(datos.access_token);
-  if (payload?.rol !== "admin") {
-    throw new Error("Esta cuenta no tiene acceso al panel de administración.");
+  const ROLES_PANEL = ["admin", "almacen"];
+  if (!ROLES_PANEL.includes(payload?.rol)) {
+    throw new Error("Esta cuenta no tiene acceso al panel.");
   }
 
   guardarToken(datos.access_token);
   return datos;
 };
+
+// Lee el rol del JWT guardado (para que el panel filtre menú/ruteo por rol).
+// Entrada: token (string). Salida: 'admin' | 'almacen' | ... | null.
+export const leerRol = (token) => leerPayload(token)?.rol ?? null;
 
 // Conductores: listar (con ficha + vehículo asignado) y registrar (cuenta + datos).
 export const listarConductores = () => request("/conductores/");

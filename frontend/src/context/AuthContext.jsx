@@ -1,5 +1,5 @@
 import { createContext, useContext, useState } from "react";
-import { getToken, guardarToken, borrarToken } from "../services/api";
+import { getToken, guardarToken, borrarToken, leerRol } from "../services/api";
 
 // Maneja el estado de sesión del admin en toda la app.
 // El token vive en localStorage (a través de los helpers de api.js) y aquí lo
@@ -19,9 +19,11 @@ export function AuthProvider({ children }) {
     setToken(null);
   };
 
+  const rol = token ? leerRol(token) : null;
   const valor = {
     token,
     autenticado: Boolean(token),
+    rol,
     iniciarSesion,
     cerrarSesion,
   };
