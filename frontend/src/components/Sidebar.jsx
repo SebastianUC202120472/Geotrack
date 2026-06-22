@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   Wrench,
   LogOut,
+  PackageCheck,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
@@ -68,6 +69,12 @@ const secciones = [
     titulo: "Consulta",
     items: [
       { icon: Search, label: "Trazabilidad", path: "/trazabilidad" },
+    ],
+  },
+  {
+    titulo: "Almacén",
+    items: [
+      { icon: PackageCheck, label: "Ingreso a Almacén", path: "/almacen" },
     ],
   },
 ];

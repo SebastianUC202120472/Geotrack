@@ -403,3 +403,29 @@ export async function descargarAdjunto(id, nombre) {
   enlace.remove();
   URL.revokeObjectURL(url);
 }
+
+/* ============================================================
+   ALMACÉN — Ingreso por escaneo  (CUS-14)
+============================================================ */
+
+// Recojos del módulo de almacén (RECOGIDO por ingresar + INGRESADO). Filtro opcional.
+export const listarRecojosAlmacen = (estado) =>
+  request(`/almacen/recojos${estado ? `?estado=${encodeURIComponent(estado)}` : ""}`);
+
+// Conciliación detallada de un recojo (trama + desconocidos + conteo).
+export const obtenerConciliacion = (id) => request(`/almacen/recojos/${id}/conciliacion`);
+
+// Escanea un código contra la trama del recojo. Salida: { resultado, codigo, mensaje, conteo }.
+export const escanearPaquete = (id, codigo) =>
+  request(`/almacen/recojos/${id}/escanear`, { method: "POST", body: { codigo } });
+
+// Cierra el ingreso del recojo (pasa a INGRESADO).
+export const cerrarIngreso = (id) =>
+  request(`/almacen/recojos/${id}/cerrar-ingreso`, { method: "POST" });
+
+// Importa la trama (Excel) de un recojo. Reusa el patrón multipart de subirPedidosExcel.
+export const importarTrama = (id, archivo) => {
+  const formData = new FormData();
+  formData.append("file", archivo);
+  return request(`/almacen/recojos/${id}/trama`, { method: "POST", body: formData });
+};
