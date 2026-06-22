@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.api.deps import get_current_almacen
 from app.models.usuario import Usuario
-from app.services import almacen_service
+from app.services import almacen_service, retorno_service
 from app.schemas.almacen import (
     EscaneoRequest,
     EscaneoResponse,
@@ -16,6 +16,9 @@ from app.schemas.almacen import (
     ConciliacionResponse,
     CerrarIngresoResponse,
     RecojoAlmacenItem,
+    RutaRetornoItem,
+    RetornoRutaResponse,
+    EscaneoRetornoResponse,
 )
 
 router = APIRouter()
@@ -50,3 +53,22 @@ def escanear(recojo_id: int, datos: EscaneoRequest, db: Session = Depends(get_db
 def cerrar_ingreso(recojo_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
     """Cierra el ingreso del recojo (pasa a INGRESADO)."""
     return almacen_service.cerrar_ingreso(db, recojo_id, usuario.id)
+
+
+# --- CUS-32: logística inversa (retornos de ruta) ---
+@router.get("/retornos/rutas", response_model=List[RutaRetornoItem])
+def listar_rutas_retorno(db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
+    """Rutas de entrega con paquetes FALLIDO pendientes de retorno."""
+    return retorno_service.listar_rutas(db)
+
+
+@router.get("/retornos/rutas/{ruta_id}", response_model=RetornoRutaResponse)
+def obtener_retorno_ruta(ruta_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
+    """Detalle del retorno de una ruta (sus FALLIDO con estado de retorno)."""
+    return retorno_service.obtener_retorno(db, ruta_id)
+
+
+@router.post("/retornos/rutas/{ruta_id}/escanear", response_model=EscaneoRetornoResponse)
+def escanear_retorno(ruta_id: int, datos: EscaneoRequest, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
+    """Escanea un paquete devuelto y lo marca como retornado."""
+    return retorno_service.escanear(db, ruta_id, datos.codigo, usuario.id)
