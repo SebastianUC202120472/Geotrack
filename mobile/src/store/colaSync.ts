@@ -22,16 +22,28 @@ export interface AccionPendiente {
 }
 
 const CLAVE = "cola_sync_v1";
-const DIR_FOTOS = FileSystem.documentDirectory + "pod_pendientes/";
+// MINOR 5: guard de null por si documentDirectory no está disponible aún.
+const DIR_FOTOS = (FileSystem.documentDirectory ?? "") + "pod_pendientes/";
 
 let cache: AccionPendiente[] | null = null;
 const suscriptores = new Set<() => void>();
+
+// MINOR 1: serializa las escrituras de la cola para evitar la carrera
+// read-modify-write cuando el sincronizador y el conductor operan a la vez.
+let _cadena: Promise<void> = Promise.resolve();
+function _serializar<T>(op: () => Promise<T>): Promise<T> {
+  const resultado = _cadena.then(op);
+  _cadena = resultado.then(() => undefined, () => undefined);
+  return resultado;
+}
 
 // Lee la cola (con caché en memoria para no golpear AsyncStorage en cada render).
 async function _leer(): Promise<AccionPendiente[]> {
   if (cache) return cache;
   const raw = await AsyncStorage.getItem(CLAVE);
-  cache = raw ? (JSON.parse(raw) as AccionPendiente[]) : [];
+  // MINOR 6: si el JSON está corrupto, reiniciamos la cola en vez de propagar.
+  try { cache = raw ? (JSON.parse(raw) as AccionPendiente[]) : []; }
+  catch { cache = []; }
   return cache;
 }
 
@@ -50,28 +62,30 @@ async function _asegurarDir(): Promise<void> {
 
 // Encola una acción. Si trae foto, la copia a disco persistente. Recibe los datos
 // de la acción; devuelve el ítem encolado.
-export async function encolar(params: {
+export function encolar(params: {
   tipo: TipoAccion; pedidoId: number; motivo?: string; descripcion?: string; fotoUri?: string;
 }): Promise<AccionPendiente> {
-  const items = await _leer();
-  const id = `${Date.now()}_${params.pedidoId}`;
-  let fotoUri = params.fotoUri;
-  if (fotoUri) {
-    try {
-      await _asegurarDir();
-      const destino = `${DIR_FOTOS}${id}.jpg`;
-      await FileSystem.copyAsync({ from: fotoUri, to: destino });
-      fotoUri = destino;
-    } catch {
-      // Si la copia falla, conservamos el uri original (mejor que perder la foto).
+  return _serializar(async () => {
+    const items = await _leer();
+    const id = `${Date.now()}_${params.pedidoId}`;
+    let fotoUri = params.fotoUri;
+    if (fotoUri) {
+      try {
+        await _asegurarDir();
+        const destino = `${DIR_FOTOS}${id}.jpg`;
+        await FileSystem.copyAsync({ from: fotoUri, to: destino });
+        fotoUri = destino;
+      } catch {
+        // Si la copia falla, conservamos el uri original (mejor que perder la foto).
+      }
     }
-  }
-  const item: AccionPendiente = {
-    id, tipo: params.tipo, pedidoId: params.pedidoId,
-    motivo: params.motivo, descripcion: params.descripcion, fotoUri, creadoEn: Date.now(),
-  };
-  await _guardar([...items, item]);
-  return item;
+    const item: AccionPendiente = {
+      id, tipo: params.tipo, pedidoId: params.pedidoId,
+      motivo: params.motivo, descripcion: params.descripcion, fotoUri, creadoEn: Date.now(),
+    };
+    await _guardar([...items, item]);
+    return item;
+  });
 }
 
 // Devuelve una copia de las acciones pendientes (orden FIFO de inserción).
@@ -80,20 +94,24 @@ export async function listar(): Promise<AccionPendiente[]> {
 }
 
 // Quita un ítem (y borra su foto persistida, si la tenía bajo nuestra carpeta).
-export async function quitar(id: string): Promise<void> {
-  const items = await _leer();
-  const item = items.find((i) => i.id === id);
-  if (item?.fotoUri && item.fotoUri.startsWith(DIR_FOTOS)) {
-    try { await FileSystem.deleteAsync(item.fotoUri, { idempotent: true }); } catch { /* nada */ }
-  }
-  await _guardar(items.filter((i) => i.id !== id));
+export function quitar(id: string): Promise<void> {
+  return _serializar(async () => {
+    const items = await _leer();
+    const item = items.find((i) => i.id === id);
+    if (item?.fotoUri && item.fotoUri.startsWith(DIR_FOTOS)) {
+      try { await FileSystem.deleteAsync(item.fotoUri, { idempotent: true }); } catch { /* nada */ }
+    }
+    await _guardar(items.filter((i) => i.id !== id));
+  });
 }
 
 // Fusiona cambios en el ítem indicado (por id) y persiste. Sirve para guardar el
 // progreso por sub-paso del sincronizador. Recibe: id (string) y cambios parciales.
-export async function actualizar(id: string, cambios: Partial<AccionPendiente>): Promise<void> {
-  const items = await _leer();
-  await _guardar(items.map((i) => (i.id === id ? { ...i, ...cambios } : i)));
+export function actualizar(id: string, cambios: Partial<AccionPendiente>): Promise<void> {
+  return _serializar(async () => {
+    const items = await _leer();
+    await _guardar(items.map((i) => (i.id === id ? { ...i, ...cambios } : i)));
+  });
 }
 
 // Cuántas acciones hay pendientes.
@@ -103,11 +121,13 @@ export async function contar(): Promise<number> {
 
 // Limpia toda la cola (caché + persistencia + fotos). Se llama al cerrar sesión
 // para que las acciones de un conductor no se reenvíen bajo el token de otro.
-export async function limpiar(): Promise<void> {
-  cache = [];
-  try { await AsyncStorage.removeItem(CLAVE); } catch { /* nada */ }
-  try { await FileSystem.deleteAsync(DIR_FOTOS, { idempotent: true }); } catch { /* nada */ }
-  suscriptores.forEach((cb) => cb());
+export function limpiar(): Promise<void> {
+  return _serializar(async () => {
+    cache = [];
+    try { await AsyncStorage.removeItem(CLAVE); } catch { /* nada */ }
+    try { await FileSystem.deleteAsync(DIR_FOTOS, { idempotent: true }); } catch { /* nada */ }
+    suscriptores.forEach((cb) => cb());
+  });
 }
 
 // Suscribe un callback a los cambios de la cola. Devuelve la función para desuscribir.
