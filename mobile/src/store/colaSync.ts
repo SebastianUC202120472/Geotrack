@@ -14,6 +14,11 @@ export interface AccionPendiente {
   descripcion?: string;
   fotoUri?: string;   // ruta persistida en disco (documentDirectory) si es ENTREGA con foto
   creadoEn: number;
+  // Progreso por sub-paso para que un reintento sea idempotente (CUS-27): no se
+  // re-ejecutan los POST ya hechos (evita evidencia/reporte duplicados).
+  estadoAplicado?: boolean;   // el PATCH de estado ya llegó al servidor
+  evidenciaSubida?: boolean;  // la foto POD (multipart) ya se subió
+  reporteCreado?: boolean;    // el reporte de falla (POST) ya se creó
 }
 
 const CLAVE = "cola_sync_v1";
@@ -84,9 +89,25 @@ export async function quitar(id: string): Promise<void> {
   await _guardar(items.filter((i) => i.id !== id));
 }
 
+// Fusiona cambios en el ítem indicado (por id) y persiste. Sirve para guardar el
+// progreso por sub-paso del sincronizador. Recibe: id (string) y cambios parciales.
+export async function actualizar(id: string, cambios: Partial<AccionPendiente>): Promise<void> {
+  const items = await _leer();
+  await _guardar(items.map((i) => (i.id === id ? { ...i, ...cambios } : i)));
+}
+
 // Cuántas acciones hay pendientes.
 export async function contar(): Promise<number> {
   return (await _leer()).length;
+}
+
+// Limpia toda la cola (caché + persistencia + fotos). Se llama al cerrar sesión
+// para que las acciones de un conductor no se reenvíen bajo el token de otro.
+export async function limpiar(): Promise<void> {
+  cache = [];
+  try { await AsyncStorage.removeItem(CLAVE); } catch { /* nada */ }
+  try { await FileSystem.deleteAsync(DIR_FOTOS, { idempotent: true }); } catch { /* nada */ }
+  suscriptores.forEach((cb) => cb());
 }
 
 // Suscribe un callback a los cambios de la cola. Devuelve la función para desuscribir.

@@ -4,7 +4,7 @@
 // quita (evita reintentos infinitos; marcarEstadoParada es idempotente).
 import axios from "axios";
 import type { QueryClient } from "@tanstack/react-query";
-import { listar, quitar } from "@/store/colaSync";
+import { listar, quitar, actualizar } from "@/store/colaSync";
 import { estaOnline } from "@/hooks/useConexion";
 import { marcarEstadoParada, subirEvidencia, crearReporte } from "@/api/conductor";
 import { claves } from "@/features/ruta/hooks";
@@ -27,23 +27,41 @@ export async function sincronizar(qc: QueryClient): Promise<void> {
     for (const item of pendientes) {
       try {
         if (item.tipo === "ENTREGA") {
-          await marcarEstadoParada(item.pedidoId, "ENTREGADO");
-          if (item.fotoUri) {
+          // Sub-paso 1: marcar ENTREGADO (idempotente en el backend). Solo si no se aplicó.
+          if (!item.estadoAplicado) {
+            await marcarEstadoParada(item.pedidoId, "ENTREGADO");
+            await actualizar(item.id, { estadoAplicado: true });
+            item.estadoAplicado = true;
+          }
+          // Sub-paso 2: subir la foto POD (NO idempotente). Solo si hay foto y no se subió.
+          if (item.fotoUri && !item.evidenciaSubida) {
             try {
               await subirEvidencia(item.pedidoId, item.fotoUri);
+              await actualizar(item.id, { evidenciaSubida: true });
+              item.evidenciaSubida = true;
             } catch (e) {
-              if (esErrorDeRed(e)) throw e;   // sin señal: reintentar luego
+              if (esErrorDeRed(e)) throw e;   // sin señal: reintentar luego (sin re-postear nada hecho)
               // foto faltante / error no de red: la entrega quedó marcada; omitimos la foto
             }
           }
         } else {
-          await marcarEstadoParada(item.pedidoId, "FALLIDO", item.motivo);
-          await crearReporte(item.pedidoId, item.motivo ?? "Sin motivo", item.descripcion);
+          // Sub-paso 1: marcar FALLIDO (idempotente). Solo si no se aplicó.
+          if (!item.estadoAplicado) {
+            await marcarEstadoParada(item.pedidoId, "FALLIDO", item.motivo);
+            await actualizar(item.id, { estadoAplicado: true });
+            item.estadoAplicado = true;
+          }
+          // Sub-paso 2: crear el reporte (NO idempotente). Solo si no se creó.
+          if (!item.reporteCreado) {
+            await crearReporte(item.pedidoId, item.motivo ?? "Sin motivo", item.descripcion);
+            await actualizar(item.id, { reporteCreado: true });
+            item.reporteCreado = true;
+          }
         }
         await quitar(item.id);
         huboCambios = true;
       } catch (e) {
-        if (esErrorDeRed(e)) break;   // sin señal: dejamos el resto para el próximo intento
+        if (esErrorDeRed(e)) break;   // sin señal: conservamos el ítem (con su progreso) para el próximo intento
         await quitar(item.id);        // el servidor respondió (4xx/5xx): no reintentar
         huboCambios = true;
       }
