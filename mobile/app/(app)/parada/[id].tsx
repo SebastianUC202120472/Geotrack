@@ -22,6 +22,7 @@ import { useEntregarConEvidencia, useReportarFalla } from "@/features/entrega/ho
 import { obtenerMotivos } from "@/api/conductor";
 import { mensajeDeError } from "@/api/client";
 import { urlMedia } from "@/api/config";
+import { BannerSync } from "@/components/BannerSync";
 import { useTheme, fontSize, radius, spacing } from "@/theme";
 import type { ParadaManifiesto } from "@/types/api";
 
@@ -74,10 +75,14 @@ export default function ParadaScreen() {
     entregar.mutate(
       { pedidoId, uriFoto: foto },
       {
-        onSuccess: () => {
-          // Muestra el check animado y vuelve atrás tras 900 ms.
-          setExito(true);
-          setTimeout(() => router.back(), 900);
+        onSuccess: (res) => {
+          if (res?.encolado) {
+            Alert.alert("Guardado sin conexión", "La entrega se subirá automáticamente al recuperar internet.");
+            router.back();
+          } else {
+            setExito(true);
+            setTimeout(() => router.back(), 900);
+          }
         },
         onError: (e) => Alert.alert("Error", mensajeDeError(e)),
       }
@@ -89,8 +94,11 @@ export default function ParadaScreen() {
     reportar.mutate(
       { pedidoId, motivo, descripcion: descripcion.trim() || undefined },
       {
-        onSuccess: () => {
-          Alert.alert("Reporte enviado", "El administrador lo verá en sus reportes.");
+        onSuccess: (res) => {
+          Alert.alert(
+            res?.encolado ? "Guardado sin conexión" : "Reporte enviado",
+            res?.encolado ? "El reporte se enviará al recuperar internet." : "El administrador lo verá en sus reportes."
+          );
           router.back();
         },
         onError: (e) => Alert.alert("Error", mensajeDeError(e)),
@@ -122,6 +130,7 @@ export default function ParadaScreen() {
       <Cabecera titulo="Entrega" atras />
       <ScrollView contentContainerStyle={estilos.contenido}>
         <Aparecer style={estilos.grupo}>
+          <BannerSync />
           <Card>
             <View style={estilos.encabezado}>
               <Texto variante="label" color={colors.muted} style={estilos.codigo}>{parada.codigo ?? `Pedido ${parada.pedido_id}`}</Texto>
