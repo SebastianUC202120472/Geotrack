@@ -31,6 +31,7 @@ import Logo from "./ui/Logo";
 const secciones = [
   {
     titulo: "Operación",
+    roles: ["admin"],
     items: [
       { icon: LayoutDashboard, label: "Dashboard", path: "/" },
       { icon: Package, label: "Pedidos", path: "/pedidos" },
@@ -43,6 +44,7 @@ const secciones = [
   },
   {
     titulo: "Flota",
+    roles: ["admin"],
     items: [
       { icon: Truck, label: "Flota de Vehículos", path: "/flota" },
       { icon: Users, label: "Conductores", path: "/conductores" },
@@ -53,6 +55,7 @@ const secciones = [
   },
   {
     titulo: "Administración",
+    roles: ["admin"],
     items: [
       { icon: UserCog, label: "Usuarios", path: "/usuarios" },
       { icon: SlidersHorizontal, label: "Parámetros", path: "/parametros" },
@@ -60,6 +63,7 @@ const secciones = [
   },
   {
     titulo: "Incidencias",
+    roles: ["admin"],
     items: [
       { icon: Wrench, label: "Auxilio Mecánico", path: "/auxilio" },
       { icon: AlertTriangle, label: "Reportes", path: "/reportes" },
@@ -67,12 +71,14 @@ const secciones = [
   },
   {
     titulo: "Consulta",
+    roles: ["admin"],
     items: [
       { icon: Search, label: "Trazabilidad", path: "/trazabilidad" },
     ],
   },
   {
     titulo: "Almacén",
+    roles: ["admin", "almacen"],
     items: [
       { icon: PackageCheck, label: "Ingreso a Almacén", path: "/almacen" },
     ],
@@ -81,7 +87,8 @@ const secciones = [
 
 export default function Sidebar({ onNavigate }) {
   const navigate = useNavigate();
-  const { cerrarSesion } = useAuth();
+  const { cerrarSesion, rol } = useAuth();
+  const visibles = secciones.filter((s) => !s.roles || s.roles.includes(rol));
 
   const [abiertas, setAbiertas] = useState(0);
   // Contador de incidencias abiertas para el aviso (refresco silencioso cada 20 s).
@@ -105,7 +112,7 @@ export default function Sidebar({ onNavigate }) {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
-        {secciones.map((seccion) => (
+        {visibles.map((seccion) => (
           <div key={seccion.titulo}>
             <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               {seccion.titulo}
