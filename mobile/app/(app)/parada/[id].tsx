@@ -19,9 +19,11 @@ import { Texto } from "@/components/Texto";
 import { abrirNavegacion } from "@/services/navegacion";
 import { useRutaActiva, useManifiesto } from "@/features/ruta/hooks";
 import { useEntregarConEvidencia, useReportarFalla } from "@/features/entrega/hooks";
+import { usePendientesPorPedido } from "@/features/sync/hooks";
 import { obtenerMotivos } from "@/api/conductor";
 import { mensajeDeError } from "@/api/client";
 import { urlMedia } from "@/api/config";
+import { BannerSync } from "@/components/BannerSync";
 import { useTheme, fontSize, radius, spacing } from "@/theme";
 import type { ParadaManifiesto } from "@/types/api";
 
@@ -37,6 +39,8 @@ export default function ParadaScreen() {
   const manifiesto = useManifiesto();
   const entregar = useEntregarConEvidencia();
   const reportar = useReportarFalla();
+  // CUS-27: paradas con una acción en la cola offline (aún sin subir al servidor).
+  const pendientesPorPedido = usePendientesPorPedido();
 
   // CUS-06: los motivos vienen del catálogo del backend (con respaldo por defecto).
   const motivosQuery = useQuery({ queryKey: ["motivos"], queryFn: obtenerMotivos, staleTime: 60_000 });
@@ -74,10 +78,14 @@ export default function ParadaScreen() {
     entregar.mutate(
       { pedidoId, uriFoto: foto },
       {
-        onSuccess: () => {
-          // Muestra el check animado y vuelve atrás tras 900 ms.
-          setExito(true);
-          setTimeout(() => router.back(), 900);
+        onSuccess: (res) => {
+          if (res?.encolado) {
+            Alert.alert("Guardado sin conexión", "La entrega se subirá automáticamente al recuperar internet.");
+            router.back();
+          } else {
+            setExito(true);
+            setTimeout(() => router.back(), 900);
+          }
         },
         onError: (e) => Alert.alert("Error", mensajeDeError(e)),
       }
@@ -89,8 +97,11 @@ export default function ParadaScreen() {
     reportar.mutate(
       { pedidoId, motivo, descripcion: descripcion.trim() || undefined },
       {
-        onSuccess: () => {
-          Alert.alert("Reporte enviado", "El administrador lo verá en sus reportes.");
+        onSuccess: (res) => {
+          Alert.alert(
+            res?.encolado ? "Guardado sin conexión" : "Reporte enviado",
+            res?.encolado ? "El reporte se enviará al recuperar internet." : "El administrador lo verá en sus reportes."
+          );
           router.back();
         },
         onError: (e) => Alert.alert("Error", mensajeDeError(e)),
@@ -102,6 +113,10 @@ export default function ParadaScreen() {
   if (!parada) return <Screen conPadding={false}><Cabecera titulo="Entrega" atras /><Vacio titulo="Pedido no encontrado" /></Screen>;
 
   const gestionada = parada.estado_entrega !== "PENDIENTE";
+  // CUS-27: la parada tiene una acción en la cola offline aún sin subir. La
+  // tratamos como gestionada (bloqueamos el formulario) para evitar re-gestionarla
+  // y duplicar la acción cuando el poll del servidor la devuelva como PENDIENTE.
+  const enCola = !gestionada && pendientesPorPedido.has(parada.pedido_id);
   // CUS-30: la ruta está pausada por avería; no se permiten acciones hasta reanudarla.
   const pausada = !!ruta.data?.pausada;
 
@@ -122,6 +137,7 @@ export default function ParadaScreen() {
       <Cabecera titulo="Entrega" atras />
       <ScrollView contentContainerStyle={estilos.contenido}>
         <Aparecer style={estilos.grupo}>
+          <BannerSync />
           <Card>
             <View style={estilos.encabezado}>
               <Texto variante="label" color={colors.muted} style={estilos.codigo}>{parada.codigo ?? `Pedido ${parada.pedido_id}`}</Texto>
@@ -181,6 +197,19 @@ export default function ParadaScreen() {
                   transition={200}
                 />
               )}
+            </Card>
+          ) : enCola ? (
+            /* CUS-27: acción guardada sin conexión, pendiente de subir. Bloquea el
+               formulario para no re-gestionar la parada (evita duplicados). */
+            <Card style={{ backgroundColor: colors.brandSoft }}>
+              <Texto variante="subtitle" color={colors.brand} style={{ textAlign: "center" }}>
+                {pendientesPorPedido.get(parada.pedido_id) === "FALLIDO"
+                  ? "Falla guardada sin conexión."
+                  : "Entrega guardada sin conexión."}
+              </Texto>
+              <Texto variante="caption" color={colors.brand} style={{ textAlign: "center", marginTop: spacing.xs }}>
+                Se subirá automáticamente al recuperar internet.
+              </Texto>
             </Card>
           ) : pausada ? (
             /* CUS-30: ruta pausada — bloquea las acciones de entrega y reporte. */
