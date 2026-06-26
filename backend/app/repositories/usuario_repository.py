@@ -8,7 +8,7 @@ from app.core.codigos import asignar_codigo, prefijo_por_rol
 
 
 def listar_personal(db: Session) -> List[Usuario]:
-    """Lista los usuarios del PANEL (admin/jefe/almacén), no los conductores.
+    """Lista los usuarios del PANEL (admin/almacén), no los conductores.
     Recibe: la sesión. Devuelve la lista ordenada por código."""
     return (
         db.query(Usuario)
