@@ -14,7 +14,6 @@ import { listarUsuarios, crearUsuario, actualizarUsuario, restablecerContrasenaU
 // Roles que se gestionan en el panel (el conductor se administra en su sección).
 const ROLES = [
   { valor: "admin", etiqueta: "Administrador" },
-  { valor: "jefe", etiqueta: "Jefe" },
   { valor: "almacen", etiqueta: "Almacén" },
 ];
 const etiquetaRol = (r) => ROLES.find((x) => x.valor === r)?.etiqueta || r;
@@ -26,7 +25,7 @@ export default function Usuarios() {
   const [cargando, setCargando] = useState(true);
   const [seleccionado, setSeleccionado] = useState(null);
 
-  const [form, setForm] = useState({ correo: "", contrasena: "", rol: "jefe" });
+  const [form, setForm] = useState({ correo: "", contrasena: "", rol: "almacen" });
   const [aviso, setAviso] = useState(null);
   const [guardando, setGuardando] = useState(false);
 
@@ -61,7 +60,7 @@ export default function Usuarios() {
     try {
       const u = await crearUsuario({ correo: form.correo.trim(), contrasena: form.contrasena, rol: form.rol });
       setAviso({ ok: true, texto: `Usuario ${u.correo} creado (${u.codigo || "—"}).` });
-      setForm({ correo: "", contrasena: "", rol: "jefe" });
+      setForm({ correo: "", contrasena: "", rol: "almacen" });
       cargar();
     } catch (err) {
       setAviso({ ok: false, texto: err.message });
@@ -79,7 +78,7 @@ export default function Usuarios() {
 
   return (
     <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
-      <PageHeader titulo="Usuarios del Panel" subtitulo="Crea cuentas de personal y define su rol (administrador, jefe o almacén)." />
+      <PageHeader titulo="Usuarios del Panel" subtitulo="Crea cuentas de personal y define su rol (administrador o almacén)." />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 animate-fade-up">
         <KpiCard label="Total" value={kpis.total} icon={UserCog} tone="brand" />
@@ -91,7 +90,7 @@ export default function Usuarios() {
         <SectionCard title="Crear usuario" className="lg:col-span-1">
           <form onSubmit={registrar} noValidate className="space-y-4">
             <Input label="Correo (acceso al panel)" type="email" required value={form.correo}
-              onChange={(e) => setForm((f) => ({ ...f, correo: e.target.value }))} placeholder="jefe@siol.com" />
+              onChange={(e) => setForm((f) => ({ ...f, correo: e.target.value }))} placeholder="almacen@siol.com" />
             <PasswordInput label="Contraseña" required value={form.contrasena}
               onChange={(e) => setForm((f) => ({ ...f, contrasena: e.target.value }))}
               placeholder="Escribe la contraseña" autoComplete="new-password"

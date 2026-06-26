@@ -11,6 +11,7 @@ import { Cargando, Vacio } from "@/components/Estados";
 import { Aparecer } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
 import { obtenerMisReportes } from "@/api/conductor";
+import { claves } from "@/features/ruta/hooks";
 import { useTheme, spacing, radius } from "@/theme";
 import type { Reporte } from "@/types/api";
 
@@ -24,7 +25,7 @@ function fechaLegible(iso?: string | null): string {
 export default function ReporteDetalleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors } = useTheme();
-  const reportes = useQuery({ queryKey: ["mis-reportes"], queryFn: obtenerMisReportes, refetchInterval: 10_000 });
+  const reportes = useQuery({ queryKey: claves.misReportes, queryFn: obtenerMisReportes, refetchInterval: 10_000 });
   const r = reportes.data?.find((x: Reporte) => String(x.id) === String(id));
 
   if (reportes.isLoading && !r) {

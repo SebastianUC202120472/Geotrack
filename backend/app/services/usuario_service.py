@@ -62,7 +62,7 @@ def solicitar_restablecimiento(db: Session, correo: str) -> dict:
     return {"mensaje": MENSAJE_SOLICITUD}
 
 
-# --- CUS-03: gestión de usuarios del personal (admin/jefe/almacén) ---
+# --- CUS-03: gestión de usuarios del personal (admin/almacén) ---
 def _personal_o_404(db: Session, usuario_id: int) -> Usuario:
     """Devuelve un usuario del PANEL (no conductor) o lanza 404. Los conductores se
     gestionan en su propia sección."""
@@ -73,12 +73,12 @@ def _personal_o_404(db: Session, usuario_id: int) -> Usuario:
 
 
 def listar_personal(db: Session):
-    """CUS-03: lista las cuentas del panel (admin/jefe/almacén)."""
+    """CUS-03: lista las cuentas del panel (admin/almacén)."""
     return usuario_repository.listar_personal(db)
 
 
 def crear_personal(db: Session, datos: PersonalCreate) -> Usuario:
-    """CUS-03: crea una cuenta de personal (rol admin/jefe/almacén) con su clave hasheada."""
+    """CUS-03: crea una cuenta de personal (rol admin/almacén) con su clave hasheada."""
     if usuario_repository.obtener_por_correo(db, datos.correo):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El correo ya está registrado")
     return usuario_repository.crear_usuario(
