@@ -12,6 +12,7 @@ import { Cargando, Vacio } from "@/components/Estados";
 import { ItemLista } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
 import { obtenerMisReportes } from "@/api/conductor";
+import { claves } from "@/features/ruta/hooks";
 import { useTheme, spacing, radius } from "@/theme";
 import type { Reporte } from "@/types/api";
 
@@ -19,10 +20,10 @@ export default function ReportesScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const qc = useQueryClient();
-  const reportes = useQuery({ queryKey: ["mis-reportes"], queryFn: obtenerMisReportes, refetchInterval: 10_000, refetchOnMount: "always" });
+  const reportes = useQuery({ queryKey: claves.misReportes, queryFn: obtenerMisReportes, refetchInterval: 10_000, refetchOnMount: "always" });
 
   // Al enfocar la pestaña, refresca la lista de reportes.
-  useFocusEffect(useCallback(() => { qc.invalidateQueries({ queryKey: ["mis-reportes"] }); }, [qc]));
+  useFocusEffect(useCallback(() => { qc.invalidateQueries({ queryKey: claves.misReportes }); }, [qc]));
 
   if (reportes.isLoading) {
     return (
