@@ -133,7 +133,7 @@ export const eliminarCliente = (id) =>
   request(`/clientes/${id}`, { method: "DELETE" });
 
 /* ============================================================
-   USUARIOS DEL PANEL  (CUS-03 — admin/jefe/almacén)
+   USUARIOS DEL PANEL  (CUS-03 — admin/almacén)
 ============================================================ */
 
 export const listarUsuarios = () => request("/usuarios/");

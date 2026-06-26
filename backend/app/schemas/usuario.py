@@ -10,9 +10,8 @@ from app.schemas.conductor import validar_fuerza_contrasena
 class RolUsuario(str, Enum):
     """Roles válidos del sistema. Pydantic RECHAZA (422) cualquier otro valor,
     evitando que se cuelen roles inventados (seguridad / mínimo privilegio).
-    ADMIN y JEFE operan el panel; ALMACÉN es personal de almacén; CONDUCTOR usa la app."""
+    ADMIN opera el panel; ALMACÉN es personal de almacén; CONDUCTOR usa la app."""
     ADMIN = "admin"
-    JEFE = "jefe"
     ALMACEN = "almacen"
     CONDUCTOR = "conductor"
 
@@ -21,7 +20,7 @@ class UsuarioCreate(BaseModel):
     """Molde de ENTRADA: lo que el cliente envía para crear un usuario."""
     correo: EmailStr        # EmailStr valida que tenga formato de correo válido
     contrasena: str
-    rol: RolUsuario         # admin / jefe / almacen / conductor (ver enum RolUsuario)
+    rol: RolUsuario         # admin / almacen / conductor (ver enum RolUsuario)
 
 
 class UsuarioResponse(BaseModel):
@@ -47,7 +46,7 @@ class SolicitudRestablecimientoRequest(BaseModel):
     correo: EmailStr
 
 
-# --- CUS-03: gestión de usuarios del personal (admin/jefe/almacén) ---
+# --- CUS-03: gestión de usuarios del personal (admin/almacén) ---
 class PersonalCreate(BaseModel):
     """ENTRADA (CUS-03): el admin crea una cuenta de personal con su rol."""
     correo: EmailStr
