@@ -94,13 +94,16 @@ export default function Sidebar({ onNavigate }) {
 
   const [abiertas, setAbiertas] = useState(0);
   // Contador de incidencias abiertas para el aviso (refresco silencioso cada 20 s).
+  // Solo el admin: el endpoint es exclusivo de admin y el chip vive en su sección,
+  // así que para otros roles (almacén) ni siquiera lo consultamos.
   useEffect(() => {
+    if (rol !== "admin") return;
     let activo = true;
     const traer = () => contadorIncidencias().then((d) => activo && setAbiertas(d.abiertas)).catch(() => {});
     traer();
     const id = setInterval(traer, 20000);
     return () => { activo = false; clearInterval(id); };
-  }, []);
+  }, [rol]);
 
   const salir = () => {
     cerrarSesion();
