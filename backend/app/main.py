@@ -31,6 +31,7 @@ from app.api.parametros import router as parametros_router    # CUS-06: catálog
 from app.api.incidencias import router as incidencias_router    # CUS-30: auxilio mecánico
 from app.api.recojos import router as recojos_router            # Tier 3: recojos inbound
 from app.api.almacen import router as almacen_router              # Tier 3: ingreso a almacén (CUS-14)
+from app.api.notificaciones import router as notificaciones_router  # Campana de notificaciones del panel
 
 
 async def tarea_limpieza_usuarios():
@@ -139,6 +140,7 @@ app.include_router(parametros_router, prefix="/api/parametros", tags=["Parámetr
 app.include_router(incidencias_router, prefix="/api/incidencias", tags=["Incidencias"])
 app.include_router(recojos_router, prefix="/api/recojos", tags=["Recojos Inbound"])
 app.include_router(almacen_router, prefix="/api/almacen", tags=["Almacén (Ingreso)"])
+app.include_router(notificaciones_router, prefix="/api/notificaciones", tags=["Notificaciones"])
 
 
 @app.get("/")
