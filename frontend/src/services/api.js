@@ -450,12 +450,6 @@ export const escanearPaquete = (id, codigo) =>
 export const cerrarIngreso = (id) =>
   request(`/almacen/recojos/${id}/cerrar-ingreso`, { method: "POST" });
 
-// Importa la trama (Excel) de un recojo. Reusa el patrón multipart de subirPedidosExcel.
-export const importarTrama = (id, archivo) => {
-  const formData = new FormData();
-  formData.append("file", archivo);
-  return request(`/almacen/recojos/${id}/trama`, { method: "POST", body: formData });
-};
 
 // CUS-32: rutas de entrega con FALLIDO pendientes de retorno.
 export const listarRutasRetorno = () => request("/almacen/retornos/rutas");
