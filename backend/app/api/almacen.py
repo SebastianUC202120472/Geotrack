@@ -38,7 +38,7 @@ def obtener_conciliacion(recojo_id: int, db: Session = Depends(get_db), usuario:
 
 @router.post("/recojos/{recojo_id}/escanear", response_model=EscaneoResponse)
 def escanear(recojo_id: int, datos: EscaneoRequest, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
-    """Escanea un paquete y lo cruza contra la trama del recojo."""
+    """Escanea un paquete y lo cruza contra los pedidos del recojo."""
     return almacen_service.escanear(db, recojo_id, datos.codigo, usuario.id)
 
 

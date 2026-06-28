@@ -5,14 +5,14 @@ from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.api.deps import get_current_admin
+from app.api.deps import get_current_admin, get_current_almacen
 from app.services import conductor_service
 from app.schemas.conductor import ConductorCreate, ConductorResponse, ConductorUpdate, ConductorResetContrasena
 
 router = APIRouter()
 
 
-@router.get("/", response_model=List[ConductorResponse], dependencies=[Depends(get_current_admin)])
+@router.get("/", response_model=List[ConductorResponse], dependencies=[Depends(get_current_almacen)])
 def listar_conductores(db: Session = Depends(get_db)):
     """Lista los conductores con sus datos y el vehículo que tienen asignado."""
     return conductor_service.listar(db)
