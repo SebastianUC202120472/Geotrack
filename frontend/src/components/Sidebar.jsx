@@ -3,27 +3,20 @@ import {
   Package,
   Layers3,
   Route as RouteIcon,
-  MapPinned,
   Mail,
   Truck,
   Users,
   Building2,
   UserCog,
   SlidersHorizontal,
-  Radar,
   MapPin,
   Search,
-  AlertTriangle,
-  Wrench,
   LogOut,
   PackageCheck,
   Undo2,
-  ClipboardList,
 } from "lucide-react";
-import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { contadorIncidencias } from "../services/api";
 import Logo from "./ui/Logo";
 import CampanaNotificaciones from "./CampanaNotificaciones";
 
@@ -38,10 +31,8 @@ const secciones = [
       { icon: LayoutDashboard, label: "Dashboard", path: "/" },
       { icon: Package, label: "Pedidos", path: "/pedidos" },
       { icon: Layers3, label: "Agrupación por Zonas", path: "/agrupacion" },
-      { icon: MapPinned, label: "Resolver Direcciones", path: "/direcciones" },
       { icon: RouteIcon, label: "Asignación de Rutas", path: "/asignacion-bloque" },
       { icon: Mail, label: "Bandeja de Solicitudes", path: "/bandeja" },
-      { icon: ClipboardList, label: "Solicitudes", path: "/solicitudes" },
     ],
   },
   {
@@ -51,7 +42,6 @@ const secciones = [
       { icon: Truck, label: "Flota de Vehículos", path: "/flota" },
       { icon: Users, label: "Conductores", path: "/conductores" },
       { icon: Building2, label: "Clientes", path: "/clientes" },
-      { icon: Radar, label: "Seguimiento", path: "/seguimiento" },
       { icon: MapPin, label: "Seguimiento de Conductores", path: "/seguimiento-conductores" },
     ],
   },
@@ -61,14 +51,6 @@ const secciones = [
     items: [
       { icon: UserCog, label: "Usuarios", path: "/usuarios" },
       { icon: SlidersHorizontal, label: "Parámetros", path: "/parametros" },
-    ],
-  },
-  {
-    titulo: "Incidencias",
-    roles: ["admin"],
-    items: [
-      { icon: Wrench, label: "Auxilio Mecánico", path: "/auxilio" },
-      { icon: AlertTriangle, label: "Reportes", path: "/reportes" },
     ],
   },
   {
@@ -93,19 +75,6 @@ export default function Sidebar({ onNavigate }) {
   const navigate = useNavigate();
   const { cerrarSesion, rol } = useAuth();
   const visibles = secciones.filter((s) => !s.roles || s.roles.includes(rol));
-
-  const [abiertas, setAbiertas] = useState(0);
-  // Contador de incidencias abiertas para el aviso (refresco silencioso cada 20 s).
-  // Solo el admin: el endpoint es exclusivo de admin y el chip vive en su sección,
-  // así que para otros roles (almacén) ni siquiera lo consultamos.
-  useEffect(() => {
-    if (rol !== "admin") return;
-    let activo = true;
-    const traer = () => contadorIncidencias().then((d) => activo && setAbiertas(d.abiertas)).catch(() => {});
-    traer();
-    const id = setInterval(traer, 20000);
-    return () => { activo = false; clearInterval(id); };
-  }, [rol]);
 
   const salir = () => {
     cerrarSesion();
@@ -147,10 +116,6 @@ export default function Sidebar({ onNavigate }) {
                 >
                   <Icon size={18} />
                   <span>{label}</span>
-                  {/* Chip rojo cuando hay incidencias abiertas sin atender */}
-                  {label === "Auxilio Mecánico" && abiertas > 0 && (
-                    <span className="ml-auto rounded-full bg-danger px-2 py-0.5 text-[11px] font-bold text-white">{abiertas}</span>
-                  )}
                 </NavLink>
               ))}
             </div>
