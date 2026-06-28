@@ -25,6 +25,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { contadorIncidencias } from "../services/api";
 import Logo from "./ui/Logo";
+import CampanaNotificaciones from "./CampanaNotificaciones";
 
 // Menú agrupado por bloques de trabajo. Cada entrada apunta a una pantalla que
 // consume un endpoint real del admin. (Las funciones de la app móvil del
@@ -113,8 +114,14 @@ export default function Sidebar({ onNavigate }) {
 
   return (
     <aside className="flex h-full w-72 flex-col border-r border-[#222b38] bg-[#1f2733] text-slate-300">
-      <div className="px-6 py-5 border-b border-[#2b3543]">
+      {/* Header: logo + campana de notificaciones (solo admin, con espacio flex) */}
+      <div className="flex items-center gap-2 px-6 py-5 border-b border-[#2b3543]">
         <Logo light />
+        {rol === "admin" && (
+          <div className="ml-auto">
+            <CampanaNotificaciones />
+          </div>
+        )}
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
