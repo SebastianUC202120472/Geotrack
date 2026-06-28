@@ -419,6 +419,19 @@ export async function descargarAdjunto(id, nombre) {
 }
 
 /* ============================================================
+   ALMACÉN — Solicitudes y armado de ruta de recojo
+============================================================ */
+
+// Lista las solicitudes de recojo del módulo almacén. Filtro por estado (default SOLICITADO).
+export const listarSolicitudesAlmacen = (estado = "SOLICITADO") =>
+  request(`/almacen/solicitudes?estado=${encodeURIComponent(estado)}`);
+
+// Asigna una ruta de recojo a partir de solicitudes seleccionadas.
+// Entrada: { recojo_ids, conductor_id (usuario_id), vehiculo_placa, nombre_ruta? }.
+export const asignarRutaRecojoAlmacen = (datos) =>
+  request("/almacen/solicitudes/asignar-ruta", { method: "POST", body: datos });
+
+/* ============================================================
    ALMACÉN — Ingreso por escaneo  (CUS-14)
 ============================================================ */
 

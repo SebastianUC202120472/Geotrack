@@ -5,7 +5,6 @@ import {
   Route as RouteIcon,
   MapPinned,
   Mail,
-  Inbox,
   Truck,
   Users,
   Building2,
@@ -19,6 +18,7 @@ import {
   LogOut,
   PackageCheck,
   Undo2,
+  ClipboardList,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
@@ -40,7 +40,7 @@ const secciones = [
       { icon: MapPinned, label: "Resolver Direcciones", path: "/direcciones" },
       { icon: RouteIcon, label: "Asignación de Rutas", path: "/asignacion-bloque" },
       { icon: Mail, label: "Bandeja de Solicitudes", path: "/bandeja" },
-      { icon: Inbox, label: "Recojos", path: "/recojos" },
+      { icon: ClipboardList, label: "Solicitudes", path: "/solicitudes" },
     ],
   },
   {
@@ -79,8 +79,9 @@ const secciones = [
   },
   {
     titulo: "Almacén",
-    roles: ["admin", "almacen"],
+    roles: ["almacen"],
     items: [
+      { icon: RouteIcon, label: "Armar ruta de recojo", path: "/almacen/recojos" },
       { icon: PackageCheck, label: "Ingreso a Almacén", path: "/almacen" },
       { icon: Undo2, label: "Retornos de Ruta", path: "/almacen/retornos" },
     ],
