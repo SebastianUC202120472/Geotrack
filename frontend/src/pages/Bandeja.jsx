@@ -156,16 +156,8 @@ export default function Bandeja() {
           title={detalle ? detalle.asunto : "Conversación"}
           action={detalle && (
             <div className="flex items-center gap-2">
-              {/* Atajo: abre Recojos precargando el cliente de esta conversación (CUS-10) */}
-              <Button variant="secondary" size="sm" icon={Inbox} onClick={() => navigate("/recojos", {
-                state: {
-                  crearDesdeBandeja: {
-                    conversacion_id: detalle.id,
-                    email: detalle.contraparte_email,
-                    nombre: detalle.contraparte_nombre,
-                  },
-                },
-              })}>
+              {/* Atajo: abre Solicitudes desde esta conversación (CUS-10) */}
+              <Button variant="secondary" size="sm" icon={Inbox} onClick={() => navigate("/solicitudes")}>
                 Crear recojo
               </Button>
               <Button variant="ghost" size="sm" onClick={alternarEstado}>

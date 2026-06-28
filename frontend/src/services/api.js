@@ -17,7 +17,7 @@ async function request(ruta, { method = "GET", body, headers = {}, auth = true }
     if (token) opciones.headers.Authorization = `Bearer ${token}`;
   }
 
-  // Si el body es FormData (subir Excel) dejamos que el navegador ponga el
+  // Si el body es FormData (multipart) dejamos que el navegador ponga el
   // Content-Type con su boundary; si es objeto, lo mandamos como JSON.
   if (body instanceof FormData) {
     opciones.body = body;
@@ -184,12 +184,6 @@ export const responderReporte = (id, datos) =>
 /* ============================================================
    PEDIDOS  (Inbound — CUS-13 / CUS-15 / CUS-16)
 ============================================================ */
-
-export const subirPedidosExcel = (archivo) => {
-  const formData = new FormData();
-  formData.append("file", archivo);
-  return request("/pedidos/upload", { method: "POST", body: formData });
-};
 
 // El backend limita a 100 por defecto; pedimos un tope alto para poder filtrar
 // y paginar del lado del cliente (suficiente para los volúmenes del MVP).
@@ -442,14 +436,13 @@ export const listarRecojosAlmacen = (estado) =>
 // Conciliación detallada de un recojo (trama + desconocidos + conteo).
 export const obtenerConciliacion = (id) => request(`/almacen/recojos/${id}/conciliacion`);
 
-// Escanea un código contra la trama del recojo. Salida: { resultado, codigo, mensaje, conteo }.
+// Escanea un código contra los pedidos del recojo. Salida: { resultado, codigo, mensaje, conteo }.
 export const escanearPaquete = (id, codigo) =>
   request(`/almacen/recojos/${id}/escanear`, { method: "POST", body: { codigo } });
 
 // Cierra el ingreso del recojo (pasa a INGRESADO).
 export const cerrarIngreso = (id) =>
   request(`/almacen/recojos/${id}/cerrar-ingreso`, { method: "POST" });
-
 
 // CUS-32: rutas de entrega con FALLIDO pendientes de retorno.
 export const listarRutasRetorno = () => request("/almacen/retornos/rutas");

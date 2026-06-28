@@ -1,6 +1,6 @@
 # app/api/pedidos.py
 # Expone las URLs del módulo Inbound (gestión de pedidos del admin).
-from fastapi import APIRouter, UploadFile, File, Depends
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -9,7 +9,6 @@ from app.models.usuario import Usuario
 from app.services import pedido_service
 from app.schemas.pedido import (
     PedidoResponse,
-    CargaPedidosResponse,
     GeocodificacionResponse,
     ZonasResponse,
     UbicacionManualRequest,
@@ -18,17 +17,6 @@ from app.schemas.pedido import (
 from typing import List
 
 router = APIRouter()
-
-
-@router.post("/upload", response_model=CargaPedidosResponse)
-async def upload_pedidos(
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    admin: Usuario = Depends(get_current_admin),
-):
-    """Carga masiva de pedidos desde un Excel (CUS-13)."""
-    contenido = await file.read()  # leemos el archivo subido (bytes)
-    return pedido_service.cargar_pedidos_excel(db, contenido, file.filename, usuario_id=admin.id)
 
 
 @router.get("/", response_model=List[PedidoResponse], dependencies=[Depends(get_current_admin)])
