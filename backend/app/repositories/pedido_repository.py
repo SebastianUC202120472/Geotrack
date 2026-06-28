@@ -29,8 +29,17 @@ def listar(db: Session, skip: int = 0, limit: int = 100) -> List[Pedido]:
 
 
 def obtener_sin_coordenadas(db: Session) -> List[Pedido]:
-    """Pedidos que aún no tienen latitud (faltan por geocodificar)."""
-    return db.query(Pedido).filter(Pedido.latitud == None).all()  # noqa: E711 (SQLAlchemy exige '== None')
+    """Pedidos sin latitud de la vía de entrega (PENDIENTE o GEOCODIFICACION_FALLIDA) que
+    faltan por geocodificar. Excluye POR_RECOGER: esos se geocodifican al aceptar la
+    solicitud de recojo y se reintentan al validar en almacén, no en el lote de entrega."""
+    return (
+        db.query(Pedido)
+        .filter(
+            Pedido.latitud == None,  # noqa: E711 (SQLAlchemy exige '== None')
+            Pedido.estado.in_(("PENDIENTE", "GEOCODIFICACION_FALLIDA")),
+        )
+        .all()
+    )
 
 
 def obtener_por_id(db: Session, pedido_id: int) -> Optional[Pedido]:
@@ -49,6 +58,19 @@ def listar_geocodificacion_fallida(db: Session) -> List[Pedido]:
     )
 
 
+def listar_sin_ubicacion_resoluble(db: Session) -> List[Pedido]:
+    """Pedidos sin coordenadas en estados que el admin puede resolver desde el mapa:
+    PENDIENTE, POR_RECOGER o GEOCODIFICACION_FALLIDA. Incluye los de recojo para que
+    el admin pueda ubicarlos antes de validarlos. Devuelve lista ordenada por código."""
+    estados_resolubles = ("PENDIENTE", "POR_RECOGER", "GEOCODIFICACION_FALLIDA")
+    return (
+        db.query(Pedido)
+        .filter(Pedido.latitud == None, Pedido.estado.in_(estados_resolubles))  # noqa: E711
+        .order_by(Pedido.codigo.asc())
+        .all()
+    )
+
+
 def obtener_pendientes_por_distrito(db: Session, distrito: str) -> List[Pedido]:
     """Pedidos PENDIENTES de un distrito (base para armar una ruta, CUS-18)."""
     return (
@@ -59,10 +81,12 @@ def obtener_pendientes_por_distrito(db: Session, distrito: str) -> List[Pedido]:
 
 
 def agrupar_por_zona(db: Session):
-    """Cuenta cuántos pedidos geocodificados hay por distrito (CUS-16)."""
+    """Cuenta pedidos entregables (PENDIENTE + geocodificados) por distrito (CUS-16).
+    Solo incluye PENDIENTE para que los POR_RECOGER no aparezcan en el despacho de
+    entrega antes de ser validados en almacén."""
     return (
         db.query(Pedido.distrito, func.count(Pedido.id).label("total_pedidos"))
-        .filter(Pedido.latitud != None)  # noqa: E711
+        .filter(Pedido.latitud != None, Pedido.estado == "PENDIENTE")  # noqa: E711
         .group_by(Pedido.distrito)
         .all()
     )

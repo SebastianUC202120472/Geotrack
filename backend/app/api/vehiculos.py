@@ -5,14 +5,14 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.api.deps import get_current_admin
+from app.api.deps import get_current_admin, get_current_almacen
 from app.services import vehiculo_service
 from app.schemas.vehiculo import VehiculoCreate, VehiculoResponse, VehiculoUpdate
 
 router = APIRouter()
 
 
-@router.get("/", response_model=List[VehiculoResponse], dependencies=[Depends(get_current_admin)])
+@router.get("/", response_model=List[VehiculoResponse], dependencies=[Depends(get_current_almacen)])
 def listar_vehiculos(db: Session = Depends(get_db)):
     """Lista los vehículos de la flota."""
     return vehiculo_service.listar_vehiculos(db)

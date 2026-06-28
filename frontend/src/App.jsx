@@ -5,7 +5,6 @@ import ProtectedRoute from "./components/ProtectedRoute";
 
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import ImportarPedidos from "./pages/ImportarPedidos";
 import Pedidos from "./pages/Pedidos";
 import AgrupacionZonas from "./pages/AgrupacionZonas";
 import AsignacionBloque from "./pages/AsignacionBloque";
@@ -21,9 +20,10 @@ import SeguimientoConductores from "./pages/SeguimientoConductores";
 import Reportes from "./pages/Reportes";
 import AuxilioMecanico from "./pages/AuxilioMecanico";
 import Trazabilidad from "./pages/Trazabilidad";
-import Recojos from "./pages/Recojos";
 import IngresoAlmacen from "./pages/IngresoAlmacen";
 import RetornosAlmacen from "./pages/RetornosAlmacen";
+import ArmarRutaRecojo from "./pages/ArmarRutaRecojo";
+import Solicitudes from "./pages/Solicitudes";
 
 // Mapa de rutas del panel de administración.
 // /login va suelto (sin barra lateral). Todo lo demás cuelga del layout del
@@ -41,7 +41,6 @@ export default function App() {
         }
       >
         <Route path="/" element={<Dashboard />} />
-        <Route path="/importar" element={<ImportarPedidos />} />
         <Route path="/pedidos" element={<Pedidos />} />
         <Route path="/agrupacion" element={<AgrupacionZonas />} />
         <Route path="/asignacion-bloque" element={<AsignacionBloque />} />
@@ -57,9 +56,10 @@ export default function App() {
         <Route path="/reportes" element={<Reportes />} />
         <Route path="/auxilio" element={<AuxilioMecanico />} />
         <Route path="/trazabilidad" element={<Trazabilidad />} />
-        <Route path="/recojos" element={<Recojos />} />
         <Route path="/almacen" element={<IngresoAlmacen />} />
         <Route path="/almacen/retornos" element={<RetornosAlmacen />} />
+        <Route path="/almacen/recojos" element={<ArmarRutaRecojo />} />
+        <Route path="/solicitudes" element={<Solicitudes />} />
       </Route>
 
       {/* Cualquier ruta desconocida vuelve al inicio. */}

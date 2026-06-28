@@ -4,10 +4,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend, LabelList,
 } from "recharts";
-import { Package, Truck, CircleCheck, Flag, MapPin, Upload } from "lucide-react";
+import { Package, Truck, CircleCheck, Flag, MapPin } from "lucide-react";
 import StatCard from "../components/ui/StatCard";
 import Card from "../components/ui/Card";
-import Button from "../components/ui/Button";
 import { EstadoBadge } from "../components/ui/Badge";
 import EstadoSistema from "../components/EstadoSistema";
 import { SkeletonStat } from "../components/ui/Skeleton";
@@ -121,9 +120,6 @@ export default function Dashboard() {
               Actualizando <span className="updating-bar h-2 w-10 rounded-full" />
             </span>
           )}
-          <Button size="sm" icon={Upload} onClick={() => navigate("/importar")}>
-            Importar
-          </Button>
         </div>
       </div>
 

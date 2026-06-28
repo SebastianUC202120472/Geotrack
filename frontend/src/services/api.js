@@ -17,7 +17,7 @@ async function request(ruta, { method = "GET", body, headers = {}, auth = true }
     if (token) opciones.headers.Authorization = `Bearer ${token}`;
   }
 
-  // Si el body es FormData (subir Excel) dejamos que el navegador ponga el
+  // Si el body es FormData (multipart) dejamos que el navegador ponga el
   // Content-Type con su boundary; si es objeto, lo mandamos como JSON.
   if (body instanceof FormData) {
     opciones.body = body;
@@ -185,12 +185,6 @@ export const responderReporte = (id, datos) =>
    PEDIDOS  (Inbound — CUS-13 / CUS-15 / CUS-16)
 ============================================================ */
 
-export const subirPedidosExcel = (archivo) => {
-  const formData = new FormData();
-  formData.append("file", archivo);
-  return request("/pedidos/upload", { method: "POST", body: formData });
-};
-
 // El backend limita a 100 por defecto; pedimos un tope alto para poder filtrar
 // y paginar del lado del cliente (suficiente para los volúmenes del MVP).
 export const listarPedidos = (limit = 1000) => request(`/pedidos/?limit=${limit}`);
@@ -354,24 +348,16 @@ export const cancelarPedido = (id) => request(`/pedidos/${id}/cancelar`, { metho
    RECOJOS INBOUND  (CUS-10 / CUS-11)
 ============================================================ */
 
-// Lista las solicitudes de recojo (filtro opcional por estado). Salida: array.
-export const listarRecojos = (estado) =>
-  request(`/recojos/${estado ? `?estado=${encodeURIComponent(estado)}` : ""}`);
-
-// Detalle de una solicitud de recojo. Entrada: id.
-export const obtenerRecojo = (id) => request(`/recojos/${id}`);
-
-// CUS-10: crea una solicitud. Entrada: { cliente_id, direccion_origen, volumen_estimado_m3?, contacto_origen?, referencia?, conversacion_id? }.
-export const crearRecojo = (datos) =>
-  request("/recojos/", { method: "POST", body: datos });
-
-// CUS-10: edita una solicitud (solo mientras está SOLICITADO). Entrada: id y campos.
-export const actualizarRecojo = (id, datos) =>
-  request(`/recojos/${id}`, { method: "PATCH", body: datos });
-
-// CUS-11: crea una ruta de recojo. Entrada: { recojo_ids, conductor_id, vehiculo_placa, nombre_ruta? }.
-export const asignarRutaRecojo = (datos) =>
-  request("/recojos/asignar-ruta", { method: "POST", body: datos });
+// Acepta una solicitud de recojo: sube el Excel del cliente y crea los pedidos en POR_RECOGER.
+// Entrada: clienteId (number), archivo (File), extras {referencia?, contacto_origen?}.
+export const aceptarSolicitud = (clienteId, archivo, extras = {}) => {
+  const fd = new FormData();
+  fd.append("cliente_id", clienteId);
+  if (extras.referencia) fd.append("referencia", extras.referencia);
+  if (extras.contacto_origen) fd.append("contacto_origen", extras.contacto_origen);
+  fd.append("file", archivo);
+  return request("/recojos/aceptar", { method: "POST", body: fd });
+};
 
 /* ============================================================
    INCIDENCIAS — Auxilio mecánico (CUS-30)
@@ -408,6 +394,19 @@ export async function descargarAdjunto(id, nombre) {
 }
 
 /* ============================================================
+   ALMACÉN — Solicitudes y armado de ruta de recojo
+============================================================ */
+
+// Lista las solicitudes de recojo del módulo almacén. Filtro por estado (default SOLICITADO).
+export const listarSolicitudesAlmacen = (estado = "SOLICITADO") =>
+  request(`/almacen/solicitudes?estado=${encodeURIComponent(estado)}`);
+
+// Asigna una ruta de recojo a partir de solicitudes seleccionadas.
+// Entrada: { recojo_ids, conductor_id (usuario_id), vehiculo_placa, nombre_ruta? }.
+export const asignarRutaRecojoAlmacen = (datos) =>
+  request("/almacen/solicitudes/asignar-ruta", { method: "POST", body: datos });
+
+/* ============================================================
    ALMACÉN — Ingreso por escaneo  (CUS-14)
 ============================================================ */
 
@@ -418,20 +417,13 @@ export const listarRecojosAlmacen = (estado) =>
 // Conciliación detallada de un recojo (trama + desconocidos + conteo).
 export const obtenerConciliacion = (id) => request(`/almacen/recojos/${id}/conciliacion`);
 
-// Escanea un código contra la trama del recojo. Salida: { resultado, codigo, mensaje, conteo }.
+// Escanea un código contra los pedidos del recojo. Salida: { resultado, codigo, mensaje, conteo }.
 export const escanearPaquete = (id, codigo) =>
   request(`/almacen/recojos/${id}/escanear`, { method: "POST", body: { codigo } });
 
 // Cierra el ingreso del recojo (pasa a INGRESADO).
 export const cerrarIngreso = (id) =>
   request(`/almacen/recojos/${id}/cerrar-ingreso`, { method: "POST" });
-
-// Importa la trama (Excel) de un recojo. Reusa el patrón multipart de subirPedidosExcel.
-export const importarTrama = (id, archivo) => {
-  const formData = new FormData();
-  formData.append("file", archivo);
-  return request(`/almacen/recojos/${id}/trama`, { method: "POST", body: formData });
-};
 
 // CUS-32: rutas de entrega con FALLIDO pendientes de retorno.
 export const listarRutasRetorno = () => request("/almacen/retornos/rutas");
