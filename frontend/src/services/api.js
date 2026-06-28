@@ -373,6 +373,17 @@ export const actualizarRecojo = (id, datos) =>
 export const asignarRutaRecojo = (datos) =>
   request("/recojos/asignar-ruta", { method: "POST", body: datos });
 
+// Acepta una solicitud de recojo: sube el Excel del cliente y crea los pedidos en POR_RECOGER.
+// Entrada: clienteId (number), archivo (File), extras {referencia?, contacto_origen?}.
+export const aceptarSolicitud = (clienteId, archivo, extras = {}) => {
+  const fd = new FormData();
+  fd.append("cliente_id", clienteId);
+  if (extras.referencia) fd.append("referencia", extras.referencia);
+  if (extras.contacto_origen) fd.append("contacto_origen", extras.contacto_origen);
+  fd.append("file", archivo);
+  return request("/recojos/aceptar", { method: "POST", body: fd });
+};
+
 /* ============================================================
    INCIDENCIAS — Auxilio mecánico (CUS-30)
 ============================================================ */
