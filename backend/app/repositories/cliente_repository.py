@@ -62,12 +62,26 @@ def buscar_por_razon_social_normalizada(db: Session, razon_social: str) -> Optio
     )
 
 
-def crear(db: Session, razon_social: str, identificador_unico=None, contacto=None) -> ClienteCorporativo:
-    """Crea un cliente y hace flush para obtener su id (sin cerrar la transacción)."""
+def crear(
+    db: Session,
+    razon_social: str,
+    identificador_unico=None,
+    contacto=None,
+    direccion_origen=None,
+    distrito=None,
+    latitud=None,
+    longitud=None,
+) -> ClienteCorporativo:
+    """Crea un cliente y hace flush para obtener su id (sin cerrar la transacción).
+    Recibe: datos del cliente incluidos los campos de ubicación de recojo."""
     cliente = ClienteCorporativo(
         razon_social=razon_social,
         identificador_unico=identificador_unico,
         contacto=contacto,
+        direccion_origen=direccion_origen,
+        distrito=distrito,
+        latitud=latitud,
+        longitud=longitud,
     )
     db.add(cliente)
     asignar_codigo(db, cliente, PREFIJO_CLIENTE)  # codigo legible CL-001 (hace flush)
