@@ -25,6 +25,9 @@ class PedidoResponse(BaseModel):
     estado: str
     fecha_creacion: Optional[datetime] = None
     fecha_entrega: Optional[datetime] = None
+    # Provenance de recojo (Task 3)
+    recojo_id: Optional[int] = None       # solicitud de recojo de la que salió este pedido
+    validado_en: Optional[datetime] = None  # momento en que fue validado en almacén
     # Asignación (se completan al listar; no son columnas del pedido)
     ruta_nombre: Optional[str] = None
     conductor_nombre: Optional[str] = None
