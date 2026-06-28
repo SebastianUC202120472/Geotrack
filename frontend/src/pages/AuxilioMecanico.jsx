@@ -6,13 +6,16 @@ import KpiCard from "../components/ui/KpiCard";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import EmptyState from "../components/ui/EmptyState";
-import { listarIncidencias, resolverIncidencia } from "../services/api";
+import Modal from "../components/ui/Modal";
+import ResolverIncidenciaModal from "../components/ResolverIncidenciaModal";
+import { listarIncidencias } from "../services/api";
 
 // CUS-30: gestión de incidencias de auxilio mecánico reportadas por los conductores.
 export default function AuxilioMecanico() {
   const [incidencias, setIncidencias] = useState([]);
   const [cargando, setCargando] = useState(true);
-  const [resolviendo, setResolviendo] = useState(null);
+  // Incidencia seleccionada para abrir el modal de resolución.
+  const [modalIncidencia, setModalIncidencia] = useState(null);
 
   // Recarga la lista (setState en callbacks de promesa, no síncrono en el effect).
   const cargar = () => {
@@ -34,15 +37,6 @@ export default function AuxilioMecanico() {
 
   const abiertas = incidencias.filter((i) => i.estado === "ABIERTA").length;
   const resueltas = incidencias.filter((i) => i.estado === "RESUELTA").length;
-
-  // Marca una incidencia como resuelta desde el panel.
-  const resolver = (id) => {
-    setResolviendo(id);
-    resolverIncidencia(id)
-      .then(cargar)
-      .catch((e) => alert(e.message))
-      .finally(() => setResolviendo(null));
-  };
 
   return (
     <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
@@ -91,10 +85,9 @@ export default function AuxilioMecanico() {
                   <Button
                     size="sm"
                     icon={CheckCircle2}
-                    disabled={resolviendo === i.id}
-                    onClick={() => resolver(i.id)}
+                    onClick={() => setModalIncidencia(i)}
                   >
-                    {resolviendo === i.id ? "Resolviendo…" : "Marcar resuelta"}
+                    Marcar resuelta
                   </Button>
                 )}
               </li>
@@ -102,6 +95,17 @@ export default function AuxilioMecanico() {
           </ul>
         )}
       </SectionCard>
+
+      {/* Modal de resolución extraído como componente reutilizable */}
+      <Modal open={!!modalIncidencia} onClose={() => setModalIncidencia(null)} variant="center">
+        {modalIncidencia && (
+          <ResolverIncidenciaModal
+            incidencia={modalIncidencia}
+            onClose={() => setModalIncidencia(null)}
+            onResuelta={cargar}
+          />
+        )}
+      </Modal>
     </div>
   );
 }
