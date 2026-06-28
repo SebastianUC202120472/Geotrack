@@ -182,7 +182,10 @@ def procesar_geocodificacion(db: Session, usuario_id: int | None = None) -> dict
             partes = pedido.direccion_destino.split(",")
             pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
             exitosos += 1
-        else:
+        elif pedido.estado != "POR_RECOGER":
+            # Defensa en profundidad: nunca pisar el estado de un POR_RECOGER. El filtro de
+            # obtener_sin_coordenadas ya los excluye, pero si por algún flujo llegara uno aquí,
+            # se conserva su estado (esos se geocodifican al aceptar/validar, no en este lote).
             estado_anterior = pedido.estado
             pedido.estado = "GEOCODIFICACION_FALLIDA"
             historial_repository.registrar(db, pedido.id, estado_anterior, "GEOCODIFICACION_FALLIDA", usuario_id)

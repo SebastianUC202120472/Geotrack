@@ -29,8 +29,17 @@ def listar(db: Session, skip: int = 0, limit: int = 100) -> List[Pedido]:
 
 
 def obtener_sin_coordenadas(db: Session) -> List[Pedido]:
-    """Pedidos que aún no tienen latitud (faltan por geocodificar)."""
-    return db.query(Pedido).filter(Pedido.latitud == None).all()  # noqa: E711 (SQLAlchemy exige '== None')
+    """Pedidos sin latitud de la vía de entrega (PENDIENTE o GEOCODIFICACION_FALLIDA) que
+    faltan por geocodificar. Excluye POR_RECOGER: esos se geocodifican al aceptar la
+    solicitud de recojo y se reintentan al validar en almacén, no en el lote de entrega."""
+    return (
+        db.query(Pedido)
+        .filter(
+            Pedido.latitud == None,  # noqa: E711 (SQLAlchemy exige '== None')
+            Pedido.estado.in_(("PENDIENTE", "GEOCODIFICACION_FALLIDA")),
+        )
+        .all()
+    )
 
 
 def obtener_por_id(db: Session, pedido_id: int) -> Optional[Pedido]:
