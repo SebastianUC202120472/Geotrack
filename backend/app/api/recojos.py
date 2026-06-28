@@ -2,7 +2,7 @@
 # Endpoints del admin para el módulo Inbound de recojos (CUS-10 alta, CUS-11 asignación).
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -15,6 +15,7 @@ from app.schemas.recojo import (
     SolicitudRecojoResponse,
     AsignarRutaRecojoRequest,
     AsignarRutaRecojoResponse,
+    AceptarSolicitudResponse,
 )
 
 router = APIRouter()
@@ -38,6 +39,22 @@ def listar_recojos(
 ):
     """CUS-10: lista las solicitudes de recojo (filtro opcional por estado)."""
     return recojo_service.listar_solicitudes(db, estado)
+
+
+@router.post("/aceptar", response_model=AceptarSolicitudResponse)
+async def aceptar_solicitud(
+    cliente_id: int = Form(...),
+    referencia: str | None = Form(None),
+    contacto_origen: str | None = Form(None),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    admin: Usuario = Depends(get_current_admin),
+):
+    """Acepta una solicitud de recojo: crea el recojo y un pedido POR_RECOGER por fila del Excel."""
+    contenido = await file.read()
+    return recojo_service.aceptar_solicitud(
+        db, cliente_id, contenido, file.filename, referencia, contacto_origen, admin.id
+    )
 
 
 # CUS-11 va ANTES de /{recojo_id} para que 'asignar-ruta' no se confunda con un id.

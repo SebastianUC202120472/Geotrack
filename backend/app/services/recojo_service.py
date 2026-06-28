@@ -21,7 +21,9 @@ from app.schemas.recojo import (
     ManifiestoRecojoResponse,
     ParadaRecojo,
     RecepcionResponse,
+    AceptarSolicitudResponse,
 )
+from app.services import pedido_service as _pedido_svc
 from app.schemas.ruta import OptimizacionRequest, CierreRutaResponse
 
 # Carpeta donde se guardan las fotos de las Guías de Remisión (servidas en /media/guias).
@@ -111,6 +113,79 @@ def editar_solicitud(db: Session, recojo_id: int, datos: SolicitudRecojoUpdate) 
     recojo_repository.guardar_cambios(db)
     db.refresh(recojo)
     return recojo
+
+
+# === Aceptar solicitud con Excel: crea el recojo y los pedidos POR_RECOGER ===
+def aceptar_solicitud(
+    db: Session,
+    cliente_id: int,
+    contenido: bytes,
+    nombre_archivo: str,
+    referencia: str | None,
+    contacto_origen: str | None,
+    usuario_id: int | None,
+) -> AceptarSolicitudResponse:
+    """Acepta una solicitud de recojo cargada por el admin con un Excel de pedidos.
+    Recibe: id de cliente, bytes del archivo, nombre del archivo, referencia, contacto
+    y el id del admin. Crea el recojo en SOLICITADO (origen del cliente) y un pedido
+    POR_RECOGER por cada fila válida del Excel."""
+    # Validar que el cliente exista y no esté eliminado.
+    cliente = (
+        db.query(ClienteCorporativo)
+        .filter(ClienteCorporativo.id == cliente_id, ClienteCorporativo.eliminado_en.is_(None))
+        .first()
+    )
+    if not cliente:
+        raise HTTPException(status_code=404, detail="El cliente indicado no existe o fue eliminado")
+    if cliente.latitud is None or cliente.longitud is None:
+        raise HTTPException(status_code=400, detail="El cliente no tiene una ubicación de recojo registrada")
+
+    # Crear el recojo copiando la ubicación del cliente (sin re-geocodificar).
+    recojo = SolicitudRecojo(
+        cliente_id=cliente.id,
+        cliente_origen=cliente.razon_social,
+        direccion_origen=cliente.direccion_origen,
+        distrito=cliente.distrito,
+        latitud=cliente.latitud,
+        longitud=cliente.longitud,
+        estado="SOLICITADO",
+        referencia=referencia,
+        contacto_origen=contacto_origen,
+    )
+    recojo_repository.agregar(db, recojo)
+    recojo_repository.guardar_cambios(db)
+    db.refresh(recojo)
+
+    # Parsear el Excel y crear un pedido por cada fila válida.
+    filas = _pedido_svc.parsear_filas_excel(contenido, nombre_archivo)
+    filas_rechazadas: list[str] = []
+    pedidos_creados = 0
+    pedidos_geocodificados = 0
+
+    for i, fila in enumerate(filas, start=1):
+        # Validar campos mínimos por fila.
+        if not (fila.get("referencia_externa") or "").strip():
+            filas_rechazadas.append(f"Fila {i}: falta referencia_externa")
+            continue
+        if not (fila.get("direccion_destino") or "").strip():
+            filas_rechazadas.append(f"Fila {i}: falta direccion_destino")
+            continue
+
+        pedido = _pedido_svc.crear_pedido_desde_fila(
+            db, fila, cliente, recojo.id, "POR_RECOGER", usuario_id
+        )
+        pedidos_creados += 1
+        if pedido.latitud is not None:
+            pedidos_geocodificados += 1
+
+    return AceptarSolicitudResponse(
+        recojo_id=recojo.id,
+        codigo=recojo.codigo,
+        pedidos_creados=pedidos_creados,
+        pedidos_geocodificados=pedidos_geocodificados,
+        pedidos_sin_ubicar=pedidos_creados - pedidos_geocodificados,
+        filas_rechazadas=filas_rechazadas,
+    )
 
 
 # === CUS-11: asignar una ruta de recojo (admin) ===
