@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.api.deps import get_current_almacen
 from app.models.usuario import Usuario
-from app.services import almacen_service, retorno_service
+from app.services import almacen_service, retorno_service, recojo_service
 from app.schemas.almacen import (
     EscaneoRequest,
     EscaneoResponse,
@@ -20,6 +20,7 @@ from app.schemas.almacen import (
     RetornoRutaResponse,
     EscaneoRetornoResponse,
 )
+from app.schemas.recojo import SolicitudArmarItem, AsignarRutaRecojoRequest, AsignarRutaRecojoResponse
 
 router = APIRouter()
 
@@ -72,3 +73,18 @@ def obtener_retorno_ruta(ruta_id: int, db: Session = Depends(get_db), usuario: U
 def escanear_retorno(ruta_id: int, datos: EscaneoRequest, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
     """Escanea un paquete devuelto y lo marca como retornado."""
     return retorno_service.escanear(db, ruta_id, datos.codigo, usuario.id)
+
+
+# --- CUS-11: armado de ruta de recojo (responsabilidad del almacén) ---
+@router.get("/solicitudes", response_model=List[SolicitudArmarItem])
+def listar_solicitudes_armar(db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
+    """Lista las solicitudes de recojo en SOLICITADO con su número de pedidos,
+    para que el almacén elija cuáles incluir en la ruta de recojo."""
+    return recojo_service.listar_para_armar(db)
+
+
+@router.post("/solicitudes/asignar-ruta", response_model=AsignarRutaRecojoResponse)
+def asignar_ruta_recojo(datos: AsignarRutaRecojoRequest, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
+    """Arma la ruta de recojo (conductor + vehículo) con las solicitudes seleccionadas.
+    Recibe: recojo_ids, conductor_id, vehiculo_placa y nombre opcional."""
+    return recojo_service.asignar_ruta_recojo(db, datos, usuario.id)
