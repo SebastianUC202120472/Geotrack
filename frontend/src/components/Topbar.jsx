@@ -2,21 +2,25 @@ import { useEffect, useState } from "react";
 import { LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { obtenerResumen } from "../services/api";
+import { obtenerResumen, listarRecojosAlmacen } from "../services/api";
 
 // Barra superior de escritorio: indicador de conexión (verde si el backend
 // responde) y botón de cerrar sesión. Entrada: ninguna (lee estado y auth).
 export default function Topbar() {
   const navigate = useNavigate();
-  const { cerrarSesion } = useAuth();
+  const { cerrarSesion, rol } = useAuth();
   const [enLinea, setEnLinea] = useState(null); // null = verificando
 
   // Revisa la conexión al montar y luego cada 20 s (y al volver el foco), para que
   // un arranque lento o un reinicio del backend se recupere solo sin recargar.
+  // Sondea un endpoint que el rol actual pueda consultar (admin → resumen;
+  // almacén → su lista de recojos) para que el indicador refleje la conexión real
+  // y no un 403 de permisos.
   useEffect(() => {
     let activo = true;
+    const sondear = rol === "almacen" ? listarRecojosAlmacen : obtenerResumen;
     const comprobar = () =>
-      obtenerResumen()
+      sondear()
         .then(() => activo && setEnLinea(true))
         .catch(() => activo && setEnLinea(false));
 
@@ -29,7 +33,7 @@ export default function Topbar() {
       clearInterval(id);
       window.removeEventListener("focus", alEnfocar);
     };
-  }, []);
+  }, [rol]);
 
   const salir = () => {
     cerrarSesion();
