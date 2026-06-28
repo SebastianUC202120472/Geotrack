@@ -113,3 +113,17 @@ class AceptarSolicitudResponse(BaseModel):
     pedidos_geocodificados: int
     pedidos_sin_ubicar: int
     filas_rechazadas: list[str]
+
+
+# --- Armado de ruta de recojo (almacén, CUS-11) ---
+class SolicitudArmarItem(BaseModel):
+    """SALIDA: solicitud de recojo SOLICITADO para la vista de armado de ruta del almacén."""
+    id: int
+    codigo: Optional[str] = None
+    cliente_origen: str
+    direccion_origen: str
+    distrito: Optional[str] = None
+    num_pedidos: int
+
+    class Config:
+        from_attributes = True

@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.solicitud_recojo import SolicitudRecojo
+from app.models.pedido import Pedido
 from app.models.cliente import ClienteCorporativo
 from app.models.ruta import Ruta
 from app.repositories import recojo_repository, ruta_repository, incidencia_repository
@@ -22,6 +23,7 @@ from app.schemas.recojo import (
     ParadaRecojo,
     RecepcionResponse,
     AceptarSolicitudResponse,
+    SolicitudArmarItem,
 )
 from app.services import pedido_service as _pedido_svc
 from app.schemas.ruta import OptimizacionRequest, CierreRutaResponse
@@ -189,6 +191,25 @@ def aceptar_solicitud(
         pedidos_sin_ubicar=pedidos_creados - pedidos_geocodificados,
         filas_rechazadas=filas_rechazadas,
     )
+
+
+# === Armado de ruta de recojo (almacén) ===
+def listar_para_armar(db: Session) -> list[SolicitudArmarItem]:
+    """Devuelve las solicitudes en estado SOLICITADO con el número de pedidos asociados,
+    listas para que el almacén arme la ruta. Recibe: sesión de base de datos."""
+    recojos = recojo_repository.listar(db, estado="SOLICITADO")
+    resultado = []
+    for r in recojos:
+        num_pedidos = db.query(Pedido).filter(Pedido.recojo_id == r.id).count()
+        resultado.append(SolicitudArmarItem(
+            id=r.id,
+            codigo=r.codigo,
+            cliente_origen=r.cliente_origen,
+            direccion_origen=r.direccion_origen,
+            distrito=r.distrito,
+            num_pedidos=num_pedidos,
+        ))
+    return resultado
 
 
 # === CUS-11: asignar una ruta de recojo (admin) ===

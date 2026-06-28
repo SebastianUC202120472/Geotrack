@@ -13,8 +13,6 @@ from app.schemas.recojo import (
     SolicitudRecojoCreate,
     SolicitudRecojoUpdate,
     SolicitudRecojoResponse,
-    AsignarRutaRecojoRequest,
-    AsignarRutaRecojoResponse,
     AceptarSolicitudResponse,
 )
 
@@ -55,17 +53,6 @@ async def aceptar_solicitud(
     return recojo_service.aceptar_solicitud(
         db, cliente_id, contenido, file.filename, referencia, contacto_origen, admin.id
     )
-
-
-# CUS-11 va ANTES de /{recojo_id} para que 'asignar-ruta' no se confunda con un id.
-@router.post("/asignar-ruta", response_model=AsignarRutaRecojoResponse)
-def asignar_ruta_recojo(
-    datos: AsignarRutaRecojoRequest,
-    db: Session = Depends(get_db),
-    admin: Usuario = Depends(get_current_admin),
-):
-    """CUS-11: crea una ruta de recojo con conductor + vehículo."""
-    return recojo_service.asignar_ruta_recojo(db, datos, usuario_id=admin.id)
 
 
 @router.get("/{recojo_id}", response_model=SolicitudRecojoResponse)
