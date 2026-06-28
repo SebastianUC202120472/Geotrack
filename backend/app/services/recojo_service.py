@@ -136,9 +136,13 @@ def aceptar_solicitud(
         .first()
     )
     if not cliente:
-        raise HTTPException(status_code=404, detail="El cliente indicado no existe o fue eliminado")
+        raise HTTPException(status_code=400, detail="El cliente indicado no existe o fue eliminado")
     if cliente.latitud is None or cliente.longitud is None:
         raise HTTPException(status_code=400, detail="El cliente no tiene una ubicación de recojo registrada")
+
+    # Parsear el Excel ANTES de crear el recojo: si el archivo es inválido, no debe quedar
+    # un recojo huérfano (sin pedidos) en la base de datos.
+    filas = _pedido_svc.parsear_filas_excel(contenido, nombre_archivo)
 
     # Crear el recojo copiando la ubicación del cliente (sin re-geocodificar).
     recojo = SolicitudRecojo(
@@ -156,8 +160,7 @@ def aceptar_solicitud(
     recojo_repository.guardar_cambios(db)
     db.refresh(recojo)
 
-    # Parsear el Excel y crear un pedido por cada fila válida.
-    filas = _pedido_svc.parsear_filas_excel(contenido, nombre_archivo)
+    # Crear un pedido por cada fila válida del Excel ya parseado.
     filas_rechazadas: list[str] = []
     pedidos_creados = 0
     pedidos_geocodificados = 0
