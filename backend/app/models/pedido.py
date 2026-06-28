@@ -28,7 +28,12 @@ class Pedido(Base):
     longitud = Column(Float, nullable=True)
     peso_kg = Column(Float, nullable=True)
     volumen_m3 = Column(Float, nullable=True)
-    # PENDIENTE -> ASIGNADO -> EN_RUTA -> ENTREGADO / FALLIDO
+    # POR_RECOGER -> PENDIENTE -> ASIGNADO -> EN_RUTA -> ENTREGADO / FALLIDO
     estado = Column(String(50), default="PENDIENTE")
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
     fecha_entrega = Column(DateTime, nullable=True)  # se sella al marcar ENTREGADO (CUS-26)
+
+    # --- Recojo de origen ---
+    recojo_id = Column(Integer, ForeignKey("solicitudes_recojo.id"), nullable=True, index=True)  # de qué recojo salió
+    validado_en = Column(DateTime, nullable=True)   # sello al validar en almacén
+    validado_por = Column(Integer, nullable=True)   # id del usuario de almacén que validó

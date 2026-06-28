@@ -102,3 +102,28 @@ class RecepcionResponse(BaseModel):
     url_guia: Optional[str] = None
     fecha_recojo: Optional[datetime] = None
     mensaje: str
+
+
+# --- Aceptar solicitud con Excel (admin) ---
+class AceptarSolicitudResponse(BaseModel):
+    """SALIDA: resultado de aceptar una solicitud de recojo y crear sus pedidos POR_RECOGER."""
+    recojo_id: int
+    codigo: str
+    pedidos_creados: int
+    pedidos_geocodificados: int
+    pedidos_sin_ubicar: int
+    filas_rechazadas: list[str]
+
+
+# --- Armado de ruta de recojo (almacén, CUS-11) ---
+class SolicitudArmarItem(BaseModel):
+    """SALIDA: solicitud de recojo SOLICITADO para la vista de armado de ruta del almacén."""
+    id: int
+    codigo: Optional[str] = None
+    cliente_origen: str
+    direccion_origen: str
+    distrito: Optional[str] = None
+    num_pedidos: int
+
+    class Config:
+        from_attributes = True

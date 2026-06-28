@@ -13,15 +13,6 @@ class ConteoConciliacion(BaseModel):
     desconocidos: int
 
 
-class TramaImportResponse(BaseModel):
-    """SALIDA: resultado de importar la trama de un recojo."""
-    recojo_id: int
-    importados: int
-    duplicados: int
-    total_trama: int
-    mensaje: str
-
-
 class EscaneoRequest(BaseModel):
     """ENTRADA: un código escaneado."""
     codigo: str

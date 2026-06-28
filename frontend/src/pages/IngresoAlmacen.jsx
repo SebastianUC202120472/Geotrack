@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { PackageCheck, ArrowLeft, Upload, CheckCircle2, AlertCircle, ScanLine } from "lucide-react";
+import { PackageCheck, ArrowLeft, CheckCircle2, AlertCircle, ScanLine } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import SectionCard from "../components/ui/SectionCard";
 import DataTable from "../components/ui/DataTable";
 import Button from "../components/ui/Button";
 import { EstadoBadge } from "../components/ui/Badge";
-import { listarRecojosAlmacen, obtenerConciliacion, escanearPaquete, cerrarIngreso, importarTrama } from "../services/api";
+import { listarRecojosAlmacen, obtenerConciliacion, escanearPaquete, cerrarIngreso } from "../services/api";
 
-// CUS-14: ingreso por escaneo. Lista de recojos por ingresar; al elegir uno se entra
-// al panel de ingreso (importar trama + escanear + conciliar + cerrar).
+// CUS-14: ingreso por escaneo. Lista de recojos RECOGIDO/INGRESADO; al elegir uno
+// se entra al panel de escaneo + conciliación. Los pedidos esperados vienen del recojo.
 export default function IngresoAlmacen() {
   const [recojos, setRecojos] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -43,7 +43,7 @@ export default function IngresoAlmacen() {
 
   return (
     <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
-      <PageHeader titulo="Ingreso a Almacén" subtitulo="Escanea los paquetes recogidos y concílialos contra la trama del retail." />
+      <PageHeader titulo="Ingreso a Almacén" subtitulo="Escanea los paquetes recogidos y concílialos contra los pedidos del recojo." />
       <div className="animate-fade-up">
         <DataTable columns={columnas} rows={recojos} rowKey={(r) => r.id} loading={cargando}
           empty={{ icon: PackageCheck, title: "No hay recojos por ingresar", description: "Aquí aparecen los recojos en estado RECOGIDO." }}
@@ -53,7 +53,8 @@ export default function IngresoAlmacen() {
   );
 }
 
-// Panel de ingreso de un recojo: contadores, importar trama (si no hay), escanear y cerrar.
+// Panel de ingreso de un recojo: contadores, escanear paquetes y cerrar.
+// Los pedidos esperados ya existen en el recojo; no se importa ningún archivo.
 function PanelIngreso({ recojoId, onVolver }) {
   const [conc, setConc] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -63,6 +64,7 @@ function PanelIngreso({ recojoId, onVolver }) {
   const [aviso, setAviso] = useState(null);
   const inputRef = useRef(null);
 
+  // Refresca la conciliación tras cada escaneo o acción. Input: id del recojo.
   const refrescar = () => obtenerConciliacion(recojoId).then((d) => setConc(d)).catch(() => {});
   useEffect(() => {
     let activo = true;
@@ -70,9 +72,10 @@ function PanelIngreso({ recojoId, onVolver }) {
     return () => { activo = false; };
   }, [recojoId]);
 
-  // Enfoca el campo de escaneo tras cargar (la pistola teclea directo + Enter).
+  // Enfoca el campo de escaneo tras cargar (la pistola USB teclea directo + Enter).
   useEffect(() => { const t = setTimeout(() => inputRef.current?.focus(), 100); return () => clearTimeout(t); }, [cargando]);
 
+  // Envía el código al backend y refresca conciliación. Input: evento del formulario.
   const escanear = async (e) => {
     e.preventDefault();
     const c = codigo.trim();
@@ -89,19 +92,7 @@ function PanelIngreso({ recojoId, onVolver }) {
     }
   };
 
-  const subirTrama = async (e) => {
-    const archivo = e.target.files?.[0];
-    e.target.value = "";
-    if (!archivo) return;
-    setTrabajando(true); setAviso(null);
-    try {
-      const r = await importarTrama(recojoId, archivo);
-      setAviso({ ok: true, texto: r.mensaje });
-      refrescar();
-    } catch (err) { setAviso({ ok: false, texto: err.message }); }
-    finally { setTrabajando(false); }
-  };
-
+  // Cierra el ingreso del recojo (pasa a estado INGRESADO).
   const cerrar = async () => {
     setTrabajando(true); setAviso(null);
     try { const r = await cerrarIngreso(recojoId); setAviso({ ok: true, texto: r.mensaje }); refrescar(); }
@@ -110,7 +101,6 @@ function PanelIngreso({ recojoId, onVolver }) {
   };
 
   const conteo = conc?.conteo ?? { esperados: 0, ingresados: 0, faltantes: 0, desconocidos: 0 };
-  const sinTrama = conteo.esperados === 0;
   const colorResultado = (rr) =>
     rr === "INGRESADO" ? "bg-success-soft text-success-strong"
     : rr === "DUPLICADO" ? "bg-warning-soft text-warning-strong"
@@ -129,31 +119,19 @@ function PanelIngreso({ recojoId, onVolver }) {
         <Contador etiqueta="Desconocidos" valor={conteo.desconocidos} tono={conteo.desconocidos > 0 ? "danger" : "neutral"} />
       </div>
 
-      {sinTrama ? (
-        <SectionCard title="Importar trama">
-          <p className="mb-3 text-sm text-slate-500">Sube el Excel con los códigos esperados del recojo (columna <code>codigo</code>).</p>
-          <label className="inline-flex">
-            <input type="file" accept=".xlsx" className="hidden" onChange={subirTrama} disabled={trabajando} />
-            <span className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
-              <Upload size={18} /> {trabajando ? "Importando…" : "Importar trama (.xlsx)"}
-            </span>
-          </label>
-        </SectionCard>
-      ) : (
-        <SectionCard title="Escanear paquetes">
-          <form onSubmit={escanear} className="flex gap-2">
-            <input ref={inputRef} value={codigo} onChange={(e) => setCodigo(e.target.value)} autoFocus
-              placeholder="Escanea o teclea el código y pulsa Enter"
-              className="flex-1 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm" />
-            <Button type="submit" icon={ScanLine}>Escanear</Button>
-          </form>
-          {ultimo && (
-            <div className={`mt-3 flex items-center gap-2 rounded-xl px-3.5 py-3 text-sm ${colorResultado(ultimo.resultado)}`}>
-              <span className="font-semibold nums">{ultimo.codigo}</span><span>·</span><span>{ultimo.mensaje}</span>
-            </div>
-          )}
-        </SectionCard>
-      )}
+      <SectionCard title="Escanear paquetes">
+        <form onSubmit={escanear} className="flex gap-2">
+          <input ref={inputRef} value={codigo} onChange={(e) => setCodigo(e.target.value)} autoFocus
+            placeholder="Escanea o teclea el código y pulsa Enter"
+            className="flex-1 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm" />
+          <Button type="submit" icon={ScanLine}>Escanear</Button>
+        </form>
+        {ultimo && (
+          <div className={`mt-3 flex items-center gap-2 rounded-xl px-3.5 py-3 text-sm ${colorResultado(ultimo.resultado)}`}>
+            <span className="font-semibold nums">{ultimo.codigo}</span><span>·</span><span>{ultimo.mensaje}</span>
+          </div>
+        )}
+      </SectionCard>
 
       {aviso && (
         <div className={`flex items-center gap-2 rounded-xl px-3.5 py-3 text-sm ${aviso.ok ? "bg-success-soft text-success-strong" : "bg-danger-soft text-danger-strong"}`}>
@@ -162,7 +140,7 @@ function PanelIngreso({ recojoId, onVolver }) {
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <SectionCard title={`Trama (${conc?.esperados?.length ?? 0})`}>
+        <SectionCard title={`Pedidos del recojo (${conc?.esperados?.length ?? 0})`}>
           <div className="max-h-80 divide-y divide-slate-100 overflow-y-auto">
             {(conc?.esperados ?? []).map((p) => (
               <div key={p.codigo} className="flex items-center justify-between py-2 text-sm">
@@ -170,7 +148,7 @@ function PanelIngreso({ recojoId, onVolver }) {
                 <EstadoBadge estado={p.estado} />
               </div>
             ))}
-            {(conc?.esperados ?? []).length === 0 && <p className="py-4 text-sm text-slate-400">Sin trama importada.</p>}
+            {(conc?.esperados ?? []).length === 0 && <p className="py-4 text-sm text-slate-400">Sin pedidos registrados.</p>}
           </div>
         </SectionCard>
         <SectionCard title={`Desconocidos (${conc?.desconocidos?.length ?? 0})`}>
@@ -181,7 +159,7 @@ function PanelIngreso({ recojoId, onVolver }) {
         </SectionCard>
       </div>
 
-      {!sinTrama && conc?.estado_recojo !== "INGRESADO" && (
+      {conc?.estado_recojo !== "INGRESADO" && (
         <Button onClick={cerrar} disabled={trabajando}>{trabajando ? "Cerrando…" : "Cerrar ingreso"}</Button>
       )}
     </div>
