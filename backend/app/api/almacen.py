@@ -1,8 +1,8 @@
 # app/api/almacen.py
-# Endpoints del módulo de almacén (CUS-14): trama, escaneo, conciliación, cierre.
+# Endpoints del módulo de almacén (CUS-14): escaneo, conciliación, cierre.
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, UploadFile, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -12,7 +12,6 @@ from app.services import almacen_service, retorno_service, recojo_service
 from app.schemas.almacen import (
     EscaneoRequest,
     EscaneoResponse,
-    TramaImportResponse,
     ConciliacionResponse,
     CerrarIngresoResponse,
     RecojoAlmacenItem,
@@ -29,13 +28,6 @@ router = APIRouter()
 def listar_recojos(estado: Optional[str] = Query(None), db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
     """Lista los recojos del módulo de almacén (RECOGIDO por ingresar + INGRESADO)."""
     return almacen_service.listar_recojos(db, estado)
-
-
-@router.post("/recojos/{recojo_id}/trama", response_model=TramaImportResponse)
-async def importar_trama(recojo_id: int, file: UploadFile = File(...), db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
-    """Importa la trama (códigos esperados) de un recojo desde un Excel."""
-    contenido = await file.read()
-    return almacen_service.importar_trama(db, recojo_id, contenido, file.filename, usuario.id)
 
 
 @router.get("/recojos/{recojo_id}/conciliacion", response_model=ConciliacionResponse)

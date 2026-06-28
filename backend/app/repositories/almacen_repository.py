@@ -1,56 +1,47 @@
 # app/repositories/almacen_repository.py
-# Acceso a datos del módulo de almacén: trama (paquetes_esperados) y desconocidos.
+# Acceso a datos del módulo de almacén: pedidos del recojo y desconocidos.
 from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 
-from app.models.paquete_esperado import PaqueteEsperado, EscaneoDesconocido
+from app.models.pedido import Pedido
+from app.models.paquete_esperado import EscaneoDesconocido
 
 
-def agregar_esperados(db: Session, recojo_id: int, codigos: List[str]) -> Tuple[int, int]:
-    """Crea filas ESPERADO para los códigos NUEVOS del recojo (dedup contra los ya existentes).
-    Recibe: id de recojo y lista de códigos. Devuelve: (importados, duplicados)."""
-    existentes = {p.codigo for p in db.query(PaqueteEsperado).filter(PaqueteEsperado.recojo_id == recojo_id).all()}
-    importados = 0
-    duplicados = 0
-    for c in codigos:
-        if c in existentes:
-            duplicados += 1
-            continue
-        db.add(PaqueteEsperado(codigo=c, recojo_id=recojo_id, estado="ESPERADO"))
-        existentes.add(c)
-        importados += 1
-    return importados, duplicados
-
-
-def obtener_esperado(db: Session, recojo_id: int, codigo: str) -> Optional[PaqueteEsperado]:
-    """Busca un código dentro de la trama de un recojo."""
+def listar_pedidos_recojo(db: Session, recojo_id: int) -> List[Pedido]:
+    """Pedidos asociados a un recojo, ordenados por referencia_externa."""
     return (
-        db.query(PaqueteEsperado)
-        .filter(PaqueteEsperado.recojo_id == recojo_id, PaqueteEsperado.codigo == codigo)
-        .first()
-    )
-
-
-def listar_esperados(db: Session, recojo_id: int) -> List[PaqueteEsperado]:
-    """Trama completa de un recojo, ordenada por código."""
-    return (
-        db.query(PaqueteEsperado)
-        .filter(PaqueteEsperado.recojo_id == recojo_id)
-        .order_by(PaqueteEsperado.codigo.asc())
+        db.query(Pedido)
+        .filter(Pedido.recojo_id == recojo_id)
+        .order_by(Pedido.referencia_externa.asc())
         .all()
     )
 
 
-def contar(db: Session, recojo_id: int) -> Tuple[int, int, int]:
-    """Devuelve (esperados, ingresados, desconocidos) de un recojo."""
-    esperados = db.query(PaqueteEsperado).filter(PaqueteEsperado.recojo_id == recojo_id).count()
-    ingresados = (
-        db.query(PaqueteEsperado)
-        .filter(PaqueteEsperado.recojo_id == recojo_id, PaqueteEsperado.estado == "INGRESADO")
+def obtener_pedido_por_tracking(db: Session, recojo_id: int, codigo: str) -> Optional[Pedido]:
+    """Busca un pedido del recojo por su tracking del cliente (referencia_externa)."""
+    return (
+        db.query(Pedido)
+        .filter(Pedido.recojo_id == recojo_id, Pedido.referencia_externa == codigo)
+        .first()
+    )
+
+
+def contar_pedidos(db: Session, recojo_id: int) -> Tuple[int, int, int]:
+    """Devuelve (total, validados, faltantes) de pedidos en el recojo.
+    Validados = estado distinto de POR_RECOGER; faltantes = POR_RECOGER."""
+    total = db.query(Pedido).filter(Pedido.recojo_id == recojo_id).count()
+    faltantes = (
+        db.query(Pedido)
+        .filter(Pedido.recojo_id == recojo_id, Pedido.estado == "POR_RECOGER")
         .count()
     )
-    desconocidos = db.query(EscaneoDesconocido).filter(EscaneoDesconocido.recojo_id == recojo_id).count()
-    return esperados, ingresados, desconocidos
+    validados = total - faltantes
+    return total, validados, faltantes
+
+
+def contar_desconocidos(db: Session, recojo_id: int) -> int:
+    """Cantidad de desconocidos registrados para un recojo."""
+    return db.query(EscaneoDesconocido).filter(EscaneoDesconocido.recojo_id == recojo_id).count()
 
 
 def obtener_desconocido(db: Session, recojo_id: int, codigo: str) -> Optional[EscaneoDesconocido]:
@@ -63,7 +54,7 @@ def obtener_desconocido(db: Session, recojo_id: int, codigo: str) -> Optional[Es
 
 
 def agregar_desconocido(db: Session, recojo_id: int, codigo: str, usuario_id: int | None) -> EscaneoDesconocido:
-    """Registra un código escaneado que no estaba en la trama. No hace commit."""
+    """Registra un código escaneado que no corresponde a ningún pedido del recojo. No hace commit."""
     desconocido = EscaneoDesconocido(recojo_id=recojo_id, codigo=codigo, escaneado_por=usuario_id)
     db.add(desconocido)
     return desconocido
