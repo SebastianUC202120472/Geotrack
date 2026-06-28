@@ -2,16 +2,16 @@
 # Dependencias con VERSIÓN FIJA (pinned). Pinear es clave para la gestión de
 # vulnerabilidades (OWASP A06): permite rastrear CVEs y que Dependabot/pip-audit
 # avisen cuando una versión tiene un fallo de seguridad conocido.
-fastapi==0.110.0
-uvicorn==0.27.1
-sqlalchemy==2.0.27
-psycopg2-binary==2.9.9
-python-jose[cryptography]==3.3.0
+fastapi==0.138.1
+uvicorn==0.49.0
+sqlalchemy==2.0.51
+psycopg2-binary==2.9.12
+python-jose[cryptography]==3.5.0
 passlib==1.7.4
 argon2-cffi==25.1.0
-python-multipart==0.0.9
-pydantic-settings==2.2.1
+python-multipart==0.0.32
+pydantic-settings==2.14.2
 email-validator==2.3.0
-pandas==2.2.1
-openpyxl==3.1.2
+pandas==2.3.3
+openpyxl==3.1.5
 geopy==2.4.1
