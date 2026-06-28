@@ -8,22 +8,17 @@ import Dashboard from "./pages/Dashboard";
 import Pedidos from "./pages/Pedidos";
 import AgrupacionZonas from "./pages/AgrupacionZonas";
 import AsignacionBloque from "./pages/AsignacionBloque";
-import Direcciones from "./pages/Direcciones";
 import Bandeja from "./pages/Bandeja";
 import Flota from "./pages/Flota";
 import Conductores from "./pages/Conductores";
 import Clientes from "./pages/Clientes";
 import Usuarios from "./pages/Usuarios";
 import Parametros from "./pages/Parametros";
-import Seguimiento from "./pages/Seguimiento";
 import SeguimientoConductores from "./pages/SeguimientoConductores";
-import Reportes from "./pages/Reportes";
-import AuxilioMecanico from "./pages/AuxilioMecanico";
 import Trazabilidad from "./pages/Trazabilidad";
 import IngresoAlmacen from "./pages/IngresoAlmacen";
 import RetornosAlmacen from "./pages/RetornosAlmacen";
 import ArmarRutaRecojo from "./pages/ArmarRutaRecojo";
-import Solicitudes from "./pages/Solicitudes";
 
 // Mapa de rutas del panel de administración.
 // /login va suelto (sin barra lateral). Todo lo demás cuelga del layout del
@@ -44,22 +39,17 @@ export default function App() {
         <Route path="/pedidos" element={<Pedidos />} />
         <Route path="/agrupacion" element={<AgrupacionZonas />} />
         <Route path="/asignacion-bloque" element={<AsignacionBloque />} />
-        <Route path="/direcciones" element={<Direcciones />} />
         <Route path="/bandeja" element={<Bandeja />} />
         <Route path="/flota" element={<Flota />} />
         <Route path="/conductores" element={<Conductores />} />
         <Route path="/clientes" element={<Clientes />} />
         <Route path="/usuarios" element={<Usuarios />} />
         <Route path="/parametros" element={<Parametros />} />
-        <Route path="/seguimiento" element={<Seguimiento />} />
         <Route path="/seguimiento-conductores" element={<SeguimientoConductores />} />
-        <Route path="/reportes" element={<Reportes />} />
-        <Route path="/auxilio" element={<AuxilioMecanico />} />
         <Route path="/trazabilidad" element={<Trazabilidad />} />
         <Route path="/almacen" element={<IngresoAlmacen />} />
         <Route path="/almacen/retornos" element={<RetornosAlmacen />} />
         <Route path="/almacen/recojos" element={<ArmarRutaRecojo />} />
-        <Route path="/solicitudes" element={<Solicitudes />} />
       </Route>
 
       {/* Cualquier ruta desconocida vuelve al inicio. */}
