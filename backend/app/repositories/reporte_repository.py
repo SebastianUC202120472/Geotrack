@@ -39,6 +39,11 @@ def guardar(db: Session) -> None:
     db.commit()
 
 
+def contar_abiertos(db: Session) -> int:
+    """Cuenta los reportes ABIERTOS (para el contador de notificaciones del panel)."""
+    return db.query(Reporte).filter(Reporte.estado == "ABIERTO").count()
+
+
 def cerrar_abierto_de_pedido(db: Session, pedido_id: int, accion: str) -> None:
     """CUS-31: marca como RESUELTO el reporte ABIERTO de un pedido (si existe) al decidir
     su devolución. Recibe: pedido_id y la acción tomada ('Reprogramado'/'Cancelado')."""

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check, Pencil, Trash2, Camera, KeyRound, Fuel, Route as RouteIcon, PiggyBank } from "lucide-react";
+import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check, Pencil, Trash2, Camera, KeyRound, Fuel, Route as RouteIcon, PiggyBank, Wrench } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -9,7 +9,8 @@ import Button from "../components/ui/Button";
 import Badge, { EstadoBadge } from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
 import SectionCard from "../components/ui/SectionCard";
-import { listarConductores, crearConductor, actualizarConductor, eliminarConductor, subirFotoConductor, restablecerContrasenaConductor, urlMedia, obtenerEficienciaConductores } from "../services/api";
+import ResolverIncidenciaModal from "../components/ResolverIncidenciaModal";
+import { listarConductores, crearConductor, actualizarConductor, eliminarConductor, subirFotoConductor, restablecerContrasenaConductor, urlMedia, obtenerEficienciaConductores, listarIncidencias } from "../services/api";
 import { validarNombre, validarCorreo, validarPassword, validarTelefono, validarDni, soloDigitos } from "../utils/validaciones";
 
 // Apartado de conductores: ficha completa (nombre, teléfono, DNI), vehículo
@@ -19,14 +20,19 @@ export default function Conductores() {
   const [conductores, setConductores] = useState([]);
   // Mapa conductor_id -> datos de eficiencia (km recorridos/ahorrados, ahorro en S/).
   const [eficiencia, setEficiencia] = useState({});
+  // Mapa conductor_id -> incidencia abierta (carga paralela a la lista de conductores).
+  const [incidenciasAbiertas, setIncidenciasAbiertas] = useState({});
   const [cargando, setCargando] = useState(true);
   const [seleccionado, setSeleccionado] = useState(null);
+  // Incidencia seleccionada para el modal de auxilio integrado en la fila.
+  const [modalAuxilio, setModalAuxilio] = useState(null);
 
   const [form, setForm] = useState({ nombre: "", correo: "", contrasena: "", telefono: "", dni: "" });
   const [errores, setErrores] = useState({});
   const [aviso, setAviso] = useState(null);
   const [guardando, setGuardando] = useState(false);
 
+  // Recarga conductores, eficiencia e incidencias abiertas (setState en callbacks de promesa).
   const cargar = async () => {
     setCargando(true);
     try {
@@ -36,6 +42,14 @@ export default function Conductores() {
         const efs = await obtenerEficienciaConductores();
         setEficiencia(Object.fromEntries(efs.map((e) => [e.conductor_id, e])));
       } catch { /* si falla el endpoint de eficiencia, la tabla sigue mostrando "—" */ }
+      // Carga incidencias abiertas para mostrar el botón de auxilio en la fila del conductor.
+      listarIncidencias("ABIERTA")
+        .then((lista) => {
+          const mapa = {};
+          lista.forEach((inc) => { mapa[inc.conductor_id] = inc; });
+          setIncidenciasAbiertas(mapa);
+        })
+        .catch(() => { /* si falla, no se muestra el botón de auxilio */ });
     } catch (err) {
       console.error("No se pudo cargar conductores:", err.message);
     } finally {
@@ -102,8 +116,8 @@ export default function Conductores() {
     }
   };
 
-  // Columnas para DataTable. Dependen de `eficiencia` para que la columna de eficiencia
-  // siempre tenga acceso al estado más reciente (useMemo con dependencia).
+  // Columnas para DataTable. Dependen de `eficiencia` e `incidenciasAbiertas` para que
+  // la columna de eficiencia y el botón de auxilio accedan al estado más reciente.
   const columnas = useMemo(() => [
     {
       key: "codigo",
@@ -157,7 +171,26 @@ export default function Conductores() {
         );
       },
     },
-  ], [eficiencia]);
+    {
+      // Botón de auxilio mecánico: solo visible si el conductor tiene una incidencia abierta.
+      key: "acciones",
+      header: "",
+      render: (c) => {
+        const inc = incidenciasAbiertas[c.usuario_id];
+        if (!inc) return null;
+        // stopPropagation evita que el click del botón dispare onRowClick de la fila.
+        return (
+          <button
+            className="parpadeo-alerta inline-flex items-center gap-1.5 rounded-xl bg-danger px-3 py-1.5 text-xs font-semibold text-white"
+            title={`Incidencia abierta: ${inc.codigo ?? `IN-${inc.id}`}`}
+            onClick={(e) => { e.stopPropagation(); setModalAuxilio(inc); }}
+          >
+            <Wrench size={13} /> Auxilio
+          </button>
+        );
+      },
+    },
+  ], [eficiencia, incidenciasAbiertas]);
 
   return (
     <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
@@ -240,6 +273,17 @@ export default function Conductores() {
             efic={eficiencia[seleccionado.usuario_id]}
             onCerrar={() => setSeleccionado(null)}
             onCambios={() => { setSeleccionado(null); cargar(); }}
+          />
+        )}
+      </Modal>
+
+      {/* Modal de auxilio mecánico integrado: se abre desde el botón de la fila del conductor */}
+      <Modal open={!!modalAuxilio} onClose={() => setModalAuxilio(null)} variant="center">
+        {modalAuxilio && (
+          <ResolverIncidenciaModal
+            incidencia={modalAuxilio}
+            onClose={() => setModalAuxilio(null)}
+            onResuelta={cargar}
           />
         )}
       </Modal>

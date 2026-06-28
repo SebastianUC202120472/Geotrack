@@ -189,9 +189,6 @@ export const responderReporte = (id, datos) =>
 // y paginar del lado del cliente (suficiente para los volúmenes del MVP).
 export const listarPedidos = (limit = 1000) => request(`/pedidos/?limit=${limit}`);
 
-// Devuelve un pedido FALLIDO a PENDIENTE para reasignarlo.
-export const reabrirPedido = (id) => request(`/pedidos/${id}/reabrir`, { method: "POST" });
-
 // Devuelve { zonas_operativas: [{ distrito, total_pedidos }] }
 export const listarZonas = () => request("/pedidos/zonas");
 
@@ -371,8 +368,9 @@ export const listarIncidencias = (estado) =>
 export const resolverIncidencia = (id, nota) =>
   request(`/incidencias/${id}/resolver`, { method: "POST", body: { nota: nota ?? null } });
 
-// Cuántas incidencias hay abiertas (aviso del sidebar/dashboard). Salida: { abiertas }.
-export const contadorIncidencias = () => request("/incidencias/contador");
+// Feed de notificaciones del admin: total y lista de ítems por tipo con ruta de navegación.
+// Salida: { total: number, items: [{ tipo, etiqueta, count, ruta }] }.
+export const obtenerNotificaciones = () => request("/notificaciones");
 
 // Descarga un adjunto (ej. el Excel del recojo) y dispara la descarga en el
 // navegador. Va con el token en el header, por eso no se usa un <a href> directo.
