@@ -33,7 +33,7 @@ class Pedido(Base):
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
     fecha_entrega = Column(DateTime, nullable=True)  # se sella al marcar ENTREGADO (CUS-26)
 
-    # --- Provenance de recojo (Task 3) ---
+    # --- Recojo de origen ---
     recojo_id = Column(Integer, ForeignKey("solicitudes_recojo.id"), nullable=True, index=True)  # de qué recojo salió
     validado_en = Column(DateTime, nullable=True)   # sello al validar en almacén
     validado_por = Column(Integer, nullable=True)   # id del usuario de almacén que validó
