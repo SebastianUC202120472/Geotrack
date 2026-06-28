@@ -41,7 +41,7 @@ export default function Solicitudes() {
   };
 
   // Envía el formulario al backend y almacena el resumen o el error.
-  const aceptar = async () => {
+  const aceptar = () => {
     if (!clienteId || !file) return;
     setCargando(true);
     setError("");
