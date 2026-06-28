@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Search, X, Package, MapPin, Eye, ChevronLeft, ChevronRight, Loader2, RotateCcw, User, Truck, Filter } from "lucide-react";
+import { Search, X, Package, MapPin, Eye, ChevronLeft, ChevronRight, Loader2, RotateCcw, User, Truck, Filter, List, Building2 } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -9,6 +9,8 @@ import Button from "../components/ui/Button";
 import { EstadoBadge } from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
 import ResolverDireccionModal from "../components/ResolverDireccionModal";
+import VistaPorRuta from "../components/seguimiento/VistaPorRuta";
+import VistaPorCliente from "../components/seguimiento/VistaPorCliente";
 import { listarPedidos, listarZonas, obtenerHistorial, reabrirPedido } from "../services/api";
 
 const POR_PAGINA = 12;
@@ -25,6 +27,13 @@ function enRango(fechaStr, modo) {
   return true;
 }
 
+// Vistas disponibles en la cabecera de Pedidos.
+const VISTAS = [
+  { id: "lista", label: "Lista", icon: List },
+  { id: "ruta", label: "Por ruta", icon: Truck },
+  { id: "cliente", label: "Por cliente", icon: Building2 },
+];
+
 // Explorador de pedidos: buscar, filtrar (zona, estado, fecha) y abrir el detalle
 // con su ruta/conductor y línea de tiempo. Pensado para manejar cientos de pedidos.
 export default function Pedidos() {
@@ -32,6 +41,8 @@ export default function Pedidos() {
   const [pedidos, setPedidos] = useState([]);
   const [zonas, setZonas] = useState([]);
   const [cargando, setCargando] = useState(true);
+  // Vista activa: "lista" (tabla), "ruta" o "cliente".
+  const [vista, setVista] = useState("lista");
 
   const [busqueda, setBusqueda] = useState("");
   const [distrito, setDistrito] = useState(params.get("distrito") || "");
@@ -165,6 +176,37 @@ export default function Pedidos() {
         subtitulo="Busca, filtra por zona/estado/fecha y abre la trazabilidad de cada pedido."
       />
 
+      {/* Selector de vista: Lista / Por ruta / Por cliente */}
+      <div className="animate-fade-up">
+        <div className="inline-flex items-center gap-1 rounded-2xl border border-warm-200 bg-white p-1 shadow-card">
+          {VISTAS.map((v) => {
+            const Ico = v.icon;
+            const activo = vista === v.id;
+            return (
+              <button
+                key={v.id}
+                onClick={() => setVista(v.id)}
+                className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                  activo
+                    ? "bg-brand-600 text-white shadow-sm"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                }`}
+              >
+                <Ico size={15} />
+                {v.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Vista Por ruta / Por cliente (autocontenidas) */}
+      {vista === "ruta" && <VistaPorRuta />}
+      {vista === "cliente" && <VistaPorCliente />}
+
+      {/* Vista Lista: KPIs + filtros + tabla */}
+      {vista === "lista" && <>
+
       {/* KPIs derivados de los pedidos cargados */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 animate-fade-up">
         <KpiCard label="Total" value={kpis.total} icon={Package} tone="brand" />
@@ -269,6 +311,7 @@ export default function Pedidos() {
           />
         )}
       </Modal>
+      </>}
     </div>
   );
 }
