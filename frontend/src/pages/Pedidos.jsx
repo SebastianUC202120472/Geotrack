@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Search, X, Package, MapPin, Eye, ChevronLeft, ChevronRight, Loader2, RotateCcw, User, Truck, Filter, List, Building2 } from "lucide-react";
+import { Search, X, Package, MapPin, Eye, ChevronLeft, ChevronRight, Loader2, RotateCcw, User, Truck, Filter, List, Building2, AlertTriangle, MessageSquare, Ban } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -11,7 +11,7 @@ import Modal from "../components/ui/Modal";
 import ResolverDireccionModal from "../components/ResolverDireccionModal";
 import VistaPorRuta from "../components/seguimiento/VistaPorRuta";
 import VistaPorCliente from "../components/seguimiento/VistaPorCliente";
-import { listarPedidos, listarZonas, obtenerHistorial, reabrirPedido } from "../services/api";
+import { listarPedidos, listarZonas, obtenerHistorial, reprogramarPedido, cancelarPedido, responderReporte, listarReportes } from "../services/api";
 
 const POR_PAGINA = 12;
 const fmt = (f) => (f ? new Date(f).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—");
@@ -43,6 +43,8 @@ export default function Pedidos() {
   const [cargando, setCargando] = useState(true);
   // Vista activa: "lista" (tabla), "ruta" o "cliente".
   const [vista, setVista] = useState("lista");
+  // Mapa de reportes abiertos indexado por pedido_id para acceso O(1).
+  const [reportePorPedido, setReportePorPedido] = useState({});
 
   const [busqueda, setBusqueda] = useState("");
   const [distrito, setDistrito] = useState(params.get("distrito") || "");
@@ -51,6 +53,15 @@ export default function Pedidos() {
   const [sinUbicar, setSinUbicar] = useState(false);
   const [pagina, setPagina] = useState(1);
   const [seleccionado, setSeleccionado] = useState(null);
+
+  // Obtiene reportes abiertos y construye el mapa pedido_id → reporte.
+  const cargarReportes = () => {
+    listarReportes("ABIERTO").then((lista) => {
+      const mapa = {};
+      (lista || []).forEach((r) => { mapa[r.pedido_id] = r; });
+      setReportePorPedido(mapa);
+    }).catch((err) => console.error("Error al cargar reportes:", err.message));
+  };
 
   const cargar = async () => {
     setCargando(true);
@@ -65,8 +76,12 @@ export default function Pedidos() {
     }
   };
 
+  // Recarga completa: pedidos + zonas + reportes abiertos.
+  const cargarTodo = () => { cargar(); cargarReportes(); };
+
   useEffect(() => {
     cargar();
+    cargarReportes();
   }, []);
 
   // Mantiene los filtros sincronizados con la URL (para enlaces desde Dashboard/Zonas).
@@ -159,7 +174,20 @@ export default function Pedidos() {
     {
       key: "estado",
       header: "Estado",
-      render: (p) => <EstadoBadge estado={p.estado} />,
+      // Pedido FALLIDO con reporte abierto: badge parpadeante + ícono de prioridad.
+      render: (p) => {
+        const tieneReporte = p.estado === "FALLIDO" && reportePorPedido[p.id];
+        return (
+          <span className={`inline-flex items-center gap-1.5${tieneReporte ? " parpadeo-alerta" : ""}`}>
+            <EstadoBadge estado={p.estado} />
+            {tieneReporte && (
+              <span title="Reporte pendiente de resolución">
+                <AlertTriangle size={14} className="text-warning-strong" />
+              </span>
+            )}
+          </span>
+        );
+      },
     },
     {
       key: "ver",
@@ -305,8 +333,9 @@ export default function Pedidos() {
         {seleccionado && (
           <DetallePedido
             pedido={seleccionado}
+            reporte={reportePorPedido[seleccionado.id] || null}
             onCerrar={() => setSeleccionado(null)}
-            onReabierto={() => { setSeleccionado(null); cargar(); }}
+            onAccion={() => { setSeleccionado(null); cargarTodo(); }}
             onDireccionResuelta={() => { setSeleccionado(null); cargar(); }}
           />
         )}
@@ -317,33 +346,52 @@ export default function Pedidos() {
 }
 
 // Panel lateral con el detalle del pedido, su ruta/conductor y línea de tiempo.
-function DetallePedido({ pedido, onCerrar, onReabierto, onDireccionResuelta }) {
+// Recibe `reporte` (objeto del reporte abierto o null) y `onAccion` (refresca lista + reportes).
+function DetallePedido({ pedido, reporte, onCerrar, onAccion, onDireccionResuelta }) {
   const [historial, setHistorial] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
-  const [reabriendo, setReabriendo] = useState(false);
+  const [accionando, setAccionando] = useState(false);
   // Controla si se muestra el modal de resolución de dirección.
   const [mostrarResolver, setMostrarResolver] = useState(false);
+  // Texto de respuesta para el panel de "Responder".
+  const [respuesta, setRespuesta] = useState("");
+  // Subpanel activo dentro de las acciones del reporte.
+  const [subpanel, setSubpanel] = useState(null);
 
   useEffect(() => {
     let activo = true;
     setCargando(true);
     obtenerHistorial(pedido.codigo)
-      .then((h) => activo && setHistorial(h))
-      .catch((e) => activo && setError(e.message))
-      .finally(() => activo && setCargando(false));
+      .then((h) => { if (activo) setHistorial(h); })
+      .catch((e) => { if (activo) setError(e.message); })
+      .finally(() => { if (activo) setCargando(false); });
     return () => { activo = false; };
   }, [pedido.codigo]);
 
-  const reabrir = async () => {
-    setReabriendo(true);
-    try {
-      await reabrirPedido(pedido.id);
-      onReabierto();
-    } catch (e) {
-      setError(e.message);
-      setReabriendo(false);
-    }
+  // Reprograma el pedido (vuelve a PENDIENTE) y resuelve el reporte asociado.
+  const reprogramar = () => {
+    setAccionando(true);
+    reprogramarPedido(pedido.id)
+      .then(() => onAccion())
+      .catch((e) => { setError(e.message); setAccionando(false); });
+  };
+
+  // Cancela el pedido y resuelve el reporte asociado.
+  const cancelar = () => {
+    setAccionando(true);
+    cancelarPedido(pedido.id)
+      .then(() => onAccion())
+      .catch((e) => { setError(e.message); setAccionando(false); });
+  };
+
+  // Envía una respuesta escrita al reporte sin cambiar el estado del pedido.
+  const responder = () => {
+    if (!respuesta.trim() || !reporte) return;
+    setAccionando(true);
+    responderReporte(reporte.id, { respuesta: respuesta.trim() })
+      .then(() => onAccion())
+      .catch((e) => { setError(e.message); setAccionando(false); });
   };
 
   return (
@@ -364,12 +412,62 @@ function DetallePedido({ pedido, onCerrar, onReabierto, onDireccionResuelta }) {
         <Dato etiqueta="Ruta asignada" valor={pedido.ruta_nombre || historial?.ruta_asignada || "Sin asignar"} icono={Truck} />
         <Dato etiqueta="Conductor" valor={pedido.conductor_nombre || historial?.conductor_asignado || "Sin asignar"} icono={User} />
 
-        {pedido.estado === "FALLIDO" && (
+        {/* Bloque de reporte abierto: muestra motivo, descripción y acciones de resolución */}
+        {pedido.estado === "FALLIDO" && reporte && (
+          <div className="rounded-xl border border-warning/40 bg-warning-soft p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={16} className="text-warning-strong shrink-0" />
+              <p className="text-sm font-semibold text-warning-strong">Reporte de entrega fallida</p>
+            </div>
+            {reporte.motivo && (
+              <p className="text-sm text-slate-700"><span className="font-medium">Motivo:</span> {reporte.motivo}</p>
+            )}
+            {reporte.descripcion && (
+              <p className="text-sm text-slate-600">{reporte.descripcion}</p>
+            )}
+            {error && <p className="text-xs text-red-600">{error}</p>}
+
+            {/* Botones de acción */}
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button size="sm" icon={RotateCcw} onClick={reprogramar} disabled={accionando}>
+                {accionando && subpanel !== "responder" ? "Procesando…" : "Reprogramar"}
+              </Button>
+              <Button size="sm" variant="danger" icon={Ban} onClick={cancelar} disabled={accionando}>
+                Cancelar pedido
+              </Button>
+              <Button size="sm" variant="secondary" icon={MessageSquare}
+                onClick={() => setSubpanel(subpanel === "responder" ? null : "responder")}
+                disabled={accionando}>
+                Responder
+              </Button>
+            </div>
+
+            {/* Subpanel de respuesta libre al reporte */}
+            {subpanel === "responder" && (
+              <div className="space-y-2 pt-1">
+                <textarea
+                  value={respuesta}
+                  onChange={(e) => setRespuesta(e.target.value)}
+                  placeholder="Escribe la respuesta o instrucción para el conductor…"
+                  rows={3}
+                  className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 resize-none"
+                />
+                <Button size="sm" onClick={responder} disabled={accionando || !respuesta.trim()}>
+                  {accionando ? "Enviando…" : "Enviar respuesta"}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Pedido FALLIDO sin reporte abierto: solo opción de reprogramar */}
+        {pedido.estado === "FALLIDO" && !reporte && (
           <div className="rounded-xl border border-warning/30 bg-warning-soft p-4">
-            <p className="text-sm text-warning-strong">Este pedido está fallido. Puedes reabrirlo para reasignarlo.</p>
+            <p className="text-sm text-warning-strong">Este pedido está fallido. Puedes reprogramarlo para reasignarlo.</p>
+            {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
             <div className="mt-3">
-              <Button variant="secondary" icon={RotateCcw} onClick={reabrir} disabled={reabriendo}>
-                {reabriendo ? "Reabriendo…" : "Reabrir → Pendiente"}
+              <Button variant="secondary" icon={RotateCcw} onClick={reprogramar} disabled={accionando}>
+                {accionando ? "Procesando…" : "Reprogramar → Pendiente"}
               </Button>
             </div>
           </div>
