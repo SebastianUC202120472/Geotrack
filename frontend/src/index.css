@@ -122,6 +122,14 @@
     background: currentColor; animation: live-ring 1.9s ease-out infinite;
   }
 
+  /* Parpadeo de alerta: atención suave y accesible */
+  @keyframes parpadeo-alerta {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .45; }
+  }
+  .parpadeo-alerta { animation: parpadeo-alerta 1.1s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .parpadeo-alerta { animation: none; } }
+
   /* Brillo "actualizando" */
   @keyframes shimmer-sweep { 100% { background-position: -200% 0; } }
   .updating-bar {
