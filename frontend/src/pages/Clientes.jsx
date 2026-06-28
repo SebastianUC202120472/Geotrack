@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Building2, Plus, CheckCircle2, AlertCircle, X, Pencil, Trash2, Check, IdCard, Mail } from "lucide-react";
+import { Building2, Plus, CheckCircle2, AlertCircle, X, Pencil, Trash2, Check, IdCard, Mail, MapPin } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -18,7 +18,7 @@ export default function Clientes() {
   // Modo con el que se abre el modal: "ver" (click en fila), "editar" o "confirmar" (botones de acción)
   const [modoInicial, setModoInicial] = useState("ver");
 
-  const [form, setForm] = useState({ razon_social: "", identificador_unico: "", contacto: "" });
+  const [form, setForm] = useState({ razon_social: "", identificador_unico: "", contacto: "", direccion_origen: "" });
   const [error, setError] = useState("");
   const [aviso, setAviso] = useState(null);
   const [guardando, setGuardando] = useState(false);
@@ -66,9 +66,10 @@ export default function Clientes() {
         razon_social: form.razon_social.trim(),
         identificador_unico: form.identificador_unico.trim() || null,
         contacto: form.contacto.trim() || null,
+        direccion_origen: form.direccion_origen.trim(),
       });
       setAviso({ ok: true, texto: `Cliente ${c.razon_social} registrado (${c.codigo || "—"}).` });
-      setForm({ razon_social: "", identificador_unico: "", contacto: "" });
+      setForm({ razon_social: "", identificador_unico: "", contacto: "", direccion_origen: "" });
       cargar();
     } catch (err) {
       setAviso({ ok: false, texto: err.message });
@@ -118,6 +119,10 @@ export default function Clientes() {
             <Input label="Contacto" value={form.contacto}
               onChange={(e) => setForm((f) => ({ ...f, contacto: e.target.value }))}
               placeholder="correo / teléfono" hint="Opcional" />
+            <Input label="Dirección de recojo" required value={form.direccion_origen}
+              onChange={(e) => setForm((f) => ({ ...f, direccion_origen: e.target.value }))}
+              placeholder="Ej. Av. Primavera 123, Miraflores"
+              hint="Separa el distrito con una coma. Se geocodifica al guardar." />
             <Button type="submit" icon={Plus} block disabled={guardando}>{guardando ? "Registrando…" : "Registrar cliente"}</Button>
             {aviso && (
               <div className={`flex items-center gap-2 rounded-xl px-3.5 py-3 text-sm ${aviso.ok ? "bg-success-soft text-success-strong" : "bg-danger-soft text-danger-strong"}`}>
@@ -150,7 +155,7 @@ export default function Clientes() {
 // para abrir directamente en el modo solicitado desde los botones de acción de la fila.
 function DetalleCliente({ cliente: c, onCerrar, onCambios, modoInicial = "ver" }) {
   const [modo, setModo] = useState(modoInicial);
-  const [form, setForm] = useState({ razon_social: c.razon_social || "", identificador_unico: c.identificador_unico || "", contacto: c.contacto || "" });
+  const [form, setForm] = useState({ razon_social: c.razon_social || "", identificador_unico: c.identificador_unico || "", contacto: c.contacto || "", direccion_origen: c.direccion_origen || "" });
   const [aviso, setAviso] = useState(null);
   const [trabajando, setTrabajando] = useState(false);
 
@@ -162,6 +167,7 @@ function DetalleCliente({ cliente: c, onCerrar, onCambios, modoInicial = "ver" }
         razon_social: form.razon_social.trim(),
         identificador_unico: form.identificador_unico.trim() || null,
         contacto: form.contacto.trim() || null,
+        direccion_origen: form.direccion_origen.trim() || null,
       });
       onCambios();
     } catch (err) { setAviso({ texto: err.message }); setTrabajando(false); }
@@ -197,6 +203,7 @@ function DetalleCliente({ cliente: c, onCerrar, onCambios, modoInicial = "ver" }
           <div className="mt-6 space-y-3">
             <Dato icono={IdCard} etiqueta="RUC" valor={c.identificador_unico || "—"} />
             <Dato icono={Mail} etiqueta="Contacto" valor={c.contacto || "—"} />
+            <Dato icono={MapPin} etiqueta="Dirección de recojo" valor={c.direccion_origen || "—"} />
           </div>
           <div className="mt-6 flex gap-2">
             <Button variant="secondary" icon={Pencil} block onClick={() => { setAviso(null); setModo("editar"); }}>Editar</Button>
@@ -210,6 +217,10 @@ function DetalleCliente({ cliente: c, onCerrar, onCambios, modoInicial = "ver" }
           <Input label="Razón social" value={form.razon_social} onChange={(e) => setForm((f) => ({ ...f, razon_social: e.target.value }))} />
           <Input label="RUC" value={form.identificador_unico} onChange={(e) => setForm((f) => ({ ...f, identificador_unico: e.target.value }))} />
           <Input label="Contacto" value={form.contacto} onChange={(e) => setForm((f) => ({ ...f, contacto: e.target.value }))} />
+          <Input label="Dirección de recojo" value={form.direccion_origen}
+            onChange={(e) => setForm((f) => ({ ...f, direccion_origen: e.target.value }))}
+            placeholder="Ej. Av. Primavera 123, Miraflores"
+            hint="Separa el distrito con una coma. Se geocodifica al guardar." />
           <div className="flex gap-2">
             <Button variant="secondary" block onClick={() => setModo("ver")} disabled={trabajando}>Cancelar</Button>
             <Button icon={Check} block onClick={guardar} disabled={trabajando}>{trabajando ? "Guardando…" : "Guardar"}</Button>
