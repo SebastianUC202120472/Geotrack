@@ -87,13 +87,23 @@ def actualizar_cliente(db: Session, cliente_id: int, datos: ClienteUpdate):
                 detail="Ya existe otro cliente con ese identificador (RUC)",
             )
 
-    # Si la dirección de recojo viene y cambió, re-geocodificar y actualizar los 4 campos.
+    # Si la dirección de recojo viene y cambió, sincronizar los campos geo con ella.
+    # Importante: la cadena vacía/espacios NO es "no enviada" (no se ignora como falsy);
+    # significa "limpiar dirección", para que distrito/latitud/longitud nunca queden
+    # desincronizados de direccion_origen.
     nueva_dir = campos.get("direccion_origen")
-    if nueva_dir and nueva_dir != cliente.direccion_origen:
-        lat, lng, distrito = _geocodificar_origen(nueva_dir)
-        campos["distrito"] = distrito
-        campos["latitud"] = lat
-        campos["longitud"] = lng
+    if nueva_dir is not None and nueva_dir != cliente.direccion_origen:
+        if nueva_dir.strip():
+            # Dirección con contenido: re-geocodificar y rellenar los 3 campos derivados.
+            lat, lng, distrito = _geocodificar_origen(nueva_dir)
+            campos["distrito"] = distrito
+            campos["latitud"] = lat
+            campos["longitud"] = lng
+        else:
+            # Dirección vacía: limpiar también los campos geo para no dejar datos viejos.
+            campos["distrito"] = None
+            campos["latitud"] = None
+            campos["longitud"] = None
 
     return cliente_repository.actualizar(db, cliente, **campos)
 

@@ -15,7 +15,7 @@ class ClienteCorporativo(Base):
     contacto = Column(String(100), nullable=True)                 # correo/teléfono de contacto
     direccion_origen = Column(String(255), nullable=True)         # punto de recojo (almacén/tienda del cliente)
     distrito = Column(String(100), nullable=True)                 # se rellena al geocodificar (CUS-16)
-    latitud = Column(Float, nullable=True)
-    longitud = Column(Float, nullable=True)
+    latitud = Column(Float, nullable=True)                        # coordenada del punto de recojo (geocodificada)
+    longitud = Column(Float, nullable=True)                       # coordenada del punto de recojo (geocodificada)
     creado_en = Column(DateTime, default=datetime.utcnow)
     eliminado_en = Column(DateTime, nullable=True)                # borrado lógico (soft delete)
