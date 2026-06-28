@@ -8,6 +8,7 @@ import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import { EstadoBadge } from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
+import ResolverDireccionModal from "../components/ResolverDireccionModal";
 import { listarPedidos, listarZonas, obtenerHistorial, reabrirPedido } from "../services/api";
 
 const POR_PAGINA = 12;
@@ -36,6 +37,7 @@ export default function Pedidos() {
   const [distrito, setDistrito] = useState(params.get("distrito") || "");
   const [estado, setEstado] = useState(params.get("estado") || "");
   const [fecha, setFecha] = useState("todos");
+  const [sinUbicar, setSinUbicar] = useState(false);
   const [pagina, setPagina] = useState(1);
   const [seleccionado, setSeleccionado] = useState(null);
 
@@ -83,11 +85,13 @@ export default function Pedidos() {
       if (distrito && (p.distrito || "") !== distrito) return false;
       if (estado && p.estado !== estado) return false;
       if (!enRango(p.fecha_creacion, fecha)) return false;
+      // Filtro "Sin ubicar": muestra solo pedidos con lat/lng nulos.
+      if (sinUbicar && !(p.latitud == null || p.longitud == null)) return false;
       if (!q) return true;
       return [p.codigo, p.cliente_origen, p.nombre_destinatario, p.direccion_destino, p.conductor_nombre]
         .some((v) => (v || "").toLowerCase().includes(q));
     });
-  }, [pedidos, busqueda, distrito, estado, fecha]);
+  }, [pedidos, busqueda, distrito, estado, fecha, sinUbicar]);
 
   // Resetea paginación al cambiar filtros (dentro de callbacks, sin riesgo de lint)
   const aplicarBusqueda = (v) => { setBusqueda(v); setPagina(1); };
@@ -106,10 +110,10 @@ export default function Pedidos() {
   };
 
   const limpiar = () => {
-    setBusqueda(""); setFecha("todos"); setParams({});
+    setBusqueda(""); setFecha("todos"); setSinUbicar(false); setParams({});
   };
 
-  const hayFiltros = busqueda || distrito || estado || fecha !== "todos";
+  const hayFiltros = busqueda || distrito || estado || fecha !== "todos" || sinUbicar;
 
   // Columnas para DataTable
   const columnas = [
@@ -196,14 +200,24 @@ export default function Pedidos() {
         </div>
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-500">Fecha:</span>
-            {[["hoy", "Hoy"], ["semana", "7 días"], ["todos", "Todos"]].map(([v, l]) => (
-              <button key={v} onClick={() => aplicarFecha(v)}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${fecha === v ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
-                {l}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-500">Fecha:</span>
+              {[["hoy", "Hoy"], ["semana", "7 días"], ["todos", "Todos"]].map(([v, l]) => (
+                <button key={v} onClick={() => aplicarFecha(v)}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${fecha === v ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            {/* Toggle para mostrar solo pedidos sin coordenadas geocodificadas */}
+            <button
+              onClick={() => { setSinUbicar((v) => !v); setPagina(1); }}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${sinUbicar ? "bg-warning-soft text-warning-strong ring-1 ring-warning/40" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+            >
+              <MapPin size={14} />
+              Sin ubicar
+            </button>
           </div>
           <div className="flex items-center gap-3 text-sm text-slate-500">
             <span className="nums">{filtrados.length} pedido(s)</span>
@@ -251,6 +265,7 @@ export default function Pedidos() {
             pedido={seleccionado}
             onCerrar={() => setSeleccionado(null)}
             onReabierto={() => { setSeleccionado(null); cargar(); }}
+            onDireccionResuelta={() => { setSeleccionado(null); cargar(); }}
           />
         )}
       </Modal>
@@ -259,11 +274,13 @@ export default function Pedidos() {
 }
 
 // Panel lateral con el detalle del pedido, su ruta/conductor y línea de tiempo.
-function DetallePedido({ pedido, onCerrar, onReabierto }) {
+function DetallePedido({ pedido, onCerrar, onReabierto, onDireccionResuelta }) {
   const [historial, setHistorial] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [reabriendo, setReabriendo] = useState(false);
+  // Controla si se muestra el modal de resolución de dirección.
+  const [mostrarResolver, setMostrarResolver] = useState(false);
 
   useEffect(() => {
     let activo = true;
@@ -315,6 +332,18 @@ function DetallePedido({ pedido, onCerrar, onReabierto }) {
           </div>
         )}
 
+        {/* Si el pedido no tiene coordenadas, ofrecer resolución contextual */}
+        {(pedido.latitud == null || pedido.longitud == null) && (
+          <div className="rounded-xl border border-brand-200 bg-brand-50 p-4">
+            <p className="text-sm text-brand-800">Este pedido no tiene ubicación geocodificada.</p>
+            <div className="mt-3">
+              <Button icon={MapPin} onClick={() => setMostrarResolver(true)}>
+                Resolver dirección
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="border-t border-slate-100 pt-4">
           <h3 className="mb-3 text-sm font-semibold text-slate-700">Línea de tiempo</h3>
           {cargando ? (
@@ -337,6 +366,20 @@ function DetallePedido({ pedido, onCerrar, onReabierto }) {
           )}
         </div>
       </div>
+
+      {/* Modal de resolución de dirección (se abre sobre el panel lateral) */}
+      <Modal open={mostrarResolver} onClose={() => setMostrarResolver(false)} variant="center">
+        {mostrarResolver && (
+          <ResolverDireccionModal
+            pedido={pedido}
+            onClose={() => setMostrarResolver(false)}
+            onGuardado={() => {
+              setMostrarResolver(false);
+              onDireccionResuelta && onDireccionResuelta();
+            }}
+          />
+        )}
+      </Modal>
     </>
   );
 }
