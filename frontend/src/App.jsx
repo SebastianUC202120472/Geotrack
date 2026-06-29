@@ -15,7 +15,6 @@ import Clientes from "./pages/Clientes";
 import Usuarios from "./pages/Usuarios";
 import Parametros from "./pages/Parametros";
 import SeguimientoConductores from "./pages/SeguimientoConductores";
-import Trazabilidad from "./pages/Trazabilidad";
 import IngresoAlmacen from "./pages/IngresoAlmacen";
 import RetornosAlmacen from "./pages/RetornosAlmacen";
 import ArmarRutaRecojo from "./pages/ArmarRutaRecojo";
@@ -46,7 +45,6 @@ export default function App() {
         <Route path="/usuarios" element={<Usuarios />} />
         <Route path="/parametros" element={<Parametros />} />
         <Route path="/seguimiento-conductores" element={<SeguimientoConductores />} />
-        <Route path="/trazabilidad" element={<Trazabilidad />} />
         <Route path="/almacen" element={<IngresoAlmacen />} />
         <Route path="/almacen/retornos" element={<RetornosAlmacen />} />
         <Route path="/almacen/recojos" element={<ArmarRutaRecojo />} />
