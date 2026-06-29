@@ -102,9 +102,9 @@ def crear_pedido_desde_fila(
     historial_repository.registrar(db, pedido.id, None, estado, usuario_id)
 
     # Geocodificación inmediata; si falla se conserva el estado recibido (no GEOCODIFICACION_FALLIDA)
-    # para no perder el estado semántico del pedido (p.ej. POR_RECOGER).
+    # para no perder el estado semántico del pedido (p.ej. POR_RECOGER). Usa el caché de direcciones.
     if geocodificar:
-        lat, lng = obtener_coordenadas(pedido.direccion_destino)
+        lat, lng = obtener_coordenadas(pedido.direccion_destino, db)
         if lat and lng:
             pedido.latitud = lat
             pedido.longitud = lng
@@ -402,22 +402,29 @@ def resolver_observado(db: Session, pedido_id: int, usuario_id: int | None = Non
 def regeocodificar_pedidos() -> None:
     """Tarea en segundo plano: re-geocodifica los pedidos NO terminales para refrescar sus
     coordenadas. Útil tras activar Google Geocoding (corrige los puntos apilados que dejó
-    Nominatim). Abre su PROPIA sesión de BD; hace commit por pedido para ir actualizando el mapa.
-    No recibe parámetros (la usa un BackgroundTask)."""
+    Nominatim). Abre su PROPIA sesión de BD; commitea por lotes para ir actualizando el mapa.
+    Geocodifica con `forzar=True` (ignora el caché para SÍ refrescar), pero actualiza el caché
+    con el resultado. No recibe parámetros (la usa un BackgroundTask)."""
     from app.db.database import SessionLocal
 
     estados = ("POR_RECOGER", "OBSERVADO", "LISTO_PARA_ENVIO", "ASIGNADO", "EN_RUTA", "GEOCODIFICACION_FALLIDA")
     db = SessionLocal()
     try:
         pedidos = db.query(Pedido).filter(Pedido.estado.in_(estados)).all()
+        pendientes_commit = 0
         for pedido in pedidos:
-            lat, lng = obtener_coordenadas(pedido.direccion_destino)
+            lat, lng = obtener_coordenadas(pedido.direccion_destino, db, forzar=True)
             if lat and lng:
                 pedido.latitud = lat
                 pedido.longitud = lng
                 partes = (pedido.direccion_destino or "").split(",")
                 pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
-                db.commit()
+                pendientes_commit += 1
+                if pendientes_commit >= 20:   # commit por lote (avance visible sin N round-trips)
+                    db.commit()
+                    pendientes_commit = 0
+        if pendientes_commit:
+            db.commit()
     except Exception:
         db.rollback()
     finally:
