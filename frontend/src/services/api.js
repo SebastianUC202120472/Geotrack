@@ -17,7 +17,7 @@ async function request(ruta, { method = "GET", body, headers = {}, auth = true }
     if (token) opciones.headers.Authorization = `Bearer ${token}`;
   }
 
-  // Si el body es FormData (subir Excel) dejamos que el navegador ponga el
+  // Si el body es FormData (multipart) dejamos que el navegador ponga el
   // Content-Type con su boundary; si es objeto, lo mandamos como JSON.
   if (body instanceof FormData) {
     opciones.body = body;
@@ -28,16 +28,14 @@ async function request(ruta, { method = "GET", body, headers = {}, auth = true }
 
   const respuesta = await fetch(`${API_URL}${ruta}`, opciones);
 
-  // 401 (token inválido/expirado) o 403 (la cuenta no tiene permisos de admin):
-  // cerramos sesión y mandamos a login para no quedar en un panel "colgado".
-  if (respuesta.status === 401 || respuesta.status === 403) {
+  // 401 (token inválido/expirado): cerramos sesión y mandamos a login para no
+  // quedar en un panel "colgado". El 403 NO cierra sesión: un usuario válido del
+  // panel (p.ej. almacén) puede toparse con un endpoint solo-admin; en ese caso
+  // dejamos que el código que llamó maneje el error (abajo) sin echarlo del panel.
+  if (respuesta.status === 401) {
     borrarToken();
     if (window.location.pathname !== "/login") window.location.href = "/login";
-    throw new Error(
-      respuesta.status === 403
-        ? "Tu cuenta no tiene permisos para el panel. Inicia sesión como administrador."
-        : "Tu sesión expiró. Vuelve a iniciar sesión."
-    );
+    throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
   }
 
   // Intentamos leer el cuerpo (puede venir vacío en algunos POST).
@@ -68,8 +66,8 @@ function leerPayload(token) {
 }
 
 // Login del panel (CUS-02). El backend usa OAuth2: 'username' y 'password' como
-// formulario. Solo se permite el acceso a usuarios con rol 'admin' (la app móvil
-// es para conductores), así que validamos el rol antes de guardar el token.
+// formulario. Solo entran al panel los roles 'admin' y 'almacen' (la app móvil es
+// para conductores), así que validamos el rol del JWT antes de guardar el token.
 export const loginAdmin = async (correo, contrasena) => {
   const formulario = new URLSearchParams();
   formulario.append("username", correo);
@@ -86,13 +84,18 @@ export const loginAdmin = async (correo, contrasena) => {
   const datos = await respuesta.json();
 
   const payload = leerPayload(datos.access_token);
-  if (payload?.rol !== "admin") {
-    throw new Error("Esta cuenta no tiene acceso al panel de administración.");
+  const ROLES_PANEL = ["admin", "almacen"];
+  if (!ROLES_PANEL.includes(payload?.rol)) {
+    throw new Error("Esta cuenta no tiene acceso al panel.");
   }
 
   guardarToken(datos.access_token);
   return datos;
 };
+
+// Lee el rol del JWT guardado (para que el panel filtre menú/ruteo por rol).
+// Entrada: token (string). Salida: 'admin' | 'almacen' | ... | null.
+export const leerRol = (token) => leerPayload(token)?.rol ?? null;
 
 // Conductores: listar (con ficha + vehículo asignado) y registrar (cuenta + datos).
 export const listarConductores = () => request("/conductores/");
@@ -128,10 +131,14 @@ export const eliminarCliente = (id) =>
   request(`/clientes/${id}`, { method: "DELETE" });
 
 /* ============================================================
-   USUARIOS DEL PANEL  (CUS-03 — admin/jefe/almacén)
+   USUARIOS DEL PANEL  (CUS-03 — admin/almacén)
 ============================================================ */
 
 export const listarUsuarios = () => request("/usuarios/");
+
+// Perfil de la cuenta autenticada (admin/almacén). Salida: { id, codigo, correo,
+// rol, estado, nombre, dni, telefono, cargo }.
+export const obtenerMiPerfil = () => request("/usuarios/yo");
 
 export const crearUsuario = (datos) =>
   request("/usuarios/", { method: "POST", body: datos });
@@ -182,18 +189,9 @@ export const responderReporte = (id, datos) =>
    PEDIDOS  (Inbound — CUS-13 / CUS-15 / CUS-16)
 ============================================================ */
 
-export const subirPedidosExcel = (archivo) => {
-  const formData = new FormData();
-  formData.append("file", archivo);
-  return request("/pedidos/upload", { method: "POST", body: formData });
-};
-
 // El backend limita a 100 por defecto; pedimos un tope alto para poder filtrar
 // y paginar del lado del cliente (suficiente para los volúmenes del MVP).
 export const listarPedidos = (limit = 1000) => request(`/pedidos/?limit=${limit}`);
-
-// Devuelve un pedido FALLIDO a PENDIENTE para reasignarlo.
-export const reabrirPedido = (id) => request(`/pedidos/${id}/reabrir`, { method: "POST" });
 
 // Devuelve { zonas_operativas: [{ distrito, total_pedidos }] }
 export const listarZonas = () => request("/pedidos/zonas");
@@ -213,6 +211,9 @@ export const obtenerSeguimientoClientes = () => request("/dashboard/clientes");
 
 // Posición en vivo de cada conductor con ruta activa + sus paradas pendientes.
 export const obtenerUbicacionesFlota = () => request("/dashboard/flota/ubicaciones");
+
+// Posición en vivo de los conductores en rutas de RECOJO activas (módulo almacén).
+export const obtenerUbicacionesRecojo = () => request("/almacen/flota/ubicaciones-recojo");
 
 /* ============================================================
    VEHÍCULOS Y FLOTA  (gestión del admin)
@@ -341,11 +342,27 @@ export const actualizarCombustible = (consumo_l_100km, precio_soles_litro) =>
    DECISIONES SOBRE PEDIDOS FALLIDOS (CUS-31)
 ============================================================ */
 
-// Reprograma un pedido (vuelve a PENDIENTE). Entrada: id. Salida: { mensaje, codigo }.
+// Reprograma un pedido (vuelve a LISTO_PARA_ENVIO). Entrada: id. Salida: { mensaje, codigo }.
 export const reprogramarPedido = (id) => request(`/pedidos/${id}/reprogramar`, { method: "POST" });
 
 // Cancela un pedido (estado CANCELADO). Entrada: id. Salida: { mensaje, codigo }.
 export const cancelarPedido = (id) => request(`/pedidos/${id}/cancelar`, { method: "POST" });
+
+/* ============================================================
+   RECOJOS INBOUND  (CUS-10 / CUS-11)
+============================================================ */
+
+// Acepta una solicitud de recojo: sube el Excel del cliente y crea los pedidos en POR_RECOGER.
+// Entrada: clienteId (number), archivo (File), extras {referencia?, contacto_origen?, conversacion_id?}.
+export const aceptarSolicitud = (clienteId, archivo, extras = {}) => {
+  const fd = new FormData();
+  fd.append("cliente_id", clienteId);
+  if (extras.referencia) fd.append("referencia", extras.referencia);
+  if (extras.contacto_origen) fd.append("contacto_origen", extras.contacto_origen);
+  if (extras.conversacion_id) fd.append("conversacion_id", extras.conversacion_id);
+  fd.append("file", archivo);
+  return request("/recojos/aceptar", { method: "POST", body: fd });
+};
 
 /* ============================================================
    INCIDENCIAS — Auxilio mecánico (CUS-30)
@@ -355,12 +372,20 @@ export const cancelarPedido = (id) => request(`/pedidos/${id}/cancelar`, { metho
 export const listarIncidencias = (estado) =>
   request(`/incidencias${estado ? `?estado=${encodeURIComponent(estado)}` : ""}`);
 
-// Marca una incidencia como resuelta. Entrada: id y nota opcional. Salida: la incidencia.
-export const resolverIncidencia = (id, nota) =>
-  request(`/incidencias/${id}/resolver`, { method: "POST", body: { nota: nota ?? null } });
+// Manda ayuda a una incidencia abierta (el conductor no puede resolverla solo).
+// Entrada: id y datos { tipo, nota? }. Salida: la incidencia actualizada.
+export const mandarAyuda = (id, datos) =>
+  request(`/incidencias/${id}/mandar-ayuda`, { method: "POST", body: datos });
 
-// Cuántas incidencias hay abiertas (aviso del sidebar/dashboard). Salida: { abiertas }.
-export const contadorIncidencias = () => request("/incidencias/contador");
+// Feed de notificaciones del admin: no_vistas e historial cronológico.
+// Entrada: limite opcional (cuántos ítems traer). Salida: { no_vistas: number,
+// items: [{ id, tipo, titulo, mensaje, ruta, creado_en, visto_en }] }.
+export const obtenerNotificaciones = (limite) =>
+  request(`/notificaciones${limite ? `?limite=${limite}` : ""}`);
+
+// Marca todas las notificaciones como vistas. Salida: { marcadas: number }.
+export const marcarNotificacionesVistas = () =>
+  request("/notificaciones/marcar-vistas", { method: "POST" });
 
 // Descarga un adjunto (ej. el Excel del recojo) y dispara la descarga en el
 // navegador. Va con el token en el header, por eso no se usa un <a href> directo.
@@ -380,3 +405,52 @@ export async function descargarAdjunto(id, nombre) {
   enlace.remove();
   URL.revokeObjectURL(url);
 }
+
+/* ============================================================
+   ALMACÉN — Solicitudes y armado de ruta de recojo
+============================================================ */
+
+// Lista las solicitudes de recojo del módulo almacén. Filtro por estado (default SOLICITADO).
+export const listarSolicitudesAlmacen = (estado = "SOLICITADO") =>
+  request(`/almacen/solicitudes?estado=${encodeURIComponent(estado)}`);
+
+// Asigna una ruta de recojo a partir de solicitudes seleccionadas.
+// Entrada: { recojo_ids, conductor_id (usuario_id), vehiculo_placa, nombre_ruta? }.
+export const asignarRutaRecojoAlmacen = (datos) =>
+  request("/almacen/solicitudes/asignar-ruta", { method: "POST", body: datos });
+
+/* ============================================================
+   ALMACÉN — Ingreso manual  (CUS-14)
+============================================================ */
+
+// Recojos del módulo de almacén (RECOGIDO por ingresar + INGRESADO). Filtro opcional;
+// sin filtro el backend trae ambos estados (RECOGIDO + INGRESADO).
+export const listarRecojosAlmacen = (estado) =>
+  request(`/almacen/recojos${estado ? `?estado=${encodeURIComponent(estado)}` : ""}`);
+
+// Conciliación detallada de un recojo (pedidos + fotos del conductor + conteo).
+export const obtenerConciliacion = (id) => request(`/almacen/recojos/${id}/conciliacion`);
+
+// Confirma el ingreso manual de un recojo (pasa a INGRESADO). Entrada: id del recojo y
+// referenciasFaltantes (array de strings con las referencias que no llegaron al almacén).
+// Salida: { recojo_id, estado, conteo, mensaje }.
+export const confirmarIngreso = (recojoId, referenciasFaltantes = []) =>
+  request(`/almacen/recojos/${recojoId}/confirmar-ingreso`, {
+    method: "POST",
+    body: { referencias_faltantes: referenciasFaltantes },
+  });
+
+// Resuelve un pedido OBSERVADO (lo da por conciliado). Entrada: pedido_id.
+// Salida: { mensaje, codigo }.
+export const resolverObservado = (pedidoId) =>
+  request(`/almacen/pedidos/${pedidoId}/resolver-observado`, { method: "POST" });
+
+// CUS-32: rutas de entrega con FALLIDO pendientes de retorno.
+export const listarRutasRetorno = () => request("/almacen/retornos/rutas");
+
+// Detalle del retorno de una ruta (FALLIDO + conteo).
+export const obtenerRetornoRuta = (id) => request(`/almacen/retornos/rutas/${id}`);
+
+// Escanea un paquete devuelto. Salida: { resultado, codigo, mensaje, conteo }.
+export const escanearRetorno = (id, codigo) =>
+  request(`/almacen/retornos/rutas/${id}/escanear`, { method: "POST", body: { codigo } });

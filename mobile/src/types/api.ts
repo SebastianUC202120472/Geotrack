@@ -23,6 +23,11 @@ export interface RutaActiva {
   fallidas: number;
   pausada?: boolean;          // CUS-30: la ruta está pausada por un auxilio mecánico
   incidencia_id?: number | null;
+  // CUS-30: si el admin ya mandó ayuda, la ruta-activa expone el sello y el detalle
+  // (ej. "Grúa: en 30 min") para mostrar el aviso "Ayuda en camino" en el móvil.
+  ayuda_enviada_en?: string | null;
+  ayuda_detalle?: string | null;
+  tipo?: string; // "ENTREGA" | "RECOJO" — la app elige el flujo de entregas o recepción
 }
 
 // Una parada del manifiesto (GET /conductor/ruta-activa/manifiesto).
@@ -81,13 +86,6 @@ export interface GestionParada {
 export interface OptimizacionResultado {
   mensaje: string;
   total_paradas: number;
-}
-
-// Resultado de validar un paquete por QR contra la ruta activa (CUS-22).
-export interface ValidacionQR {
-  pertenece: boolean;
-  mensaje: string;
-  parada?: ParadaManifiesto | null;
 }
 
 export interface CierreRuta {
@@ -155,4 +153,48 @@ export interface Incidencia {
   creado_en?: string | null;
   resuelto_en?: string | null;
   nota_resolucion?: string | null;
+  // CUS-30: el conductor indica al reportar si puede resolver la avería él mismo.
+  puede_solucionar_solo?: boolean;
+  // CUS-30: cuando el admin "manda ayuda" se sellan estos campos (null si aún no la envía).
+  ayuda_enviada_en?: string | null;   // fecha-hora ISO en que el admin mandó ayuda
+  ayuda_detalle?: string | null;      // descripción de la ayuda (ej. "Grúa: en 30 min")
+}
+
+// Un punto de origen de la ruta de recojo (GET /conductor/recojo/manifiesto).
+export interface ParadaRecojo {
+  secuencia: number;
+  recojo_id: number;
+  codigo?: string | null;
+  cliente_origen: string;
+  direccion_origen: string;
+  distrito?: string | null;
+  latitud?: number | null;
+  longitud?: number | null;
+  volumen_estimado_m3?: number | null;
+  estado: string; // SOLICITADO | ASIGNADO | EN_RUTA | RECOGIDO
+  cantidad_declarada?: number | null;
+  url_guia?: string | null;
+}
+
+export interface ManifiestoRecojo {
+  ruta_id: number;
+  codigo?: string | null;
+  nombre: string;
+  estado: string;
+  total_paradas: number;
+  paradas: ParadaRecojo[];
+}
+
+// Resultado de registrar la recepción condicionada (CUS-12).
+// El backend acepta varias fotos de evidencia (boleta/guía/bultos) bajo el campo `files`
+// y devuelve la lista de URLs en `fotos` (la primera se conserva también en `url_guia`).
+export interface Recepcion {
+  recojo_id: number;
+  codigo?: string | null;
+  estado: string;
+  cantidad_declarada?: number | null;
+  url_guia?: string | null;
+  fotos?: string[] | null;
+  fecha_recojo?: string | null;
+  mensaje: string;
 }

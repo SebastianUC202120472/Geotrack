@@ -29,8 +29,17 @@ def listar(db: Session, skip: int = 0, limit: int = 100) -> List[Pedido]:
 
 
 def obtener_sin_coordenadas(db: Session) -> List[Pedido]:
-    """Pedidos que aún no tienen latitud (faltan por geocodificar)."""
-    return db.query(Pedido).filter(Pedido.latitud == None).all()  # noqa: E711 (SQLAlchemy exige '== None')
+    """Pedidos sin latitud de la vía de entrega (LISTO_PARA_ENVIO o GEOCODIFICACION_FALLIDA)
+    que faltan por geocodificar. Excluye POR_RECOGER: esos se geocodifican al aceptar la
+    solicitud de recojo y se reintentan al validar en almacén, no en el lote de entrega."""
+    return (
+        db.query(Pedido)
+        .filter(
+            Pedido.latitud == None,  # noqa: E711 (SQLAlchemy exige '== None')
+            Pedido.estado.in_(("LISTO_PARA_ENVIO", "GEOCODIFICACION_FALLIDA")),
+        )
+        .all()
+    )
 
 
 def obtener_por_id(db: Session, pedido_id: int) -> Optional[Pedido]:
@@ -49,20 +58,35 @@ def listar_geocodificacion_fallida(db: Session) -> List[Pedido]:
     )
 
 
-def obtener_pendientes_por_distrito(db: Session, distrito: str) -> List[Pedido]:
-    """Pedidos PENDIENTES de un distrito (base para armar una ruta, CUS-18)."""
+def listar_sin_ubicacion_resoluble(db: Session) -> List[Pedido]:
+    """Pedidos sin coordenadas en estados que el admin puede resolver desde el mapa:
+    LISTO_PARA_ENVIO, POR_RECOGER o GEOCODIFICACION_FALLIDA. Incluye los de recojo para que
+    el admin pueda ubicarlos antes de validarlos. Devuelve lista ordenada por código."""
+    estados_resolubles = ("LISTO_PARA_ENVIO", "POR_RECOGER", "GEOCODIFICACION_FALLIDA")
     return (
         db.query(Pedido)
-        .filter(Pedido.distrito == distrito, Pedido.estado == "PENDIENTE")
+        .filter(Pedido.latitud == None, Pedido.estado.in_(estados_resolubles))  # noqa: E711
+        .order_by(Pedido.codigo.asc())
+        .all()
+    )
+
+
+def obtener_pendientes_por_distrito(db: Session, distrito: str) -> List[Pedido]:
+    """Pedidos LISTO_PARA_ENVIO de un distrito (base para armar una ruta, CUS-18)."""
+    return (
+        db.query(Pedido)
+        .filter(Pedido.distrito == distrito, Pedido.estado == "LISTO_PARA_ENVIO")
         .all()
     )
 
 
 def agrupar_por_zona(db: Session):
-    """Cuenta cuántos pedidos geocodificados hay por distrito (CUS-16)."""
+    """Cuenta pedidos entregables (LISTO_PARA_ENVIO + geocodificados) por distrito (CUS-16).
+    Solo incluye LISTO_PARA_ENVIO para que los POR_RECOGER/OBSERVADO no aparezcan en el
+    despacho de entrega antes de ser validados en almacén."""
     return (
         db.query(Pedido.distrito, func.count(Pedido.id).label("total_pedidos"))
-        .filter(Pedido.latitud != None)  # noqa: E711
+        .filter(Pedido.latitud != None, Pedido.estado == "LISTO_PARA_ENVIO")  # noqa: E711
         .group_by(Pedido.distrito)
         .all()
     )
@@ -88,12 +112,16 @@ def contar_por_estado(db: Session):
     )
 
 
-def listar_por_cliente(db: Session, cliente: str, desde=None, hasta=None) -> List[Pedido]:
+def listar_por_cliente(db: Session, cliente: str, desde=None, hasta=None, estados=None) -> List[Pedido]:
     """Pedidos de UNA empresa (por su nombre snapshot 'cliente_origen'), para armar la
     liquidación (CUS-36). `desde`/`hasta` (date, opcionales) acotan por fecha_creacion.
-    Recibe: nombre del cliente y el rango de fechas. Devuelve la lista de pedidos."""
+    `estados` (tupla opcional) filtra por estado: la liquidación pasa los terminales
+    (ENTREGADO/FALLIDO) para no facturar pedidos que aún están en proceso.
+    Recibe: nombre del cliente, el rango de fechas y los estados. Devuelve la lista de pedidos."""
     from datetime import datetime, time
     consulta = db.query(Pedido).filter(Pedido.cliente_origen == cliente)
+    if estados:
+        consulta = consulta.filter(Pedido.estado.in_(tuple(estados)))
     if desde is not None:
         consulta = consulta.filter(Pedido.fecha_creacion >= datetime.combine(desde, time.min))
     if hasta is not None:

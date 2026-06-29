@@ -5,6 +5,20 @@ from sqlalchemy.orm import Session
 
 from app.repositories import cliente_repository
 from app.schemas.cliente import ClienteCreate, ClienteUpdate
+from app.services.geocoder import obtener_coordenadas
+
+
+def _distrito_de(direccion: str) -> str:
+    """Deriva el distrito del texto de la dirección: lo que va tras la primera coma."""
+    partes = (direccion or "").split(",", 1)
+    return partes[1].strip() if len(partes) > 1 else "ZONA_DESCONOCIDA"
+
+
+def _geocodificar_origen(direccion: str):
+    """Geocodifica la dirección de recojo del cliente. Devuelve (lat, lng, distrito)."""
+    lat, lng = obtener_coordenadas(direccion)
+    distrito = _distrito_de(direccion) if lat is not None else None
+    return lat, lng, distrito
 
 
 def _cliente_o_404(db: Session, cliente_id: int):
@@ -21,7 +35,7 @@ def listar_clientes(db: Session):
 
 
 def crear_cliente(db: Session, datos: ClienteCreate):
-    """Registra un cliente nuevo; rechaza si el RUC ya existe."""
+    """Registra un cliente nuevo; rechaza si el RUC ya existe. Geocodifica la dirección de recojo."""
     if datos.identificador_unico:
         existente = cliente_repository.obtener_por_identificador(db, datos.identificador_unico)
         if existente:
@@ -30,11 +44,17 @@ def crear_cliente(db: Session, datos: ClienteCreate):
                 detail="Ya existe un cliente con ese identificador (RUC)",
             )
 
+    lat, lng, distrito = _geocodificar_origen(datos.direccion_origen)
+
     cliente = cliente_repository.crear(
         db,
         razon_social=datos.razon_social,
         identificador_unico=datos.identificador_unico,
         contacto=datos.contacto,
+        direccion_origen=datos.direccion_origen,
+        distrito=distrito,
+        latitud=lat,
+        longitud=lng,
     )
     db.commit()          # crear() solo hizo flush; aquí confirmamos
     db.refresh(cliente)
@@ -66,6 +86,24 @@ def actualizar_cliente(db: Session, cliente_id: int, datos: ClienteUpdate):
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Ya existe otro cliente con ese identificador (RUC)",
             )
+
+    # Si la dirección de recojo viene y cambió, sincronizar los campos geo con ella.
+    # Importante: la cadena vacía/espacios NO es "no enviada" (no se ignora como falsy);
+    # significa "limpiar dirección", para que distrito/latitud/longitud nunca queden
+    # desincronizados de direccion_origen.
+    nueva_dir = campos.get("direccion_origen")
+    if nueva_dir is not None and nueva_dir != cliente.direccion_origen:
+        if nueva_dir.strip():
+            # Dirección con contenido: re-geocodificar y rellenar los 3 campos derivados.
+            lat, lng, distrito = _geocodificar_origen(nueva_dir)
+            campos["distrito"] = distrito
+            campos["latitud"] = lat
+            campos["longitud"] = lng
+        else:
+            # Dirección vacía: limpiar también los campos geo para no dejar datos viejos.
+            campos["distrito"] = None
+            campos["latitud"] = None
+            campos["longitud"] = None
 
     return cliente_repository.actualizar(db, cliente, **campos)
 

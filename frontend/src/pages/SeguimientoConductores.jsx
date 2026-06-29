@@ -19,7 +19,8 @@ const COLORES = ["#2563EB", "#DC2626", "#059669", "#D97706", "#7C3AED", "#DB2777
 export default function SeguimientoConductores() {
   const [ubicaciones, setUbicaciones] = useState([]);
   const [cargando, setCargando] = useState(true);
-  const [seleccionado, setSeleccionado] = useState(null); // conductor_id a centrar en el mapa
+  const [seleccionado, setSeleccionado] = useState(null); // conductor_id: filtra el mapa a ese conductor
+  const [filtroCapa, setFiltroCapa] = useState("TODO");   // qué dibujar: TODO | CONDUCTORES | PEDIDOS
 
   // Carga manual (botón "Actualizar"), con indicador de carga.
   const actualizar = () => {
@@ -51,12 +52,18 @@ export default function SeguimientoConductores() {
   const totalConductores = ubicaciones.length;
   const enLinea = ubicaciones.filter((c) => c.en_linea).length;
   const sinSenal = totalConductores - enLinea;
-  const totalParadas = ubicaciones.reduce((acc, c) => acc + (c.paradas?.length ?? 0), 0);
+  // El mapa ahora recibe TODAS las paradas (para colorear entregadas/fallidas), pero los
+  // contadores siguen siendo "pendientes" (significado histórico de la métrica del panel).
+  const pendientesDe = (c) => c.paradas?.filter((p) => (p.estado || "PENDIENTE") === "PENDIENTE").length ?? 0;
+  const totalParadas = ubicaciones.reduce((acc, c) => acc + pendientesDe(c), 0);
   // Conductores que declararon una incidencia y están en pausa activa.
   const pausados = ubicaciones.filter((u) => u.pausado).length;
 
   // A cada conductor se le asigna un color (compartido con sus paradas en el mapa).
   const conductores = ubicaciones.map((c, i) => ({ ...c, _color: COLORES[i % COLORES.length] }));
+  // Si hay un conductor seleccionado, el mapa muestra SOLO ese (filtra por sus pedidos);
+  // si no, toda la flota. (La lista lateral y los KPIs siguen mostrando todos.)
+  const conductoresVisibles = seleccionado != null ? conductores.filter((c) => c.conductor_id === seleccionado) : conductores;
 
   return (
     <div className="space-y-6 p-6 lg:p-8">
@@ -66,6 +73,21 @@ export default function SeguimientoConductores() {
           titulo="Seguimiento de Conductores"
           subtitulo="Ubicación en vivo de cada conductor con ruta activa y sus pedidos pendientes."
         >
+          {/* Filtro de capa: qué mostrar en el mapa (todo / solo conductores / solo pedidos) */}
+          <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-semibold" role="group" aria-label="Filtrar mapa">
+            {[["TODO", "Todo"], ["CONDUCTORES", "Conductores"], ["PEDIDOS", "Pedidos"]].map(([valor, etiqueta]) => (
+              <button
+                key={valor}
+                type="button"
+                onClick={() => setFiltroCapa(valor)}
+                className={`rounded-md px-2.5 py-1.5 transition-colors ${
+                  filtroCapa === valor ? "bg-brand-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {etiqueta}
+              </button>
+            ))}
+          </div>
           <LiveBadge tone="success">En vivo</LiveBadge>
           <Button variant="secondary" icon={RefreshCw} onClick={actualizar}>
             Actualizar
@@ -140,6 +162,17 @@ export default function SeguimientoConductores() {
               title="Conductores"
               subtitle={`${totalConductores} en ruta`}
               className="h-full"
+              action={
+                seleccionado != null ? (
+                  <button
+                    type="button"
+                    onClick={() => setSeleccionado(null)}
+                    className="text-xs font-semibold text-brand-600 hover:text-brand-700"
+                  >
+                    Ver todos
+                  </button>
+                ) : null
+              }
             >
               <ul className="space-y-1 -mx-5 px-0">
                 {conductores.map((c) => {
@@ -148,7 +181,7 @@ export default function SeguimientoConductores() {
                     <li key={c.conductor_id}>
                       <button
                         type="button"
-                        onClick={() => setSeleccionado(c.conductor_id)}
+                        onClick={() => setSeleccionado(seleccionado === c.conductor_id ? null : c.conductor_id)}
                         className={`flex w-full items-start gap-3 rounded-lg px-5 py-3 text-left transition-colors ${
                           activo ? "bg-brand-50" : "hover:bg-slate-50"
                         }`}
@@ -169,7 +202,7 @@ export default function SeguimientoConductores() {
                           )}
                           <p className="truncate text-xs text-slate-500">{c.ruta || "Sin ruta"}</p>
                           <p className="mt-0.5 text-xs text-slate-400">
-                            {c.paradas?.length ?? 0} parada{(c.paradas?.length ?? 0) !== 1 ? "s" : ""} ·{" "}
+                            {pendientesDe(c)} parada{pendientesDe(c) !== 1 ? "s" : ""} pendiente{pendientesDe(c) !== 1 ? "s" : ""} ·{" "}
                             {c.en_linea ? "en línea" : "sin señal"}
                           </p>
                         </div>
@@ -183,7 +216,7 @@ export default function SeguimientoConductores() {
 
           {/* Mapa de flota — props idénticas al original */}
           <div className="flex-1 overflow-hidden rounded-xl border border-slate-200">
-            <MapaFlota conductores={conductores} seleccionado={seleccionado} />
+            <MapaFlota conductores={conductoresVisibles} seleccionado={seleccionado} mostrar={filtroCapa} />
           </div>
         </div>
       )}

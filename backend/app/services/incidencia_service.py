@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.repositories import incidencia_repository, ruta_repository, usuario_repository
 from app.models.conductor import PerfilConductor
+from app.services import notificaciones_service
 
 # Carpeta de fotos de avería (servidas en /media, igual que las POD).
 DIR_INCIDENCIAS = os.path.join("uploads", "incidencias")
@@ -44,6 +45,9 @@ def _a_respuesta(db: Session, inc) -> dict:
         "creado_en": inc.creado_en,
         "resuelto_en": inc.resuelto_en,
         "nota_resolucion": inc.nota_resolucion,
+        "puede_solucionar_solo": bool(inc.puede_solucionar_solo),
+        "ayuda_enviada_en": inc.ayuda_enviada_en,
+        "ayuda_detalle": inc.ayuda_detalle,
     }
 
 
@@ -67,7 +71,17 @@ def reportar(db: Session, conductor_id: int, datos) -> dict:
         descripcion=(datos.descripcion or None),
         latitud=datos.latitud,
         longitud=datos.longitud,
+        puede_solucionar_solo=bool(getattr(datos, "puede_solucionar_solo", False)),
     )
+    # Notifica al admin que un conductor solicitó auxilio mecánico (lo lleva al historial de auxilio).
+    try:
+        nombre = _nombre_conductor(db, conductor_id)
+        solo = " (puede solucionarlo solo)" if inc.puede_solucionar_solo else ""
+        notificaciones_service.registrar(
+            db, "incidencias", "Auxilio mecánico solicitado",
+            f"{nombre or 'Conductor'} — ruta {ruta.nombre or ruta.codigo}{solo}", "/auxilio?estado=ABIERTA", inc.id)
+    except Exception:
+        pass
     return _a_respuesta(db, inc)
 
 
@@ -107,7 +121,8 @@ def _cerrar(db: Session, incidencia_id: int, usuario_id: int, nota, por_defecto:
 
 
 def reanudar(db: Session, incidencia_id: int, usuario_id: int, nota=None) -> dict:
-    """CONDUCTOR: reanuda su ruta cerrando la incidencia abierta. Recibe: id, conductor, nota."""
+    """CONDUCTOR: reanuda su ruta cerrando la incidencia abierta. Es el ÚNICO que puede cerrarla
+    (el admin solo observa y manda ayuda). Recibe: id, conductor, nota."""
     inc = incidencia_repository.obtener(db, incidencia_id)
     if not inc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incidencia no encontrada")
@@ -116,9 +131,28 @@ def reanudar(db: Session, incidencia_id: int, usuario_id: int, nota=None) -> dic
     return _cerrar(db, incidencia_id, usuario_id, nota, "Reanudada por el conductor")
 
 
-def resolver(db: Session, incidencia_id: int, admin_id: int, nota=None) -> dict:
-    """ADMIN: marca la incidencia como resuelta desde el panel. Recibe: id, admin, nota."""
-    return _cerrar(db, incidencia_id, admin_id, nota, "Resuelta por el administrador")
+def mandar_ayuda(db: Session, incidencia_id: int, admin_id: int, tipo: str, nota=None) -> dict:
+    """ADMIN: registra que se le envía ayuda al conductor (tipo adaptable + nota). Sella quién/cuándo
+    y el detalle; el conductor lo verá como "Ayuda en camino" en su app. NO resuelve la incidencia
+    (solo el conductor la cierra al reanudar). Re-enviar actualiza el detalle. Recibe: id, admin, tipo, nota."""
+    inc = incidencia_repository.obtener(db, incidencia_id)
+    if not inc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incidencia no encontrada")
+    if inc.estado == "RESUELTA":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La incidencia ya fue resuelta")
+    # El conductor declaró que puede resolverlo solo: no se le manda ayuda (el panel ya
+    # oculta el botón; aquí lo reforzamos para que la API no dependa solo de la UI).
+    if inc.puede_solucionar_solo:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="El conductor indicó que puede solucionarlo solo; no procede mandar ayuda.")
+    if not (tipo or "").strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Indica el tipo de ayuda a enviar")
+    detalle = tipo.strip() + (f": {nota.strip()}" if (nota and nota.strip()) else "")
+    inc.ayuda_enviada_en = datetime.utcnow()
+    inc.ayuda_enviada_por = admin_id
+    inc.ayuda_detalle = detalle[:255]
+    incidencia_repository.guardar(db)
+    return _a_respuesta(db, inc)
 
 
 def listar(db: Session, estado=None) -> list:

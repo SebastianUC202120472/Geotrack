@@ -8,7 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
-import { MapaWeb } from "@/components/MapaWeb";
+import { MapaNativo } from "@/components/MapaNativo";
 import { ParadaItem } from "@/components/ParadaItem";
 import { Cargando, ErrorVista, Vacio } from "@/components/Estados";
 import { GradientHeader } from "@/components/GradientHeader";
@@ -16,14 +16,24 @@ import { Cabecera } from "@/components/Cabecera";
 import { DeslizarPestanas } from "@/components/DeslizarPestanas";
 import { Aparecer, ItemLista, BarraProgreso, Contador, IndicadorEnVivo } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
+import { RutaRecojoView } from "@/features/recojo/RutaRecojoView";
 import { useRutaActiva, useManifiesto, useNavegacion, useIniciarRuta, useFinalizarRuta, claves } from "@/features/ruta/hooks";
 import { useUbicacionActual } from "@/hooks/useUbicacionActual";
-import { useEnviarUbicacion } from "@/hooks/useEnviarUbicacion";
+import { useRastreoUbicacion } from "@/hooks/useRastreoUbicacion";
 import { useReanudarRuta } from "@/features/incidencia/hooks";
+import { usePendientesPorPedido } from "@/features/sync/hooks";
 import { mensajeDeError } from "@/api/client";
+import { BannerSync } from "@/components/BannerSync";
 import { useTheme, spacing } from "@/theme";
 
+// El tab "Ruta" muestra el flujo de entregas o el de recojo según el tipo de la ruta activa.
 export default function RutaScreen() {
+  const rutaActiva = useRutaActiva();
+  if (rutaActiva.data?.tipo === "RECOJO") return <RutaRecojoView />;
+  return <RutaEntregaView />;
+}
+
+function RutaEntregaView() {
   const router = useRouter();
   const { colors } = useTheme();
   const ruta = useRutaActiva();
@@ -35,9 +45,11 @@ export default function RutaScreen() {
   const reanudar = useReanudarRuta();
   const pausada = !!ruta.data?.pausada;
   const qc = useQueryClient();
+  // CUS-27: paradas con una acción en la cola offline (aún sin subir al servidor).
+  const pendientesPorPedido = usePendientesPorPedido();
 
-  // Envía la posición del conductor mientras tenga una ruta activa (foreground).
-  useEnviarUbicacion(!!ruta.data && ruta.data.estado !== "FINALIZADA");
+  // Rastrea la posición del conductor en segundo plano mientras tenga ruta activa.
+  useRastreoUbicacion(!!ruta.data && ruta.data.estado !== "FINALIZADA");
 
   // Al volver a esta pestaña, vuelve a pedir los datos (se ven los cambios al instante).
   useFocusEffect(
@@ -51,7 +63,7 @@ export default function RutaScreen() {
   // "Ruta" muestra solo las próximas 5 paradas PENDIENTES (ventana que se va
   // llenando: al entregar una, entra la siguiente). El listado completo está en "Pedidos".
   const paradasPendientes = [...(manifiesto.data?.paradas ?? [])]
-    .filter((p) => p.estado_entrega === "PENDIENTE")
+    .filter((p) => p.estado_entrega === "PENDIENTE" && !pendientesPorPedido.has(p.pedido_id))
     .sort((a, b) => a.secuencia - b.secuencia);
   const proximas = paradasPendientes.slice(0, 5);
   const sinRuta = (ruta.error as { response?: { status?: number } } | null)?.response?.status === 404;
@@ -154,13 +166,13 @@ export default function RutaScreen() {
       )}
 
       <Aparecer style={estilos.secciones}>
+        <BannerSync />
         <Card style={{ marginTop: spacing.md, padding: spacing.sm }}>
-          <MapaWeb paradas={proximas} />
+          {/* El mapa muestra TODAS las paradas del manifiesto, no solo las próximas. */}
+          <MapaNativo paradas={manifiesto.data?.paradas ?? []} />
         </Card>
 
         <Button titulo="Iniciar ruta desde mi ubicación" onPress={iniciarRuta} cargando={ubicacion.cargando || iniciar.isPending} />
-        {/* CUS-22: validar la carga escaneando el QR de cada caja antes de salir */}
-        <Button titulo="Validar carga (escanear QR)" variante="secondary" onPress={() => router.push("/validar-carga")} />
 
         {/* CUS-30: banner de pausa activa o botón para reportar auxilio mecánico */}
         {pausada ? (
@@ -169,6 +181,17 @@ export default function RutaScreen() {
             <Texto variante="caption" color={colors.danger} style={{ marginTop: 2, marginBottom: spacing.sm }}>
               Reanúdala cuando el vehículo esté listo para seguir entregando.
             </Texto>
+            {/* CUS-30: si el admin ya mandó ayuda, se destaca el aviso "Ayuda en camino". */}
+            {ruta.data?.ayuda_enviada_en && (
+              <Card style={{ backgroundColor: colors.brandSoft, marginBottom: spacing.sm }}>
+                <Texto variante="bodyMedium" color={colors.brand}>🚐 Ayuda en camino</Texto>
+                {ruta.data.ayuda_detalle && (
+                  <Texto variante="caption" color={colors.brandInk} style={{ marginTop: 2 }}>
+                    {ruta.data.ayuda_detalle}
+                  </Texto>
+                )}
+              </Card>
+            )}
             <Button titulo="Reanudar ruta" onPress={reanudarRutaActiva} cargando={reanudar.isPending} />
           </Card>
         ) : (

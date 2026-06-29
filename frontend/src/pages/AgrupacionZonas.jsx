@@ -20,7 +20,7 @@ function agruparZonas(pedidos) {
     const clave = p.distrito || "";
     if (!mapa.has(clave)) mapa.set(clave, { distrito: clave, pendientes: 0, asignados: 0 });
     const z = mapa.get(clave);
-    if (p.estado === "PENDIENTE") z.pendientes++;
+    if (p.estado === "LISTO_PARA_ENVIO") z.pendientes++;
     else if (p.estado === "ASIGNADO") z.asignados++;
   }
   return [...mapa.values()]
@@ -95,9 +95,9 @@ function ZonaCard({ zona, irAPedidos, indice }) {
       <div className="flex gap-2 p-3">
         <PildoraEstado
           tono="warning"
-          label="Pendientes"
+          label="Listo p/envío"
           valor={zona.pendientes}
-          onClick={() => irAPedidos(zona.distrito, "PENDIENTE")}
+          onClick={() => irAPedidos(zona.distrito, "LISTO_PARA_ENVIO")}
         />
         <PildoraEstado
           tono="info"
@@ -184,7 +184,7 @@ export default function AgrupacionZonas() {
           hint="Con pendientes o asignados"
         />
         <StatCard
-          label="Pendientes"
+          label="Listo p/envío"
           value={totalPendientes}
           icon={Clock}
           tone="warning"

@@ -48,6 +48,13 @@ class RutaActivaResponse(BaseModel):
     # CUS-30: la ruta está pausada si tiene una incidencia abierta (auxilio mecánico).
     pausada: bool = False
     incidencia_id: Optional[int] = None
+    # "Mandar ayuda" del admin sobre la incidencia abierta: el conductor ve "Ayuda en camino"
+    # si vienen poblados (la app refresca ruta-activa cada 10 s).
+    ayuda_enviada_en: Optional[datetime] = None
+    ayuda_detalle: Optional[str] = None
+    # Tipo de ruta: ENTREGA (outbound) | RECOJO (inbound, CUS-11). La app móvil lo usa
+    # para mostrar el flujo de entregas o el de recepción condicionada.
+    tipo: str = "ENTREGA"
 
 
 # --- CUS-24: manifiesto completo y ordenado ---
@@ -65,17 +72,6 @@ class NavegacionResponse(BaseModel):
     ruta_id: int
     total_paradas: int
     paradas: List[ParadaNavegacion]
-
-
-# FASE 3.2: Validación en almacén (CUS-22)
-class ValidacionQRRequest(BaseModel):
-    codigo: str  # el código PD-001 escaneado del QR
-
-
-class ValidacionQRResponse(BaseModel):
-    pertenece: bool
-    mensaje: str
-    parada: Optional[ParadaManifiesto] = None
 
 
 # FASE 3.3: Ejecución y evidencias (CUS-26 / CUS-29)

@@ -1,6 +1,6 @@
 # app/api/pedidos.py
 # Expone las URLs del módulo Inbound (gestión de pedidos del admin).
-from fastapi import APIRouter, UploadFile, File, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -9,7 +9,6 @@ from app.models.usuario import Usuario
 from app.services import pedido_service
 from app.schemas.pedido import (
     PedidoResponse,
-    CargaPedidosResponse,
     GeocodificacionResponse,
     ZonasResponse,
     UbicacionManualRequest,
@@ -18,17 +17,6 @@ from app.schemas.pedido import (
 from typing import List
 
 router = APIRouter()
-
-
-@router.post("/upload", response_model=CargaPedidosResponse)
-async def upload_pedidos(
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    admin: Usuario = Depends(get_current_admin),
-):
-    """Carga masiva de pedidos desde un Excel (CUS-13)."""
-    contenido = await file.read()  # leemos el archivo subido (bytes)
-    return pedido_service.cargar_pedidos_excel(db, contenido, file.filename, usuario_id=admin.id)
 
 
 @router.get("/", response_model=List[PedidoResponse], dependencies=[Depends(get_current_admin)])
@@ -69,7 +57,7 @@ def fijar_ubicacion(pedido_id: int, datos: UbicacionManualRequest, db: Session =
 
 @router.post("/{pedido_id}/reprogramar")
 def reprogramar_pedido(pedido_id: int, db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
-    """CUS-31: vuelve un pedido FALLIDO a PENDIENTE para reintentarlo (reasignar)."""
+    """CUS-31: vuelve un pedido FALLIDO a LISTO_PARA_ENVIO para reintentarlo (reasignar)."""
     return pedido_service.reprogramar(db, pedido_id, usuario_id=admin.id)
 
 
@@ -77,3 +65,12 @@ def reprogramar_pedido(pedido_id: int, db: Session = Depends(get_db), admin: Usu
 def cancelar_pedido(pedido_id: int, db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
     """CUS-31: cancela definitivamente un pedido FALLIDO (estado CANCELADO)."""
     return pedido_service.cancelar(db, pedido_id, usuario_id=admin.id)
+
+
+@router.post("/regeocodificar")
+def regeocodificar(background_tasks: BackgroundTasks, admin: Usuario = Depends(get_current_admin)):
+    """Re-geocodifica en segundo plano los pedidos no terminales para refrescar sus coordenadas
+    (útil tras activar Google Geocoding: corrige los puntos apilados de Nominatim). Responde al
+    instante; el avance se ve en el mapa a medida que se resuelven."""
+    background_tasks.add_task(pedido_service.regeocodificar_pedidos)
+    return {"mensaje": "Re-geocodificación iniciada en segundo plano"}

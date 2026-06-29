@@ -36,11 +36,16 @@ def generar(db: Session, cliente: str, periodo_inicio: Optional[date], periodo_f
     """CUS-36: arma la liquidación (entregados y fallidos) de un cliente y la persiste.
     Recibe: el nombre del cliente (cliente_origen) y un rango de fechas opcional.
     Devuelve: metadata con la URL del .xlsx descargable y el total de pedidos."""
-    pedidos = pedido_repository.listar_por_cliente(db, cliente, periodo_inicio, periodo_fin)
+    # Solo se liquidan los pedidos con resultado de reparto (entregados y fallidos): los que
+    # siguen en proceso (POR_RECOGER, LISTO_PARA_ENVIO, ASIGNADO, EN_RUTA, OBSERVADO) o
+    # CANCELADO no representan un servicio prestado y no deben inflar el total facturable.
+    pedidos = pedido_repository.listar_por_cliente(
+        db, cliente, periodo_inicio, periodo_fin, estados=("ENTREGADO", "FALLIDO")
+    )
     if not pedidos:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No hay pedidos del cliente '{cliente}' para liquidar",
+            detail=f"No hay pedidos entregados o fallidos del cliente '{cliente}' para liquidar",
         )
 
     # Construcción del Excel: una fila por pedido con su estado y, si falló, el motivo.

@@ -12,6 +12,9 @@ class Ruta(Base):
     id = Column(Integer, primary_key=True, index=True)
     codigo = Column(String(20), unique=True, index=True, nullable=True)  # legible: RT-001
     nombre = Column(String(100), nullable=False)  # ej: "Ruta San Miguel - Tarde"
+    # ENTREGA (outbound, por defecto) | RECOJO (inbound, CUS-11). server_default deja
+    # las rutas existentes como ENTREGA sin tocar datos.
+    tipo = Column(String(20), default="ENTREGA", server_default="ENTREGA", nullable=False)
     # Estado de la operación: CREADA -> EN_PROGRESO -> FINALIZADA
     estado = Column(String(50), default="CREADA")
     fecha_creacion = Column(DateTime, default=datetime.utcnow)  # cuándo la creó el admin
@@ -48,6 +51,10 @@ class RutaDetalle(Base):
     motivo_fallo = Column(String(255), nullable=True)   # CUS-26: razón si fue FALLIDO
     url_evidencia = Column(String(255), nullable=True)  # CUS-29: ruta de la foto POD
     fecha_gestion = Column(DateTime, nullable=True)     # cuándo se entregó/falló
+
+    # CUS-32: logística inversa. Se sella cuando el almacén escanea el paquete FALLIDO de vuelta.
+    retornado_en = Column(DateTime, nullable=True)
+    retornado_por = Column(Integer, nullable=True)   # id del usuario de almacén que recibió el retorno
 
     # Relación inversa: cada detalle pertenece a una ruta.
     ruta = relationship("Ruta", back_populates="detalles")
