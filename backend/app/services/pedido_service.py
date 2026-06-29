@@ -357,3 +357,28 @@ def resolver_observado(db: Session, pedido_id: int, usuario_id: int | None = Non
     pedido.validado_por = usuario_id
     db.commit()
     return {"mensaje": "Pedido resuelto: Listo para envío.", "codigo": pedido.codigo}
+
+
+def regeocodificar_pedidos() -> None:
+    """Tarea en segundo plano: re-geocodifica los pedidos NO terminales para refrescar sus
+    coordenadas. Útil tras activar Google Geocoding (corrige los puntos apilados que dejó
+    Nominatim). Abre su PROPIA sesión de BD; hace commit por pedido para ir actualizando el mapa.
+    No recibe parámetros (la usa un BackgroundTask)."""
+    from app.db.database import SessionLocal
+
+    estados = ("POR_RECOGER", "OBSERVADO", "LISTO_PARA_ENVIO", "ASIGNADO", "EN_RUTA", "GEOCODIFICACION_FALLIDA")
+    db = SessionLocal()
+    try:
+        pedidos = db.query(Pedido).filter(Pedido.estado.in_(estados)).all()
+        for pedido in pedidos:
+            lat, lng = obtener_coordenadas(pedido.direccion_destino)
+            if lat and lng:
+                pedido.latitud = lat
+                pedido.longitud = lng
+                partes = (pedido.direccion_destino or "").split(",")
+                pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
+                db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()

@@ -41,6 +41,8 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      # Geocoding preciso de Google (SOLO backend). Vacía = usa Nominatim/OSM (gratis, menos preciso).
+      GOOGLE_GEOCODING_KEY: ${GOOGLE_GEOCODING_KEY:-}
       # Bandeja de correos (opcional). Si no se configuran, la bandeja queda en
       # modo "no configurado" y el resto del backend funciona igual.
       MAIL_ENABLED: ${MAIL_ENABLED:-false}
