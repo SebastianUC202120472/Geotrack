@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.repositories import incidencia_repository, ruta_repository, usuario_repository
 from app.models.conductor import PerfilConductor
+from app.services import notificaciones_service
 
 # Carpeta de fotos de avería (servidas en /media, igual que las POD).
 DIR_INCIDENCIAS = os.path.join("uploads", "incidencias")
@@ -68,6 +69,14 @@ def reportar(db: Session, conductor_id: int, datos) -> dict:
         latitud=datos.latitud,
         longitud=datos.longitud,
     )
+    # Notifica al admin que un conductor solicitó auxilio mecánico.
+    try:
+        nombre = _nombre_conductor(db, conductor_id)
+        notificaciones_service.registrar(
+            db, "incidencias", "Auxilio mecánico solicitado",
+            f"{nombre or 'Conductor'} — ruta {ruta.nombre or ruta.codigo}", "/conductores", inc.id)
+    except Exception:
+        pass
     return _a_respuesta(db, inc)
 
 
