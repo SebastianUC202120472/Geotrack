@@ -119,16 +119,19 @@ export async function enviarUbicacion(latitud: number, longitud: number): Promis
 }
 
 // CUS-30: reporta un auxilio mecánico sobre la ruta activa (la ruta queda pausada).
-// Recibe: descripcion opcional y coords opcionales {latitud, longitud}.
+// Recibe: descripcion opcional, coords opcionales {latitud, longitud} y un flag
+// puede_solucionar_solo (el conductor indica si puede resolver la avería él mismo).
 export async function reportarIncidencia(
   descripcion?: string,
-  coords?: { latitud: number; longitud: number }
+  coords?: { latitud: number; longitud: number },
+  puedeSolucionarSolo: boolean = false
 ): Promise<Incidencia> {
   const { data } = await api.post<Incidencia>("/conductor/incidencias", {
     tipo: "AVERIA_MECANICA",
     descripcion: descripcion ?? null,
     latitud: coords?.latitud ?? null,
     longitud: coords?.longitud ?? null,
+    puede_solucionar_solo: puedeSolucionarSolo,
   });
   return data;
 }

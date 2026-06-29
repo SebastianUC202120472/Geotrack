@@ -50,8 +50,8 @@ const secciones = [
     titulo: "Trazabilidad",
     roles: ["admin"],
     items: [
-      { icon: ClipboardList, label: "Historial de Reportes", path: "/reportes" },
-      { icon: Wrench, label: "Historial de Auxilio", path: "/auxilio" },
+      { icon: ClipboardList, label: "Reportes de pedido", path: "/reportes" },
+      { icon: Wrench, label: "Auxilio mecánico", path: "/auxilio" },
     ],
   },
   {

@@ -182,6 +182,17 @@ function RutaEntregaView() {
             <Texto variante="caption" color={colors.danger} style={{ marginTop: 2, marginBottom: spacing.sm }}>
               Reanúdala cuando el vehículo esté listo para seguir entregando.
             </Texto>
+            {/* CUS-30: si el admin ya mandó ayuda, se destaca el aviso "Ayuda en camino". */}
+            {ruta.data?.ayuda_enviada_en && (
+              <Card style={{ backgroundColor: colors.brandSoft, marginBottom: spacing.sm }}>
+                <Texto variante="bodyMedium" color={colors.brand}>🚐 Ayuda en camino</Texto>
+                {ruta.data.ayuda_detalle && (
+                  <Texto variante="caption" color={colors.brandInk} style={{ marginTop: 2 }}>
+                    {ruta.data.ayuda_detalle}
+                  </Texto>
+                )}
+              </Card>
+            )}
             <Button titulo="Reanudar ruta" onPress={reanudarRutaActiva} cargando={reanudar.isPending} />
           </Card>
         ) : (

@@ -372,9 +372,10 @@ export const aceptarSolicitud = (clienteId, archivo, extras = {}) => {
 export const listarIncidencias = (estado) =>
   request(`/incidencias${estado ? `?estado=${encodeURIComponent(estado)}` : ""}`);
 
-// Marca una incidencia como resuelta. Entrada: id y nota opcional. Salida: la incidencia.
-export const resolverIncidencia = (id, nota) =>
-  request(`/incidencias/${id}/resolver`, { method: "POST", body: { nota: nota ?? null } });
+// Manda ayuda a una incidencia abierta (el conductor no puede resolverla solo).
+// Entrada: id y datos { tipo, nota? }. Salida: la incidencia actualizada.
+export const mandarAyuda = (id, datos) =>
+  request(`/incidencias/${id}/mandar-ayuda`, { method: "POST", body: datos });
 
 // Feed de notificaciones del admin: no_vistas e historial cronológico.
 // Entrada: limite opcional (cuántos ítems traer). Salida: { no_vistas: number,

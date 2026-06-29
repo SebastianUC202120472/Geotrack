@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { Search, X, Package, MapPin, Eye, ChevronLeft, ChevronRight, Loader2, RotateCcw, User, Truck, Filter, List, Building2, AlertTriangle, MessageSquare, Ban } from "lucide-react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { Search, X, Package, MapPin, Eye, ChevronLeft, ChevronRight, Loader2, RotateCcw, User, Truck, Filter, List, Building2, AlertTriangle, Ban } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -13,7 +13,7 @@ import ResolverDireccionModal from "../components/ResolverDireccionModal";
 import VistaPorRuta from "../components/seguimiento/VistaPorRuta";
 import VistaPorCliente from "../components/seguimiento/VistaPorCliente";
 import TabTrazabilidad from "../components/TabTrazabilidad";
-import { listarPedidos, listarZonas, obtenerHistorial, reprogramarPedido, cancelarPedido, responderReporte, listarReportes } from "../services/api";
+import { listarPedidos, listarZonas, obtenerHistorial, reprogramarPedido, cancelarPedido, listarReportes } from "../services/api";
 
 const POR_PAGINA = 12;
 const fmt = (f) => (f ? new Date(f).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—");
@@ -40,6 +40,7 @@ const VISTAS = [
 // Explorador de pedidos: buscar, filtrar (zona, estado, fecha) y abrir el detalle
 // con su ruta/conductor y línea de tiempo. Pensado para manejar cientos de pedidos.
 export default function Pedidos() {
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [pedidos, setPedidos] = useState([]);
   const [zonas, setZonas] = useState([]);
@@ -341,6 +342,7 @@ export default function Pedidos() {
             onCerrar={() => setSeleccionado(null)}
             onAccion={() => { setSeleccionado(null); cargarTodo(); }}
             onDireccionResuelta={() => { setSeleccionado(null); cargar(); }}
+            onVerReporte={(codigo) => navigate(`/reportes?pedido=${encodeURIComponent(codigo)}`)}
           />
         )}
       </Modal>
@@ -350,18 +352,15 @@ export default function Pedidos() {
 }
 
 // Panel lateral con el detalle del pedido, su ruta/conductor y línea de tiempo.
-// Recibe `reporte` (objeto del reporte abierto o null) y `onAccion` (refresca lista + reportes).
-function DetallePedido({ pedido, reporte, onCerrar, onAccion, onDireccionResuelta }) {
+// Recibe `reporte` (objeto del reporte abierto o null), `onAccion` (refresca lista +
+// reportes) y `onVerReporte` (navega a Reportes de pedido con el código precargado).
+function DetallePedido({ pedido, reporte, onCerrar, onAccion, onDireccionResuelta, onVerReporte }) {
   const [historial, setHistorial] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [accionando, setAccionando] = useState(false);
   // Controla si se muestra el modal de resolución de dirección.
   const [mostrarResolver, setMostrarResolver] = useState(false);
-  // Texto de respuesta para el panel de "Responder".
-  const [respuesta, setRespuesta] = useState("");
-  // Subpanel activo dentro de las acciones del reporte.
-  const [subpanel, setSubpanel] = useState(null);
 
   useEffect(() => {
     let activo = true;
@@ -389,15 +388,6 @@ function DetallePedido({ pedido, reporte, onCerrar, onAccion, onDireccionResuelt
       .catch((e) => { setError(e.message); setAccionando(false); });
   };
 
-  // Envía una respuesta escrita al reporte sin cambiar el estado del pedido.
-  const responder = () => {
-    if (!respuesta.trim() || !reporte) return;
-    setAccionando(true);
-    responderReporte(reporte.id, { respuesta: respuesta.trim() })
-      .then(() => onAccion())
-      .catch((e) => { setError(e.message); setAccionando(false); });
-  };
-
   return (
     <>
       <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
@@ -416,51 +406,33 @@ function DetallePedido({ pedido, reporte, onCerrar, onAccion, onDireccionResuelt
         <Dato etiqueta="Ruta asignada" valor={pedido.ruta_nombre || historial?.ruta_asignada || "Sin asignar"} icono={Truck} />
         <Dato etiqueta="Conductor" valor={pedido.conductor_nombre || historial?.conductor_asignado || "Sin asignar"} icono={User} />
 
-        {/* Bloque de reporte abierto: muestra motivo, descripción y acciones de resolución */}
+        {/* Bloque de reporte abierto: indica que hay un reporte y permite ir a
+            "Reportes de pedido" para responderlo. Las acciones del pedido
+            (reprogramar/cancelar) siguen disponibles aquí. */}
         {pedido.estado === "FALLIDO" && reporte && (
           <div className="rounded-xl border border-warning/40 bg-warning-soft p-4 space-y-3">
             <div className="flex items-center gap-2">
               <AlertTriangle size={16} className="text-warning-strong shrink-0" />
-              <p className="text-sm font-semibold text-warning-strong">Reporte de entrega fallida</p>
+              <p className="text-sm font-semibold text-warning-strong">Este pedido tiene un reporte abierto</p>
             </div>
             {reporte.motivo && (
               <p className="text-sm text-slate-700"><span className="font-medium">Motivo:</span> {reporte.motivo}</p>
             )}
-            {reporte.descripcion && (
-              <p className="text-sm text-slate-600">{reporte.descripcion}</p>
-            )}
             {error && <p className="text-xs text-red-600">{error}</p>}
 
-            {/* Botones de acción */}
+            {/* Botones de acción del pedido + acceso al reporte */}
             <div className="flex flex-wrap gap-2 pt-1">
               <Button size="sm" icon={RotateCcw} onClick={reprogramar} disabled={accionando}>
-                {accionando && subpanel !== "responder" ? "Procesando…" : "Reprogramar"}
+                {accionando ? "Procesando…" : "Reprogramar"}
               </Button>
               <Button size="sm" variant="danger" icon={Ban} onClick={cancelar} disabled={accionando}>
                 Cancelar pedido
               </Button>
-              <Button size="sm" variant="secondary" icon={MessageSquare}
-                onClick={() => setSubpanel(subpanel === "responder" ? null : "responder")}
-                disabled={accionando}>
-                Responder
+              <Button size="sm" variant="secondary" icon={Eye}
+                onClick={() => onVerReporte && onVerReporte(pedido.codigo)} disabled={accionando}>
+                Ver reporte
               </Button>
             </div>
-
-            {/* Subpanel de respuesta libre al reporte */}
-            {subpanel === "responder" && (
-              <div className="space-y-2 pt-1">
-                <textarea
-                  value={respuesta}
-                  onChange={(e) => setRespuesta(e.target.value)}
-                  placeholder="Escribe la respuesta o instrucción para el conductor…"
-                  rows={3}
-                  className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 resize-none"
-                />
-                <Button size="sm" onClick={responder} disabled={accionando || !respuesta.trim()}>
-                  {accionando ? "Enviando…" : "Enviar respuesta"}
-                </Button>
-              </div>
-            )}
           </div>
         )}
 
