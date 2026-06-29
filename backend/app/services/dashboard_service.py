@@ -82,15 +82,19 @@ def obtener_por_cliente(db: Session) -> list[ClienteSeguimiento]:
 
 
 # Mapa de flota en tiempo real: posición de cada conductor activo + sus paradas pendientes.
-def obtener_ubicaciones_flota(db: Session) -> list[ConductorUbicacion]:
+def obtener_ubicaciones_flota(db: Session, tipo: str | None = None) -> list[ConductorUbicacion]:
     """Por cada ruta activa con conductor: su última posición conocida (con marca de
     'en línea') y las paradas aún pendientes (con coordenadas) para el mapa del panel.
-    Recibe: la sesión de BD."""
+    Recibe: la sesión de BD y, opcionalmente, el tipo de ruta ('RECOJO', 'ENTREGA', etc.)
+    para filtrar; si tipo es None se devuelven todas las rutas activas (comportamiento original)."""
     from app.models.ruta import Ruta, RutaDetalle
     from app.models.pedido import Pedido
 
     ahora = datetime.utcnow()
-    rutas = db.query(Ruta).filter(Ruta.estado.in_(ESTADOS_RUTA_ACTIVA), Ruta.conductor_id.isnot(None)).all()
+    query = db.query(Ruta).filter(Ruta.estado.in_(ESTADOS_RUTA_ACTIVA), Ruta.conductor_id.isnot(None))
+    if tipo is not None:
+        query = query.filter(Ruta.tipo == tipo)
+    rutas = query.all()
 
     # CUS-30: rutas con incidencia abierta (para marcar al conductor como pausado en el mapa).
     rutas_pausadas = incidencia_repository.rutas_con_incidencia_abierta(db)

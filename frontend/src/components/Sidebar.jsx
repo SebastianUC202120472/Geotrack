@@ -59,6 +59,7 @@ const secciones = [
       { icon: RouteIcon, label: "Armar ruta de recojo", path: "/almacen/recojos" },
       { icon: PackageCheck, label: "Ingreso a Almacén", path: "/almacen" },
       { icon: Undo2, label: "Retornos de Ruta", path: "/almacen/retornos" },
+      { icon: MapPin, label: "Mapa de recojos", path: "/almacen/mapa" },
     ],
   },
 ];
