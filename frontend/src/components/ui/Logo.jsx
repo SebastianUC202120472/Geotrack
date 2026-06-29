@@ -1,12 +1,14 @@
 import { useState } from "react";
-// Logo de la empresa: ícono (public/logo.png; monograma si falla) + nombre y subtítulo.
+import logoUrl from "../../assets/logo.png";
+// Logo de la empresa: ícono (empaquetado con hash por Vite; monograma si falla) + nombre y
+// subtítulo. Importar el asset evita problemas de caché del navegador (URL versionada por build).
 // "light" = true sobre fondo oscuro (sidebar).
 export default function Logo({ light = false, wordmark = true, className = "" }) {
   const [falla, setFalla] = useState(false);
   return (
     <div className={`flex items-center gap-2.5 ${className}`}>
       {!falla ? (
-        <img src="/logo.png" alt="GeoTrack" className="h-9 w-auto" onError={() => setFalla(true)} />
+        <img src={logoUrl} alt="GeoTrack" className="h-9 w-auto" onError={() => setFalla(true)} />
       ) : (
         <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-600 text-lg font-bold text-white">G</span>
       )}
