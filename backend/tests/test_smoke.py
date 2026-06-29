@@ -31,7 +31,10 @@ def test_rutas_clave_registradas():
     """Las URLs principales de cada fase existen."""
     paths = _paths()
     assert "/api/auth/login" in paths                       # Fase 1
-    assert "/api/pedidos/upload" in paths                    # Fase 2
+    # Fase 2 (Inbound): los pedidos entran al aceptar la solicitud de recojo (Excel) y
+    # se agrupan por zona. (Reemplaza al antiguo "/api/pedidos/upload", ya retirado.)
+    assert "/api/recojos/aceptar" in paths
+    assert "/api/pedidos/zonas" in paths
     assert "/api/conductor/ruta-activa" in paths             # Fase 3
     assert "/api/dashboard/flota" in paths                   # Fase 4
 
