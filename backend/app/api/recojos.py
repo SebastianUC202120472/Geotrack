@@ -44,14 +44,16 @@ async def aceptar_solicitud(
     cliente_id: int = Form(...),
     referencia: str | None = Form(None),
     contacto_origen: str | None = Form(None),
+    conversacion_id: int | None = Form(None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     admin: Usuario = Depends(get_current_admin),
 ):
-    """Acepta una solicitud de recojo: crea el recojo y un pedido POR_RECOGER por fila del Excel."""
+    """Acepta una solicitud de recojo: crea el recojo y un pedido POR_RECOGER por fila del Excel.
+    Si se pasa conversacion_id, enlaza el hilo de correo y lo marca como ATENDIDO."""
     contenido = await file.read()
     return recojo_service.aceptar_solicitud(
-        db, cliente_id, contenido, file.filename, referencia, contacto_origen, admin.id
+        db, cliente_id, contenido, file.filename, referencia, contacto_origen, admin.id, conversacion_id
     )
 
 
