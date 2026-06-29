@@ -99,7 +99,8 @@ class RecepcionResponse(BaseModel):
     codigo: Optional[str] = None
     estado: str
     cantidad_declarada: Optional[int] = None
-    url_guia: Optional[str] = None
+    url_guia: Optional[str] = None          # compat: primera foto
+    fotos: List[str] = []                   # todas las fotos de evidencia subidas
     fecha_recojo: Optional[datetime] = None
     mensaje: str
 

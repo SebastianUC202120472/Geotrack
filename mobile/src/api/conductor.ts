@@ -170,13 +170,17 @@ export async function optimizarRecojo(rutaId: number, coords: Coordenadas): Prom
   return data;
 }
 
-// CUS-12: registra la recepción (cantidad declarada + foto de la guía) por multipart.
-// Recibe: recojoId, cantidad (>0) y uri local de la foto. Devuelve: Recepcion.
-export async function registrarRecepcion(recojoId: number, cantidad: number, uriFoto: string): Promise<Recepcion> {
-  const nombre = uriFoto.split("/").pop() ?? `guia_${recojoId}.jpg`;
+// CUS-12: registra la recepción (cantidad declarada + varias fotos de evidencia) por multipart.
+// Recibe: recojoId, cantidad (>0) y un array de uris locales de las fotos
+// (boleta/guía/bultos). Adjunta todas bajo el campo `files`. Devuelve: Recepcion.
+export async function registrarRecepcion(recojoId: number, cantidad: number, uris: string[]): Promise<Recepcion> {
   const form = new FormData();
   form.append("cantidad_declarada", String(cantidad));
-  form.append("file", { uri: uriFoto, name: nombre, type: "image/jpeg" } as unknown as Blob);
+  // Un append por foto, todas bajo el mismo campo `files` (multipart múltiple).
+  uris.forEach((uri, i) => {
+    const nombre = uri.split("/").pop() ?? `guia_${recojoId}_${i}.jpg`;
+    form.append("files", { uri, name: nombre, type: "image/jpeg" } as unknown as Blob);
+  });
   const { data } = await api.post<Recepcion>(
     `/conductor/recojo/${recojoId}/recepcion`,
     form,

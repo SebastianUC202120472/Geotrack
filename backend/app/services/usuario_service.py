@@ -86,11 +86,13 @@ def listar_personal(db: Session):
 
 
 def crear_personal(db: Session, datos: PersonalCreate) -> Usuario:
-    """CUS-03: crea una cuenta de personal (rol admin/almacén) con su clave hasheada."""
+    """CUS-03: crea una cuenta de personal (rol admin/almacén) con su clave hasheada y
+    sus datos personales (nombre/dni/teléfono/cargo) opcionales."""
     if usuario_repository.obtener_por_correo(db, datos.correo):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El correo ya está registrado")
     return usuario_repository.crear_usuario(
-        db, correo=datos.correo, hash_contrasena=get_password_hash(datos.contrasena), rol=datos.rol.value
+        db, correo=datos.correo, hash_contrasena=get_password_hash(datos.contrasena), rol=datos.rol.value,
+        nombre=datos.nombre, dni=datos.dni, telefono=datos.telefono, cargo=datos.cargo,
     )
 
 
@@ -99,16 +101,28 @@ def actualizar_personal(db: Session, usuario_id: int, datos: PersonalUpdate, adm
     los cambios y el id del admin que pide (para impedir que se modifique a sí mismo y
     quede bloqueado fuera del sistema)."""
     usuario = _personal_o_404(db, usuario_id)
-    if usuario.id == admin_id:
+    campos = datos.model_dump(exclude_unset=True)
+    # El rol y el estado NO se pueden CAMBIAR sobre uno mismo (evita bloquearse fuera del
+    # sistema). Los datos personales sí se pueden editar siempre. Comparamos contra el valor
+    # ACTUAL (no la mera presencia): el form siempre reenvía el rol, así que guardar los
+    # propios datos personales no debe disparar el bloqueo si el rol/estado no cambió.
+    rol_nuevo = campos.get("rol")
+    estado_nuevo = campos.get("estado")
+    cambia_rol_o_estado = (rol_nuevo is not None and rol_nuevo.value != usuario.rol) or \
+                          (estado_nuevo is not None and estado_nuevo != usuario.estado)
+    if usuario.id == admin_id and cambia_rol_o_estado:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No puedes cambiar tu propio rol ni estado (evita bloquearte fuera del sistema)",
         )
-    campos = datos.model_dump(exclude_unset=True)
     if "rol" in campos and campos["rol"] is not None:
         usuario_repository.actualizar_rol(db, usuario, campos["rol"].value)
     if "estado" in campos and campos["estado"] is not None:
         usuario_repository.actualizar_estado(db, usuario, campos["estado"])
+    # Datos personales (nombre/dni/telefono/cargo): se actualizan los presentes.
+    personales = {k: campos[k] for k in ("nombre", "dni", "telefono", "cargo") if k in campos}
+    if personales:
+        usuario_repository.actualizar_datos_personales(db, usuario, personales)
     db.refresh(usuario)
     return usuario
 

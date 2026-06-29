@@ -6,40 +6,36 @@ from pydantic import BaseModel
 
 
 class ConteoConciliacion(BaseModel):
-    """Resumen de conciliación de un recojo."""
-    esperados: int
-    ingresados: int
-    faltantes: int
-    desconocidos: int
+    """Resumen de conciliación de un recojo (flujo manual, sin escaneo)."""
+    esperados: int       # total de pedidos del recojo
+    listos: int          # LISTO_PARA_ENVIO (validados, disponibles para ruta)
+    observados: int      # OBSERVADO (no llegaron / con discrepancia)
+    por_recoger: int     # POR_RECOGER (aún sin procesar en almacén)
 
 
+# Reusado por el módulo de retornos (CUS-32) para recibir un código escaneado.
 class EscaneoRequest(BaseModel):
-    """ENTRADA: un código escaneado."""
+    """ENTRADA: un código escaneado (retornos)."""
     codigo: str
 
 
-class EscaneoResponse(BaseModel):
-    """SALIDA: resultado de cruzar un escaneo contra la trama."""
-    resultado: str  # INGRESADO | DUPLICADO | DESCONOCIDO
-    codigo: str
-    mensaje: str
-    conteo: ConteoConciliacion
-
-
-class PaqueteEsperadoItem(BaseModel):
-    """Una fila de la trama, para listarla en el panel."""
-    codigo: str
-    estado: str
-    escaneado_en: Optional[datetime] = None
+class PedidoIngresoItem(BaseModel):
+    """Un pedido del recojo, para la tabla de ingreso manual del almacén."""
+    pedido_id: int
+    referencia: str                       # referencia_externa (tracking del cliente)
+    codigo: Optional[str] = None          # código interno PD-001
+    nombre_destinatario: Optional[str] = None
+    direccion_destino: str
+    estado: str                           # POR_RECOGER | LISTO_PARA_ENVIO | OBSERVADO
 
 
 class ConciliacionResponse(BaseModel):
-    """SALIDA: conciliación detallada de un recojo."""
+    """SALIDA: conciliación detallada de un recojo + fotos de evidencia del conductor."""
     recojo_id: int
     estado_recojo: str
     conteo: ConteoConciliacion
-    esperados: List[PaqueteEsperadoItem]
-    desconocidos: List[str]
+    pedidos: List[PedidoIngresoItem]
+    fotos: List[str]                      # URLs de las fotos que subió el conductor
 
 
 class RecojoAlmacenItem(BaseModel):
@@ -52,8 +48,13 @@ class RecojoAlmacenItem(BaseModel):
     conteo: ConteoConciliacion
 
 
-class CerrarIngresoResponse(BaseModel):
-    """SALIDA: resultado de cerrar el ingreso de un recojo."""
+class ConfirmarIngresoRequest(BaseModel):
+    """ENTRADA: referencias (tracking) de los pedidos que NO llegaron (quedan OBSERVADO)."""
+    referencias_faltantes: List[str] = []
+
+
+class ConfirmarIngresoResponse(BaseModel):
+    """SALIDA: resultado de confirmar el ingreso (faltantes a OBSERVADO, resto a LISTO_PARA_ENVIO)."""
     recojo_id: int
     estado: str
     conteo: ConteoConciliacion

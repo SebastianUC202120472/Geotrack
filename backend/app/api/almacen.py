@@ -2,18 +2,18 @@
 # Endpoints del módulo de almacén (CUS-14): escaneo, conciliación, cierre.
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.api.deps import get_current_almacen
 from app.models.usuario import Usuario
-from app.services import almacen_service, retorno_service, recojo_service, dashboard_service
+from app.services import almacen_service, retorno_service, recojo_service, dashboard_service, pedido_service
 from app.schemas.almacen import (
     EscaneoRequest,
-    EscaneoResponse,
     ConciliacionResponse,
-    CerrarIngresoResponse,
+    ConfirmarIngresoRequest,
+    ConfirmarIngresoResponse,
     RecojoAlmacenItem,
     RutaRetornoItem,
     RetornoRutaResponse,
@@ -37,16 +37,26 @@ def obtener_conciliacion(recojo_id: int, db: Session = Depends(get_db), usuario:
     return almacen_service.obtener_conciliacion(db, recojo_id)
 
 
-@router.post("/recojos/{recojo_id}/escanear", response_model=EscaneoResponse)
-def escanear(recojo_id: int, datos: EscaneoRequest, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
-    """Escanea un paquete y lo cruza contra los pedidos del recojo."""
-    return almacen_service.escanear(db, recojo_id, datos.codigo, usuario.id)
+@router.post("/recojos/{recojo_id}/confirmar-ingreso", response_model=ConfirmarIngresoResponse)
+def confirmar_ingreso(
+    recojo_id: int,
+    datos: ConfirmarIngresoRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_almacen),
+):
+    """Ingreso manual (sin escaneo): marca como OBSERVADO los pedidos que NO llegaron
+    (referencias_faltantes) y deja el resto LISTO_PARA_ENVIO; el recojo pasa a INGRESADO.
+    La geocodificación de los que falten coordenadas se agenda en segundo plano."""
+    resultado = almacen_service.confirmar_ingreso(db, recojo_id, datos.referencias_faltantes, usuario.id)
+    background_tasks.add_task(recojo_service.geocodificar_pedidos_recojo, recojo_id)
+    return resultado
 
 
-@router.post("/recojos/{recojo_id}/cerrar-ingreso", response_model=CerrarIngresoResponse)
-def cerrar_ingreso(recojo_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
-    """Cierra el ingreso del recojo (pasa a INGRESADO)."""
-    return almacen_service.cerrar_ingreso(db, recojo_id, usuario.id)
+@router.post("/pedidos/{pedido_id}/resolver-observado")
+def resolver_observado(pedido_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
+    """Resuelve un pedido OBSERVADO (ya aclarado): lo pasa a LISTO_PARA_ENVIO."""
+    return pedido_service.resolver_observado(db, pedido_id, usuario.id)
 
 
 # --- CUS-32: logística inversa (retornos de ruta) ---
