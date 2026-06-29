@@ -7,6 +7,7 @@ import DataTable from "../components/ui/DataTable";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import { EstadoBadge } from "../components/ui/Badge";
+import { etiquetaEstado } from "../utils/estados";
 import Modal from "../components/ui/Modal";
 import ResolverDireccionModal from "../components/ResolverDireccionModal";
 import VistaPorRuta from "../components/seguimiento/VistaPorRuta";
@@ -100,7 +101,7 @@ export default function Pedidos() {
   // KPIs calculados desde el array ya cargado (sin petición extra).
   const kpis = useMemo(() => {
     const total = pedidos.length;
-    const pendientes = pedidos.filter((p) => p.estado === "PENDIENTE").length;
+    const pendientes = pedidos.filter((p) => p.estado === "LISTO_PARA_ENVIO").length;
     const enRuta = pedidos.filter((p) => p.estado === "EN_RUTA").length;
     const entregados = pedidos.filter((p) => p.estado === "ENTREGADO").length;
     const fallidos = pedidos.filter((p) => p.estado === "FALLIDO").length;
@@ -241,7 +242,7 @@ export default function Pedidos() {
       {/* KPIs derivados de los pedidos cargados */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 animate-fade-up">
         <KpiCard label="Total" value={kpis.total} icon={Package} tone="brand" />
-        <KpiCard label="Pendientes" value={kpis.pendientes} icon={Filter} tone="warning" />
+        <KpiCard label="Listo p/envío" value={kpis.pendientes} icon={Filter} tone="warning" />
         <KpiCard label="En ruta" value={kpis.enRuta} icon={Truck} tone="info" />
         <KpiCard label="Entregados" value={kpis.entregados} icon={Package} tone="success" />
         <KpiCard label="Fallidos" value={kpis.fallidos} icon={Package} tone="danger" />
@@ -268,7 +269,7 @@ export default function Pedidos() {
           </Input>
           <Input as="select" value={estado} onChange={(e) => setParam("estado", e.target.value)} aria-label="Filtrar por estado">
             <option value="">Todos los estados</option>
-            {estados.map((e) => <option key={e} value={e}>{e.replaceAll("_", " ").toLowerCase()}</option>)}
+            {estados.map((e) => <option key={e} value={e}>{etiquetaEstado(e)}</option>)}
           </Input>
         </div>
 
@@ -372,7 +373,7 @@ function DetallePedido({ pedido, reporte, onCerrar, onAccion, onDireccionResuelt
     return () => { activo = false; };
   }, [pedido.codigo]);
 
-  // Reprograma el pedido (vuelve a PENDIENTE) y resuelve el reporte asociado.
+  // Reprograma el pedido (vuelve a LISTO_PARA_ENVIO) y resuelve el reporte asociado.
   const reprogramar = () => {
     setAccionando(true);
     reprogramarPedido(pedido.id)
@@ -470,7 +471,7 @@ function DetallePedido({ pedido, reporte, onCerrar, onAccion, onDireccionResuelt
             {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
             <div className="mt-3">
               <Button variant="secondary" icon={RotateCcw} onClick={reprogramar} disabled={accionando}>
-                {accionando ? "Procesando…" : "Reprogramar → Pendiente"}
+                {accionando ? "Procesando…" : "Reprogramar → Listo p/envío"}
               </Button>
             </div>
           </div>

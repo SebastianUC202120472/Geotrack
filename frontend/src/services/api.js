@@ -338,7 +338,7 @@ export const actualizarCombustible = (consumo_l_100km, precio_soles_litro) =>
    DECISIONES SOBRE PEDIDOS FALLIDOS (CUS-31)
 ============================================================ */
 
-// Reprograma un pedido (vuelve a PENDIENTE). Entrada: id. Salida: { mensaje, codigo }.
+// Reprograma un pedido (vuelve a LISTO_PARA_ENVIO). Entrada: id. Salida: { mensaje, codigo }.
 export const reprogramarPedido = (id) => request(`/pedidos/${id}/reprogramar`, { method: "POST" });
 
 // Cancela un pedido (estado CANCELADO). Entrada: id. Salida: { mensaje, codigo }.

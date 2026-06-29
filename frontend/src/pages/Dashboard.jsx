@@ -15,7 +15,9 @@ import { obtenerResumen, listarPedidos, obtenerSeguimientoClientes, obtenerUbica
 
 // Color de marca para cada estado (gráficos y puntos de la línea de tiempo).
 const COLOR_ESTADO = {
-  PENDIENTE: "#f59e0b",
+  POR_RECOGER: "#94a3b8",          // aún en el origen del cliente
+  OBSERVADO: "#f97316",            // naranja: faltante/discrepancia en almacén
+  LISTO_PARA_ENVIO: "#f59e0b",     // ámbar: validado, listo para asignar
   ASIGNADO: "#2563eb",
   EN_RUTA: "#0ea5e9",
   EN_PROGRESO: "#0ea5e9",
