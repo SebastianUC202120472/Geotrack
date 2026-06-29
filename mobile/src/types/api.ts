@@ -184,12 +184,15 @@ export interface ManifiestoRecojo {
 }
 
 // Resultado de registrar la recepción condicionada (CUS-12).
+// El backend acepta varias fotos de evidencia (boleta/guía/bultos) bajo el campo `files`
+// y devuelve la lista de URLs en `fotos` (la primera se conserva también en `url_guia`).
 export interface Recepcion {
   recojo_id: number;
   codigo?: string | null;
   estado: string;
   cantidad_declarada?: number | null;
   url_guia?: string | null;
+  fotos?: string[] | null;
   fecha_recojo?: string | null;
   mensaje: string;
 }
