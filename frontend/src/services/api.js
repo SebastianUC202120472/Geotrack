@@ -378,7 +378,7 @@ export const resolverIncidencia = (id, nota) =>
 
 // Feed de notificaciones del admin: no_vistas e historial cronológico.
 // Entrada: limite opcional (cuántos ítems traer). Salida: { no_vistas: number,
-// items: [{ id, tipo, titulo, mensaje, ruta, entidad_id, creado_en, visto_en }] }.
+// items: [{ id, tipo, titulo, mensaje, ruta, creado_en, visto_en }] }.
 export const obtenerNotificaciones = (limite) =>
   request(`/notificaciones${limite ? `?limite=${limite}` : ""}`);
 

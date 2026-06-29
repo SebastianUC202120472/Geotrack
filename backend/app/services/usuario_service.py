@@ -102,10 +102,14 @@ def actualizar_personal(db: Session, usuario_id: int, datos: PersonalUpdate, adm
     quede bloqueado fuera del sistema)."""
     usuario = _personal_o_404(db, usuario_id)
     campos = datos.model_dump(exclude_unset=True)
-    # El rol y el estado NO se pueden cambiar sobre uno mismo (evita bloquearse fuera del
-    # sistema). Los datos personales sí se pueden editar siempre.
-    cambia_rol_o_estado = ("rol" in campos and campos["rol"] is not None) or \
-                          ("estado" in campos and campos["estado"] is not None)
+    # El rol y el estado NO se pueden CAMBIAR sobre uno mismo (evita bloquearse fuera del
+    # sistema). Los datos personales sí se pueden editar siempre. Comparamos contra el valor
+    # ACTUAL (no la mera presencia): el form siempre reenvía el rol, así que guardar los
+    # propios datos personales no debe disparar el bloqueo si el rol/estado no cambió.
+    rol_nuevo = campos.get("rol")
+    estado_nuevo = campos.get("estado")
+    cambia_rol_o_estado = (rol_nuevo is not None and rol_nuevo.value != usuario.rol) or \
+                          (estado_nuevo is not None and estado_nuevo != usuario.estado)
     if usuario.id == admin_id and cambia_rol_o_estado:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
