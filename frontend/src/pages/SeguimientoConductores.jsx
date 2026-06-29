@@ -51,7 +51,10 @@ export default function SeguimientoConductores() {
   const totalConductores = ubicaciones.length;
   const enLinea = ubicaciones.filter((c) => c.en_linea).length;
   const sinSenal = totalConductores - enLinea;
-  const totalParadas = ubicaciones.reduce((acc, c) => acc + (c.paradas?.length ?? 0), 0);
+  // El mapa ahora recibe TODAS las paradas (para colorear entregadas/fallidas), pero los
+  // contadores siguen siendo "pendientes" (significado histórico de la métrica del panel).
+  const pendientesDe = (c) => c.paradas?.filter((p) => (p.estado || "PENDIENTE") === "PENDIENTE").length ?? 0;
+  const totalParadas = ubicaciones.reduce((acc, c) => acc + pendientesDe(c), 0);
   // Conductores que declararon una incidencia y están en pausa activa.
   const pausados = ubicaciones.filter((u) => u.pausado).length;
 
@@ -169,7 +172,7 @@ export default function SeguimientoConductores() {
                           )}
                           <p className="truncate text-xs text-slate-500">{c.ruta || "Sin ruta"}</p>
                           <p className="mt-0.5 text-xs text-slate-400">
-                            {c.paradas?.length ?? 0} parada{(c.paradas?.length ?? 0) !== 1 ? "s" : ""} ·{" "}
+                            {pendientesDe(c)} parada{pendientesDe(c) !== 1 ? "s" : ""} pendiente{pendientesDe(c) !== 1 ? "s" : ""} ·{" "}
                             {c.en_linea ? "en línea" : "sin señal"}
                           </p>
                         </div>
