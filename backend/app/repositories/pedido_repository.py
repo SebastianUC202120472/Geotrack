@@ -29,14 +29,14 @@ def listar(db: Session, skip: int = 0, limit: int = 100) -> List[Pedido]:
 
 
 def obtener_sin_coordenadas(db: Session) -> List[Pedido]:
-    """Pedidos sin latitud de la vía de entrega (PENDIENTE o GEOCODIFICACION_FALLIDA) que
-    faltan por geocodificar. Excluye POR_RECOGER: esos se geocodifican al aceptar la
+    """Pedidos sin latitud de la vía de entrega (LISTO_PARA_ENVIO o GEOCODIFICACION_FALLIDA)
+    que faltan por geocodificar. Excluye POR_RECOGER: esos se geocodifican al aceptar la
     solicitud de recojo y se reintentan al validar en almacén, no en el lote de entrega."""
     return (
         db.query(Pedido)
         .filter(
             Pedido.latitud == None,  # noqa: E711 (SQLAlchemy exige '== None')
-            Pedido.estado.in_(("PENDIENTE", "GEOCODIFICACION_FALLIDA")),
+            Pedido.estado.in_(("LISTO_PARA_ENVIO", "GEOCODIFICACION_FALLIDA")),
         )
         .all()
     )
@@ -60,9 +60,9 @@ def listar_geocodificacion_fallida(db: Session) -> List[Pedido]:
 
 def listar_sin_ubicacion_resoluble(db: Session) -> List[Pedido]:
     """Pedidos sin coordenadas en estados que el admin puede resolver desde el mapa:
-    PENDIENTE, POR_RECOGER o GEOCODIFICACION_FALLIDA. Incluye los de recojo para que
+    LISTO_PARA_ENVIO, POR_RECOGER o GEOCODIFICACION_FALLIDA. Incluye los de recojo para que
     el admin pueda ubicarlos antes de validarlos. Devuelve lista ordenada por código."""
-    estados_resolubles = ("PENDIENTE", "POR_RECOGER", "GEOCODIFICACION_FALLIDA")
+    estados_resolubles = ("LISTO_PARA_ENVIO", "POR_RECOGER", "GEOCODIFICACION_FALLIDA")
     return (
         db.query(Pedido)
         .filter(Pedido.latitud == None, Pedido.estado.in_(estados_resolubles))  # noqa: E711
@@ -72,21 +72,21 @@ def listar_sin_ubicacion_resoluble(db: Session) -> List[Pedido]:
 
 
 def obtener_pendientes_por_distrito(db: Session, distrito: str) -> List[Pedido]:
-    """Pedidos PENDIENTES de un distrito (base para armar una ruta, CUS-18)."""
+    """Pedidos LISTO_PARA_ENVIO de un distrito (base para armar una ruta, CUS-18)."""
     return (
         db.query(Pedido)
-        .filter(Pedido.distrito == distrito, Pedido.estado == "PENDIENTE")
+        .filter(Pedido.distrito == distrito, Pedido.estado == "LISTO_PARA_ENVIO")
         .all()
     )
 
 
 def agrupar_por_zona(db: Session):
-    """Cuenta pedidos entregables (PENDIENTE + geocodificados) por distrito (CUS-16).
-    Solo incluye PENDIENTE para que los POR_RECOGER no aparezcan en el despacho de
-    entrega antes de ser validados en almacén."""
+    """Cuenta pedidos entregables (LISTO_PARA_ENVIO + geocodificados) por distrito (CUS-16).
+    Solo incluye LISTO_PARA_ENVIO para que los POR_RECOGER/OBSERVADO no aparezcan en el
+    despacho de entrega antes de ser validados en almacén."""
     return (
         db.query(Pedido.distrito, func.count(Pedido.id).label("total_pedidos"))
-        .filter(Pedido.latitud != None, Pedido.estado == "PENDIENTE")  # noqa: E711
+        .filter(Pedido.latitud != None, Pedido.estado == "LISTO_PARA_ENVIO")  # noqa: E711
         .group_by(Pedido.distrito)
         .all()
     )

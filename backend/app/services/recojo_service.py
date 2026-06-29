@@ -222,18 +222,23 @@ def aceptar_solicitud(
 
 
 def geocodificar_pedidos_recojo(recojo_id: int) -> None:
-    """Tarea en segundo plano: geocodifica los pedidos de un recojo recién aceptado, uno por
-    uno (respetando el límite de 1 req/s de Nominatim), SIN bloquear la respuesta del upload.
-    Abre su PROPIA sesión de BD porque la de la petición ya se cerró al responder. Hace commit
-    por pedido para que vayan apareciendo ubicados en el panel a medida que se resuelven.
-    Recibe: id del recojo cuyos pedidos POR_RECOGER aún no tienen coordenadas."""
+    """Tarea en segundo plano: geocodifica los pedidos de un recojo (al aceptar la solicitud o
+    al confirmar el ingreso), uno por uno (respetando el límite de 1 req/s de Nominatim), SIN
+    bloquear la respuesta. Abre su PROPIA sesión de BD porque la de la petición ya se cerró.
+    Hace commit por pedido para que vayan apareciendo ubicados en el panel. Solo geocodifica
+    los que van a despacho (POR_RECOGER / LISTO_PARA_ENVIO); salta OBSERVADO para no gastar
+    cuota en pedidos que quizá no se envíen. Recibe: id del recojo."""
     from app.db.database import SessionLocal
 
     db = SessionLocal()
     try:
         pedidos = (
             db.query(Pedido)
-            .filter(Pedido.recojo_id == recojo_id, Pedido.latitud.is_(None))
+            .filter(
+                Pedido.recojo_id == recojo_id,
+                Pedido.latitud.is_(None),
+                Pedido.estado.in_(("POR_RECOGER", "LISTO_PARA_ENVIO")),
+            )
             .all()
         )
         for pedido in pedidos:
@@ -396,12 +401,14 @@ def optimizar_recojo(db: Session, datos: OptimizacionRequest, conductor_id: int)
 
 
 def registrar_recepcion(db: Session, conductor_id: int, recojo_id: int, cantidad_declarada: int,
-                        contenido: bytes, nombre_archivo: str) -> RecepcionResponse:
-    """CUS-12: recepción condicionada a bulto cerrado. Valida pertenencia y pausa, guarda la
-    foto de la Guía de Remisión y deja el recojo en RECOGIDO. Recibe: conductor, recojo_id,
-    cantidad declarada (>0), bytes y nombre de la foto."""
+                        archivos: list[tuple[bytes, str]]) -> RecepcionResponse:
+    """CUS-12: recepción condicionada a bulto cerrado. Valida pertenencia y pausa, guarda
+    VARIAS fotos de evidencia (boleta/guía/bultos) y deja el recojo en RECOGIDO. Recibe:
+    conductor, recojo_id, cantidad declarada (>0) y una lista de (bytes, nombre) por foto."""
     if cantidad_declarada is None or cantidad_declarada <= 0:
         raise HTTPException(status_code=400, detail="La cantidad declarada debe ser un entero mayor que 0")
+    if not archivos:
+        raise HTTPException(status_code=400, detail="Debes adjuntar al menos una foto de evidencia")
 
     ruta = _ruta_recojo_activa_o_404(db, conductor_id)
 
@@ -415,17 +422,24 @@ def registrar_recepcion(db: Session, conductor_id: int, recojo_id: int, cantidad
     if recojo.estado == "RECOGIDO":
         raise HTTPException(status_code=400, detail="Este recojo ya fue registrado")
 
-    _, extension = os.path.splitext(nombre_archivo.lower())
-    if extension not in EXTENSIONES_IMAGEN:
-        raise HTTPException(status_code=400, detail=f"Formato no permitido. Usa: {', '.join(sorted(EXTENSIONES_IMAGEN))}")
+    # Validar el formato de TODAS las fotos antes de escribir ninguna (no dejar a medias).
+    for _, nombre_archivo in archivos:
+        _, extension = os.path.splitext((nombre_archivo or "").lower())
+        if extension not in EXTENSIONES_IMAGEN:
+            raise HTTPException(status_code=400, detail=f"Formato no permitido. Usa: {', '.join(sorted(EXTENSIONES_IMAGEN))}")
 
     os.makedirs(DIR_GUIAS, exist_ok=True)
-    nombre_final = f"guia_{ruta.id}_{recojo_id}{extension}"
-    ruta_fisica = os.path.join(DIR_GUIAS, nombre_final)
-    with open(ruta_fisica, "wb") as f:
-        f.write(contenido)
+    urls: list[str] = []
+    for i, (contenido, nombre_archivo) in enumerate(archivos, start=1):
+        _, extension = os.path.splitext((nombre_archivo or "").lower())
+        nombre_final = f"guia_{ruta.id}_{recojo_id}_{i}{extension}"
+        with open(os.path.join(DIR_GUIAS, nombre_final), "wb") as f:
+            f.write(contenido)
+        url = f"/media/guias/{nombre_final}"
+        urls.append(url)
+        recojo_repository.agregar_evidencia(db, recojo_id, url, i)
 
-    recojo.url_guia = f"/media/guias/{nombre_final}"
+    recojo.url_guia = urls[0]  # compat: primera foto (el resto en evidencias_recojo)
     recojo.cantidad_declarada = cantidad_declarada
     recojo.estado = "RECOGIDO"
     recojo.fecha_recojo = datetime.utcnow()
@@ -437,7 +451,7 @@ def registrar_recepcion(db: Session, conductor_id: int, recojo_id: int, cantidad
     db.refresh(recojo)
     return RecepcionResponse(
         recojo_id=recojo.id, codigo=recojo.codigo, estado=recojo.estado,
-        cantidad_declarada=recojo.cantidad_declarada, url_guia=recojo.url_guia,
+        cantidad_declarada=recojo.cantidad_declarada, url_guia=recojo.url_guia, fotos=urls,
         fecha_recojo=recojo.fecha_recojo, mensaje="Recepción registrada correctamente",
     )
 

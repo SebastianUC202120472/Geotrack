@@ -31,12 +31,13 @@ export function useIniciarRecojo() {
   });
 }
 
-// Registra la recepción condicionada (cantidad + foto de la guía) y refresca.
+// Registra la recepción condicionada (cantidad + varias fotos de evidencia) y refresca.
+// Recibe: { recojoId, cantidad, uris } donde `uris` es el array de fotos seleccionadas.
 export function useRegistrarRecepcion() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ recojoId, cantidad, uriFoto }: { recojoId: number; cantidad: number; uriFoto: string }) =>
-      registrarRecepcion(recojoId, cantidad, uriFoto),
+    mutationFn: ({ recojoId, cantidad, uris }: { recojoId: number; cantidad: number; uris: string[] }) =>
+      registrarRecepcion(recojoId, cantidad, uris),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: clavesRuta.rutaActiva });
       qc.invalidateQueries({ queryKey: clavesRecojo.manifiesto });

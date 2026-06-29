@@ -30,6 +30,11 @@ class UsuarioResponse(BaseModel):
     correo: EmailStr
     rol: str
     estado: bool
+    # Datos personales del personal de panel (Modo Perfil). Pueden venir vacíos.
+    nombre: Optional[str] = None
+    dni: Optional[str] = None
+    telefono: Optional[str] = None
+    cargo: Optional[str] = None
 
     class Config:
         from_attributes = True  # permite construir el schema desde un objeto SQLAlchemy
@@ -48,10 +53,14 @@ class SolicitudRestablecimientoRequest(BaseModel):
 
 # --- CUS-03: gestión de usuarios del personal (admin/almacén) ---
 class PersonalCreate(BaseModel):
-    """ENTRADA (CUS-03): el admin crea una cuenta de personal con su rol."""
+    """ENTRADA (CUS-03): el admin crea una cuenta de personal con su rol y datos personales."""
     correo: EmailStr
     contrasena: str
     rol: RolUsuario
+    nombre: Optional[str] = None
+    dni: Optional[str] = None
+    telefono: Optional[str] = None
+    cargo: Optional[str] = None
 
     @field_validator("contrasena")
     @classmethod
@@ -68,9 +77,13 @@ class PersonalCreate(BaseModel):
 
 
 class PersonalUpdate(BaseModel):
-    """ENTRADA (CUS-03): cambiar el rol y/o el estado (activo) de un usuario."""
+    """ENTRADA (CUS-03): cambiar rol, estado y/o los datos personales de un usuario."""
     rol: Optional[RolUsuario] = None
     estado: Optional[bool] = None
+    nombre: Optional[str] = None
+    dni: Optional[str] = None
+    telefono: Optional[str] = None
+    cargo: Optional[str] = None
 
     @field_validator("rol")
     @classmethod

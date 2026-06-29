@@ -108,6 +108,15 @@ export default function CampanaNotificaciones() {
               ))
             )}
           </ul>
+          {/* Pie del popover: enlace al historial completo de notificaciones */}
+          <div className="border-t border-[#2b3543] px-4 py-2.5">
+            <button
+              onClick={() => irA("/notificaciones")}
+              className="w-full rounded-lg py-1.5 text-center text-xs font-semibold text-brand-300 transition-colors hover:bg-slate-700/60 hover:text-white"
+            >
+              Ver historial completo
+            </button>
+          </div>
         </div>
       )}
     </div>

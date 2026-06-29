@@ -136,6 +136,10 @@ export const eliminarCliente = (id) =>
 
 export const listarUsuarios = () => request("/usuarios/");
 
+// Perfil de la cuenta autenticada (admin/almacén). Salida: { id, codigo, correo,
+// rol, estado, nombre, dni, telefono, cargo }.
+export const obtenerMiPerfil = () => request("/usuarios/yo");
+
 export const crearUsuario = (datos) =>
   request("/usuarios/", { method: "POST", body: datos });
 
@@ -338,7 +342,7 @@ export const actualizarCombustible = (consumo_l_100km, precio_soles_litro) =>
    DECISIONES SOBRE PEDIDOS FALLIDOS (CUS-31)
 ============================================================ */
 
-// Reprograma un pedido (vuelve a PENDIENTE). Entrada: id. Salida: { mensaje, codigo }.
+// Reprograma un pedido (vuelve a LISTO_PARA_ENVIO). Entrada: id. Salida: { mensaje, codigo }.
 export const reprogramarPedido = (id) => request(`/pedidos/${id}/reprogramar`, { method: "POST" });
 
 // Cancela un pedido (estado CANCELADO). Entrada: id. Salida: { mensaje, codigo }.
@@ -373,8 +377,10 @@ export const resolverIncidencia = (id, nota) =>
   request(`/incidencias/${id}/resolver`, { method: "POST", body: { nota: nota ?? null } });
 
 // Feed de notificaciones del admin: no_vistas e historial cronológico.
-// Salida: { no_vistas: number, items: [{ id, tipo, titulo, mensaje, ruta, creado_en, visto_en }] }.
-export const obtenerNotificaciones = () => request("/notificaciones");
+// Entrada: limite opcional (cuántos ítems traer). Salida: { no_vistas: number,
+// items: [{ id, tipo, titulo, mensaje, ruta, creado_en, visto_en }] }.
+export const obtenerNotificaciones = (limite) =>
+  request(`/notificaciones${limite ? `?limite=${limite}` : ""}`);
 
 // Marca todas las notificaciones como vistas. Salida: { marcadas: number }.
 export const marcarNotificacionesVistas = () =>
@@ -413,23 +419,30 @@ export const asignarRutaRecojoAlmacen = (datos) =>
   request("/almacen/solicitudes/asignar-ruta", { method: "POST", body: datos });
 
 /* ============================================================
-   ALMACÉN — Ingreso por escaneo  (CUS-14)
+   ALMACÉN — Ingreso manual  (CUS-14)
 ============================================================ */
 
-// Recojos del módulo de almacén (RECOGIDO por ingresar + INGRESADO). Filtro opcional.
+// Recojos del módulo de almacén (RECOGIDO por ingresar + INGRESADO). Filtro opcional;
+// sin filtro el backend trae ambos estados (RECOGIDO + INGRESADO).
 export const listarRecojosAlmacen = (estado) =>
   request(`/almacen/recojos${estado ? `?estado=${encodeURIComponent(estado)}` : ""}`);
 
-// Conciliación detallada de un recojo (trama + desconocidos + conteo).
+// Conciliación detallada de un recojo (pedidos + fotos del conductor + conteo).
 export const obtenerConciliacion = (id) => request(`/almacen/recojos/${id}/conciliacion`);
 
-// Escanea un código contra los pedidos del recojo. Salida: { resultado, codigo, mensaje, conteo }.
-export const escanearPaquete = (id, codigo) =>
-  request(`/almacen/recojos/${id}/escanear`, { method: "POST", body: { codigo } });
+// Confirma el ingreso manual de un recojo (pasa a INGRESADO). Entrada: id del recojo y
+// referenciasFaltantes (array de strings con las referencias que no llegaron al almacén).
+// Salida: { recojo_id, estado, conteo, mensaje }.
+export const confirmarIngreso = (recojoId, referenciasFaltantes = []) =>
+  request(`/almacen/recojos/${recojoId}/confirmar-ingreso`, {
+    method: "POST",
+    body: { referencias_faltantes: referenciasFaltantes },
+  });
 
-// Cierra el ingreso del recojo (pasa a INGRESADO).
-export const cerrarIngreso = (id) =>
-  request(`/almacen/recojos/${id}/cerrar-ingreso`, { method: "POST" });
+// Resuelve un pedido OBSERVADO (lo da por conciliado). Entrada: pedido_id.
+// Salida: { mensaje, codigo }.
+export const resolverObservado = (pedidoId) =>
+  request(`/almacen/pedidos/${pedidoId}/resolver-observado`, { method: "POST" });
 
 // CUS-32: rutas de entrega con FALLIDO pendientes de retorno.
 export const listarRutasRetorno = () => request("/almacen/retornos/rutas");

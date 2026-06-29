@@ -19,6 +19,9 @@ import IngresoAlmacen from "./pages/IngresoAlmacen";
 import RetornosAlmacen from "./pages/RetornosAlmacen";
 import ArmarRutaRecojo from "./pages/ArmarRutaRecojo";
 import MapaRecojos from "./pages/MapaRecojos";
+import HistorialReportes from "./pages/HistorialReportes";
+import HistorialAuxilio from "./pages/HistorialAuxilio";
+import Notificaciones from "./pages/Notificaciones";
 
 // Mapa de rutas del panel de administración.
 // /login va suelto (sin barra lateral). Todo lo demás cuelga del layout del
@@ -46,6 +49,9 @@ export default function App() {
         <Route path="/usuarios" element={<Usuarios />} />
         <Route path="/parametros" element={<Parametros />} />
         <Route path="/seguimiento-conductores" element={<SeguimientoConductores />} />
+        <Route path="/reportes" element={<HistorialReportes />} />
+        <Route path="/auxilio" element={<HistorialAuxilio />} />
+        <Route path="/notificaciones" element={<Notificaciones />} />
         <Route path="/almacen" element={<IngresoAlmacen />} />
         <Route path="/almacen/retornos" element={<RetornosAlmacen />} />
         <Route path="/almacen/recojos" element={<ArmarRutaRecojo />} />

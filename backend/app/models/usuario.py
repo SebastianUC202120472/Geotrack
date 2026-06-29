@@ -15,3 +15,10 @@ class Usuario(Base):
     rol = Column(String(20), nullable=False)               # 'admin' (Web) o 'conductor' (App Móvil)
     estado = Column(Boolean, default=True)                 # True = activo; False = deshabilitado
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
+
+    # --- Datos personales del personal de panel (admin/almacén). Nullable: cuentas
+    # antiguas o conductores (cuyos datos viven en PerfilConductor) pueden no tenerlos. ---
+    nombre = Column(String(120), nullable=True)            # nombre completo
+    dni = Column(String(15), nullable=True)                # documento de identidad
+    telefono = Column(String(20), nullable=True)
+    cargo = Column(String(80), nullable=True)              # p.ej. "Jefe de almacén"

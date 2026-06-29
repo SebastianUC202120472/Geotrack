@@ -348,7 +348,7 @@ def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
 def asignar_bloque(db: Session, datos: AsignacionBloqueRequest, usuario_id: int | None = None) -> dict:
     """
     CUS-18: el admin crea una ruta para un conductor con TODOS los pedidos
-    PENDIENTES de un distrito.
+    LISTO_PARA_ENVIO de un distrito.
     Pasos: buscar pedidos -> crear la ruta -> colgar cada pedido como detalle
            (secuencia=0, aún sin optimizar) -> marcar pedidos como 'ASIGNADO'
            -> registrar el evento en el historial.
@@ -500,7 +500,7 @@ def reordenar_paradas(db: Session, ruta_id: int, orden: list[int]) -> dict:
 
 
 def quitar_parada(db: Session, ruta_id: int, pedido_id: int, usuario_id: int | None = None) -> dict:
-    """CUS-20: quita un pedido de la ruta y lo devuelve a PENDIENTE para reasignarlo.
+    """CUS-20: quita un pedido de la ruta y lo devuelve a LISTO_PARA_ENVIO para reasignarlo.
     Recibe: id de ruta, id de pedido y el id del admin."""
     ruta = _ruta_o_404(db, ruta_id)
     detalle = ruta_repository.obtener_detalle_de_ruta(db, ruta.id, pedido_id)
@@ -511,11 +511,11 @@ def quitar_parada(db: Session, ruta_id: int, pedido_id: int, usuario_id: int | N
     db.delete(detalle)
     if pedido:
         estado_anterior = pedido.estado
-        pedido.estado = "PENDIENTE"
+        pedido.estado = "LISTO_PARA_ENVIO"
         pedido.fecha_entrega = None
-        historial_repository.registrar(db, pedido.id, estado_anterior, "PENDIENTE", usuario_id)
+        historial_repository.registrar(db, pedido.id, estado_anterior, "LISTO_PARA_ENVIO", usuario_id)
     db.commit()
-    return {"mensaje": "Parada quitada de la ruta; el pedido volvió a PENDIENTE"}
+    return {"mensaje": "Parada quitada de la ruta; el pedido volvió a Listo para envío"}
 
 
 # FASE 5: manifiesto descargable en Excel (CUS-21)

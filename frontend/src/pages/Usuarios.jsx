@@ -25,7 +25,7 @@ export default function Usuarios() {
   const [cargando, setCargando] = useState(true);
   const [seleccionado, setSeleccionado] = useState(null);
 
-  const [form, setForm] = useState({ correo: "", contrasena: "", rol: "almacen" });
+  const [form, setForm] = useState({ correo: "", contrasena: "", rol: "almacen", nombre: "", dni: "", telefono: "", cargo: "" });
   const [aviso, setAviso] = useState(null);
   const [guardando, setGuardando] = useState(false);
 
@@ -58,9 +58,18 @@ export default function Usuarios() {
     setAviso(null);
     setGuardando(true);
     try {
-      const u = await crearUsuario({ correo: form.correo.trim(), contrasena: form.contrasena, rol: form.rol });
+      // Los datos personales son opcionales: solo se envían si tienen valor.
+      const u = await crearUsuario({
+        correo: form.correo.trim(),
+        contrasena: form.contrasena,
+        rol: form.rol,
+        nombre: form.nombre.trim() || null,
+        dni: form.dni.trim() || null,
+        telefono: form.telefono.trim() || null,
+        cargo: form.cargo.trim() || null,
+      });
       setAviso({ ok: true, texto: `Usuario ${u.correo} creado (${u.codigo || "—"}).` });
-      setForm({ correo: "", contrasena: "", rol: "almacen" });
+      setForm({ correo: "", contrasena: "", rol: "almacen", nombre: "", dni: "", telefono: "", cargo: "" });
       cargar();
     } catch (err) {
       setAviso({ ok: false, texto: err.message });
@@ -71,7 +80,17 @@ export default function Usuarios() {
 
   const columnas = [
     { key: "codigo", header: "Código", render: (u) => <span className="font-medium text-slate-800 nums">{u.codigo || "—"}</span> },
-    { key: "correo", header: "Correo", render: (u) => <span className="text-slate-700">{u.correo}</span> },
+    {
+      key: "correo",
+      header: "Usuario",
+      render: (u) => (
+        <div>
+          {u.nombre && <p className="font-medium text-slate-800">{u.nombre}</p>}
+          <p className={u.nombre ? "text-xs text-slate-500" : "text-slate-700"}>{u.correo}</p>
+        </div>
+      ),
+    },
+    { key: "cargo", header: "Cargo", render: (u) => <span className="text-slate-600">{u.cargo || "—"}</span> },
     { key: "rol", header: "Rol", render: (u) => <Badge tono="info">{etiquetaRol(u.rol)}</Badge> },
     { key: "estado", header: "Estado", render: (u) => <EstadoBadge estado={u.estado ? "DISPONIBLE" : "INACTIVO"} /> },
   ];
@@ -98,6 +117,17 @@ export default function Usuarios() {
             <Input as="select" label="Rol" value={form.rol} onChange={(e) => setForm((f) => ({ ...f, rol: e.target.value }))}>
               {ROLES.map((r) => <option key={r.valor} value={r.valor}>{r.etiqueta}</option>)}
             </Input>
+            {/* Datos personales (opcionales): se muestran luego en "Mi Perfil". */}
+            <Input label="Nombre completo (opcional)" value={form.nombre}
+              onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} placeholder="Ej. Ana Pérez" />
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="DNI (opcional)" value={form.dni}
+                onChange={(e) => setForm((f) => ({ ...f, dni: e.target.value }))} placeholder="12345678" />
+              <Input label="Teléfono (opcional)" value={form.telefono}
+                onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))} placeholder="999 888 777" />
+            </div>
+            <Input label="Cargo (opcional)" value={form.cargo}
+              onChange={(e) => setForm((f) => ({ ...f, cargo: e.target.value }))} placeholder="Ej. Jefe de almacén" />
             <Button type="submit" icon={UserPlus} block disabled={guardando}>{guardando ? "Creando…" : "Crear usuario"}</Button>
             {aviso && (
               <div className={`flex items-center gap-2 rounded-xl px-3.5 py-3 text-sm ${aviso.ok ? "bg-success-soft text-success-strong" : "bg-danger-soft text-danger-strong"}`}>
@@ -128,15 +158,31 @@ export default function Usuarios() {
 function DetalleUsuario({ usuario: u, onCerrar, onCambios }) {
   const [modo, setModo] = useState("ver"); // "ver" | "clave"
   const [rol, setRol] = useState(u.rol);
+  // Datos personales editables (opcionales); se inician con lo que ya tiene el usuario.
+  const [datos, setDatos] = useState({
+    nombre: u.nombre || "",
+    dni: u.dni || "",
+    telefono: u.telefono || "",
+    cargo: u.cargo || "",
+  });
   const [nuevaClave, setNuevaClave] = useState("");
   const [claveOk, setClaveOk] = useState(false);
   const [aviso, setAviso] = useState(null);
   const [trabajando, setTrabajando] = useState(false);
 
+  // Guarda rol + datos personales en un solo PATCH (los vacíos se mandan como null).
   const guardarRol = async () => {
-    if (rol === u.rol) { onCerrar(); return; }
     setTrabajando(true); setAviso(null);
-    try { await actualizarUsuario(u.usuario_id ?? u.id, { rol }); onCambios(); }
+    try {
+      await actualizarUsuario(u.usuario_id ?? u.id, {
+        rol,
+        nombre: datos.nombre.trim() || null,
+        dni: datos.dni.trim() || null,
+        telefono: datos.telefono.trim() || null,
+        cargo: datos.cargo.trim() || null,
+      });
+      onCambios();
+    }
     catch (err) { setAviso({ texto: err.message }); setTrabajando(false); }
   };
 
@@ -181,9 +227,20 @@ function DetalleUsuario({ usuario: u, onCerrar, onCambios }) {
           <Input as="select" label="Rol" value={rol} onChange={(e) => setRol(e.target.value)}>
             {ROLES.map((r) => <option key={r.valor} value={r.valor}>{r.etiqueta}</option>)}
           </Input>
+          {/* Datos personales editables (opcionales) */}
+          <Input label="Nombre completo" value={datos.nombre}
+            onChange={(e) => setDatos((d) => ({ ...d, nombre: e.target.value }))} placeholder="Ej. Ana Pérez" />
+          <div className="grid grid-cols-2 gap-3">
+            <Input label="DNI" value={datos.dni}
+              onChange={(e) => setDatos((d) => ({ ...d, dni: e.target.value }))} placeholder="12345678" />
+            <Input label="Teléfono" value={datos.telefono}
+              onChange={(e) => setDatos((d) => ({ ...d, telefono: e.target.value }))} placeholder="999 888 777" />
+          </div>
+          <Input label="Cargo" value={datos.cargo}
+            onChange={(e) => setDatos((d) => ({ ...d, cargo: e.target.value }))} placeholder="Ej. Jefe de almacén" />
           <div className="flex gap-2">
             <Button variant="secondary" block onClick={cambiarEstado} disabled={trabajando}>{u.estado ? "Desactivar" : "Activar"}</Button>
-            <Button icon={Check} block onClick={guardarRol} disabled={trabajando}>{trabajando ? "Guardando…" : "Guardar rol"}</Button>
+            <Button icon={Check} block onClick={guardarRol} disabled={trabajando}>{trabajando ? "Guardando…" : "Guardar cambios"}</Button>
           </div>
           <Button variant="secondary" icon={KeyRound} block onClick={() => { setAviso(null); setClaveOk(false); setNuevaClave(""); setModo("clave"); }}>
             Restablecer contraseña
