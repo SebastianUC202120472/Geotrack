@@ -208,6 +208,9 @@ export const obtenerSeguimientoClientes = () => request("/dashboard/clientes");
 // Posición en vivo de cada conductor con ruta activa + sus paradas pendientes.
 export const obtenerUbicacionesFlota = () => request("/dashboard/flota/ubicaciones");
 
+// Posición en vivo de los conductores en rutas de RECOJO activas (módulo almacén).
+export const obtenerUbicacionesRecojo = () => request("/almacen/flota/ubicaciones-recojo");
+
 /* ============================================================
    VEHÍCULOS Y FLOTA  (gestión del admin)
 ============================================================ */

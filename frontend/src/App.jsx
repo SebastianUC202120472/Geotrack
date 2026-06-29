@@ -18,6 +18,7 @@ import SeguimientoConductores from "./pages/SeguimientoConductores";
 import IngresoAlmacen from "./pages/IngresoAlmacen";
 import RetornosAlmacen from "./pages/RetornosAlmacen";
 import ArmarRutaRecojo from "./pages/ArmarRutaRecojo";
+import MapaRecojos from "./pages/MapaRecojos";
 
 // Mapa de rutas del panel de administración.
 // /login va suelto (sin barra lateral). Todo lo demás cuelga del layout del
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="/almacen" element={<IngresoAlmacen />} />
         <Route path="/almacen/retornos" element={<RetornosAlmacen />} />
         <Route path="/almacen/recojos" element={<ArmarRutaRecojo />} />
+        <Route path="/almacen/mapa" element={<MapaRecojos />} />
       </Route>
 
       {/* Cualquier ruta desconocida vuelve al inicio. */}
