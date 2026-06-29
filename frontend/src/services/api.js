@@ -136,6 +136,10 @@ export const eliminarCliente = (id) =>
 
 export const listarUsuarios = () => request("/usuarios/");
 
+// Perfil de la cuenta autenticada (admin/almacén). Salida: { id, codigo, correo,
+// rol, estado, nombre, dni, telefono, cargo }.
+export const obtenerMiPerfil = () => request("/usuarios/yo");
+
 export const crearUsuario = (datos) =>
   request("/usuarios/", { method: "POST", body: datos });
 
@@ -373,8 +377,10 @@ export const resolverIncidencia = (id, nota) =>
   request(`/incidencias/${id}/resolver`, { method: "POST", body: { nota: nota ?? null } });
 
 // Feed de notificaciones del admin: no_vistas e historial cronológico.
-// Salida: { no_vistas: number, items: [{ id, tipo, titulo, mensaje, ruta, creado_en, visto_en }] }.
-export const obtenerNotificaciones = () => request("/notificaciones");
+// Entrada: limite opcional (cuántos ítems traer). Salida: { no_vistas: number,
+// items: [{ id, tipo, titulo, mensaje, ruta, entidad_id, creado_en, visto_en }] }.
+export const obtenerNotificaciones = (limite) =>
+  request(`/notificaciones${limite ? `?limite=${limite}` : ""}`);
 
 // Marca todas las notificaciones como vistas. Salida: { marcadas: number }.
 export const marcarNotificacionesVistas = () =>
