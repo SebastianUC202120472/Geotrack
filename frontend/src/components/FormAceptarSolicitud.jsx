@@ -15,8 +15,8 @@ import Input from "./ui/Input";
 import { listarClientes, aceptarSolicitud } from "../services/api";
 
 // Formulario reutilizable para aceptar una solicitud de recojo.
-// Recibe: nada (maneja su propio estado interno).
-export default function FormAceptarSolicitud() {
+// Recibe: desdeCorreo? { conversacion_id, nombre, email } — precarga el cliente si viene de la bandeja.
+export default function FormAceptarSolicitud({ desdeCorreo }) {
   const [clientes, setClientes] = useState([]);
   const [clienteId, setClienteId] = useState("");
   const [file, setFile] = useState(null);
@@ -26,10 +26,25 @@ export default function FormAceptarSolicitud() {
   const [resultado, setResultado] = useState(null);
   const [error, setError] = useState("");
 
-  // Carga la lista de clientes registrados al montar el componente.
+  // Carga la lista de clientes y, si viene de un correo, preselecciona el cliente que coincida.
   useEffect(() => {
-    listarClientes().then((data) => setClientes(data)).catch(() => {});
-  }, []);
+    listarClientes()
+      .then((data) => {
+        setClientes(data);
+        if (desdeCorreo) {
+          // Busca por razon_social (normalizado) o por contacto (email).
+          const nombreNorm = (desdeCorreo.nombre || "").trim().toLowerCase();
+          const emailNorm = (desdeCorreo.email || "").trim().toLowerCase();
+          const match = data.find(
+            (c) =>
+              (nombreNorm && c.razon_social?.trim().toLowerCase() === nombreNorm) ||
+              (emailNorm && c.contacto?.trim().toLowerCase() === emailNorm)
+          );
+          if (match) setClienteId(String(match.id));
+        }
+      })
+      .catch(() => {});
+  }, [desdeCorreo]);
 
   // Guarda el archivo seleccionado y limpia estados previos.
   const elegirArchivo = (e) => {
@@ -42,6 +57,7 @@ export default function FormAceptarSolicitud() {
   };
 
   // Envía el formulario al backend y almacena el resumen o el error.
+  // Si viene de un correo, incluye el conversacion_id para cerrar el hilo al aceptar.
   const aceptar = () => {
     if (!clienteId || !file) return;
     setCargando(true);
@@ -50,6 +66,7 @@ export default function FormAceptarSolicitud() {
     aceptarSolicitud(Number(clienteId), file, {
       referencia: referencia.trim() || undefined,
       contacto_origen: contactoOrigen.trim() || undefined,
+      conversacion_id: desdeCorreo?.conversacion_id || undefined,
     })
       .then((data) => {
         setResultado(data);
