@@ -112,6 +112,9 @@ class AceptarSolicitudResponse(BaseModel):
     pedidos_creados: int
     pedidos_geocodificados: int
     pedidos_sin_ubicar: int
+    # True cuando la geocodificación quedó corriendo en segundo plano (carga masiva): al
+    # responder ningún pedido tiene coordenadas todavía, se van ubicando en los minutos siguientes.
+    geocodificacion_en_segundo_plano: bool = False
     filas_rechazadas: list[str]
 
 

@@ -171,10 +171,12 @@ def aceptar_solicitud(
     recojo_repository.guardar_cambios(db)
     db.refresh(recojo)
 
-    # Crear un pedido por cada fila válida del Excel ya parseado.
+    # Crear un pedido por cada fila válida del Excel ya parseado. NO geocodificamos aquí:
+    # con archivos grandes (cientos de filas) hacerlo en línea bloquearía la petición varios
+    # minutos (Nominatim limita a 1 req/s) y el panel quedaría "Sin conexión". Los pedidos se
+    # crean al instante y la geocodificación corre en segundo plano (geocodificar_pedidos_recojo).
     filas_rechazadas: list[str] = []
     pedidos_creados = 0
-    pedidos_geocodificados = 0
 
     for i, fila in enumerate(filas, start=1):
         # Validar campos mínimos por fila.
@@ -185,12 +187,10 @@ def aceptar_solicitud(
             filas_rechazadas.append(f"Fila {i}: falta direccion_destino")
             continue
 
-        pedido = _pedido_svc.crear_pedido_desde_fila(
-            db, fila, cliente, recojo.id, "POR_RECOGER", usuario_id
+        _pedido_svc.crear_pedido_desde_fila(
+            db, fila, cliente, recojo.id, "POR_RECOGER", usuario_id, geocodificar=False
         )
         pedidos_creados += 1
-        if pedido.latitud is not None:
-            pedidos_geocodificados += 1
 
     # Persistir todos los pedidos creados en el loop (cada uno solo hizo flush).
     db.commit()
@@ -214,10 +214,40 @@ def aceptar_solicitud(
         recojo_id=recojo.id,
         codigo=recojo.codigo,
         pedidos_creados=pedidos_creados,
-        pedidos_geocodificados=pedidos_geocodificados,
-        pedidos_sin_ubicar=pedidos_creados - pedidos_geocodificados,
+        pedidos_geocodificados=0,            # se resuelven en segundo plano (ver endpoint)
+        pedidos_sin_ubicar=pedidos_creados,  # todos pendientes de ubicar al responder
+        geocodificacion_en_segundo_plano=True,
         filas_rechazadas=filas_rechazadas,
     )
+
+
+def geocodificar_pedidos_recojo(recojo_id: int) -> None:
+    """Tarea en segundo plano: geocodifica los pedidos de un recojo recién aceptado, uno por
+    uno (respetando el límite de 1 req/s de Nominatim), SIN bloquear la respuesta del upload.
+    Abre su PROPIA sesión de BD porque la de la petición ya se cerró al responder. Hace commit
+    por pedido para que vayan apareciendo ubicados en el panel a medida que se resuelven.
+    Recibe: id del recojo cuyos pedidos POR_RECOGER aún no tienen coordenadas."""
+    from app.db.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        pedidos = (
+            db.query(Pedido)
+            .filter(Pedido.recojo_id == recojo_id, Pedido.latitud.is_(None))
+            .all()
+        )
+        for pedido in pedidos:
+            lat, lng = obtener_coordenadas(pedido.direccion_destino)
+            if lat and lng:
+                pedido.latitud = lat
+                pedido.longitud = lng
+                partes = pedido.direccion_destino.split(",")
+                pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
+                db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
 
 
 # === Armado de ruta de recojo (almacén) ===

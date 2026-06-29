@@ -193,13 +193,22 @@ export default function FormAceptarSolicitud({ desdeCorreo }) {
               <h3 className="text-base font-semibold text-slate-900">
                 Recojo registrado — <span className="font-mono">{resultado.codigo}</span>
               </h3>
-              <p className="text-sm text-slate-600">
-                {resultado.pedidos_creados} pedidos creados ·{" "}
-                {resultado.pedidos_geocodificados} geocodificados
-                {resultado.pedidos_sin_ubicar > 0 &&
-                  ` · ${resultado.pedidos_sin_ubicar} sin ubicar`}
-                .
-              </p>
+              {/* Con geocodificación diferida (carga masiva) los pedidos se ubican en segundo
+                  plano; mostramos eso en vez de "N sin ubicar", que alarmaría sin motivo. */}
+              {resultado.geocodificacion_en_segundo_plano ? (
+                <p className="text-sm text-slate-600">
+                  {resultado.pedidos_creados} pedidos creados · ubicándose en el mapa en segundo
+                  plano (puede tardar unos minutos).
+                </p>
+              ) : (
+                <p className="text-sm text-slate-600">
+                  {resultado.pedidos_creados} pedidos creados ·{" "}
+                  {resultado.pedidos_geocodificados} geocodificados
+                  {resultado.pedidos_sin_ubicar > 0 &&
+                    ` · ${resultado.pedidos_sin_ubicar} sin ubicar`}
+                  .
+                </p>
+              )}
             </div>
           </div>
 
