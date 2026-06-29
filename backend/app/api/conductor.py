@@ -214,12 +214,13 @@ def optimizar_recojo(
 async def registrar_recepcion(
     recojo_id: int,
     cantidad_declarada: int = Form(...),
-    file: UploadFile = File(...),
+    files: list[UploadFile] = File(...),
     db: Session = Depends(get_db),
     conductor: Usuario = Depends(get_current_conductor),
 ):
-    """Registra el recojo a bulto cerrado: cantidad declarada + foto de la Guía de Remisión."""
-    contenido = await file.read()
+    """Registra el recojo a bulto cerrado: cantidad declarada + VARIAS fotos de evidencia
+    (boleta/guía/bultos)."""
+    archivos = [(await f.read(), f.filename) for f in files]
     return recojo_service.registrar_recepcion(
-        db, conductor.id, recojo_id, cantidad_declarada, contenido, file.filename
+        db, conductor.id, recojo_id, cantidad_declarada, archivos
     )

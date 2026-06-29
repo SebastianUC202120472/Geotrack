@@ -1,23 +1,22 @@
 # app/services/almacen_service.py
-# Lógica del módulo de almacén (CUS-14): escanear pedidos del recojo,
-# conciliar y cerrar el ingreso.
+# Lógica del módulo de almacén: ingreso MANUAL de un recojo (sin escaneo). El almacén ve
+# las fotos del conductor, marca los pedidos que NO llegaron (quedan OBSERVADO) y confirma
+# el ingreso: el resto pasa a LISTO_PARA_ENVIO y el recojo a INGRESADO.
 from datetime import datetime
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.repositories import almacen_repository, recojo_repository
-from app.services import geocoder
+from app.repositories import almacen_repository, recojo_repository, historial_repository
 from app.schemas.almacen import (
     ConteoConciliacion,
-    EscaneoResponse,
     ConciliacionResponse,
-    PaqueteEsperadoItem,
+    PedidoIngresoItem,
     RecojoAlmacenItem,
-    CerrarIngresoResponse,
+    ConfirmarIngresoResponse,
 )
 
-# Un recojo se ingresa cuando ya fue recogido; INGRESADO permite reabrir/reescanear.
+# Un recojo se ingresa cuando ya fue recogido; INGRESADO permite revisarlo de nuevo.
 ESTADOS_INGRESABLES = ("RECOGIDO", "INGRESADO")
 
 
@@ -35,107 +34,79 @@ def _recojo_ingresable(db: Session, recojo_id: int):
 
 
 def _conteo(db: Session, recojo_id: int) -> ConteoConciliacion:
-    """Arma el resumen de conciliación de un recojo a partir de sus pedidos."""
-    total, validados, faltantes = almacen_repository.contar_pedidos(db, recojo_id)
-    desconocidos = almacen_repository.contar_desconocidos(db, recojo_id)
+    """Arma el resumen de conciliación de un recojo a partir de los estados de sus pedidos."""
+    total, listos, observados, por_recoger = almacen_repository.contar_pedidos(db, recojo_id)
     return ConteoConciliacion(
         esperados=total,
-        ingresados=validados,
-        faltantes=faltantes,
-        desconocidos=desconocidos,
-    )
-
-
-def escanear(db: Session, recojo_id: int, codigo: str, usuario_id: int | None) -> EscaneoResponse:
-    """Cruza un código escaneado contra los pedidos del recojo por referencia_externa.
-    Recibe: id de recojo, tracking del cliente escaneado y usuario."""
-    _recojo_ingresable(db, recojo_id)
-    codigo = (codigo or "").strip()
-    if not codigo:
-        raise HTTPException(status_code=400, detail="El código no puede estar vacío")
-
-    pedido = almacen_repository.obtener_pedido_por_tracking(db, recojo_id, codigo)
-
-    if pedido is None:
-        # El tracking no pertenece a ningún pedido de este recojo.
-        if not almacen_repository.obtener_desconocido(db, recojo_id, codigo):
-            almacen_repository.agregar_desconocido(db, recojo_id, codigo, usuario_id)
-            almacen_repository.guardar_cambios(db)
-        return EscaneoResponse(
-            resultado="DESCONOCIDO",
-            codigo=codigo,
-            mensaje="El código no corresponde a ningún pedido de este recojo",
-            conteo=_conteo(db, recojo_id),
-        )
-
-    if pedido.estado != "POR_RECOGER":
-        # Ya fue validado antes; no re-aplicar.
-        return EscaneoResponse(
-            resultado="DUPLICADO",
-            codigo=codigo,
-            mensaje="Este pedido ya fue ingresado",
-            conteo=_conteo(db, recojo_id),
-        )
-
-    # Primera validación: pasa a PENDIENTE (entregable).
-    pedido.estado = "PENDIENTE"
-    pedido.validado_en = datetime.utcnow()
-    pedido.validado_por = usuario_id
-
-    # Si no tiene coordenadas, intentar geocodificar la dirección destino.
-    if pedido.latitud is None or pedido.longitud is None:
-        lat, lng = geocoder.obtener_coordenadas(pedido.direccion_destino)
-        if lat is not None:
-            pedido.latitud = lat
-            pedido.longitud = lng
-            # Extraer el distrito: texto tras la primera coma de la dirección.
-            partes = pedido.direccion_destino.split(",", 1)
-            if len(partes) > 1:
-                pedido.distrito = partes[1].strip()
-
-    almacen_repository.guardar_cambios(db)
-    return EscaneoResponse(
-        resultado="INGRESADO",
-        codigo=codigo,
-        mensaje="Pedido validado e ingresado correctamente",
-        conteo=_conteo(db, recojo_id),
+        listos=listos,
+        observados=observados,
+        por_recoger=por_recoger,
     )
 
 
 def obtener_conciliacion(db: Session, recojo_id: int) -> ConciliacionResponse:
-    """Conciliación detallada de un recojo: pedidos (tracking + estado) + desconocidos + conteo."""
+    """Conciliación de un recojo: lista de pedidos (con estado) + fotos de evidencia + conteo.
+    Recibe: id del recojo. La usa el panel de almacén para el ingreso manual."""
     recojo = recojo_repository.obtener_por_id(db, recojo_id)
     if not recojo:
         raise HTTPException(status_code=404, detail="Recojo no encontrado")
     pedidos = almacen_repository.listar_pedidos_recojo(db, recojo_id)
-    esperados = [
-        PaqueteEsperadoItem(
-            codigo=p.referencia_externa or p.codigo or "",
+    items = [
+        PedidoIngresoItem(
+            pedido_id=p.id,
+            referencia=p.referencia_externa or "",
+            codigo=p.codigo,
+            nombre_destinatario=p.nombre_destinatario,
+            direccion_destino=p.direccion_destino,
             estado=p.estado,
-            escaneado_en=p.validado_en,
         )
         for p in pedidos
     ]
-    desconocidos = [d.codigo for d in almacen_repository.listar_desconocidos(db, recojo_id)]
+    fotos = [e.url_foto for e in almacen_repository.listar_evidencias(db, recojo_id)]
     return ConciliacionResponse(
         recojo_id=recojo_id,
         estado_recojo=recojo.estado,
         conteo=_conteo(db, recojo_id),
-        esperados=esperados,
-        desconocidos=desconocidos,
+        pedidos=items,
+        fotos=fotos,
     )
 
 
-def cerrar_ingreso(db: Session, recojo_id: int, usuario_id: int | None) -> CerrarIngresoResponse:
-    """Cierra el ingreso: el recojo pasa a INGRESADO (permitido aun con faltantes)."""
-    recojo = _recojo_ingresable(db, recojo_id)
+def confirmar_ingreso(db: Session, recojo_id: int, referencias_faltantes: list[str],
+                      usuario_id: int | None) -> ConfirmarIngresoResponse:
+    """Ingreso manual del recojo (sin escaneo): los pedidos cuya referencia esté en
+    referencias_faltantes quedan OBSERVADO; el resto (POR_RECOGER) pasa a LISTO_PARA_ENVIO.
+    El recojo pasa a INGRESADO. Geocodifica en segundo plano los que falten coordenadas.
+    Recibe: id del recojo, lista de referencias (tracking) que NO llegaron y el usuario."""
+    _recojo_ingresable(db, recojo_id)
+    faltantes = {(r or "").strip() for r in (referencias_faltantes or []) if (r or "").strip()}
+
+    pedidos = almacen_repository.listar_pedidos_recojo(db, recojo_id)
+    for pedido in pedidos:
+        es_faltante = (pedido.referencia_externa or "") in faltantes
+        if es_faltante:
+            # Marcar como OBSERVADO (en espera de aclaración) si aún no está resuelto.
+            if pedido.estado in ("POR_RECOGER", "LISTO_PARA_ENVIO"):
+                historial_repository.registrar(db, pedido.id, pedido.estado, "OBSERVADO", usuario_id)
+                pedido.estado = "OBSERVADO"
+        elif pedido.estado == "POR_RECOGER":
+            # Llegó y no estaba observado: queda listo para envío.
+            historial_repository.registrar(db, pedido.id, pedido.estado, "LISTO_PARA_ENVIO", usuario_id)
+            pedido.estado = "LISTO_PARA_ENVIO"
+            pedido.validado_en = datetime.utcnow()
+            pedido.validado_por = usuario_id
+
+    recojo = recojo_repository.obtener_por_id(db, recojo_id)
     recojo.estado = "INGRESADO"
     almacen_repository.guardar_cambios(db)
-    return CerrarIngresoResponse(
+
+    # Geocodificar en segundo plano los LISTO_PARA_ENVIO sin coordenadas (no bloquea la respuesta).
+    # La tarea la agenda el endpoint (BackgroundTasks); aquí solo devolvemos el resumen.
+    return ConfirmarIngresoResponse(
         recojo_id=recojo_id,
         estado=recojo.estado,
         conteo=_conteo(db, recojo_id),
-        mensaje="Ingreso cerrado",
+        mensaje="Ingreso confirmado: pedidos marcados como Listo para envío y faltantes en Observado.",
     )
 
 

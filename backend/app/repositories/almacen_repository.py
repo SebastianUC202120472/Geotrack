@@ -1,10 +1,10 @@
 # app/repositories/almacen_repository.py
-# Acceso a datos del módulo de almacén: pedidos del recojo y desconocidos.
+# Acceso a datos del módulo de almacén: pedidos del recojo y sus evidencias.
 from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.models.pedido import Pedido
-from app.models.paquete_esperado import EscaneoDesconocido
+from app.models.evidencia_recojo import EvidenciaRecojo
 
 
 def listar_pedidos_recojo(db: Session, recojo_id: int) -> List[Pedido]:
@@ -26,46 +26,23 @@ def obtener_pedido_por_tracking(db: Session, recojo_id: int, codigo: str) -> Opt
     )
 
 
-def contar_pedidos(db: Session, recojo_id: int) -> Tuple[int, int, int]:
-    """Devuelve (total, validados, faltantes) de pedidos en el recojo.
-    Validados = estado distinto de POR_RECOGER; faltantes = POR_RECOGER."""
-    total = db.query(Pedido).filter(Pedido.recojo_id == recojo_id).count()
-    faltantes = (
-        db.query(Pedido)
-        .filter(Pedido.recojo_id == recojo_id, Pedido.estado == "POR_RECOGER")
-        .count()
-    )
-    validados = total - faltantes
-    return total, validados, faltantes
+def contar_pedidos(db: Session, recojo_id: int) -> Tuple[int, int, int, int]:
+    """Devuelve (total, listos, observados, por_recoger) de pedidos en el recojo:
+    listos = LISTO_PARA_ENVIO; observados = OBSERVADO; por_recoger = POR_RECOGER (sin procesar)."""
+    base = db.query(Pedido).filter(Pedido.recojo_id == recojo_id)
+    total = base.count()
+    listos = base.filter(Pedido.estado == "LISTO_PARA_ENVIO").count()
+    observados = base.filter(Pedido.estado == "OBSERVADO").count()
+    por_recoger = base.filter(Pedido.estado == "POR_RECOGER").count()
+    return total, listos, observados, por_recoger
 
 
-def contar_desconocidos(db: Session, recojo_id: int) -> int:
-    """Cantidad de desconocidos registrados para un recojo."""
-    return db.query(EscaneoDesconocido).filter(EscaneoDesconocido.recojo_id == recojo_id).count()
-
-
-def obtener_desconocido(db: Session, recojo_id: int, codigo: str) -> Optional[EscaneoDesconocido]:
-    """Busca un desconocido ya registrado (para no duplicarlo)."""
+def listar_evidencias(db: Session, recojo_id: int) -> List[EvidenciaRecojo]:
+    """Fotos (boleta/guía/bultos) que el conductor subió en la recepción, por secuencia."""
     return (
-        db.query(EscaneoDesconocido)
-        .filter(EscaneoDesconocido.recojo_id == recojo_id, EscaneoDesconocido.codigo == codigo)
-        .first()
-    )
-
-
-def agregar_desconocido(db: Session, recojo_id: int, codigo: str, usuario_id: int | None) -> EscaneoDesconocido:
-    """Registra un código escaneado que no corresponde a ningún pedido del recojo. No hace commit."""
-    desconocido = EscaneoDesconocido(recojo_id=recojo_id, codigo=codigo, escaneado_por=usuario_id)
-    db.add(desconocido)
-    return desconocido
-
-
-def listar_desconocidos(db: Session, recojo_id: int) -> List[EscaneoDesconocido]:
-    """Desconocidos de un recojo, ordenados por código."""
-    return (
-        db.query(EscaneoDesconocido)
-        .filter(EscaneoDesconocido.recojo_id == recojo_id)
-        .order_by(EscaneoDesconocido.codigo.asc())
+        db.query(EvidenciaRecojo)
+        .filter(EvidenciaRecojo.recojo_id == recojo_id)
+        .order_by(EvidenciaRecojo.secuencia.asc(), EvidenciaRecojo.id.asc())
         .all()
     )
 
