@@ -40,11 +40,13 @@ class ResumenResponse(BaseModel):
 
 # Mapa de flota en tiempo real
 class ParadaMapa(BaseModel):
-    """Una parada de ENTREGA pendiente del conductor (icono de pedido), para el mapa."""
+    """Una parada de ENTREGA del conductor (icono de pedido), para el mapa. Incluye su estado
+    para colorear: PENDIENTE / ENTREGADO / FALLIDO."""
     latitud: float
     longitud: float
     destinatario: Optional[str] = None
     secuencia: Optional[int] = None
+    estado: Optional[str] = None  # estado_entrega de la parada
 
 
 class ClienteMapa(BaseModel):

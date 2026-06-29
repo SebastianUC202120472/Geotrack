@@ -9,6 +9,19 @@ const OPCIONES = { streetViewControl: false, mapTypeControl: false, fullscreenCo
 const PIN_PATH = "M12 0C7.58 0 4 3.58 4 8c0 5.5 8 16 8 16s8-10.5 8-16c0-4.42-3.58-8-8-8z";
 // Path SVG de un edificio/almacén (~24x24, base abajo); se usa para los CLIENTES corporativos.
 const EDIFICIO_PATH = "M3 23V8l7-4v3l7-4v20h-5v-4h-3v4H3z";
+// Colores de la gota de parada según su estado de entrega.
+const COLOR_PENDIENTE = "#2563eb";
+const COLOR_ENTREGADO = "#16a34a";
+const COLOR_FALLIDO = "#dc2626";
+
+// Devuelve el color de una parada según su `estado` (estado_entrega).
+// Entrada: `estado` = "PENDIENTE" | "ENTREGADO" | "FALLIDO" (vacío = pendiente).
+function colorPorEstado(estado) {
+  const e = (estado || "PENDIENTE").toUpperCase();
+  if (e === "ENTREGADO") return COLOR_ENTREGADO;
+  if (e === "FALLIDO") return COLOR_FALLIDO;
+  return COLOR_PENDIENTE;
+}
 
 // Mensaje a pantalla completa dentro del marco del mapa (carga / error).
 function Aviso({ texto }) {
@@ -30,11 +43,27 @@ function LeyendaMapa({ hayClientes }) {
       </div>
       <div className="mt-1 flex items-center gap-2">
         <span
-          className="inline-block h-3 w-3 border border-white bg-slate-500 shadow"
-          style={{ borderRadius: "50% 50% 50% 0", transform: "rotate(-45deg)" }}
+          className="inline-block h-3 w-3 border border-white shadow"
+          style={{ borderRadius: "50% 50% 50% 0", transform: "rotate(-45deg)", background: COLOR_PENDIENTE }}
           aria-hidden="true"
         />
-        <span className="text-slate-600">Pedido / parada</span>
+        <span className="text-slate-600">Parada pendiente</span>
+      </div>
+      <div className="mt-1 flex items-center gap-2">
+        <span
+          className="inline-block h-3 w-3 border border-white shadow"
+          style={{ borderRadius: "50% 50% 50% 0", transform: "rotate(-45deg)", background: COLOR_ENTREGADO }}
+          aria-hidden="true"
+        />
+        <span className="text-slate-600">Entregado</span>
+      </div>
+      <div className="mt-1 flex items-center gap-2">
+        <span
+          className="inline-block h-3 w-3 border border-white shadow"
+          style={{ borderRadius: "50% 50% 50% 0", transform: "rotate(-45deg)", background: COLOR_FALLIDO }}
+          aria-hidden="true"
+        />
+        <span className="text-slate-600">Fallido</span>
       </div>
       {hayClientes && (
         <div className="mt-1 flex items-center gap-2">
@@ -111,7 +140,7 @@ export default function MapaFlotaGoogle({ conductores, apiKey, seleccionado }) {
     strokeColor: "#FFFFFF",
     strokeWeight: 2,
   });
-  // Pin (gota) para una PARADA, con el color del conductor y un número de orden.
+  // Pin (gota) para una PARADA, con el color de su estado de entrega y un número de orden.
   const pinParada = (color) => ({
     path: PIN_PATH,
     fillColor: color,
@@ -149,11 +178,12 @@ export default function MapaFlotaGoogle({ conductores, apiKey, seleccionado }) {
               {c.paradas.map((p, i) => {
                 const id = `parada-${c.conductor_id}-${i}`;
                 const orden = p.secuencia ?? i + 1;
+                // El color de la gota sale del estado de entrega (no del conductor).
                 return (
                   <MarkerF
                     key={id}
                     position={{ lat: p.latitud, lng: p.longitud }}
-                    icon={pinParada(color)}
+                    icon={pinParada(colorPorEstado(p.estado))}
                     label={{ text: String(orden), color: "#FFFFFF", fontSize: "10px", fontWeight: "700" }}
                     onClick={() => setAbierto(id)}
                   >
