@@ -4,7 +4,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.models.historial import HistorialPedido
-from app.core.codigos import asignar_codigo, PREFIJO_HISTORIAL
+from app.core.codigos import asignar_codigo, generar_codigo, PREFIJO_HISTORIAL
 
 
 def registrar(
@@ -27,6 +27,29 @@ def registrar(
     db.add(evento)
     asignar_codigo(db, evento, PREFIJO_HISTORIAL)  # codigo legible HP-001
     return evento
+
+
+def registrar_bulk(db: Session, eventos: List[dict]) -> List[HistorialPedido]:
+    """Inserta MUCHOS eventos en bloque con un solo flush (en vez de uno por evento).
+    Evita ~N idas y vueltas a la BD remota (Supabase) en operaciones masivas como aceptar
+    un recojo de cientos de pedidos. NO hace commit (misma transacción que el llamador).
+    Recibe: lista de dicts {pedido_id, estado_anterior, estado_nuevo, usuario_id}."""
+    if not eventos:
+        return []
+    objetos = [
+        HistorialPedido(
+            pedido_id=e["pedido_id"],
+            estado_anterior=e.get("estado_anterior"),
+            estado_nuevo=e["estado_nuevo"],
+            usuario_id=e.get("usuario_id"),
+        )
+        for e in eventos
+    ]
+    db.add_all(objetos)
+    db.flush()  # un solo flush asigna todos los ids
+    for evento in objetos:
+        evento.codigo = generar_codigo(PREFIJO_HISTORIAL, evento.id)
+    return objetos
 
 
 def listar_por_pedido(db: Session, pedido_id: int) -> List[HistorialPedido]:

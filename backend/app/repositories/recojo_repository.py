@@ -20,6 +20,18 @@ def obtener_por_id(db: Session, recojo_id: int) -> Optional[SolicitudRecojo]:
     return db.query(SolicitudRecojo).filter(SolicitudRecojo.id == recojo_id).first()
 
 
+def obtener_por_id_bloqueado(db: Session, recojo_id: int) -> Optional[SolicitudRecojo]:
+    """Como obtener_por_id pero con bloqueo de fila (SELECT ... FOR UPDATE). Serializa el
+    ingreso manual: dos confirmaciones simultáneas del mismo recojo se procesan en orden,
+    evitando que ambas lean los pedidos como POR_RECOGER y dupliquen el historial."""
+    return (
+        db.query(SolicitudRecojo)
+        .filter(SolicitudRecojo.id == recojo_id)
+        .with_for_update()
+        .first()
+    )
+
+
 def obtener_por_ids(db: Session, ids: List[int]) -> List[SolicitudRecojo]:
     """Devuelve las solicitudes cuyos ids están en la lista. Recibe: lista de ids."""
     if not ids:

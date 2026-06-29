@@ -23,16 +23,18 @@ function marcarOptimista(qc: QueryClient, pedidoId: number, estado: "ENTREGADO" 
   );
 }
 
-// Registra una entrega con su foto. { pedidoId, uriFoto }. Online: marca ENTREGADO,
-// sube la evidencia y cachea su URL. Offline/fallo de red: encola + optimista.
+// Registra una entrega con su foto. { pedidoId, uriFoto }. Online: sube la evidencia
+// (POD) y LUEGO marca ENTREGADO; el backend exige que la foto exista antes de aceptar
+// el ENTREGADO. Offline/fallo de red: encola + optimista.
 export function useEntregarConEvidencia() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ pedidoId, uriFoto }: { pedidoId: number; uriFoto: string }): Promise<{ encolado: boolean }> => {
       if (await estaOnline()) {
         try {
-          await marcarEstadoParada(pedidoId, "ENTREGADO");
+          // 1.º la evidencia (POD), 2.º marcar ENTREGADO: así nunca queda un ENTREGADO sin foto.
           const resultado = await subirEvidencia(pedidoId, uriFoto);
+          await marcarEstadoParada(pedidoId, "ENTREGADO");
           const url = urlEvidencia(resultado.url_evidencia);
           if (url) guardarEvidencia(pedidoId, url);
           return { encolado: false };

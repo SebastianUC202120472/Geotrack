@@ -140,6 +140,11 @@ def mandar_ayuda(db: Session, incidencia_id: int, admin_id: int, tipo: str, nota
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incidencia no encontrada")
     if inc.estado == "RESUELTA":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La incidencia ya fue resuelta")
+    # El conductor declaró que puede resolverlo solo: no se le manda ayuda (el panel ya
+    # oculta el botón; aquí lo reforzamos para que la API no dependa solo de la UI).
+    if inc.puede_solucionar_solo:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="El conductor indicó que puede solucionarlo solo; no procede mandar ayuda.")
     if not (tipo or "").strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Indica el tipo de ayuda a enviar")
     detalle = tipo.strip() + (f": {nota.strip()}" if (nota and nota.strip()) else "")

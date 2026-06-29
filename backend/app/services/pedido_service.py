@@ -13,7 +13,7 @@ from app.repositories import (
     reporte_repository,
 )
 from app.services.geocoder import obtener_coordenadas
-from app.core.codigos import asignar_codigo, PREFIJO_PEDIDO
+from app.core.codigos import asignar_codigo, generar_codigo, PREFIJO_PEDIDO
 
 # Columna mínima obligatoria del Excel (el nombre del cliente se valida aparte).
 COLUMNAS_REQUERIDAS = ["direccion_destino"]
@@ -112,6 +112,46 @@ def crear_pedido_desde_fila(
             pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
 
     return pedido
+
+
+def crear_pedidos_bulk(
+    db: Session,
+    filas: list[dict],
+    cliente,
+    recojo_id: int | None,
+    estado: str,
+    usuario_id: int | None,
+) -> list[Pedido]:
+    """Crea MUCHOS pedidos del mismo recojo en bloque, SIN geocodificar y con el mínimo de
+    idas y vueltas a la BD: un flush para todos los pedidos (asigna ids+códigos) y un
+    registrar_bulk para todo el historial. Reemplaza al bucle que hacía ~2 flush por fila
+    (~400 round-trips para 200 filas sobre Supabase). NO hace commit: lo hace el llamador.
+    Recibe: filas ya validadas, el cliente resuelto, el recojo origen, el estado inicial y el usuario."""
+    pedidos = [
+        Pedido(
+            referencia_externa=fila["referencia_externa"],
+            cliente_id=cliente.id,
+            cliente_origen=cliente.razon_social,
+            direccion_destino=fila["direccion_destino"],
+            nombre_destinatario=fila.get("nombre_destinatario"),
+            telefono_destinatario=fila.get("telefono_destinatario"),
+            dni_destinatario=fila.get("dni_destinatario"),
+            peso_kg=fila.get("peso_kg", 0.0),
+            volumen_m3=fila.get("volumen_m3", 0.0),
+            recojo_id=recojo_id,
+            estado=estado,
+        )
+        for fila in filas
+    ]
+    db.add_all(pedidos)
+    db.flush()  # un solo flush para todos los ids
+    for pedido in pedidos:
+        pedido.codigo = generar_codigo(PREFIJO_PEDIDO, pedido.id)
+    historial_repository.registrar_bulk(
+        db,
+        [{"pedido_id": p.id, "estado_anterior": None, "estado_nuevo": estado, "usuario_id": usuario_id} for p in pedidos],
+    )
+    return pedidos
 
 
 def cargar_pedidos_excel(db: Session, contenido: bytes, nombre_archivo: str, usuario_id: int | None = None) -> dict:
@@ -268,7 +308,7 @@ def reprogramar(db: Session, pedido_id: int, usuario_id: int | None = None) -> d
     pedido.fecha_entrega = None
     historial_repository.registrar(db, pedido.id, estado_anterior, "LISTO_PARA_ENVIO", usuario_id)
     db.commit()
-    reporte_repository.cerrar_abierto_de_pedido(db, pedido_id, "Reprogramado")
+    reporte_repository.cerrar_abierto_de_pedido(db, pedido_id, "Reprogramado", usuario_id)
     return {"mensaje": "Pedido reprogramado. Volvió a su zona para reasignarlo.", "codigo": pedido.codigo}
 
 
@@ -285,7 +325,7 @@ def cancelar(db: Session, pedido_id: int, usuario_id: int | None = None) -> dict
     pedido.fecha_entrega = None
     historial_repository.registrar(db, pedido.id, estado_anterior, "CANCELADO", usuario_id)
     db.commit()
-    reporte_repository.cerrar_abierto_de_pedido(db, pedido_id, "Cancelado")
+    reporte_repository.cerrar_abierto_de_pedido(db, pedido_id, "Cancelado", usuario_id)
     return {"mensaje": "Pedido cancelado.", "codigo": pedido.codigo}
 
 

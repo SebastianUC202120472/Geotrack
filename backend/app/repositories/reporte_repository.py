@@ -44,9 +44,10 @@ def contar_abiertos(db: Session) -> int:
     return db.query(Reporte).filter(Reporte.estado == "ABIERTO").count()
 
 
-def cerrar_abierto_de_pedido(db: Session, pedido_id: int, accion: str) -> None:
+def cerrar_abierto_de_pedido(db: Session, pedido_id: int, accion: str, usuario_id: int | None = None) -> None:
     """CUS-31: marca como RESUELTO el reporte ABIERTO de un pedido (si existe) al decidir
-    su devolución. Recibe: pedido_id y la acción tomada ('Reprogramado'/'Cancelado')."""
+    su devolución. Recibe: pedido_id, la acción tomada ('Reprogramado'/'Cancelado') y el
+    id del admin que la ejecutó (para dejar la atribución en respondido_por)."""
     from datetime import datetime
     reporte = (
         db.query(Reporte)
@@ -58,4 +59,5 @@ def cerrar_abierto_de_pedido(db: Session, pedido_id: int, accion: str) -> None:
         reporte.estado = "RESUELTO"
         reporte.accion = accion
         reporte.respondido_en = datetime.utcnow()
+        reporte.respondido_por = usuario_id
         db.commit()
