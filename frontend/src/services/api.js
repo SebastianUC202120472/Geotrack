@@ -368,9 +368,13 @@ export const listarIncidencias = (estado) =>
 export const resolverIncidencia = (id, nota) =>
   request(`/incidencias/${id}/resolver`, { method: "POST", body: { nota: nota ?? null } });
 
-// Feed de notificaciones del admin: total y lista de ítems por tipo con ruta de navegación.
-// Salida: { total: number, items: [{ tipo, etiqueta, count, ruta }] }.
+// Feed de notificaciones del admin: no_vistas e historial cronológico.
+// Salida: { no_vistas: number, items: [{ id, tipo, titulo, mensaje, ruta, creado_en, visto_en }] }.
 export const obtenerNotificaciones = () => request("/notificaciones");
+
+// Marca todas las notificaciones como vistas. Salida: { marcadas: number }.
+export const marcarNotificacionesVistas = () =>
+  request("/notificaciones/marcar-vistas", { method: "POST" });
 
 // Descarga un adjunto (ej. el Excel del recojo) y dispara la descarga en el
 // navegador. Va con el token en el header, por eso no se usa un <a href> directo.
