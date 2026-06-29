@@ -10,19 +10,29 @@ Codespace (en la nube), igual que en tu PC con Docker, usando tu **BD de Supabas
 Las credenciales NO van en el repositorio (por seguridad quedarían en el historial). Se
 guardan como **Codespaces Secrets** y quedan disponibles en todos tus Codespaces para siempre.
 
-1. Entra a: **GitHub → tu repo `Geotrack` → Settings → Secrets and variables → Codespaces → New repository secret**.
-   (O directo: `https://github.com/SebastianUC202120472/Geotrack/settings/secrets/codespaces`)
-2. Agrega estos secretos (copia los valores de tu archivo local `C:\geotrack\.env`):
+Entra a: **GitHub → repo `Geotrack` → Settings → Secrets and variables → Codespaces → New repository secret**
+(directo: `https://github.com/SebastianUC202120472/Geotrack/settings/secrets/codespaces`).
 
-   | Secreto | Obligatorio | De dónde sale |
-   |---------|-------------|----------------|
-   | `DATABASE_URL` | **Sí** (para ver tus datos de Supabase) | la línea `DATABASE_URL=...` de tu `.env` |
-   | `GOOGLE_GEOCODING_KEY` | Opcional | tu `.env` (si está vacío usa Nominatim/OSM) |
-   | `VITE_GOOGLE_MAPS_KEY` | Opcional | tu `.env` (si está vacío usa OpenStreetMap) |
-   | `SECRET_KEY` | Opcional | tu `.env` (si no, usa uno por defecto de demo) |
+> ⚠️ El **Name** del secreto solo admite letras, números y `_` (sin espacios ni puntos).
 
-   > Si NO pones `DATABASE_URL`, la app igual corre pero contra una base local vacía
-   > (sin la solicitud de Ripley ni los datos de demo).
+### Opción A (la más fácil) — un solo secreto `DOTENV`
+- **Name:** `DOTENV`
+- **Secret:** pega **TODO el contenido de tu `.env` local** (`C:\geotrack\.env`), tal cual.
+
+Eso es todo: el devcontainer usa ese contenido como `.env`. (La línea `EXPO_PUBLIC_API_URL`
+no importa: el Codespace la regenera sola con su URL pública.)
+
+### Opción B — secretos individuales
+Si prefieres, crea un secreto por variable (el devcontainer los arma):
+
+| Secreto | Obligatorio | De dónde sale |
+|---------|-------------|----------------|
+| `DATABASE_URL` | **Sí** (para ver tus datos de Supabase) | la línea `DATABASE_URL=...` de tu `.env` |
+| `GOOGLE_GEOCODING_KEY` | Opcional | tu `.env` (si vacío usa Nominatim/OSM) |
+| `VITE_GOOGLE_MAPS_KEY` | Opcional | tu `.env` (si vacío usa OpenStreetMap) |
+| `SECRET_KEY` | Opcional | tu `.env` (si no, usa uno por defecto de demo) |
+
+> Si no pones nada, la app corre igual pero contra una base local vacía (sin los datos de demo).
 
 Listo. Ya no tocas más las llaves.
 
