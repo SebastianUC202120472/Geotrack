@@ -12,9 +12,10 @@ router = APIRouter()
 
 
 @router.get("", response_model=NotificacionesResponse, dependencies=[Depends(get_current_admin)])
-def listar_notificaciones(db: Session = Depends(get_db)):
-    """Historial de notificaciones del admin + contador de no vistas."""
-    return notificaciones_service.listar(db)
+def listar_notificaciones(limite: int = 50, db: Session = Depends(get_db)):
+    """Historial de notificaciones del admin + contador de no vistas. `limite` opcional
+    (la página de historial pide más; la campana usa el default)."""
+    return notificaciones_service.listar(db, limite=max(1, min(limite, 500)))
 
 
 @router.post("/marcar-vistas", dependencies=[Depends(get_current_admin)])

@@ -6,12 +6,19 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.api.deps import get_current_admin
+from app.api.deps import get_current_admin, get_current_almacen
 from app.models.usuario import Usuario
 from app.services import usuario_service
 from app.schemas.usuario import UsuarioResponse, PersonalCreate, PersonalUpdate, PersonalResetContrasena
 
 router = APIRouter()
+
+
+@router.get("/yo", response_model=UsuarioResponse)
+def mi_perfil(usuario: Usuario = Depends(get_current_almacen)):
+    """Modo Perfil: devuelve los datos personales del usuario de panel autenticado
+    (admin o almacén). get_current_almacen admite ambos roles."""
+    return usuario
 
 
 @router.get("/", response_model=List[UsuarioResponse], dependencies=[Depends(get_current_admin)])
