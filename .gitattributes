@@ -1,0 +1,7 @@
+# Normalización de fin de línea.
+# Los scripts de shell DEBEN ir en LF: con CRLF fallan en Linux/Codespaces
+# ("bad interpreter: /usr/bin/env bash^M").
+*.sh text eol=lf
+.devcontainer/*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
