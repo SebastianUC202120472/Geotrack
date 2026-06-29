@@ -6,7 +6,7 @@ import MapaFlotaGoogle from "./MapaFlotaGoogle";
 // Entrada: `conductores` (ConductorUbicacion[]). "Pega la clave y funciona".
 const GMAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;
 
-export default function MapaFlota({ conductores, seleccionado }) {
-  if (GMAPS_KEY) return <MapaFlotaGoogle conductores={conductores} apiKey={GMAPS_KEY} seleccionado={seleccionado} />;
-  return <MapaFlotaLeaflet conductores={conductores} seleccionado={seleccionado} />;
+export default function MapaFlota({ conductores, seleccionado, mostrar = "TODO" }) {
+  if (GMAPS_KEY) return <MapaFlotaGoogle conductores={conductores} apiKey={GMAPS_KEY} seleccionado={seleccionado} mostrar={mostrar} />;
+  return <MapaFlotaLeaflet conductores={conductores} seleccionado={seleccionado} mostrar={mostrar} />;
 }

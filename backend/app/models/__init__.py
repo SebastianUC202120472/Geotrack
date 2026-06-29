@@ -18,3 +18,7 @@ from .evidencia import EvidenciaEntrega
 from .solicitud_restablecimiento import SolicitudRestablecimiento
 from .parametro import ParametroSistema
 from .incidencia import Incidencia
+from .solicitud_recojo import SolicitudRecojo
+from .notificacion import Notificacion
+from .evidencia_recojo import EvidenciaRecojo
+from .geocoding_cache import GeocodificacionCache

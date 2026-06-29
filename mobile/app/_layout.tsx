@@ -11,6 +11,9 @@ import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_7
 import { ThemeProvider, useTheme } from "@/theme";
 import { AuthProvider, useAuth } from "@/store/auth";
 import { CamionCargando } from "@/components/CamionCargando";
+// Registra (a nivel de módulo) la tarea de ubicación en segundo plano. Importarla
+// aquí garantiza que TaskManager.defineTask corra al arrancar la app.
+import "@/tasks/ubicacionBackground";
 
 // Datos "frescos" por poco tiempo: así al volver a la app o a una pantalla se
 // vuelven a pedir y la información se actualiza sola (sin cerrar sesión).

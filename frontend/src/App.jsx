@@ -5,22 +5,23 @@ import ProtectedRoute from "./components/ProtectedRoute";
 
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import ImportarPedidos from "./pages/ImportarPedidos";
 import Pedidos from "./pages/Pedidos";
 import AgrupacionZonas from "./pages/AgrupacionZonas";
 import AsignacionBloque from "./pages/AsignacionBloque";
-import Direcciones from "./pages/Direcciones";
 import Bandeja from "./pages/Bandeja";
 import Flota from "./pages/Flota";
 import Conductores from "./pages/Conductores";
 import Clientes from "./pages/Clientes";
 import Usuarios from "./pages/Usuarios";
 import Parametros from "./pages/Parametros";
-import Seguimiento from "./pages/Seguimiento";
 import SeguimientoConductores from "./pages/SeguimientoConductores";
-import Reportes from "./pages/Reportes";
+import IngresoAlmacen from "./pages/IngresoAlmacen";
+import RetornosAlmacen from "./pages/RetornosAlmacen";
+import ArmarRutaRecojo from "./pages/ArmarRutaRecojo";
+import MapaRecojos from "./pages/MapaRecojos";
+import ReportesPedido from "./pages/ReportesPedido";
 import AuxilioMecanico from "./pages/AuxilioMecanico";
-import Trazabilidad from "./pages/Trazabilidad";
+import Notificaciones from "./pages/Notificaciones";
 
 // Mapa de rutas del panel de administración.
 // /login va suelto (sin barra lateral). Todo lo demás cuelga del layout del
@@ -38,22 +39,23 @@ export default function App() {
         }
       >
         <Route path="/" element={<Dashboard />} />
-        <Route path="/importar" element={<ImportarPedidos />} />
         <Route path="/pedidos" element={<Pedidos />} />
         <Route path="/agrupacion" element={<AgrupacionZonas />} />
         <Route path="/asignacion-bloque" element={<AsignacionBloque />} />
-        <Route path="/direcciones" element={<Direcciones />} />
         <Route path="/bandeja" element={<Bandeja />} />
         <Route path="/flota" element={<Flota />} />
         <Route path="/conductores" element={<Conductores />} />
         <Route path="/clientes" element={<Clientes />} />
         <Route path="/usuarios" element={<Usuarios />} />
         <Route path="/parametros" element={<Parametros />} />
-        <Route path="/seguimiento" element={<Seguimiento />} />
         <Route path="/seguimiento-conductores" element={<SeguimientoConductores />} />
-        <Route path="/reportes" element={<Reportes />} />
+        <Route path="/reportes" element={<ReportesPedido />} />
         <Route path="/auxilio" element={<AuxilioMecanico />} />
-        <Route path="/trazabilidad" element={<Trazabilidad />} />
+        <Route path="/notificaciones" element={<Notificaciones />} />
+        <Route path="/almacen" element={<IngresoAlmacen />} />
+        <Route path="/almacen/retornos" element={<RetornosAlmacen />} />
+        <Route path="/almacen/recojos" element={<ArmarRutaRecojo />} />
+        <Route path="/almacen/mapa" element={<MapaRecojos />} />
       </Route>
 
       {/* Cualquier ruta desconocida vuelve al inicio. */}

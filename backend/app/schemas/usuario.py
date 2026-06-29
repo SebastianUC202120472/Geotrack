@@ -10,9 +10,8 @@ from app.schemas.conductor import validar_fuerza_contrasena
 class RolUsuario(str, Enum):
     """Roles válidos del sistema. Pydantic RECHAZA (422) cualquier otro valor,
     evitando que se cuelen roles inventados (seguridad / mínimo privilegio).
-    ADMIN y JEFE operan el panel; ALMACÉN es personal de almacén; CONDUCTOR usa la app."""
+    ADMIN opera el panel; ALMACÉN es personal de almacén; CONDUCTOR usa la app."""
     ADMIN = "admin"
-    JEFE = "jefe"
     ALMACEN = "almacen"
     CONDUCTOR = "conductor"
 
@@ -21,7 +20,7 @@ class UsuarioCreate(BaseModel):
     """Molde de ENTRADA: lo que el cliente envía para crear un usuario."""
     correo: EmailStr        # EmailStr valida que tenga formato de correo válido
     contrasena: str
-    rol: RolUsuario         # admin / jefe / almacen / conductor (ver enum RolUsuario)
+    rol: RolUsuario         # admin / almacen / conductor (ver enum RolUsuario)
 
 
 class UsuarioResponse(BaseModel):
@@ -31,6 +30,11 @@ class UsuarioResponse(BaseModel):
     correo: EmailStr
     rol: str
     estado: bool
+    # Datos personales del personal de panel (Modo Perfil). Pueden venir vacíos.
+    nombre: Optional[str] = None
+    dni: Optional[str] = None
+    telefono: Optional[str] = None
+    cargo: Optional[str] = None
 
     class Config:
         from_attributes = True  # permite construir el schema desde un objeto SQLAlchemy
@@ -47,12 +51,16 @@ class SolicitudRestablecimientoRequest(BaseModel):
     correo: EmailStr
 
 
-# --- CUS-03: gestión de usuarios del personal (admin/jefe/almacén) ---
+# --- CUS-03: gestión de usuarios del personal (admin/almacén) ---
 class PersonalCreate(BaseModel):
-    """ENTRADA (CUS-03): el admin crea una cuenta de personal con su rol."""
+    """ENTRADA (CUS-03): el admin crea una cuenta de personal con su rol y datos personales."""
     correo: EmailStr
     contrasena: str
     rol: RolUsuario
+    nombre: Optional[str] = None
+    dni: Optional[str] = None
+    telefono: Optional[str] = None
+    cargo: Optional[str] = None
 
     @field_validator("contrasena")
     @classmethod
@@ -69,9 +77,13 @@ class PersonalCreate(BaseModel):
 
 
 class PersonalUpdate(BaseModel):
-    """ENTRADA (CUS-03): cambiar el rol y/o el estado (activo) de un usuario."""
+    """ENTRADA (CUS-03): cambiar rol, estado y/o los datos personales de un usuario."""
     rol: Optional[RolUsuario] = None
     estado: Optional[bool] = None
+    nombre: Optional[str] = None
+    dni: Optional[str] = None
+    telefono: Optional[str] = None
+    cargo: Optional[str] = None
 
     @field_validator("rol")
     @classmethod

@@ -1,12 +1,12 @@
 # app/api/usuarios.py
-# Gestión de las cuentas del PANEL (admin/jefe/almacén) — CUS-03. Los conductores
+# Gestión de las cuentas del PANEL (admin/almacén) — CUS-03. Los conductores
 # se gestionan en su propia sección (con perfil y vehículo). Todo aquí es solo-admin.
 from typing import List
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.api.deps import get_current_admin
+from app.api.deps import get_current_admin, get_current_almacen
 from app.models.usuario import Usuario
 from app.services import usuario_service
 from app.schemas.usuario import UsuarioResponse, PersonalCreate, PersonalUpdate, PersonalResetContrasena
@@ -14,15 +14,22 @@ from app.schemas.usuario import UsuarioResponse, PersonalCreate, PersonalUpdate,
 router = APIRouter()
 
 
+@router.get("/yo", response_model=UsuarioResponse)
+def mi_perfil(usuario: Usuario = Depends(get_current_almacen)):
+    """Modo Perfil: devuelve los datos personales del usuario de panel autenticado
+    (admin o almacén). get_current_almacen admite ambos roles."""
+    return usuario
+
+
 @router.get("/", response_model=List[UsuarioResponse], dependencies=[Depends(get_current_admin)])
 def listar_personal(db: Session = Depends(get_db)):
-    """CUS-03: lista las cuentas del panel (admin/jefe/almacén)."""
+    """CUS-03: lista las cuentas del panel (admin/almacén)."""
     return usuario_service.listar_personal(db)
 
 
 @router.post("/", response_model=UsuarioResponse, dependencies=[Depends(get_current_admin)])
 def crear_personal(datos: PersonalCreate, db: Session = Depends(get_db)):
-    """CUS-03: crea una cuenta de personal con su rol (admin/jefe/almacén)."""
+    """CUS-03: crea una cuenta de personal con su rol (admin/almacén)."""
     return usuario_service.crear_personal(db, datos)
 
 

@@ -125,3 +125,63 @@ def obtener_detalle_y_ruta_por_pedido(
         .filter(RutaDetalle.pedido_id == pedido_id)
         .first()
     )
+
+
+# --- CUS-32: logística inversa (retornos de ruta) ---
+def obtener_rutas_con_fallidos(db: Session) -> List[Ruta]:
+    """Rutas de ENTREGA con al menos un paquete FALLIDO (candidatas a retorno)."""
+    ids = (
+        db.query(RutaDetalle.ruta_id)
+        .filter(RutaDetalle.estado_entrega == "FALLIDO")
+        .distinct()
+    )
+    return (
+        db.query(Ruta)
+        .filter(Ruta.id.in_(ids), Ruta.tipo == "ENTREGA")
+        .order_by(Ruta.fecha_creacion.desc())
+        .all()
+    )
+
+
+def obtener_fallidos_de_ruta(db: Session, ruta_id: int) -> List[Tuple[RutaDetalle, Pedido]]:
+    """Los paquetes FALLIDO de una ruta junto a su pedido, ordenados por secuencia."""
+    return (
+        db.query(RutaDetalle, Pedido)
+        .join(Pedido, RutaDetalle.pedido_id == Pedido.id)
+        .filter(RutaDetalle.ruta_id == ruta_id, RutaDetalle.estado_entrega == "FALLIDO")
+        .order_by(RutaDetalle.secuencia.asc())
+        .all()
+    )
+
+
+def obtener_fallido_por_codigo(db: Session, ruta_id: int, codigo: str) -> Optional[RutaDetalle]:
+    """El RutaDetalle FALLIDO de una ruta cuyo pedido tiene el código escaneado."""
+    return (
+        db.query(RutaDetalle)
+        .join(Pedido, RutaDetalle.pedido_id == Pedido.id)
+        .filter(
+            RutaDetalle.ruta_id == ruta_id,
+            RutaDetalle.estado_entrega == "FALLIDO",
+            Pedido.codigo == codigo,
+        )
+        .first()
+    )
+
+
+def contar_retorno(db: Session, ruta_id: int) -> Tuple[int, int]:
+    """Devuelve (esperados, retornados) de una ruta: FALLIDO totales y ya retornados."""
+    esperados = (
+        db.query(RutaDetalle)
+        .filter(RutaDetalle.ruta_id == ruta_id, RutaDetalle.estado_entrega == "FALLIDO")
+        .count()
+    )
+    retornados = (
+        db.query(RutaDetalle)
+        .filter(
+            RutaDetalle.ruta_id == ruta_id,
+            RutaDetalle.estado_entrega == "FALLIDO",
+            RutaDetalle.retornado_en.isnot(None),
+        )
+        .count()
+    )
+    return esperados, retornados

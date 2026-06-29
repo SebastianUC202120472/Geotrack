@@ -12,10 +12,19 @@ class IncidenciaCreate(BaseModel):
     descripcion: Optional[str] = None
     latitud: Optional[float] = None
     longitud: Optional[float] = None
+    # El conductor indica si puede resolverla él mismo (el admin no necesita mandar ayuda).
+    puede_solucionar_solo: Optional[bool] = False
 
 
 class ResolverIncidenciaRequest(BaseModel):
-    """ENTRADA: nota opcional al reanudar (conductor) o resolver (admin) la incidencia."""
+    """ENTRADA: nota opcional al reanudar la incidencia (solo el conductor cierra)."""
+    nota: Optional[str] = None
+
+
+class MandarAyudaRequest(BaseModel):
+    """ENTRADA (admin): el tipo de ayuda a enviar (adaptable a lo que necesita el conductor)
+    + una nota opcional. No resuelve la incidencia."""
+    tipo: str                       # ej. Mecánico | Grúa | Combustible | Vehículo de reemplazo | Otro
     nota: Optional[str] = None
 
 
@@ -37,3 +46,6 @@ class IncidenciaResponse(BaseModel):
     creado_en: Optional[datetime] = None
     resuelto_en: Optional[datetime] = None
     nota_resolucion: Optional[str] = None
+    puede_solucionar_solo: bool = False
+    ayuda_enviada_en: Optional[datetime] = None
+    ayuda_detalle: Optional[str] = None

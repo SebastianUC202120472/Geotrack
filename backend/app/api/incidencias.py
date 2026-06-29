@@ -8,7 +8,7 @@ from app.db.database import get_db
 from app.api.deps import get_current_admin
 from app.models.usuario import Usuario
 from app.services import incidencia_service
-from app.schemas.incidencia import IncidenciaResponse, ResolverIncidenciaRequest
+from app.schemas.incidencia import IncidenciaResponse, MandarAyudaRequest
 
 router = APIRouter()
 
@@ -25,7 +25,8 @@ def contador_incidencias(db: Session = Depends(get_db)):
     return {"abiertas": incidencia_service.contar_abiertas(db)}
 
 
-@router.post("/{incidencia_id}/resolver", response_model=IncidenciaResponse)
-def resolver_incidencia(incidencia_id: int, datos: ResolverIncidenciaRequest, db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
-    """CUS-30: marca una incidencia como resuelta desde el panel."""
-    return incidencia_service.resolver(db, incidencia_id, admin.id, datos.nota)
+@router.post("/{incidencia_id}/mandar-ayuda", response_model=IncidenciaResponse)
+def mandar_ayuda(incidencia_id: int, datos: MandarAyudaRequest, db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
+    """CUS-30: el admin envía ayuda al conductor (tipo + nota). Sella la incidencia con
+    "Ayuda enviada" pero NO la resuelve: solo el conductor la cierra al reanudar."""
+    return incidencia_service.mandar_ayuda(db, incidencia_id, admin.id, datos.tipo, datos.nota)

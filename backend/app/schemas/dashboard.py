@@ -32,7 +32,7 @@ class FlotaResponse(BaseModel):
 class ResumenResponse(BaseModel):
     """KPIs globales del día (tarjetas del dashboard)."""
     total_pedidos: int
-    pedidos_por_estado: Dict[str, int]  # ej. {"PENDIENTE": 2, "ENTREGADO": 3}
+    pedidos_por_estado: Dict[str, int]  # ej. {"LISTO_PARA_ENVIO": 2, "ENTREGADO": 3}
     total_rutas: int
     rutas_activas: int
     rutas_finalizadas: int
@@ -40,15 +40,26 @@ class ResumenResponse(BaseModel):
 
 # Mapa de flota en tiempo real
 class ParadaMapa(BaseModel):
-    """Una parada pendiente del conductor, para dibujarla en el mapa."""
+    """Una parada de ENTREGA del conductor (icono de pedido), para el mapa. Incluye su estado
+    para colorear: PENDIENTE / ENTREGADO / FALLIDO."""
     latitud: float
     longitud: float
     destinatario: Optional[str] = None
     secuencia: Optional[int] = None
+    estado: Optional[str] = None  # estado_entrega de la parada
+
+
+class ClienteMapa(BaseModel):
+    """Un punto de recojo = ubicación del cliente corporativo (icono distinto, mapa de almacén)."""
+    latitud: float
+    longitud: float
+    razon_social: Optional[str] = None
+    secuencia: Optional[int] = None
 
 
 class ConductorUbicacion(BaseModel):
-    """Posición de un conductor con ruta activa y sus paradas pendientes."""
+    """Posición de un conductor con ruta activa, sus paradas de entrega (pedidos) y/o
+    sus puntos de recojo (clientes corporativos)."""
     conductor_id: int
     conductor: Optional[str] = None
     ruta: Optional[str] = None
@@ -57,17 +68,19 @@ class ConductorUbicacion(BaseModel):
     actualizado_en: Optional[datetime] = None
     en_linea: bool = False                # True si la última señal es reciente (< 2 min)
     pausado: bool = False  # CUS-30: tiene una incidencia (auxilio mecánico) abierta
-    paradas: List[ParadaMapa] = []
+    paradas: List[ParadaMapa] = []        # entregas (icono de pedido)
+    clientes: List[ClienteMapa] = []      # recojos: ubicación del cliente corporativo
 
 
 # Seguimiento de repartos agregado por empresa cliente (no por ruta).
 class ClienteSeguimiento(BaseModel):
     """Resumen de los pedidos de UNA empresa cliente, clasificados por grupo.
-    Los cuatro grupos suman el total."""
+    Los grupos suman el total."""
     cliente: str
     total: int
     entregados: int
     fallidos: int
+    cancelados: int = 0  # CANCELADO (terminal, no es fallo de reparto)
     pendientes: int
     en_proceso: int  # ASIGNADO + EN_RUTA
 

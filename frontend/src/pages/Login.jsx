@@ -44,7 +44,7 @@ export default function Login() {
         style={{ background: "radial-gradient(130% 130% at 0% 0%, #2b3545 0%, #161c26 65%)" }}
       >
         <EscenaReparto />
-        <div className="relative z-10"><Logo light /></div>
+        <div className="relative z-10"><Logo light size="lg" /></div>
         <div className="relative z-10">
           <h2 className="text-3xl font-bold leading-tight">
             En ruta, en tiempo real.
@@ -54,7 +54,7 @@ export default function Login() {
             tu flota en tiempo real desde un solo panel.
           </p>
         </div>
-        <p className="relative z-10 text-xs text-slate-500">© SIOL · SAVA — GeoTrack</p>
+        <p className="relative z-10 text-xs text-slate-500">© SAVA S.A.C — GeoTrack</p>
       </div>
 
       {/* Formulario */}

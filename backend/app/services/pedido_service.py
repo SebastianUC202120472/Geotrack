@@ -1,6 +1,7 @@
 # app/services/pedido_service.py
 # La inteligencia del módulo Inbound.
 import io
+from datetime import datetime
 import pandas as pd
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -12,7 +13,7 @@ from app.repositories import (
     reporte_repository,
 )
 from app.services.geocoder import obtener_coordenadas
-from app.core.codigos import asignar_codigo, PREFIJO_PEDIDO
+from app.core.codigos import asignar_codigo, generar_codigo, PREFIJO_PEDIDO
 
 # Columna mínima obligatoria del Excel (el nombre del cliente se valida aparte).
 COLUMNAS_REQUERIDAS = ["direccion_destino"]
@@ -26,23 +27,21 @@ def _valor(fila, df, *nombres):
     return None
 
 
-def cargar_pedidos_excel(db: Session, contenido: bytes, nombre_archivo: str, usuario_id: int | None = None) -> dict:
-    """
-    CUS-13: crea los pedidos nuevos a partir del Excel.
-    Por cada fila: crea/enlaza el cliente, guarda destinatario y deja el primer
-    evento de trazabilidad (REGISTRADO).
-    """
-    # 1) Validación de formato (antes del try -> devuelve un 400 limpio).
+def parsear_filas_excel(contenido: bytes, nombre_archivo: str) -> list[dict]:
+    """Solo lectura y normalización del Excel; sin base de datos ni matcheo de cliente.
+    Recibe: bytes del archivo y su nombre. Devuelve lista de dicts con las claves
+    estandarizadas por fila (incluyendo razon_social_cliente para que el llamador la
+    resuelva si lo necesita)."""
+    # Validar extensión antes de intentar leer.
     if not nombre_archivo.endswith(".xlsx"):
         raise HTTPException(status_code=400, detail="El archivo debe ser un Excel (.xlsx)")
 
-    # 2) Leer el Excel.
     try:
         df = pd.read_excel(io.BytesIO(contenido))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error leyendo el archivo: {e}")
 
-    # 3) Validar columnas obligatorias + que exista alguna columna con el cliente.
+    # Columna de destino obligatoria.
     if not all(col in df.columns for col in COLUMNAS_REQUERIDAS):
         raise HTTPException(status_code=400, detail=f"El Excel debe contener: {COLUMNAS_REQUERIDAS}")
     if "razon_social_cliente" not in df.columns and "cliente_origen" not in df.columns:
@@ -51,56 +50,150 @@ def cargar_pedidos_excel(db: Session, contenido: bytes, nombre_archivo: str, usu
             detail="El Excel debe incluir 'razon_social_cliente' (o 'cliente_origen').",
         )
 
-    # 4) Construir los pedidos nuevos. El cliente DEBE estar registrado (ya no se crea).
+    filas: list[dict] = []
+    for _, fila in df.iterrows():
+        referencia = _str_o_none(_valor(fila, df, "referencia_externa", "numero_tracking", "id"))
+        peso = _valor(fila, df, "peso_kg")
+        volumen = _valor(fila, df, "volumen_m3")
+        filas.append({
+            "referencia_externa": referencia,
+            "razon_social_cliente": str(_valor(fila, df, "razon_social_cliente", "cliente_origen") or "").strip(),
+            "direccion_destino": str(fila["direccion_destino"]),
+            "nombre_destinatario": _str_o_none(_valor(fila, df, "nombre_destinatario")),
+            "telefono_destinatario": _str_o_none(_valor(fila, df, "telefono_destinatario")),
+            "dni_destinatario": _str_o_none(_valor(fila, df, "dni_destinatario")),
+            "peso_kg": float(peso) if peso is not None else 0.0,
+            "volumen_m3": float(volumen) if volumen is not None else 0.0,
+        })
+    return filas
+
+
+def crear_pedido_desde_fila(
+    db: Session,
+    fila: dict,
+    cliente,
+    recojo_id: int | None,
+    estado: str,
+    usuario_id: int | None,
+    geocodificar: bool = True,
+) -> Pedido:
+    """Construye y persiste un Pedido con el cliente ya resuelto por el llamador.
+    Recibe: sesión DB, fila normalizada, objeto cliente, id de recojo origen (o None),
+    estado inicial, el id del usuario que ejecuta la acción y si geocodificar en línea.
+    Si geocodificar=True intenta el destino al vuelo (si falla conserva el estado, lat/lng
+    quedan en None). Si geocodificar=False deja lat/lng en None para resolverlos después
+    (p.ej. en segundo plano al aceptar un recojo masivo, para no bloquear la petición)."""
+    pedido = Pedido(
+        referencia_externa=fila["referencia_externa"],
+        cliente_id=cliente.id,
+        cliente_origen=cliente.razon_social,  # snapshot del nombre real registrado
+        direccion_destino=fila["direccion_destino"],
+        nombre_destinatario=fila.get("nombre_destinatario"),
+        telefono_destinatario=fila.get("telefono_destinatario"),
+        dni_destinatario=fila.get("dni_destinatario"),
+        peso_kg=fila.get("peso_kg", 0.0),
+        volumen_m3=fila.get("volumen_m3", 0.0),
+        recojo_id=recojo_id,
+        estado=estado,
+    )
+    db.add(pedido)
+    db.flush()  # obtener id antes del geocoder
+    asignar_codigo(db, pedido, PREFIJO_PEDIDO)
+    historial_repository.registrar(db, pedido.id, None, estado, usuario_id)
+
+    # Geocodificación inmediata; si falla se conserva el estado recibido (no GEOCODIFICACION_FALLIDA)
+    # para no perder el estado semántico del pedido (p.ej. POR_RECOGER). Usa el caché de direcciones.
+    if geocodificar:
+        lat, lng = obtener_coordenadas(pedido.direccion_destino, db)
+        if lat and lng:
+            pedido.latitud = lat
+            pedido.longitud = lng
+            partes = pedido.direccion_destino.split(",")
+            pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
+
+    return pedido
+
+
+def crear_pedidos_bulk(
+    db: Session,
+    filas: list[dict],
+    cliente,
+    recojo_id: int | None,
+    estado: str,
+    usuario_id: int | None,
+) -> list[Pedido]:
+    """Crea MUCHOS pedidos del mismo recojo en bloque, SIN geocodificar y con el mínimo de
+    idas y vueltas a la BD: un flush para todos los pedidos (asigna ids+códigos) y un
+    registrar_bulk para todo el historial. Reemplaza al bucle que hacía ~2 flush por fila
+    (~400 round-trips para 200 filas sobre Supabase). NO hace commit: lo hace el llamador.
+    Recibe: filas ya validadas, el cliente resuelto, el recojo origen, el estado inicial y el usuario."""
+    pedidos = [
+        Pedido(
+            referencia_externa=fila["referencia_externa"],
+            cliente_id=cliente.id,
+            cliente_origen=cliente.razon_social,
+            direccion_destino=fila["direccion_destino"],
+            nombre_destinatario=fila.get("nombre_destinatario"),
+            telefono_destinatario=fila.get("telefono_destinatario"),
+            dni_destinatario=fila.get("dni_destinatario"),
+            peso_kg=fila.get("peso_kg", 0.0),
+            volumen_m3=fila.get("volumen_m3", 0.0),
+            recojo_id=recojo_id,
+            estado=estado,
+        )
+        for fila in filas
+    ]
+    db.add_all(pedidos)
+    db.flush()  # un solo flush para todos los ids
+    for pedido in pedidos:
+        pedido.codigo = generar_codigo(PREFIJO_PEDIDO, pedido.id)
+    historial_repository.registrar_bulk(
+        db,
+        [{"pedido_id": p.id, "estado_anterior": None, "estado_nuevo": estado, "usuario_id": usuario_id} for p in pedidos],
+    )
+    return pedidos
+
+
+def cargar_pedidos_excel(db: Session, contenido: bytes, nombre_archivo: str, usuario_id: int | None = None) -> dict:
+    """
+    CUS-13: crea los pedidos nuevos a partir del Excel.
+    Usa los helpers parsear_filas_excel y crear_pedido_desde_fila; mantiene el
+    comportamiento histórico (rechazo de filas sin cliente, dedup por referencia_externa,
+    estado LISTO_PARA_ENVIO, sin recojo asociado).
+    """
+    filas = parsear_filas_excel(contenido, nombre_archivo)
+
     nuevos: list[Pedido] = []
     rechazados: list[dict] = []
-    for i, (_, fila) in enumerate(df.iterrows()):
+    for i, fila in enumerate(filas):
         fila_num = i + 2  # fila del Excel (1 = encabezado)
-        referencia = _str_o_none(_valor(fila, df, "referencia_externa", "numero_tracking", "id"))
+        referencia = fila["referencia_externa"]
         if referencia and pedido_repository.obtener_por_referencia_externa(db, referencia):
             continue  # ya se importó antes -> no duplicar
 
         # Cliente (empresa que envía): DEBE existir; si no, se rechaza la fila.
-        razon = str(_valor(fila, df, "razon_social_cliente", "cliente_origen") or "").strip()
-        cliente = cliente_repository.buscar_por_razon_social_normalizada(db, razon)
+        cliente = cliente_repository.buscar_por_razon_social_normalizada(db, fila["razon_social_cliente"])
         if cliente is None:
-            rechazados.append({"fila": fila_num, "cliente": razon or "(vacío)", "motivo": "Cliente no registrado"})
+            rechazados.append({
+                "fila": fila_num,
+                "cliente": fila["razon_social_cliente"] or "(vacío)",
+                "motivo": "Cliente no registrado",
+            })
             continue
 
-        peso = _valor(fila, df, "peso_kg")
-        volumen = _valor(fila, df, "volumen_m3")
-        nuevos.append(
-            Pedido(
-                referencia_externa=referencia,
-                cliente_id=cliente.id,
-                cliente_origen=cliente.razon_social,  # snapshot del nombre real registrado
-                direccion_destino=str(fila["direccion_destino"]),
-                nombre_destinatario=_str_o_none(_valor(fila, df, "nombre_destinatario")),
-                telefono_destinatario=_str_o_none(_valor(fila, df, "telefono_destinatario")),
-                dni_destinatario=_str_o_none(_valor(fila, df, "dni_destinatario")),
-                peso_kg=float(peso) if peso is not None else 0.0,
-                volumen_m3=float(volumen) if volumen is not None else 0.0,
-            )
-        )
+        pedido = crear_pedido_desde_fila(db, fila, cliente, recojo_id=None, estado="LISTO_PARA_ENVIO", usuario_id=usuario_id)
+        nuevos.append(pedido)
 
-    # 5) Guardar pedidos: asignar el código PD-001 y registrar el evento inicial.
     if nuevos:
-        db.add_all(nuevos)
-        db.flush()  # asigna ids sin cerrar la transacción
-        for p in nuevos:
-            asignar_codigo(db, p, PREFIJO_PEDIDO)  # codigo legible PD-001 (= tracking/QR)
-            historial_repository.registrar(db, p.id, None, "PENDIENTE", usuario_id)
         db.commit()
 
-    # 6) Geocodificar de inmediato (CUS-15). Se hace por dentro, en la misma
-    #    carga, para que el admin no tenga que lanzar un paso manual aparte:
-    #    apenas sube el Excel, los pedidos ya quedan con coordenadas y distrito.
+    # Geocodificar los que quedaron sin coordenadas (fallo en crear_pedido_desde_fila).
     geo = procesar_geocodificacion(db, usuario_id) if nuevos else {}
 
     return {
         "mensaje": "Carga masiva exitosa",
         "pedidos_nuevos": len(nuevos),
-        "total_filas_leidas": len(df),
+        "total_filas_leidas": len(filas),
         "pedidos_geocodificados": geo.get("pedidos_exitosos", 0),
         "pedidos_fallidos": geo.get("pedidos_fallidos", 0),
         "rechazados": rechazados,
@@ -134,7 +227,10 @@ def procesar_geocodificacion(db: Session, usuario_id: int | None = None) -> dict
             partes = pedido.direccion_destino.split(",")
             pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
             exitosos += 1
-        else:
+        elif pedido.estado != "POR_RECOGER":
+            # Defensa en profundidad: nunca pisar el estado de un POR_RECOGER. El filtro de
+            # obtener_sin_coordenadas ya los excluye, pero si por algún flujo llegara uno aquí,
+            # se conserva su estado (esos se geocodifican al aceptar/validar, no en este lote).
             estado_anterior = pedido.estado
             pedido.estado = "GEOCODIFICACION_FALLIDA"
             historial_repository.registrar(db, pedido.id, estado_anterior, "GEOCODIFICACION_FALLIDA", usuario_id)
@@ -178,7 +274,7 @@ def listar_pedidos(db: Session, skip: int, limit: int):
 
 
 def reabrir_pedido(db: Session, pedido_id: int, usuario_id: int | None = None) -> dict:
-    """Devuelve un pedido FALLIDO al estado PENDIENTE y lo saca de su ruta para
+    """Devuelve un pedido FALLIDO al estado LISTO_PARA_ENVIO y lo saca de su ruta para
     poder reasignarlo. Recibe: pedido_id (int) y el id del admin."""
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     if not pedido:
@@ -186,9 +282,9 @@ def reabrir_pedido(db: Session, pedido_id: int, usuario_id: int | None = None) -
 
     estado_anterior = pedido.estado
     ruta_repository.eliminar_detalles_de_pedido(db, pedido_id)
-    pedido.estado = "PENDIENTE"
+    pedido.estado = "LISTO_PARA_ENVIO"
     pedido.fecha_entrega = None
-    historial_repository.registrar(db, pedido.id, estado_anterior, "PENDIENTE", usuario_id)
+    historial_repository.registrar(db, pedido.id, estado_anterior, "LISTO_PARA_ENVIO", usuario_id)
     db.commit()
     return {"mensaje": "Pedido reabierto. Ya puedes reasignarlo.", "codigo": pedido.codigo}
 
@@ -202,17 +298,17 @@ def _exigir_fallido(pedido) -> None:
 
 
 def reprogramar(db: Session, pedido_id: int, usuario_id: int | None = None) -> dict:
-    """CUS-31: el admin decide reintentar el pedido mañana: vuelve a PENDIENTE y sale de
-    su ruta para reasignarlo. Recibe: pedido_id y el id del admin."""
+    """CUS-31: el admin decide reintentar el pedido mañana: vuelve a LISTO_PARA_ENVIO y sale
+    de su ruta para reasignarlo. Recibe: pedido_id y el id del admin."""
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     _exigir_fallido(pedido)
     estado_anterior = pedido.estado
     ruta_repository.eliminar_detalles_de_pedido(db, pedido_id)
-    pedido.estado = "PENDIENTE"
+    pedido.estado = "LISTO_PARA_ENVIO"
     pedido.fecha_entrega = None
-    historial_repository.registrar(db, pedido.id, estado_anterior, "PENDIENTE", usuario_id)
+    historial_repository.registrar(db, pedido.id, estado_anterior, "LISTO_PARA_ENVIO", usuario_id)
     db.commit()
-    reporte_repository.cerrar_abierto_de_pedido(db, pedido_id, "Reprogramado")
+    reporte_repository.cerrar_abierto_de_pedido(db, pedido_id, "Reprogramado", usuario_id)
     return {"mensaje": "Pedido reprogramado. Volvió a su zona para reasignarlo.", "codigo": pedido.codigo}
 
 
@@ -229,7 +325,7 @@ def cancelar(db: Session, pedido_id: int, usuario_id: int | None = None) -> dict
     pedido.fecha_entrega = None
     historial_repository.registrar(db, pedido.id, estado_anterior, "CANCELADO", usuario_id)
     db.commit()
-    reporte_repository.cerrar_abierto_de_pedido(db, pedido_id, "Cancelado")
+    reporte_repository.cerrar_abierto_de_pedido(db, pedido_id, "Cancelado", usuario_id)
     return {"mensaje": "Pedido cancelado.", "codigo": pedido.codigo}
 
 
@@ -242,8 +338,9 @@ def agrupar_por_zona(db: Session) -> dict:
 
 # --- CUS-17: resolución manual de direcciones ---
 def listar_para_ubicar(db: Session):
-    """CUS-17: pedidos con la geocodificación fallida, para resolverlos a mano."""
-    return pedido_repository.listar_geocodificacion_fallida(db)
+    """Pedidos sin coordenadas en cualquier estado resoluble por el admin (LISTO_PARA_ENVIO,
+    POR_RECOGER o GEOCODIFICACION_FALLIDA), para ubicarlos a mano en el mapa."""
+    return pedido_repository.listar_sin_ubicacion_resoluble(db)
 
 
 def buscar_direccion(direccion: str) -> dict:
@@ -259,7 +356,7 @@ def buscar_direccion(direccion: str) -> dict:
 def fijar_ubicacion(db: Session, pedido_id: int, latitud: float, longitud: float,
                     direccion: str | None = None, usuario_id: int | None = None) -> dict:
     """CUS-17: fija a mano las coordenadas de un pedido (y opcionalmente corrige su
-    dirección). Si estaba en GEOCODIFICACION_FALLIDA, vuelve a PENDIENTE para poder
+    dirección). Si estaba en GEOCODIFICACION_FALLIDA, vuelve a LISTO_PARA_ENVIO para poder
     rutearlo. Recibe: id, lat/lng, dirección opcional y el id del admin."""
     pedido = pedido_repository.obtener_por_id(db, pedido_id)
     if not pedido:
@@ -274,10 +371,61 @@ def fijar_ubicacion(db: Session, pedido_id: int, latitud: float, longitud: float
     partes = (pedido.direccion_destino or "").split(",")
     pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
 
-    # Si la dirección estaba fallida, ya quedó resuelta: vuelve a la cola (PENDIENTE).
+    # Transición de estado según el estado actual:
+    # - GEOCODIFICACION_FALLIDA: ya quedó resuelta, pasa a LISTO_PARA_ENVIO para rutearlo.
+    # - POR_RECOGER: se fijaron las coordenadas pero conserva su estado semántico.
+    # - Cualquier otro estado: solo se actualizan las coordenadas, sin cambiar estado.
     if pedido.estado == "GEOCODIFICACION_FALLIDA":
-        historial_repository.registrar(db, pedido.id, pedido.estado, "PENDIENTE", usuario_id)
-        pedido.estado = "PENDIENTE"
+        historial_repository.registrar(db, pedido.id, pedido.estado, "LISTO_PARA_ENVIO", usuario_id)
+        pedido.estado = "LISTO_PARA_ENVIO"
 
     db.commit()
     return {"mensaje": "Ubicación actualizada", "codigo": pedido.codigo}
+
+
+def resolver_observado(db: Session, pedido_id: int, usuario_id: int | None = None) -> dict:
+    """Resuelve un pedido OBSERVADO (faltante/discrepancia ya aclarada): lo pasa a
+    LISTO_PARA_ENVIO. Recibe: pedido_id y el id del usuario (almacén/admin)."""
+    pedido = pedido_repository.obtener_por_id(db, pedido_id)
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    if pedido.estado != "OBSERVADO":
+        raise HTTPException(status_code=400, detail="Solo se puede resolver un pedido en estado OBSERVADO")
+    historial_repository.registrar(db, pedido.id, "OBSERVADO", "LISTO_PARA_ENVIO", usuario_id)
+    pedido.estado = "LISTO_PARA_ENVIO"
+    pedido.validado_en = datetime.utcnow()
+    pedido.validado_por = usuario_id
+    db.commit()
+    return {"mensaje": "Pedido resuelto: Listo para envío.", "codigo": pedido.codigo}
+
+
+def regeocodificar_pedidos() -> None:
+    """Tarea en segundo plano: re-geocodifica los pedidos NO terminales para refrescar sus
+    coordenadas. Útil tras activar Google Geocoding (corrige los puntos apilados que dejó
+    Nominatim). Abre su PROPIA sesión de BD; commitea por lotes para ir actualizando el mapa.
+    Geocodifica con `forzar=True` (ignora el caché para SÍ refrescar), pero actualiza el caché
+    con el resultado. No recibe parámetros (la usa un BackgroundTask)."""
+    from app.db.database import SessionLocal
+
+    estados = ("POR_RECOGER", "OBSERVADO", "LISTO_PARA_ENVIO", "ASIGNADO", "EN_RUTA", "GEOCODIFICACION_FALLIDA")
+    db = SessionLocal()
+    try:
+        pedidos = db.query(Pedido).filter(Pedido.estado.in_(estados)).all()
+        pendientes_commit = 0
+        for pedido in pedidos:
+            lat, lng = obtener_coordenadas(pedido.direccion_destino, db, forzar=True)
+            if lat and lng:
+                pedido.latitud = lat
+                pedido.longitud = lng
+                partes = (pedido.direccion_destino or "").split(",")
+                pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
+                pendientes_commit += 1
+                if pendientes_commit >= 20:   # commit por lote (avance visible sin N round-trips)
+                    db.commit()
+                    pendientes_commit = 0
+        if pendientes_commit:
+            db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()

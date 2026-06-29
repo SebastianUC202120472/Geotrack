@@ -1,7 +1,7 @@
 // CUS-30: el conductor reporta un auxilio mecánico (avería). Al enviarlo, su ruta queda
 // pausada (no puede gestionar paradas ni cerrar el día) hasta que la reanude.
 import { useState } from "react";
-import { Alert, Image, StyleSheet, View } from "react-native";
+import { Alert, Image, StyleSheet, Switch, View } from "react-native";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,6 +23,8 @@ export default function AuxilioScreen() {
   const ubicacion = useUbicacionActual();
   const [descripcion, setDescripcion] = useState("");
   const [foto, setFoto] = useState<string | null>(null);
+  // El conductor indica si puede resolver la avería él mismo (el admin no manda ayuda).
+  const [puedeSolucionarSolo, setPuedeSolucionarSolo] = useState(false);
 
   // Toma una foto de la avería con la cámara (opcional).
   const tomarFoto = async () => {
@@ -36,7 +38,7 @@ export default function AuxilioScreen() {
   const enviar = async () => {
     const coords = (await ubicacion.obtener()) ?? undefined;
     reportar.mutate(
-      { descripcion: descripcion.trim() || undefined, coords, uriFoto: foto ?? undefined },
+      { descripcion: descripcion.trim() || undefined, coords, uriFoto: foto ?? undefined, puedeSolucionarSolo },
       {
         onSuccess: () => {
           Alert.alert("Auxilio enviado", "Tu ruta quedó pausada y se avisó al almacén.");
@@ -70,6 +72,27 @@ export default function AuxilioScreen() {
           style={{ marginTop: spacing.md }}
         />
 
+        {/* Toggle: el conductor declara si puede resolver la avería sin ayuda del almacén. */}
+        <Card>
+          <View style={estilos.toggle}>
+            <View style={{ flex: 1 }}>
+              <Texto variante="bodyMedium" color={colors.ink}>Puedo solucionarlo yo solo</Texto>
+              <Texto variante="caption" color={colors.muted} style={{ marginTop: 2 }}>
+                {puedeSolucionarSolo
+                  ? "No necesitas ayuda; el almacén solo quedará informado."
+                  : "El almacén podrá enviarte ayuda (grúa, mecánico, etc.)."}
+              </Texto>
+            </View>
+            <Switch
+              value={puedeSolucionarSolo}
+              onValueChange={setPuedeSolucionarSolo}
+              trackColor={{ false: colors.border, true: colors.brandSoft }}
+              thumbColor={puedeSolucionarSolo ? colors.brand : colors.surface}
+              ios_backgroundColor={colors.border}
+            />
+          </View>
+        </Card>
+
         {foto && <Image source={{ uri: foto }} style={estilos.foto} />}
         <Button titulo={foto ? "Cambiar foto" : "Tomar foto (opcional)"} variante="secondary" onPress={tomarFoto} />
         <Button titulo="Enviar auxilio" variante="danger" onPress={enviar} cargando={reportar.isPending || ubicacion.cargando} />
@@ -81,5 +104,6 @@ export default function AuxilioScreen() {
 const estilos = StyleSheet.create({
   contenido: { flex: 1, padding: spacing.lg, gap: spacing.md },
   fila: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  toggle: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   foto: { width: "100%", height: 180, borderRadius: radius.lg },
 });

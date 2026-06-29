@@ -9,8 +9,11 @@ import type {
   CierreRuta,
   PerfilConductor,
   Reporte,
-  ValidacionQR,
   Incidencia,
+  ManifiestoRecojo,
+  Recepcion,
+  OptimizacionResultado,
+  Coordenadas,
 } from "@/types/api";
 
 // Perfil del propio conductor (nombre, teléfono, DNI, vehículo). GET /conductor/perfil.
@@ -65,13 +68,6 @@ export async function obtenerNavegacion(): Promise<Navegacion> {
   return data;
 }
 
-// CUS-22: valida que un paquete escaneado (su código QR) pertenezca a la ruta activa.
-// Recibe: el código leído. Devuelve: { pertenece, mensaje, parada? }.
-export async function validarCarga(codigo: string): Promise<ValidacionQR> {
-  const { data } = await api.post<ValidacionQR>("/conductor/almacen/validar-qr", { codigo });
-  return data;
-}
-
 // Marca una parada como ENTREGADO o FALLIDO. Recibe: pedidoId (number),
 // estado ("ENTREGADO" | "FALLIDO"), motivoFallo opcional (string).
 export async function marcarEstadoParada(
@@ -115,16 +111,19 @@ export async function enviarUbicacion(latitud: number, longitud: number): Promis
 }
 
 // CUS-30: reporta un auxilio mecánico sobre la ruta activa (la ruta queda pausada).
-// Recibe: descripcion opcional y coords opcionales {latitud, longitud}.
+// Recibe: descripcion opcional, coords opcionales {latitud, longitud} y un flag
+// puede_solucionar_solo (el conductor indica si puede resolver la avería él mismo).
 export async function reportarIncidencia(
   descripcion?: string,
-  coords?: { latitud: number; longitud: number }
+  coords?: { latitud: number; longitud: number },
+  puedeSolucionarSolo: boolean = false
 ): Promise<Incidencia> {
   const { data } = await api.post<Incidencia>("/conductor/incidencias", {
     tipo: "AVERIA_MECANICA",
     descripcion: descripcion ?? null,
     latitud: coords?.latitud ?? null,
     longitud: coords?.longitud ?? null,
+    puede_solucionar_solo: puedeSolucionarSolo,
   });
   return data;
 }
@@ -147,5 +146,40 @@ export async function reanudarRuta(incidenciaId: number, nota?: string): Promise
   const { data } = await api.post<Incidencia>(`/conductor/incidencias/${incidenciaId}/reanudar`, {
     nota: nota ?? null,
   });
+  return data;
+}
+
+// CUS-12: manifiesto de la ruta de recojo activa. Devuelve: ManifiestoRecojo.
+export async function obtenerManifiestoRecojo(): Promise<ManifiestoRecojo> {
+  const { data } = await api.get<ManifiestoRecojo>("/conductor/recojo/manifiesto");
+  return data;
+}
+
+// CUS-19 (recojo): optimiza la ruta de recojo desde la ubicación actual. Recibe: rutaId y coords.
+export async function optimizarRecojo(rutaId: number, coords: Coordenadas): Promise<OptimizacionResultado> {
+  const { data } = await api.post<OptimizacionResultado>("/conductor/recojo/optimizar", {
+    ruta_id: rutaId,
+    latitud_actual_conductor: coords.latitud,
+    longitud_actual_conductor: coords.longitud,
+  });
+  return data;
+}
+
+// CUS-12: registra la recepción (cantidad declarada + varias fotos de evidencia) por multipart.
+// Recibe: recojoId, cantidad (>0) y un array de uris locales de las fotos
+// (boleta/guía/bultos). Adjunta todas bajo el campo `files`. Devuelve: Recepcion.
+export async function registrarRecepcion(recojoId: number, cantidad: number, uris: string[]): Promise<Recepcion> {
+  const form = new FormData();
+  form.append("cantidad_declarada", String(cantidad));
+  // Un append por foto, todas bajo el mismo campo `files` (multipart múltiple).
+  uris.forEach((uri, i) => {
+    const nombre = uri.split("/").pop() ?? `guia_${recojoId}_${i}.jpg`;
+    form.append("files", { uri, name: nombre, type: "image/jpeg" } as unknown as Blob);
+  });
+  const { data } = await api.post<Recepcion>(
+    `/conductor/recojo/${recojoId}/recepcion`,
+    form,
+    { headers: { "Content-Type": "multipart/form-data" } }
+  );
   return data;
 }

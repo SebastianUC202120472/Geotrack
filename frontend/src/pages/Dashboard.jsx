@@ -4,21 +4,20 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend, LabelList,
 } from "recharts";
-import { Package, Truck, CircleCheck, Flag, MapPin, Upload } from "lucide-react";
+import { Package, Truck, CircleCheck, Flag, Users } from "lucide-react";
 import StatCard from "../components/ui/StatCard";
 import Card from "../components/ui/Card";
-import Button from "../components/ui/Button";
 import { EstadoBadge } from "../components/ui/Badge";
-import EstadoSistema from "../components/EstadoSistema";
 import { SkeletonStat } from "../components/ui/Skeleton";
 import EmptyState from "../components/ui/EmptyState";
-import LiveBadge from "../components/ui/LiveBadge";
 import { agruparPedidosPorDia } from "../utils/dashboard";
-import { obtenerResumen, listarPedidos } from "../services/api";
+import { obtenerResumen, listarPedidos, obtenerSeguimientoClientes, obtenerUbicacionesFlota } from "../services/api";
 
 // Color de marca para cada estado (gráficos y puntos de la línea de tiempo).
 const COLOR_ESTADO = {
-  PENDIENTE: "#f59e0b",
+  POR_RECOGER: "#94a3b8",          // aún en el origen del cliente
+  OBSERVADO: "#f97316",            // naranja: faltante/discrepancia en almacén
+  LISTO_PARA_ENVIO: "#f59e0b",     // ámbar: validado, listo para asignar
   ASIGNADO: "#2563eb",
   EN_RUTA: "#0ea5e9",
   EN_PROGRESO: "#0ea5e9",
@@ -36,39 +35,46 @@ export default function Dashboard() {
   const [cargando, setCargando] = useState(true);
   // Indica si hay un refresco silencioso en curso (no bloquea la pantalla).
   const [actualizando, setActualizando] = useState(false);
+  // Clientes con pedidos pendientes ordenados de mayor a menor (top 6).
+  const [pendientesPorCliente, setPendientesPorCliente] = useState([]);
+  // Número de conductores que enviaron ubicación recientemente (en_linea=true).
+  const [conductoresEnLinea, setConductoresEnLinea] = useState(0);
 
-  // Lleva a la lista de Pedidos ya filtrada (clic en gráfica/zona).
+  // Lleva a la lista de Pedidos ya filtrada por estado (clic en gráfica).
   const irAEstado = (estadoRaw) => estadoRaw && navigate(`/pedidos?estado=${encodeURIComponent(estadoRaw)}`);
-  const irAZona = (distrito) => navigate(`/pedidos?distrito=${encodeURIComponent(distrito)}&estado=PENDIENTE`);
-
-  // Carga (o refresca silenciosamente) el resumen y los pedidos.
-  // silencioso=true: no toca `cargando`; usa `actualizando` en su lugar.
-  const cargar = (silencioso) => {
-    if (silencioso) {
-      setActualizando(true);
-    }
-    Promise.allSettled([
-      obtenerResumen().then(setResumen),
-      listarPedidos().then(setPedidos),
-    ]).finally(() => {
-      if (silencioso) {
-        setActualizando(false);
-      } else {
-        setCargando(false);
-      }
-    });
-  };
 
   useEffect(() => {
-    // Carga inicial: setState solo dentro del .then/.finally (no en el cuerpo del effect).
-    Promise.allSettled([
-      obtenerResumen().then(setResumen),
-      listarPedidos().then(setPedidos),
-    ]).finally(() => setCargando(false));
+    // Acumula las respuestas de clientes y flota para actualizarlas en setState
+    // dentro de callbacks (no en el cuerpo del effect, evitando renders en cascada).
+    const actualizarClientes = (data) => {
+      const top6 = [...data].sort((a, b) => b.pendientes - a.pendientes).slice(0, 6);
+      setPendientesPorCliente(top6);
+    };
+    const actualizarFlota = (data) => {
+      setConductoresEnLinea(data.filter((u) => u.en_linea === true).length);
+    };
+
+    // Refresco silencioso: activa el indicador, lanza todas las peticiones y lo apaga.
+    // silencioso=true: usa `actualizando`; silencioso=false: usa `cargando`.
+    const refrescar = (silencioso) => {
+      if (silencioso) setActualizando(true);
+      Promise.allSettled([
+        obtenerResumen().then(setResumen),
+        listarPedidos().then(setPedidos),
+        obtenerSeguimientoClientes().then(actualizarClientes),
+        obtenerUbicacionesFlota().then(actualizarFlota),
+      ]).finally(() => {
+        if (silencioso) setActualizando(false);
+        else setCargando(false);
+      });
+    };
+
+    // Carga inicial: setState solo dentro de los callbacks de la promesa.
+    refrescar(false);
 
     // Auto-refresco cada 20 s (silencioso) + al recuperar el foco.
-    const intervalo = setInterval(() => cargar(true), 20000);
-    const alFoco = () => cargar(true);
+    const intervalo = setInterval(() => refrescar(true), 20000);
+    const alFoco = () => refrescar(true);
     window.addEventListener("focus", alFoco);
     return () => {
       clearInterval(intervalo);
@@ -87,19 +93,8 @@ export default function Dashboard() {
   const recientes = [...pedidos].slice(-6).reverse();
   const pedidosPorDia = agruparPedidosPorDia(pedidos, 7);
 
-  // Zonas con pendientes: agrupa los pedidos por distrito contando los que
-  // aún no están entregados/fallidos. Datos reales, top 6.
-  const PEND = ["PENDIENTE", "ASIGNADO", "EN_RUTA", "EN_PROGRESO", "CREADA"];
-  const zonasPendientes = Object.entries(
-    pedidos.reduce((acc, p) => {
-      if (p.distrito && PEND.includes(p.estado)) acc[p.distrito] = (acc[p.distrito] || 0) + 1;
-      return acc;
-    }, {}),
-  )
-    .map(([distrito, cantidad]) => ({ distrito, cantidad }))
-    .sort((a, b) => b.cantidad - a.cantidad)
-    .slice(0, 6);
-  const maxZona = Math.max(1, ...zonasPendientes.map((z) => z.cantidad));
+  // Máximo de pendientes del top-6 de clientes (para escalar las barras de progreso).
+  const maxPendCliente = Math.max(1, ...pendientesPorCliente.map((c) => c.pendientes));
 
   // Fecha legible en español (se calcula en el cliente, en cada render).
   const fecha = new Date().toLocaleDateString("es-PE", {
@@ -115,26 +110,22 @@ export default function Dashboard() {
           <p className="mt-1 text-sm capitalize text-slate-500">{fecha}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <LiveBadge tone="success">En vivo</LiveBadge>
           {actualizando && (
             <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
               Actualizando <span className="updating-bar h-2 w-10 rounded-full" />
             </span>
           )}
-          <Button size="sm" icon={Upload} onClick={() => navigate("/importar")}>
-            Importar
-          </Button>
         </div>
       </div>
 
       {/* KPIs */}
       <div className="animate-fade-up" style={{ animationDelay: "60ms" }}>
         {cargando ? (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <SkeletonStat /><SkeletonStat /><SkeletonStat /><SkeletonStat />
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <SkeletonStat /><SkeletonStat /><SkeletonStat /><SkeletonStat /><SkeletonStat />
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <StatCard label="Pedidos totales" value={resumen?.total_pedidos ?? 0} icon={Package}
               tone="brand" hint="Acumulado en el sistema" />
             <StatCard label="Rutas activas" value={resumen?.rutas_activas ?? 0} icon={Truck}
@@ -149,6 +140,8 @@ export default function Dashboard() {
               tone="warning"
               progress={resumen?.total_rutas ? (resumen.rutas_finalizadas / resumen.total_rutas) * 100 : 0}
               progressLabel="Operaciones cerradas" />
+            <StatCard label="Conductores en línea" value={conductoresEnLinea} icon={Users}
+              tone="info" hint="Con ubicación activa en este momento" />
           </div>
         )}
       </div>
@@ -204,9 +197,9 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Tendencia por día + estado del sistema */}
-      <div className="animate-fade-up grid gap-6 lg:grid-cols-3" style={{ animationDelay: "180ms" }}>
-        <Card title="Pedidos por día" subtitle="Últimos 7 días (por fecha de creación)" className="lg:col-span-2">
+      {/* Tendencia por día */}
+      <div className="animate-fade-up" style={{ animationDelay: "180ms" }}>
+        <Card title="Pedidos por día" subtitle="Últimos 7 días (por fecha de creación)">
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={pedidosPorDia} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#eef2f6" vertical={false} />
@@ -217,29 +210,27 @@ export default function Dashboard() {
             </LineChart>
           </ResponsiveContainer>
         </Card>
-
-        <EstadoSistema />
       </div>
 
-      {/* Zonas con pendientes + Actividad reciente (línea de tiempo) */}
+      {/* Pedidos pendientes por cliente + Actividad reciente (línea de tiempo) */}
       <div className="animate-fade-up grid gap-6 lg:grid-cols-2" style={{ animationDelay: "240ms" }}>
-        <Card title="Zonas con pendientes" subtitle="Carga por distrito · toca para ver">
-          {zonasPendientes.length === 0 ? (
-            <EmptyState icon={MapPin} title="Sin pendientes" description="No hay pedidos pendientes por zona." />
+        <Card title="Pedidos pendientes por cliente" subtitle="Top 6 · toca para ver los pedidos">
+          {pendientesPorCliente.length === 0 ? (
+            <EmptyState icon={Package} title="Sin pendientes" description="No hay pedidos pendientes por cliente." />
           ) : (
             <div className="space-y-3.5">
-              {zonasPendientes.map((z) => (
+              {pendientesPorCliente.map((c) => (
                 <button
-                  key={z.distrito}
-                  onClick={() => irAZona(z.distrito)}
+                  key={c.cliente}
+                  onClick={() => navigate("/pedidos")}
                   className="flex w-full items-center gap-3 text-left transition-colors hover:opacity-90"
                 >
-                  <span className="w-28 truncate text-sm font-medium text-slate-700">{z.distrito}</span>
+                  <span className="w-36 truncate text-sm font-medium text-slate-700">{c.cliente}</span>
                   <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
                     <span className="block h-full rounded-full bg-brand-600 transition-[width] duration-700"
-                      style={{ width: `${(z.cantidad / maxZona) * 100}%` }} />
+                      style={{ width: `${(c.pendientes / maxPendCliente) * 100}%` }} />
                   </span>
-                  <span className="w-8 text-right text-sm font-bold text-slate-700 nums">{z.cantidad}</span>
+                  <span className="w-8 text-right text-sm font-bold text-slate-700 nums">{c.pendientes}</span>
                 </button>
               ))}
             </div>

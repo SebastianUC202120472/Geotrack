@@ -1,6 +1,7 @@
 // Etiqueta de estado con colores semánticos consistentes en todo el panel.
 // <Badge tono="success">…</Badge> para uso libre, o <EstadoBadge estado="EN_RUTA" />
 // que ya conoce el color de cada estado de pedido / ruta / vehículo.
+import { ETIQUETAS_ESTADO } from "../../utils/estados";
 
 const tonos = {
   neutral: "bg-slate-100 text-slate-600",
@@ -23,7 +24,12 @@ export default function Badge({ tono = "neutral", className = "", children }) {
 
 // Estado -> tono. Lo que no esté mapeado cae en "neutral".
 const mapaEstados = {
-  PENDIENTE: "warning",
+  SOLICITADO: "warning",
+  RECOGIDO: "success",
+  INGRESADO: "success",
+  POR_RECOGER: "neutral",          // aún no llegó al almacén
+  OBSERVADO: "danger",             // faltante/discrepancia: necesita aclararse
+  LISTO_PARA_ENVIO: "warning",     // validado en almacén, listo para asignar a ruta
   ASIGNADO: "info",
   EN_RUTA: "info",
   EN_PROGRESO: "info",
@@ -49,10 +55,12 @@ const puntoPorTono = {
 export function EstadoBadge({ estado }) {
   if (!estado) return <Badge>—</Badge>;
   const tono = mapaEstados[estado] || "neutral";
-  // Mostramos el texto en minúscula con la inicial en mayúscula, más legible.
-  const texto = estado.replaceAll("_", " ").toLowerCase();
+  // Si hay etiqueta personalizada la usamos tal cual (respeta tildes); si no, el
+  // auto-formato (minúsculas + capitalize del badge).
+  const personalizado = ETIQUETAS_ESTADO[estado];
+  const texto = personalizado || estado.replaceAll("_", " ").toLowerCase();
   return (
-    <Badge tono={tono} className="capitalize">
+    <Badge tono={tono} className={personalizado ? "" : "capitalize"}>
       <span className={`h-1.5 w-1.5 rounded-full ${puntoPorTono[tono]}`} />
       {texto}
     </Badge>
