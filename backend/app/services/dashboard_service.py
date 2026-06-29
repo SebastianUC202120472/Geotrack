@@ -25,7 +25,9 @@ UMBRAL_EN_LINEA_SEG = 120  # un conductor está "en línea" si su última señal
 
 # Texto legible para cada estado, usado en la línea de tiempo (CUS-35).
 DESCRIPCIONES_ESTADO = {
-    "PENDIENTE": "El pedido ingresó al sistema (carga de Excel).",
+    "POR_RECOGER": "Pendiente de recojo en el origen del cliente.",
+    "OBSERVADO": "Observado en almacén: no llegó o tiene discrepancia, en espera de aclaración.",
+    "LISTO_PARA_ENVIO": "Listo para envío: validado en almacén y disponible para asignar a ruta.",
     "GEOCODIFICACION_FALLIDA": "No se pudo ubicar la dirección en el mapa.",
     "ASIGNADO": "Asignado a una ruta de reparto.",
     "EN_RUTA": "En camino: el conductor optimizó la secuencia de entrega.",
@@ -74,7 +76,7 @@ def obtener_por_cliente(db: Session) -> list[ClienteSeguimiento]:
             fila["fallidos"] += total
         elif estado in ("ASIGNADO", "EN_RUTA"):
             fila["en_proceso"] += total
-        else:  # PENDIENTE (y cualquier estado no clasificado)
+        else:  # LISTO_PARA_ENVIO / POR_RECOGER / OBSERVADO / PENDIENTE (parada) y no clasificados
             fila["pendientes"] += total
 
     filas = sorted(acum.values(), key=lambda f: f["total"], reverse=True)

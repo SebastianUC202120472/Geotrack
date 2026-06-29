@@ -118,7 +118,7 @@ def cargar_pedidos_excel(db: Session, contenido: bytes, nombre_archivo: str, usu
     CUS-13: crea los pedidos nuevos a partir del Excel.
     Usa los helpers parsear_filas_excel y crear_pedido_desde_fila; mantiene el
     comportamiento histórico (rechazo de filas sin cliente, dedup por referencia_externa,
-    estado PENDIENTE, sin recojo asociado).
+    estado LISTO_PARA_ENVIO, sin recojo asociado).
     """
     filas = parsear_filas_excel(contenido, nombre_archivo)
 
@@ -140,7 +140,7 @@ def cargar_pedidos_excel(db: Session, contenido: bytes, nombre_archivo: str, usu
             })
             continue
 
-        pedido = crear_pedido_desde_fila(db, fila, cliente, recojo_id=None, estado="PENDIENTE", usuario_id=usuario_id)
+        pedido = crear_pedido_desde_fila(db, fila, cliente, recojo_id=None, estado="LISTO_PARA_ENVIO", usuario_id=usuario_id)
         nuevos.append(pedido)
 
     if nuevos:
@@ -233,7 +233,7 @@ def listar_pedidos(db: Session, skip: int, limit: int):
 
 
 def reabrir_pedido(db: Session, pedido_id: int, usuario_id: int | None = None) -> dict:
-    """Devuelve un pedido FALLIDO al estado PENDIENTE y lo saca de su ruta para
+    """Devuelve un pedido FALLIDO al estado LISTO_PARA_ENVIO y lo saca de su ruta para
     poder reasignarlo. Recibe: pedido_id (int) y el id del admin."""
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     if not pedido:
@@ -241,9 +241,9 @@ def reabrir_pedido(db: Session, pedido_id: int, usuario_id: int | None = None) -
 
     estado_anterior = pedido.estado
     ruta_repository.eliminar_detalles_de_pedido(db, pedido_id)
-    pedido.estado = "PENDIENTE"
+    pedido.estado = "LISTO_PARA_ENVIO"
     pedido.fecha_entrega = None
-    historial_repository.registrar(db, pedido.id, estado_anterior, "PENDIENTE", usuario_id)
+    historial_repository.registrar(db, pedido.id, estado_anterior, "LISTO_PARA_ENVIO", usuario_id)
     db.commit()
     return {"mensaje": "Pedido reabierto. Ya puedes reasignarlo.", "codigo": pedido.codigo}
 
@@ -257,15 +257,15 @@ def _exigir_fallido(pedido) -> None:
 
 
 def reprogramar(db: Session, pedido_id: int, usuario_id: int | None = None) -> dict:
-    """CUS-31: el admin decide reintentar el pedido mañana: vuelve a PENDIENTE y sale de
-    su ruta para reasignarlo. Recibe: pedido_id y el id del admin."""
+    """CUS-31: el admin decide reintentar el pedido mañana: vuelve a LISTO_PARA_ENVIO y sale
+    de su ruta para reasignarlo. Recibe: pedido_id y el id del admin."""
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     _exigir_fallido(pedido)
     estado_anterior = pedido.estado
     ruta_repository.eliminar_detalles_de_pedido(db, pedido_id)
-    pedido.estado = "PENDIENTE"
+    pedido.estado = "LISTO_PARA_ENVIO"
     pedido.fecha_entrega = None
-    historial_repository.registrar(db, pedido.id, estado_anterior, "PENDIENTE", usuario_id)
+    historial_repository.registrar(db, pedido.id, estado_anterior, "LISTO_PARA_ENVIO", usuario_id)
     db.commit()
     reporte_repository.cerrar_abierto_de_pedido(db, pedido_id, "Reprogramado")
     return {"mensaje": "Pedido reprogramado. Volvió a su zona para reasignarlo.", "codigo": pedido.codigo}
@@ -297,7 +297,7 @@ def agrupar_por_zona(db: Session) -> dict:
 
 # --- CUS-17: resolución manual de direcciones ---
 def listar_para_ubicar(db: Session):
-    """Pedidos sin coordenadas en cualquier estado resoluble por el admin (PENDIENTE,
+    """Pedidos sin coordenadas en cualquier estado resoluble por el admin (LISTO_PARA_ENVIO,
     POR_RECOGER o GEOCODIFICACION_FALLIDA), para ubicarlos a mano en el mapa."""
     return pedido_repository.listar_sin_ubicacion_resoluble(db)
 
@@ -315,7 +315,7 @@ def buscar_direccion(direccion: str) -> dict:
 def fijar_ubicacion(db: Session, pedido_id: int, latitud: float, longitud: float,
                     direccion: str | None = None, usuario_id: int | None = None) -> dict:
     """CUS-17: fija a mano las coordenadas de un pedido (y opcionalmente corrige su
-    dirección). Si estaba en GEOCODIFICACION_FALLIDA, vuelve a PENDIENTE para poder
+    dirección). Si estaba en GEOCODIFICACION_FALLIDA, vuelve a LISTO_PARA_ENVIO para poder
     rutearlo. Recibe: id, lat/lng, dirección opcional y el id del admin."""
     pedido = pedido_repository.obtener_por_id(db, pedido_id)
     if not pedido:
@@ -331,12 +331,12 @@ def fijar_ubicacion(db: Session, pedido_id: int, latitud: float, longitud: float
     pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
 
     # Transición de estado según el estado actual:
-    # - GEOCODIFICACION_FALLIDA: ya quedó resuelta, pasa a PENDIENTE para rutearlo.
+    # - GEOCODIFICACION_FALLIDA: ya quedó resuelta, pasa a LISTO_PARA_ENVIO para rutearlo.
     # - POR_RECOGER: se fijaron las coordenadas pero conserva su estado semántico.
     # - Cualquier otro estado: solo se actualizan las coordenadas, sin cambiar estado.
     if pedido.estado == "GEOCODIFICACION_FALLIDA":
-        historial_repository.registrar(db, pedido.id, pedido.estado, "PENDIENTE", usuario_id)
-        pedido.estado = "PENDIENTE"
+        historial_repository.registrar(db, pedido.id, pedido.estado, "LISTO_PARA_ENVIO", usuario_id)
+        pedido.estado = "LISTO_PARA_ENVIO"
 
     db.commit()
     return {"mensaje": "Ubicación actualizada", "codigo": pedido.codigo}

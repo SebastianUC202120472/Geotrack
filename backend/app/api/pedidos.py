@@ -57,7 +57,7 @@ def fijar_ubicacion(pedido_id: int, datos: UbicacionManualRequest, db: Session =
 
 @router.post("/{pedido_id}/reprogramar")
 def reprogramar_pedido(pedido_id: int, db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
-    """CUS-31: vuelve un pedido FALLIDO a PENDIENTE para reintentarlo (reasignar)."""
+    """CUS-31: vuelve un pedido FALLIDO a LISTO_PARA_ENVIO para reintentarlo (reasignar)."""
     return pedido_service.reprogramar(db, pedido_id, usuario_id=admin.id)
 
 

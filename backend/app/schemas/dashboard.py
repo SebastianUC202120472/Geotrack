@@ -32,7 +32,7 @@ class FlotaResponse(BaseModel):
 class ResumenResponse(BaseModel):
     """KPIs globales del día (tarjetas del dashboard)."""
     total_pedidos: int
-    pedidos_por_estado: Dict[str, int]  # ej. {"PENDIENTE": 2, "ENTREGADO": 3}
+    pedidos_por_estado: Dict[str, int]  # ej. {"LISTO_PARA_ENVIO": 2, "ENTREGADO": 3}
     total_rutas: int
     rutas_activas: int
     rutas_finalizadas: int
