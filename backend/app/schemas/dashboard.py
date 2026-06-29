@@ -40,15 +40,24 @@ class ResumenResponse(BaseModel):
 
 # Mapa de flota en tiempo real
 class ParadaMapa(BaseModel):
-    """Una parada pendiente del conductor, para dibujarla en el mapa."""
+    """Una parada de ENTREGA pendiente del conductor (icono de pedido), para el mapa."""
     latitud: float
     longitud: float
     destinatario: Optional[str] = None
     secuencia: Optional[int] = None
 
 
+class ClienteMapa(BaseModel):
+    """Un punto de recojo = ubicación del cliente corporativo (icono distinto, mapa de almacén)."""
+    latitud: float
+    longitud: float
+    razon_social: Optional[str] = None
+    secuencia: Optional[int] = None
+
+
 class ConductorUbicacion(BaseModel):
-    """Posición de un conductor con ruta activa y sus paradas pendientes."""
+    """Posición de un conductor con ruta activa, sus paradas de entrega (pedidos) y/o
+    sus puntos de recojo (clientes corporativos)."""
     conductor_id: int
     conductor: Optional[str] = None
     ruta: Optional[str] = None
@@ -57,7 +66,8 @@ class ConductorUbicacion(BaseModel):
     actualizado_en: Optional[datetime] = None
     en_linea: bool = False                # True si la última señal es reciente (< 2 min)
     pausado: bool = False  # CUS-30: tiene una incidencia (auxilio mecánico) abierta
-    paradas: List[ParadaMapa] = []
+    paradas: List[ParadaMapa] = []        # entregas (icono de pedido)
+    clientes: List[ClienteMapa] = []      # recojos: ubicación del cliente corporativo
 
 
 # Seguimiento de repartos agregado por empresa cliente (no por ruta).

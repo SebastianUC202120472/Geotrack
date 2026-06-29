@@ -7,7 +7,7 @@ from sqlalchemy import func
 from datetime import datetime
 
 from app.models.usuario import Usuario
-from app.repositories import ruta_repository, pedido_repository, usuario_repository, historial_repository, ubicacion_repository, incidencia_repository
+from app.repositories import ruta_repository, pedido_repository, usuario_repository, historial_repository, ubicacion_repository, incidencia_repository, recojo_repository
 from app.schemas.dashboard import (
     RutaFlota,
     FlotaResponse,
@@ -17,6 +17,7 @@ from app.schemas.dashboard import (
     ClienteSeguimiento,
     ConductorUbicacion,
     ParadaMapa,
+    ClienteMapa,
 )
 
 
@@ -108,27 +109,45 @@ def obtener_ubicaciones_flota(db: Session, tipo: str | None = None) -> list[Cond
         ubicacion = ubicacion_repository.obtener(db, ruta.conductor_id)
         en_linea = bool(ubicacion) and (ahora - ubicacion.actualizado_en).total_seconds() <= UMBRAL_EN_LINEA_SEG
 
-        # Paradas pendientes de esta ruta que tengan coordenadas.
-        detalles = (
-            db.query(RutaDetalle, Pedido)
-            .join(Pedido, RutaDetalle.pedido_id == Pedido.id)
-            .filter(RutaDetalle.ruta_id == ruta.id, RutaDetalle.estado_entrega == "PENDIENTE")
-            .all()
-        )
-        paradas = [
-            ParadaMapa(
-                latitud=pedido.latitud,
-                longitud=pedido.longitud,
-                destinatario=pedido.nombre_destinatario,
-                secuencia=detalle.secuencia,
+        # Según el tipo de ruta, los puntos del mapa son distintos:
+        #  - ENTREGA: paradas pendientes (destinos de pedidos, icono de pedido).
+        #  - RECOJO: orígenes de los recojos = ubicación del cliente corporativo (icono distinto).
+        paradas: list[ParadaMapa] = []
+        clientes: list[ClienteMapa] = []
+        if (ruta.tipo or "ENTREGA") == "RECOJO":
+            recojos = recojo_repository.obtener_por_ruta(db, ruta.id)
+            clientes = [
+                ClienteMapa(
+                    latitud=r.latitud,
+                    longitud=r.longitud,
+                    razon_social=r.cliente_origen,
+                    secuencia=r.secuencia,
+                )
+                for r in recojos
+                if r.estado != "RECOGIDO" and r.latitud is not None and r.longitud is not None
+            ]
+        else:
+            detalles = (
+                db.query(RutaDetalle, Pedido)
+                .join(Pedido, RutaDetalle.pedido_id == Pedido.id)
+                .filter(RutaDetalle.ruta_id == ruta.id, RutaDetalle.estado_entrega == "PENDIENTE")
+                .all()
             )
-            for detalle, pedido in detalles
-            if pedido.latitud is not None and pedido.longitud is not None
-        ]
+            paradas = [
+                ParadaMapa(
+                    latitud=pedido.latitud,
+                    longitud=pedido.longitud,
+                    destinatario=pedido.nombre_destinatario,
+                    secuencia=detalle.secuencia,
+                )
+                for detalle, pedido in detalles
+                if pedido.latitud is not None and pedido.longitud is not None
+            ]
 
         existente = salida.get(ruta.conductor_id)
         if existente:
-            existente.paradas.extend(paradas)  # mismo conductor en otra ruta: fusiona paradas
+            existente.paradas.extend(paradas)    # mismo conductor en otra ruta: fusiona puntos
+            existente.clientes.extend(clientes)
             # CUS-30: si cualquiera de sus rutas está pausada, el conductor aparece pausado.
             existente.pausado = existente.pausado or (ruta.id in rutas_pausadas)
         else:
@@ -142,6 +161,7 @@ def obtener_ubicaciones_flota(db: Session, tipo: str | None = None) -> list[Cond
                 en_linea=en_linea,
                 pausado=ruta.id in rutas_pausadas,
                 paradas=paradas,
+                clientes=clientes,
             )
 
     # Ordena las paradas de cada conductor por secuencia (orden de visita).
@@ -152,8 +172,9 @@ def obtener_ubicaciones_flota(db: Session, tipo: str | None = None) -> list[Cond
 
 # CUS-33: Seguimiento de la flota
 def obtener_flota(db: Session) -> FlotaResponse:
-    """Resume el avance de TODAS las rutas para el tablero de la flota."""
-    rutas = ruta_repository.listar_rutas(db)
+    """Resume el avance de las rutas de ENTREGA para el tablero de la flota. Excluye las
+    rutas de RECOJO (las gestiona el módulo de almacén, no cuentan como entregas)."""
+    rutas = [r for r in ruta_repository.listar_rutas(db) if (r.tipo or "ENTREGA") != "RECOJO"]
 
     # Caché de nombres de conductores para no repetir consultas (evita N+1).
     cache_conductores: dict[int, str | None] = {}
@@ -201,7 +222,8 @@ def obtener_resumen(db: Session) -> ResumenResponse:
     por_estado = {estado: total for estado, total in pedido_repository.contar_por_estado(db)}
     total_pedidos = pedido_repository.contar_total(db)
 
-    rutas = ruta_repository.listar_rutas(db)
+    # Solo rutas de ENTREGA: las de RECOJO las gestiona el almacén y NO cuentan como entregas.
+    rutas = [r for r in ruta_repository.listar_rutas(db) if (r.tipo or "ENTREGA") != "RECOJO"]
     activas = sum(1 for r in rutas if r.estado in ESTADOS_RUTA_ACTIVA)
     finalizadas = sum(1 for r in rutas if r.estado == "FINALIZADA")
 
@@ -297,7 +319,11 @@ def obtener_eficiencia_conductores(db: Session) -> list[dict]:
             func.coalesce(func.sum(Ruta.km_estimado), 0.0),
             func.coalesce(func.sum(Ruta.km_ahorrado), 0.0),
         )
-        .filter(Ruta.fecha_fin.isnot(None), Ruta.conductor_id.isnot(None))
+        .filter(
+            Ruta.fecha_fin.isnot(None),
+            Ruta.conductor_id.isnot(None),
+            func.coalesce(Ruta.tipo, "ENTREGA") != "RECOJO",  # no inflar km con rutas de recojo
+        )
         .group_by(Ruta.conductor_id)
         .all()
     )
