@@ -3,7 +3,7 @@
 # cuando el vehículo se malogra. Mientras una incidencia de una ruta está ABIERTA, esa
 # ruta se considera PAUSADA (no se pueden gestionar paradas ni cerrar el día).
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Text, Float, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Text, Float, Boolean, ForeignKey
 from app.db.database import Base
 
 
@@ -23,5 +23,12 @@ class Incidencia(Base):
     estado = Column(String(20), default="ABIERTA")              # ABIERTA | RESUELTA
     creado_en = Column(DateTime, default=datetime.utcnow, index=True)
     resuelto_en = Column(DateTime, nullable=True)
-    resuelto_por = Column(Integer, nullable=True)               # usuario_id que la cerró
-    nota_resolucion = Column(String(255), nullable=True)        # ej. "Reanudada por conductor"
+    resuelto_por = Column(Integer, nullable=True)               # SOLO el conductor cierra (reanudar)
+    nota_resolucion = Column(String(255), nullable=True)        # ej. "Reanudada por el conductor"
+
+    # El conductor indica al reportar si puede resolverla él mismo (entonces el admin no manda ayuda).
+    puede_solucionar_solo = Column(Boolean, default=False)
+    # "Mandar ayuda" (admin): sello + detalle adaptable (tipo de ayuda + nota). NO resuelve la incidencia.
+    ayuda_enviada_en = Column(DateTime, nullable=True)
+    ayuda_enviada_por = Column(Integer, nullable=True)          # usuario_id (admin) que mandó la ayuda
+    ayuda_detalle = Column(String(255), nullable=True)          # ej. "Grúa: en 30 min"
