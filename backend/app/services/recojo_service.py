@@ -134,11 +134,12 @@ def aceptar_solicitud(
     referencia: str | None,
     contacto_origen: str | None,
     usuario_id: int | None,
+    conversacion_id: int | None = None,
 ) -> AceptarSolicitudResponse:
     """Acepta una solicitud de recojo cargada por el admin con un Excel de pedidos.
-    Recibe: id de cliente, bytes del archivo, nombre del archivo, referencia, contacto
-    y el id del admin. Crea el recojo en SOLICITADO (origen del cliente) y un pedido
-    POR_RECOGER por cada fila válida del Excel."""
+    Recibe: id de cliente, bytes del archivo, nombre del archivo, referencia, contacto,
+    el id del admin y el id de la conversación de correo opcional. Crea el recojo en
+    SOLICITADO (origen del cliente) y un pedido POR_RECOGER por cada fila válida del Excel."""
     # Validar que el cliente exista y no esté eliminado.
     cliente = (
         db.query(ClienteCorporativo)
@@ -190,6 +191,24 @@ def aceptar_solicitud(
         pedidos_creados += 1
         if pedido.latitud is not None:
             pedidos_geocodificados += 1
+
+    # Persistir todos los pedidos creados en el loop (cada uno solo hizo flush).
+    db.commit()
+
+    # Si la solicitud provino de un correo de la Bandeja, enlazar el hilo, marcarlo
+    # ATENDIDO y confirmar al cliente (best-effort, no bloquea la respuesta).
+    if conversacion_id:
+        from app.services import correo_service
+        from app.repositories import correo_repository
+        recojo.conversacion_id = conversacion_id
+        conv = correo_repository.obtener_conversacion(db, conversacion_id)
+        if conv:
+            conv.estado = "ATENDIDA"
+            db.commit()
+            try:
+                correo_service.enviar_confirmacion_recojo(db, conv, pedidos_creados, usuario_id)
+            except Exception:
+                pass
 
     return AceptarSolicitudResponse(
         recojo_id=recojo.id,

@@ -6,8 +6,11 @@ import re
 from datetime import datetime, timezone
 from email import message_from_bytes
 from email.header import decode_header, make_header
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import parseaddr, parsedate_to_datetime, make_msgid, formataddr
+import os
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -237,6 +240,82 @@ def responder(db: Session, conversacion_id: int, cuerpo: str, admin_id: int | No
     conv.estado = "ATENDIDA"
     db.commit()
     return {"mensaje": "Respuesta enviada correctamente."}
+
+
+def enviar_confirmacion_recojo(db, conversacion, num_pedidos, admin_id=None):
+    """Best-effort: envía un correo HTML al cliente confirmando que su solicitud de recojo
+    está en proceso, con firma y logo, y lo guarda en el hilo. Si el correo no está
+    habilitado o el SMTP falla, no hace nada (no rompe el flujo). Recibe la conversación,
+    cuántos pedidos y el id del admin."""
+    if not _configurado():
+        return
+    asunto = f"Recibimos su solicitud de recojo ({num_pedidos} pedidos)"
+    texto = (
+        f"Estimado cliente,\n\nRecibimos su solicitud de recojo de {num_pedidos} pedidos. "
+        "Ya está siendo procesada y coordinaremos el recojo en su almacén; le informaremos "
+        "los siguientes pasos.\n\nAtentamente,\nSAVA S.A.C — Equipo de Logística"
+    )
+    html = (
+        "<div style=\"font-family:Arial,sans-serif;color:#1f2733;font-size:14px\">"
+        "<p>Estimado cliente,</p>"
+        f"<p>Recibimos su <b>solicitud de recojo de {num_pedidos} pedidos</b>. Ya está siendo "
+        "procesada y coordinaremos el recojo en su almacén; le informaremos los siguientes pasos.</p>"
+        "<p>Atentamente,</p>"
+        "<table style=\"border-collapse:collapse\"><tr>"
+        "<td><img src=\"cid:logo\" alt=\"SAVA\" height=\"46\"></td>"
+        "<td style=\"padding-left:10px\"><b>SAVA S.A.C</b><br>"
+        "<span style=\"color:#64748b\">Equipo de Logística</span></td>"
+        "</tr></table></div>"
+    )
+    raiz = MIMEMultipart("related")
+    raiz["From"] = formataddr((settings.MAIL_FROM_NAME, settings.MAIL_ADDRESS))
+    raiz["To"] = conversacion.contraparte_email
+    raiz["Subject"] = asunto
+    nuevo_id = make_msgid()
+    raiz["Message-ID"] = nuevo_id
+    alt = MIMEMultipart("alternative")
+    alt.attach(MIMEText(texto, "plain", "utf-8"))
+    alt.attach(MIMEText(html, "html", "utf-8"))
+    raiz.attach(alt)
+    ruta_logo = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "logo.png")
+    try:
+        with open(ruta_logo, "rb") as f:
+            img = MIMEImage(f.read())
+            img.add_header("Content-ID", "<logo>")
+            img.add_header("Content-Disposition", "inline", filename="logo.png")
+            raiz.attach(img)
+    except OSError:
+        pass
+    try:
+        if settings.SMTP_PORT == 465:
+            servidor = smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=20)
+        else:
+            servidor = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=20)
+            servidor.starttls()
+        servidor.login(settings.MAIL_ADDRESS, settings.MAIL_PASSWORD)
+        servidor.send_message(raiz)
+        servidor.quit()
+    except Exception:
+        return  # best-effort: no abortar el flujo si el envío falla
+    # El correo ya se envió; persistimos el mensaje saliente en su propio commit
+    # (el llamador commitea antes de invocar esta función). Best-effort: si el
+    # guardado falla, hacemos rollback y salimos sin romper el flujo.
+    try:
+        correo_repository.agregar_mensaje(
+            db, conversacion,
+            direccion="SALIENTE",
+            remitente=settings.MAIL_ADDRESS,
+            destinatario=conversacion.contraparte_email,
+            asunto=asunto,
+            cuerpo=texto,
+            fecha=datetime.utcnow(),
+            message_id=nuevo_id,
+            leido=True,
+            enviado_por=admin_id,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
 
 
 # Lecturas para el panel
