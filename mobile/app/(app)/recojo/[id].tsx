@@ -31,35 +31,45 @@ export default function RecepcionScreen() {
   const manifiesto = useManifiestoRecojo();
   const registrar = useRegistrarRecepcion();
 
-  const [foto, setFoto] = useState<string | null>(null);
+  // Varias fotos de evidencia (boleta/guía/bultos): se acumulan en este array.
+  const [fotos, setFotos] = useState<string[]>([]);
   const [cantidad, setCantidad] = useState("");
 
   const recojo = manifiesto.data?.paradas.find((p: ParadaRecojo) => p.recojo_id === recojoId);
 
-  // Abre la cámara y guarda la foto de la guía de remisión.
+  // Agrega uris al array evitando duplicados (acumula sobre las ya seleccionadas).
+  const agregarFotos = (uris: string[]) =>
+    setFotos((prev) => [...prev, ...uris.filter((u) => !prev.includes(u))]);
+
+  // Quita una foto del array por su uri.
+  const quitarFoto = (uri: string) => setFotos((prev) => prev.filter((u) => u !== uri));
+
+  // Abre la cámara y agrega la foto capturada a la evidencia (una por captura).
   const tomarFoto = async () => {
     const permiso = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permiso.granted) { Alert.alert("Cámara", "Necesitamos permiso de cámara para la guía."); return; }
+    if (!permiso.granted) { Alert.alert("Cámara", "Necesitamos permiso de cámara para la evidencia."); return; }
     const res = await ImagePicker.launchCameraAsync({ quality: 0.6 });
-    if (!res.canceled) setFoto(res.assets[0].uri);
+    if (!res.canceled) agregarFotos(res.assets.map((a) => a.uri));
   };
 
-  // Abre la galería y guarda la imagen seleccionada.
-  const elegirFoto = async () => {
-    const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.6 });
-    if (!res.canceled) setFoto(res.assets[0].uri);
+  // Abre la galería permitiendo selección múltiple y agrega todas las elegidas.
+  const elegirFotos = async () => {
+    const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.6, allowsMultipleSelection: true });
+    if (!res.canceled) agregarFotos(res.assets.map((a) => a.uri));
   };
 
-  // Valida cantidad (entero > 0) y foto, luego envía la recepción al backend.
+  // Valida cantidad (entero > 0) y que haya al menos una foto, luego envía la recepción.
   const confirmar = () => {
     const n = Number(cantidad);
     if (!Number.isInteger(n) || n <= 0) { Alert.alert("Cantidad", "Ingresa la cantidad declarada (entero mayor que 0)."); return; }
-    if (!foto) { Alert.alert("Guía", "Captura la foto de la Guía de Remisión."); return; }
-    registrar.mutate({ recojoId, cantidad: n, uriFoto: foto }, {
+    if (fotos.length === 0) { Alert.alert("Evidencia", "Agrega al menos una foto (boleta, guía o bultos)."); return; }
+    registrar.mutate({ recojoId, cantidad: n, uris: fotos }, {
       onSuccess: () => { Alert.alert("Recepción registrada", "Lote recibido a bulto cerrado."); router.back(); },
       onError: (e) => Alert.alert("Error", mensajeDeError(e)),
     });
   };
+
+  const puedeRegistrar = fotos.length > 0 && Number(cantidad) > 0;
 
   if (manifiesto.isLoading) return <Screen conPadding={false}><Cabecera titulo="Recepción" atras /><Cargando /></Screen>;
   if (!recojo) return <Screen conPadding={false}><Cabecera titulo="Recepción" atras /><Vacio titulo="Recojo no encontrado" /></Screen>;
@@ -133,26 +143,49 @@ export default function RecepcionScreen() {
                 placeholderTextColor={colors.muted}
                 style={[estilos.input, { borderColor: colors.border, color: colors.ink, backgroundColor: colors.surface }]}
               />
-              <Texto variante="caption" color={colors.muted} style={{ marginTop: spacing.md }}>
-                Foto de la Guía de Remisión firmada
-              </Texto>
-              {foto ? (
-                <Image source={{ uri: foto }} style={estilos.preview} contentFit="cover" />
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.md }}>
+                <Texto variante="caption" color={colors.muted}>
+                  Fotos de evidencia (boleta, guía o bultos)
+                </Texto>
+                {fotos.length > 0 && (
+                  <Texto variante="caption" color={colors.brand}>{fotos.length} foto(s)</Texto>
+                )}
+              </View>
+              {fotos.length > 0 ? (
+                <View style={estilos.galeria}>
+                  {fotos.map((uri) => (
+                    <View key={uri} style={estilos.miniatura}>
+                      <Image source={{ uri }} style={estilos.miniaturaImg} contentFit="cover" />
+                      <Pressable
+                        onPress={() => quitarFoto(uri)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Quitar foto"
+                        hitSlop={8}
+                        style={[estilos.quitar, { backgroundColor: colors.danger }]}
+                      >
+                        <Ionicons name="close" size={14} color={colors.white} />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
               ) : (
                 <View style={[estilos.placeholder, { borderColor: colors.border }]}>
-                  <Texto variante="body" color={colors.muted}>Captura la guía firmada (prueba de custodia)</Texto>
+                  <Ionicons name="images-outline" size={28} color={colors.muted} />
+                  <Texto variante="body" color={colors.muted} style={{ marginTop: spacing.xs, textAlign: "center" }}>
+                    Agrega la boleta/guía firmada y los bultos (prueba de custodia)
+                  </Texto>
                 </View>
               )}
               <View style={estilos.botonesFoto}>
                 <View style={{ flex: 1 }}><Button titulo="Tomar foto" variante="secondary" onPress={tomarFoto} /></View>
-                <View style={{ flex: 1 }}><Button titulo="Galería" variante="secondary" onPress={elegirFoto} /></View>
+                <View style={{ flex: 1 }}><Button titulo="Galería" variante="secondary" onPress={elegirFotos} /></View>
               </View>
               <View style={{ marginTop: spacing.lg }}>
                 <Button
                   titulo={registrar.isPending ? "Registrando…" : "Registrar recepción"}
                   onPress={confirmar}
                   cargando={registrar.isPending}
-                  deshabilitado={!foto || !cantidad}
+                  deshabilitado={!puedeRegistrar}
                 />
               </View>
             </Card>
@@ -177,8 +210,11 @@ const estilos = StyleSheet.create({
   separador: { height: 1, marginVertical: spacing.md },
   navegar: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: spacing.md, paddingVertical: spacing.md, borderRadius: radius.md },
   input: { borderWidth: 1, borderRadius: radius.md, padding: spacing.md, marginTop: spacing.xs, fontSize: fontSize.title },
-  preview: { width: "100%", height: 220, borderRadius: radius.md, marginTop: spacing.xs },
   guiaGuardada: { width: "100%", height: 200, borderRadius: radius.md, marginTop: spacing.md },
-  placeholder: { height: 160, borderRadius: radius.md, borderWidth: 2, borderStyle: "dashed", alignItems: "center", justifyContent: "center", marginTop: spacing.xs },
+  placeholder: { minHeight: 140, borderRadius: radius.md, borderWidth: 2, borderStyle: "dashed", alignItems: "center", justifyContent: "center", marginTop: spacing.xs, padding: spacing.md },
+  galeria: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.xs },
+  miniatura: { width: 96, height: 96 },
+  miniaturaImg: { width: "100%", height: "100%", borderRadius: radius.md },
+  quitar: { position: "absolute", top: -6, right: -6, width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
   botonesFoto: { flexDirection: "row", gap: spacing.md, marginTop: spacing.md },
 });

@@ -413,23 +413,30 @@ export const asignarRutaRecojoAlmacen = (datos) =>
   request("/almacen/solicitudes/asignar-ruta", { method: "POST", body: datos });
 
 /* ============================================================
-   ALMACÉN — Ingreso por escaneo  (CUS-14)
+   ALMACÉN — Ingreso manual  (CUS-14)
 ============================================================ */
 
-// Recojos del módulo de almacén (RECOGIDO por ingresar + INGRESADO). Filtro opcional.
+// Recojos del módulo de almacén (RECOGIDO por ingresar + INGRESADO). Filtro opcional;
+// sin filtro el backend trae ambos estados (RECOGIDO + INGRESADO).
 export const listarRecojosAlmacen = (estado) =>
   request(`/almacen/recojos${estado ? `?estado=${encodeURIComponent(estado)}` : ""}`);
 
-// Conciliación detallada de un recojo (trama + desconocidos + conteo).
+// Conciliación detallada de un recojo (pedidos + fotos del conductor + conteo).
 export const obtenerConciliacion = (id) => request(`/almacen/recojos/${id}/conciliacion`);
 
-// Escanea un código contra los pedidos del recojo. Salida: { resultado, codigo, mensaje, conteo }.
-export const escanearPaquete = (id, codigo) =>
-  request(`/almacen/recojos/${id}/escanear`, { method: "POST", body: { codigo } });
+// Confirma el ingreso manual de un recojo (pasa a INGRESADO). Entrada: id del recojo y
+// referenciasFaltantes (array de strings con las referencias que no llegaron al almacén).
+// Salida: { recojo_id, estado, conteo, mensaje }.
+export const confirmarIngreso = (recojoId, referenciasFaltantes = []) =>
+  request(`/almacen/recojos/${recojoId}/confirmar-ingreso`, {
+    method: "POST",
+    body: { referencias_faltantes: referenciasFaltantes },
+  });
 
-// Cierra el ingreso del recojo (pasa a INGRESADO).
-export const cerrarIngreso = (id) =>
-  request(`/almacen/recojos/${id}/cerrar-ingreso`, { method: "POST" });
+// Resuelve un pedido OBSERVADO (lo da por conciliado). Entrada: pedido_id.
+// Salida: { mensaje, codigo }.
+export const resolverObservado = (pedidoId) =>
+  request(`/almacen/pedidos/${pedidoId}/resolver-observado`, { method: "POST" });
 
 // CUS-32: rutas de entrega con FALLIDO pendientes de retorno.
 export const listarRutasRetorno = () => request("/almacen/retornos/rutas");
