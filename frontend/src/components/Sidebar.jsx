@@ -10,7 +10,6 @@ import {
   UserCog,
   SlidersHorizontal,
   MapPin,
-  Search,
   LogOut,
   PackageCheck,
   Undo2,
@@ -51,13 +50,6 @@ const secciones = [
     items: [
       { icon: UserCog, label: "Usuarios", path: "/usuarios" },
       { icon: SlidersHorizontal, label: "Parámetros", path: "/parametros" },
-    ],
-  },
-  {
-    titulo: "Consulta",
-    roles: ["admin"],
-    items: [
-      { icon: Search, label: "Trazabilidad", path: "/trazabilidad" },
     ],
   },
   {
