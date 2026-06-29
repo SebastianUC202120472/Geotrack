@@ -7,7 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
-import { MapaWeb } from "@/components/MapaWeb";
+import { MapaNativo } from "@/components/MapaNativo";
 import { Cargando, ErrorVista, Vacio } from "@/components/Estados";
 import { GradientHeader } from "@/components/GradientHeader";
 import { Cabecera } from "@/components/Cabecera";
@@ -17,7 +17,7 @@ import { useRutaActiva, useFinalizarRuta, claves } from "@/features/ruta/hooks";
 import { useManifiestoRecojo, useIniciarRecojo, clavesRecojo } from "@/features/recojo/hooks";
 import { useReanudarRuta } from "@/features/incidencia/hooks";
 import { useUbicacionActual } from "@/hooks/useUbicacionActual";
-import { useEnviarUbicacion } from "@/hooks/useEnviarUbicacion";
+import { useRastreoUbicacion } from "@/hooks/useRastreoUbicacion";
 import { mensajeDeError } from "@/api/client";
 import { useTheme, spacing } from "@/theme";
 import type { ParadaManifiesto, ParadaRecojo } from "@/types/api";
@@ -36,8 +36,8 @@ export function RutaRecojoView() {
   const qc = useQueryClient();
   const [refrescando, setRefrescando] = useState(false);
 
-  // Envía la posición del conductor mientras tenga una ruta activa (foreground).
-  useEnviarUbicacion(!!ruta.data && ruta.data.estado !== "FINALIZADA");
+  // Rastrea la posición del conductor en segundo plano mientras tenga ruta activa.
+  useRastreoUbicacion(!!ruta.data && ruta.data.estado !== "FINALIZADA");
 
   // Al volver a esta pestaña, invalida las consultas para ver los cambios al instante.
   useFocusEffect(useCallback(() => {
@@ -119,7 +119,7 @@ export function RutaRecojoView() {
 
       <Aparecer style={{ gap: spacing.md, paddingHorizontal: spacing.lg }}>
         <Card style={{ marginTop: spacing.md, padding: spacing.sm }}>
-          <MapaWeb paradas={paradasMapa} />
+          <MapaNativo paradas={paradasMapa} />
         </Card>
         <Button titulo="Iniciar ruta desde mi ubicación" onPress={iniciarRuta} cargando={ubicacion.cargando || iniciar.isPending} />
         {pausada ? (
