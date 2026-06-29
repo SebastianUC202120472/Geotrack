@@ -8,7 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
-import { MapaWeb } from "@/components/MapaWeb";
+import { MapaNativo } from "@/components/MapaNativo";
 import { ParadaItem } from "@/components/ParadaItem";
 import { Cargando, ErrorVista, Vacio } from "@/components/Estados";
 import { GradientHeader } from "@/components/GradientHeader";
@@ -19,7 +19,7 @@ import { Texto } from "@/components/Texto";
 import { RutaRecojoView } from "@/features/recojo/RutaRecojoView";
 import { useRutaActiva, useManifiesto, useNavegacion, useIniciarRuta, useFinalizarRuta, claves } from "@/features/ruta/hooks";
 import { useUbicacionActual } from "@/hooks/useUbicacionActual";
-import { useEnviarUbicacion } from "@/hooks/useEnviarUbicacion";
+import { useRastreoUbicacion } from "@/hooks/useRastreoUbicacion";
 import { useReanudarRuta } from "@/features/incidencia/hooks";
 import { usePendientesPorPedido } from "@/features/sync/hooks";
 import { mensajeDeError } from "@/api/client";
@@ -48,8 +48,8 @@ function RutaEntregaView() {
   // CUS-27: paradas con una acción en la cola offline (aún sin subir al servidor).
   const pendientesPorPedido = usePendientesPorPedido();
 
-  // Envía la posición del conductor mientras tenga una ruta activa (foreground).
-  useEnviarUbicacion(!!ruta.data && ruta.data.estado !== "FINALIZADA");
+  // Rastrea la posición del conductor en segundo plano mientras tenga ruta activa.
+  useRastreoUbicacion(!!ruta.data && ruta.data.estado !== "FINALIZADA");
 
   // Al volver a esta pestaña, vuelve a pedir los datos (se ven los cambios al instante).
   useFocusEffect(
@@ -168,7 +168,8 @@ function RutaEntregaView() {
       <Aparecer style={estilos.secciones}>
         <BannerSync />
         <Card style={{ marginTop: spacing.md, padding: spacing.sm }}>
-          <MapaWeb paradas={proximas} />
+          {/* El mapa muestra TODAS las paradas del manifiesto, no solo las próximas. */}
+          <MapaNativo paradas={manifiesto.data?.paradas ?? []} />
         </Card>
 
         <Button titulo="Iniciar ruta desde mi ubicación" onPress={iniciarRuta} cargando={ubicacion.cargando || iniciar.isPending} />

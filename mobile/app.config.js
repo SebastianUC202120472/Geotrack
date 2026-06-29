@@ -1,7 +1,8 @@
 // Configuración de Expo (reemplaza a app.json para poder leer variables de
 // entorno). La clave de Google Maps se inyecta desde EXPO_PUBLIC_GOOGLE_MAPS_KEY:
-// basta pegarla en mobile/.env y reconstruir. Sin clave, en Expo Go el mapa usa
-// la clave de Expo; la clave propia es para builds nativos (eas build).
+// basta pegarla en mobile/.env y reconstruir el dev build. El mapa nativo
+// (MapaNativo, Google Maps) y la ubicación en segundo plano NO funcionan en
+// Expo Go: requieren un build de desarrollo (expo-dev-client).
 const GOOGLE_MAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY ?? "";
 
 export default {
@@ -20,11 +21,24 @@ export default {
       infoPlist: {
         NSLocationWhenInUseUsageDescription:
           "Usamos tu ubicación para ordenar tu ruta de entregas desde donde estás.",
+        NSLocationAlwaysAndWhenInUseUsageDescription:
+          "Usamos tu ubicación, incluso en segundo plano, para seguir tu ruta activa en tiempo real.",
+        // Permite que el rastreo de ubicación siga con la app en segundo plano (iOS).
+        UIBackgroundModes: ["location"],
       },
     },
     android: {
       package: "com.siolsava.geotrack",
-      permissions: ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "CAMERA"],
+      // Permisos de ubicación (fina/gruesa + segundo plano) y de servicio en
+      // primer plano para seguir rastreando la ruta con la app en background.
+      permissions: [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "CAMERA",
+      ],
       config: {
         googleMaps: { apiKey: GOOGLE_MAPS_KEY },
       },
@@ -32,11 +46,19 @@ export default {
     plugins: [
       "expo-router",
       "expo-secure-store",
+      // expo-dev-client: necesario para el build de desarrollo (mapa nativo +
+      // ubicación en segundo plano no funcionan en Expo Go).
+      "expo-dev-client",
       [
         "expo-location",
         {
+          // Mensajes de permiso (foreground y "siempre"/segundo plano) e indicación
+          // de que la app usa ubicación en segundo plano en Android.
+          locationAlwaysAndWhenInUsePermission:
+            "Usamos tu ubicación, incluso en segundo plano, para seguir tu ruta activa en tiempo real.",
           locationWhenInUsePermission:
             "Usamos tu ubicación para ordenar tu ruta de entregas desde donde estás.",
+          isAndroidBackgroundLocationEnabled: true,
         },
       ],
       [

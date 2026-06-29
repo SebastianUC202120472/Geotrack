@@ -6,8 +6,22 @@ import "leaflet/dist/leaflet.css";
 // Centro por defecto (Lima) cuando todavía no hay puntos que mostrar.
 const LIMA = [-12.046, -77.043];
 
-// Pin (gota) para una PARADA: color del conductor + número de orden. Distinto del
-// círculo de la ubicación del conductor.
+// Colores de la gota de parada según su estado de entrega.
+const COLOR_PENDIENTE = "#2563eb";
+const COLOR_ENTREGADO = "#16a34a";
+const COLOR_FALLIDO = "#dc2626";
+
+// Devuelve el color de una parada según su `estado` (estado_entrega).
+// Entrada: `estado` = "PENDIENTE" | "ENTREGADO" | "FALLIDO" (vacío = pendiente).
+const colorPorEstado = (estado) => {
+  const e = (estado || "PENDIENTE").toUpperCase();
+  if (e === "ENTREGADO") return COLOR_ENTREGADO;
+  if (e === "FALLIDO") return COLOR_FALLIDO;
+  return COLOR_PENDIENTE;
+};
+
+// Pin (gota) para una PARADA: color de su estado de entrega + número de orden.
+// Distinto del círculo de la ubicación del conductor.
 const iconoParada = (color, n) =>
   L.divIcon({
     className: "",
@@ -60,11 +74,27 @@ function LeyendaMapa({ hayClientes }) {
       </div>
       <div className="mt-1 flex items-center gap-2">
         <span
-          className="inline-block h-3 w-3 border border-white bg-slate-500 shadow"
-          style={{ borderRadius: "50% 50% 50% 0", transform: "rotate(-45deg)" }}
+          className="inline-block h-3 w-3 border border-white shadow"
+          style={{ borderRadius: "50% 50% 50% 0", transform: "rotate(-45deg)", background: COLOR_PENDIENTE }}
           aria-hidden="true"
         />
-        <span className="text-slate-600">Pedido / parada</span>
+        <span className="text-slate-600">Parada pendiente</span>
+      </div>
+      <div className="mt-1 flex items-center gap-2">
+        <span
+          className="inline-block h-3 w-3 border border-white shadow"
+          style={{ borderRadius: "50% 50% 50% 0", transform: "rotate(-45deg)", background: COLOR_ENTREGADO }}
+          aria-hidden="true"
+        />
+        <span className="text-slate-600">Entregado</span>
+      </div>
+      <div className="mt-1 flex items-center gap-2">
+        <span
+          className="inline-block h-3 w-3 border border-white shadow"
+          style={{ borderRadius: "50% 50% 50% 0", transform: "rotate(-45deg)", background: COLOR_FALLIDO }}
+          aria-hidden="true"
+        />
+        <span className="text-slate-600">Fallido</span>
       </div>
       {hayClientes && (
         <div className="mt-1 flex items-center gap-2">
@@ -110,11 +140,12 @@ export default function MapaFlotaLeaflet({ conductores, seleccionado }) {
           const color = c._color || "#2563EB";
           return (
             <Fragment key={c.conductor_id}>
+              {/* El color de la gota sale del estado de entrega (no del conductor). */}
               {c.paradas.map((p, i) => (
                 <Marker
                   key={`parada-${c.conductor_id}-${i}`}
                   position={[p.latitud, p.longitud]}
-                  icon={iconoParada(color, p.secuencia ?? i + 1)}
+                  icon={iconoParada(colorPorEstado(p.estado), p.secuencia ?? i + 1)}
                 >
                   <Popup>
                     <b>Parada {p.secuencia ?? i + 1}</b> · {c.conductor || "Conductor"}
