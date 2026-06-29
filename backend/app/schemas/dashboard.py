@@ -75,11 +75,12 @@ class ConductorUbicacion(BaseModel):
 # Seguimiento de repartos agregado por empresa cliente (no por ruta).
 class ClienteSeguimiento(BaseModel):
     """Resumen de los pedidos de UNA empresa cliente, clasificados por grupo.
-    Los cuatro grupos suman el total."""
+    Los grupos suman el total."""
     cliente: str
     total: int
     entregados: int
     fallidos: int
+    cancelados: int = 0  # CANCELADO (terminal, no es fallo de reparto)
     pendientes: int
     en_proceso: int  # ASIGNADO + EN_RUTA
 

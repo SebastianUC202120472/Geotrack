@@ -20,9 +20,14 @@ from app.schemas.almacen import (
 ESTADOS_INGRESABLES = ("RECOGIDO", "INGRESADO")
 
 
-def _recojo_ingresable(db: Session, recojo_id: int):
-    """Devuelve el recojo si existe y está en un estado ingresable; si no, 404/400."""
-    recojo = recojo_repository.obtener_por_id(db, recojo_id)
+def _recojo_ingresable(db: Session, recojo_id: int, bloquear: bool = False):
+    """Devuelve el recojo si existe y está en un estado ingresable; si no, 404/400.
+    Con bloquear=True toma un lock de fila (FOR UPDATE) para serializar el ingreso."""
+    recojo = (
+        recojo_repository.obtener_por_id_bloqueado(db, recojo_id)
+        if bloquear
+        else recojo_repository.obtener_por_id(db, recojo_id)
+    )
     if not recojo:
         raise HTTPException(status_code=404, detail="Recojo no encontrado")
     if recojo.estado not in ESTADOS_INGRESABLES:
@@ -78,25 +83,31 @@ def confirmar_ingreso(db: Session, recojo_id: int, referencias_faltantes: list[s
     referencias_faltantes quedan OBSERVADO; el resto (POR_RECOGER) pasa a LISTO_PARA_ENVIO.
     El recojo pasa a INGRESADO. Geocodifica en segundo plano los que falten coordenadas.
     Recibe: id del recojo, lista de referencias (tracking) que NO llegaron y el usuario."""
-    _recojo_ingresable(db, recojo_id)
+    # Lock de fila: serializa confirmaciones simultáneas del mismo recojo (evita el historial
+    # duplicado que producían dos llamadas que leían los pedidos como POR_RECOGER a la vez).
+    recojo = _recojo_ingresable(db, recojo_id, bloquear=True)
     faltantes = {(r or "").strip() for r in (referencias_faltantes or []) if (r or "").strip()}
 
     pedidos = almacen_repository.listar_pedidos_recojo(db, recojo_id)
+    eventos: list[dict] = []  # historial acumulado para insertarlo en bloque (1 flush, no N)
+    ahora = datetime.utcnow()
     for pedido in pedidos:
         es_faltante = (pedido.referencia_externa or "") in faltantes
         if es_faltante:
             # Marcar como OBSERVADO (en espera de aclaración) si aún no está resuelto.
             if pedido.estado in ("POR_RECOGER", "LISTO_PARA_ENVIO"):
-                historial_repository.registrar(db, pedido.id, pedido.estado, "OBSERVADO", usuario_id)
+                eventos.append({"pedido_id": pedido.id, "estado_anterior": pedido.estado,
+                                "estado_nuevo": "OBSERVADO", "usuario_id": usuario_id})
                 pedido.estado = "OBSERVADO"
         elif pedido.estado == "POR_RECOGER":
             # Llegó y no estaba observado: queda listo para envío.
-            historial_repository.registrar(db, pedido.id, pedido.estado, "LISTO_PARA_ENVIO", usuario_id)
+            eventos.append({"pedido_id": pedido.id, "estado_anterior": pedido.estado,
+                            "estado_nuevo": "LISTO_PARA_ENVIO", "usuario_id": usuario_id})
             pedido.estado = "LISTO_PARA_ENVIO"
-            pedido.validado_en = datetime.utcnow()
+            pedido.validado_en = ahora
             pedido.validado_por = usuario_id
 
-    recojo = recojo_repository.obtener_por_id(db, recojo_id)
+    historial_repository.registrar_bulk(db, eventos)
     recojo.estado = "INGRESADO"
     almacen_repository.guardar_cambios(db)
 

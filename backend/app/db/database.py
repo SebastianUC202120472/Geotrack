@@ -11,7 +11,18 @@ from app.core.config import settings
 SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
 
 # Motor: traduce el código Python a SQL y mantiene la conexión.
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+# pool_pre_ping: valida la conexión con un ping antes de usarla; el Session pooler de
+#   Supabase cierra las conexiones ociosas y sin esto se obtienen fallos intermitentes
+#   ("server closed the connection") que un reintento arreglaba.
+# pool_recycle: recicla la conexión a los 5 min para no reutilizar una que el pooler ya cerró.
+# pool_size/max_overflow: cota razonable para una BD remota compartida.
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=300,
+    pool_size=5,
+    max_overflow=10,
+)
 
 # Fábrica de sesiones. autocommit/autoflush en False = control manual y seguro.
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

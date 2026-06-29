@@ -9,7 +9,6 @@ import type {
   CierreRuta,
   PerfilConductor,
   Reporte,
-  ValidacionQR,
   Incidencia,
   ManifiestoRecojo,
   Recepcion,
@@ -66,13 +65,6 @@ export async function obtenerManifiesto(): Promise<Manifiesto> {
 // Waypoints (lat/lng) para el mapa. Devuelve: Navegacion.
 export async function obtenerNavegacion(): Promise<Navegacion> {
   const { data } = await api.get<Navegacion>("/conductor/ruta-activa/navegacion");
-  return data;
-}
-
-// CUS-22: valida que un paquete escaneado (su código QR) pertenezca a la ruta activa.
-// Recibe: el código leído. Devuelve: { pertenece, mensaje, parada? }.
-export async function validarCarga(codigo: string): Promise<ValidacionQR> {
-  const { data } = await api.post<ValidacionQR>("/conductor/almacen/validar-qr", { codigo });
   return data;
 }
 

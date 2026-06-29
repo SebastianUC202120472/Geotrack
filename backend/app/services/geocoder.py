@@ -34,11 +34,13 @@ def obtener_coordenadas(direccion: str):
     try:
         if _google is not None:
             # Google: preciso y sin límite de 1/s; 'region=pe' sesga los resultados a Perú.
-            location = _google.geocode(direccion, region="pe")
+            # timeout: si Google no responde en 10 s, abortamos (sin esto una respuesta colgada
+            # bloquea el worker indefinidamente, sobre todo en geocodificación masiva de fondo).
+            location = _google.geocode(direccion, region="pe", timeout=10)
         else:
             # Nominatim es gratuito pero limita a 1 petición por segundo (evita bloqueo de IP).
             time.sleep(1)
-            location = _nominatim.geocode(direccion)
+            location = _nominatim.geocode(direccion, timeout=10)
 
         if location:
             return location.latitude, location.longitude

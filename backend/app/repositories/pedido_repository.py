@@ -112,12 +112,16 @@ def contar_por_estado(db: Session):
     )
 
 
-def listar_por_cliente(db: Session, cliente: str, desde=None, hasta=None) -> List[Pedido]:
+def listar_por_cliente(db: Session, cliente: str, desde=None, hasta=None, estados=None) -> List[Pedido]:
     """Pedidos de UNA empresa (por su nombre snapshot 'cliente_origen'), para armar la
     liquidación (CUS-36). `desde`/`hasta` (date, opcionales) acotan por fecha_creacion.
-    Recibe: nombre del cliente y el rango de fechas. Devuelve la lista de pedidos."""
+    `estados` (tupla opcional) filtra por estado: la liquidación pasa los terminales
+    (ENTREGADO/FALLIDO) para no facturar pedidos que aún están en proceso.
+    Recibe: nombre del cliente, el rango de fechas y los estados. Devuelve la lista de pedidos."""
     from datetime import datetime, time
     consulta = db.query(Pedido).filter(Pedido.cliente_origen == cliente)
+    if estados:
+        consulta = consulta.filter(Pedido.estado.in_(tuple(estados)))
     if desde is not None:
         consulta = consulta.filter(Pedido.fecha_creacion >= datetime.combine(desde, time.min))
     if hasta is not None:
