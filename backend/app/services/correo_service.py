@@ -297,18 +297,25 @@ def enviar_confirmacion_recojo(db, conversacion, num_pedidos, admin_id=None):
         servidor.quit()
     except Exception:
         return  # best-effort: no abortar el flujo si el envío falla
-    correo_repository.agregar_mensaje(
-        db, conversacion,
-        direccion="SALIENTE",
-        remitente=settings.MAIL_ADDRESS,
-        destinatario=conversacion.contraparte_email,
-        asunto=asunto,
-        cuerpo=texto,
-        fecha=datetime.utcnow(),
-        message_id=nuevo_id,
-        leido=True,
-        enviado_por=admin_id,
-    )
+    # El correo ya se envió; persistimos el mensaje saliente en su propio commit
+    # (el llamador commitea antes de invocar esta función). Best-effort: si el
+    # guardado falla, hacemos rollback y salimos sin romper el flujo.
+    try:
+        correo_repository.agregar_mensaje(
+            db, conversacion,
+            direccion="SALIENTE",
+            remitente=settings.MAIL_ADDRESS,
+            destinatario=conversacion.contraparte_email,
+            asunto=asunto,
+            cuerpo=texto,
+            fecha=datetime.utcnow(),
+            message_id=nuevo_id,
+            leido=True,
+            enviado_por=admin_id,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
 
 
 # Lecturas para el panel
