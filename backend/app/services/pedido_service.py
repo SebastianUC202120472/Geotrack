@@ -1,6 +1,7 @@
 # app/services/pedido_service.py
 # La inteligencia del módulo Inbound.
 import io
+from datetime import datetime
 import pandas as pd
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -340,3 +341,19 @@ def fijar_ubicacion(db: Session, pedido_id: int, latitud: float, longitud: float
 
     db.commit()
     return {"mensaje": "Ubicación actualizada", "codigo": pedido.codigo}
+
+
+def resolver_observado(db: Session, pedido_id: int, usuario_id: int | None = None) -> dict:
+    """Resuelve un pedido OBSERVADO (faltante/discrepancia ya aclarada): lo pasa a
+    LISTO_PARA_ENVIO. Recibe: pedido_id y el id del usuario (almacén/admin)."""
+    pedido = pedido_repository.obtener_por_id(db, pedido_id)
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    if pedido.estado != "OBSERVADO":
+        raise HTTPException(status_code=400, detail="Solo se puede resolver un pedido en estado OBSERVADO")
+    historial_repository.registrar(db, pedido.id, "OBSERVADO", "LISTO_PARA_ENVIO", usuario_id)
+    pedido.estado = "LISTO_PARA_ENVIO"
+    pedido.validado_en = datetime.utcnow()
+    pedido.validado_por = usuario_id
+    db.commit()
+    return {"mensaje": "Pedido resuelto: Listo para envío.", "codigo": pedido.codigo}

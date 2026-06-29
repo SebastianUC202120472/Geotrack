@@ -4,6 +4,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.models.solicitud_recojo import SolicitudRecojo
+from app.models.evidencia_recojo import EvidenciaRecojo
 from app.core.codigos import asignar_codigo, PREFIJO_RECOJO
 
 
@@ -51,6 +52,14 @@ def contar_pendientes_por_ruta(db: Session, ruta_id: int) -> int:
         .filter(SolicitudRecojo.ruta_id == ruta_id, SolicitudRecojo.estado != "RECOGIDO")
         .count()
     )
+
+
+def agregar_evidencia(db: Session, recojo_id: int, url_foto: str, secuencia: int) -> EvidenciaRecojo:
+    """Registra una foto de evidencia del recojo (no hace commit). Recibe: id del recojo,
+    URL servida en /media y el orden de captura."""
+    evidencia = EvidenciaRecojo(recojo_id=recojo_id, url_foto=url_foto, secuencia=secuencia)
+    db.add(evidencia)
+    return evidencia
 
 
 def guardar_cambios(db: Session) -> None:
