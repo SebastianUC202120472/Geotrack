@@ -52,7 +52,7 @@ def crear(db: Session, conductor_id: int, datos: ReporteCreate) -> dict:
     try:
         notificaciones_service.registrar(
             db, "reportes", "Nuevo reporte de entrega",
-            f"Pedido {pedido.codigo}: {datos.motivo.strip()}", "/pedidos", reporte.id)
+            f"Pedido {pedido.codigo}: {datos.motivo.strip()}", "/reportes?pendientes=1", reporte.id)
     except Exception:
         pass
     return _a_respuesta(db, reporte)

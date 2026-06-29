@@ -77,7 +77,9 @@ def obtener_resumen_ruta_activa(db: Session, conductor_id: int) -> RutaActivaRes
             fecha_creacion=ruta.fecha_creacion, fecha_salida=ruta.fecha_salida,
             vehiculo_placa=ruta.vehiculo_placa, total_paradas=total, pendientes=total - recogidas,
             entregadas=recogidas, fallidas=0, pausada=abierta is not None,
-            incidencia_id=abierta.id if abierta else None, tipo=ruta.tipo,
+            incidencia_id=abierta.id if abierta else None,
+            ayuda_enviada_en=abierta.ayuda_enviada_en if abierta else None,
+            ayuda_detalle=abierta.ayuda_detalle if abierta else None, tipo=ruta.tipo,
         )
 
     detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
@@ -90,7 +92,9 @@ def obtener_resumen_ruta_activa(db: Session, conductor_id: int) -> RutaActivaRes
         fecha_creacion=ruta.fecha_creacion, fecha_salida=ruta.fecha_salida,
         vehiculo_placa=ruta.vehiculo_placa, total_paradas=len(detalles), pendientes=pendientes,
         entregadas=entregadas, fallidas=fallidas, pausada=abierta is not None,
-        incidencia_id=abierta.id if abierta else None, tipo=ruta.tipo,
+        incidencia_id=abierta.id if abierta else None,
+        ayuda_enviada_en=abierta.ayuda_enviada_en if abierta else None,
+        ayuda_detalle=abierta.ayuda_detalle if abierta else None, tipo=ruta.tipo,
     )
 
 

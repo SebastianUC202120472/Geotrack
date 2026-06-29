@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check, Pencil, Trash2, Camera, KeyRound, Fuel, Route as RouteIcon, PiggyBank, Wrench } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
@@ -9,7 +10,6 @@ import Button from "../components/ui/Button";
 import Badge, { EstadoBadge } from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
 import SectionCard from "../components/ui/SectionCard";
-import ResolverIncidenciaModal from "../components/ResolverIncidenciaModal";
 import { listarConductores, crearConductor, actualizarConductor, eliminarConductor, subirFotoConductor, restablecerContrasenaConductor, urlMedia, obtenerEficienciaConductores, listarIncidencias } from "../services/api";
 import { validarNombre, validarCorreo, validarPassword, validarTelefono, validarDni, soloDigitos } from "../utils/validaciones";
 
@@ -17,6 +17,7 @@ import { validarNombre, validarCorreo, validarPassword, validarTelefono, validar
 // asignado y detalle en un modal. La cuenta (correo/contraseña) es la que el
 // conductor usa en la app móvil.
 export default function Conductores() {
+  const navigate = useNavigate();
   const [conductores, setConductores] = useState([]);
   // Mapa conductor_id -> datos de eficiencia (km recorridos/ahorrados, ahorro en S/).
   const [eficiencia, setEficiencia] = useState({});
@@ -24,8 +25,6 @@ export default function Conductores() {
   const [incidenciasAbiertas, setIncidenciasAbiertas] = useState({});
   const [cargando, setCargando] = useState(true);
   const [seleccionado, setSeleccionado] = useState(null);
-  // Incidencia seleccionada para el modal de auxilio integrado en la fila.
-  const [modalAuxilio, setModalAuxilio] = useState(null);
 
   const [form, setForm] = useState({ nombre: "", correo: "", contrasena: "", telefono: "", dni: "" });
   const [errores, setErrores] = useState({});
@@ -179,18 +178,19 @@ export default function Conductores() {
         const inc = incidenciasAbiertas[c.usuario_id];
         if (!inc) return null;
         // stopPropagation evita que el click del botón dispare onRowClick de la fila.
+        // Navega al apartado de Auxilio mecánico con el conductor preseleccionado.
         return (
           <button
             className="parpadeo-alerta inline-flex items-center gap-1.5 rounded-xl bg-danger px-3 py-1.5 text-xs font-semibold text-white"
             title={`Incidencia abierta: ${inc.codigo ?? `IN-${inc.id}`}`}
-            onClick={(e) => { e.stopPropagation(); setModalAuxilio(inc); }}
+            onClick={(e) => { e.stopPropagation(); navigate(`/auxilio?conductor=${c.usuario_id}&estado=ABIERTA`); }}
           >
             <Wrench size={13} /> Auxilio
           </button>
         );
       },
     },
-  ], [eficiencia, incidenciasAbiertas]);
+  ], [eficiencia, incidenciasAbiertas, navigate]);
 
   return (
     <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
@@ -273,17 +273,6 @@ export default function Conductores() {
             efic={eficiencia[seleccionado.usuario_id]}
             onCerrar={() => setSeleccionado(null)}
             onCambios={() => { setSeleccionado(null); cargar(); }}
-          />
-        )}
-      </Modal>
-
-      {/* Modal de auxilio mecánico integrado: se abre desde el botón de la fila del conductor */}
-      <Modal open={!!modalAuxilio} onClose={() => setModalAuxilio(null)} variant="center">
-        {modalAuxilio && (
-          <ResolverIncidenciaModal
-            incidencia={modalAuxilio}
-            onClose={() => setModalAuxilio(null)}
-            onResuelta={cargar}
           />
         )}
       </Modal>

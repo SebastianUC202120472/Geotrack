@@ -4,12 +4,12 @@ import { reportarIncidencia, subirEvidenciaIncidencia, reanudarRuta } from "@/ap
 import { claves } from "@/features/ruta/hooks";
 
 // Reporta un auxilio (con foto y coords opcionales) y refresca la ruta (queda pausada).
-// Devuelve: mutación que recibe { descripcion?, coords?, uriFoto? }.
+// Devuelve: mutación que recibe { descripcion?, coords?, uriFoto?, puedeSolucionarSolo? }.
 export function useReportarAuxilio() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ descripcion, coords, uriFoto }: { descripcion?: string; coords?: { latitud: number; longitud: number }; uriFoto?: string }) => {
-      const inc = await reportarIncidencia(descripcion, coords);
+    mutationFn: async ({ descripcion, coords, uriFoto, puedeSolucionarSolo }: { descripcion?: string; coords?: { latitud: number; longitud: number }; uriFoto?: string; puedeSolucionarSolo?: boolean }) => {
+      const inc = await reportarIncidencia(descripcion, coords, puedeSolucionarSolo ?? false);
       if (uriFoto) return subirEvidenciaIncidencia(inc.id, uriFoto);
       return inc;
     },
