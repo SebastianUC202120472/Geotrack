@@ -23,23 +23,19 @@ export async function sincronizar(qc: QueryClient): Promise<void> {
     for (const item of pendientes) {
       try {
         if (item.tipo === "ENTREGA") {
-          // Sub-paso 1: marcar ENTREGADO (idempotente en el backend). Solo si no se aplicó.
+          // Sub-paso 1: subir la foto POD (NO idempotente). Va PRIMERO porque el backend
+          // exige que la evidencia exista antes de aceptar el ENTREGADO. Solo si hay foto
+          // y no se subió aún.
+          if (item.fotoUri && !item.evidenciaSubida) {
+            await subirEvidencia(item.pedidoId, item.fotoUri);
+            await actualizar(item.id, { evidenciaSubida: true });
+            item.evidenciaSubida = true;
+          }
+          // Sub-paso 2: marcar ENTREGADO (idempotente en el backend). Solo si no se aplicó.
           if (!item.estadoAplicado) {
             await marcarEstadoParada(item.pedidoId, "ENTREGADO");
             await actualizar(item.id, { estadoAplicado: true });
             item.estadoAplicado = true;
-          }
-          // Sub-paso 2: subir la foto POD (NO idempotente). Solo si hay foto y no se subió.
-          if (item.fotoUri && !item.evidenciaSubida) {
-            try {
-              await subirEvidencia(item.pedidoId, item.fotoUri);
-              await actualizar(item.id, { evidenciaSubida: true });
-              item.evidenciaSubida = true;
-            } catch (e) {
-              if (esErrorDeRed(e)) throw e;   // sin señal: reintentar luego (sin re-postear nada hecho)
-              // MINOR 2: foto faltante / error no de red: avisamos en consola y continuamos.
-              console.warn(`[sync] No se pudo subir la evidencia del pedido ${item.pedidoId} (error no de red); la entrega quedó sin foto POD`);
-            }
           }
         } else {
           // Sub-paso 1: marcar FALLIDO (idempotente). Solo si no se aplicó.

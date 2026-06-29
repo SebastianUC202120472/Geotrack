@@ -13,8 +13,6 @@ from app.schemas.ruta import (
     RutaActivaResponse,
     ManifiestoResponse,
     NavegacionResponse,
-    ValidacionQRRequest,
-    ValidacionQRResponse,
     ActualizarEstadoRequest,
     GestionParadaResponse,
     CierreRutaResponse,
@@ -104,16 +102,6 @@ def consultar_navegacion(
     conductor: Usuario = Depends(get_current_conductor),
 ):
     return ruta_service.obtener_navegacion(db, conductor.id)
-
-
-# --- CUS-22: validación de paquete por QR en almacén (Fase 3.2) ---
-@router.post("/almacen/validar-qr", response_model=ValidacionQRResponse)
-def validar_paquete_qr(
-    solicitud: ValidacionQRRequest,
-    db: Session = Depends(get_db),
-    conductor: Usuario = Depends(get_current_conductor),
-):
-    return ruta_service.validar_paquete_qr(db, conductor.id, solicitud.codigo)
 
 
 # --- CUS-26: marcar entrega ENTREGADO / FALLIDO (Fase 3.3) ---

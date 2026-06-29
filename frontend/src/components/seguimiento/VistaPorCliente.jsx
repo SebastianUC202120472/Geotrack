@@ -63,7 +63,7 @@ export default function VistaPorCliente() {
   );
 }
 
-const MINI_DOT = { success: "bg-success", info: "bg-info", warning: "bg-warning", danger: "bg-danger" };
+const MINI_DOT = { success: "bg-success", info: "bg-info", warning: "bg-warning", danger: "bg-danger", neutral: "bg-slate-400" };
 
 // Conteo de un grupo dentro de la tarjeta del cliente (color + número + etiqueta).
 // Entrada: tono (string clave de MINI_DOT), valor (number), etiqueta (string).
@@ -124,12 +124,13 @@ function ClienteCard({ c }) {
         </div>
       </div>
 
-      {/* Desglose por estado */}
+      {/* Desglose por estado (CANCELADO se muestra aparte de Fallidos para no confundir) */}
       <div className="grid grid-cols-2 gap-2">
         <Mini tono="success" valor={c.entregados} etiqueta="Entregados" />
         <Mini tono="info" valor={c.en_proceso} etiqueta="En proceso" />
         <Mini tono="warning" valor={c.pendientes} etiqueta="Pendientes" />
         <Mini tono="danger" valor={c.fallidos} etiqueta="Fallidos" />
+        {c.cancelados > 0 && <Mini tono="neutral" valor={c.cancelados} etiqueta="Cancelados" />}
       </div>
 
       {/* CUS-36: liquidación del cliente (genera y descarga el Excel) */}

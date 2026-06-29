@@ -74,17 +74,6 @@ class NavegacionResponse(BaseModel):
     paradas: List[ParadaNavegacion]
 
 
-# FASE 3.2: Validación en almacén (CUS-22)
-class ValidacionQRRequest(BaseModel):
-    codigo: str  # el código PD-001 escaneado del QR
-
-
-class ValidacionQRResponse(BaseModel):
-    pertenece: bool
-    mensaje: str
-    parada: Optional[ParadaManifiesto] = None
-
-
 # FASE 3.3: Ejecución y evidencias (CUS-26 / CUS-29)
 class ActualizarEstadoRequest(BaseModel):
     estado: str  # ENTREGADO | FALLIDO
