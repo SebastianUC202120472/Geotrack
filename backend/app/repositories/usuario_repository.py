@@ -44,17 +44,31 @@ def obtener_por_id(db: Session, usuario_id: int) -> Optional[Usuario]:
     return db.query(Usuario).filter(Usuario.id == usuario_id).first()
 
 
-def crear_usuario(db: Session, correo: str, hash_contrasena: str, rol: str) -> Usuario:
+def crear_usuario(db: Session, correo: str, hash_contrasena: str, rol: str,
+                  nombre: str | None = None, dni: str | None = None,
+                  telefono: str | None = None, cargo: str | None = None) -> Usuario:
     """
-    Inserta un usuario nuevo en la base de datos.
+    Inserta un usuario nuevo en la base de datos (con sus datos personales opcionales).
     Nota: la contraseña ya llega ENCRIPTADA (el hash lo hace el servicio).
     """
-    nuevo = Usuario(correo=correo, hash_contrasena=hash_contrasena, rol=rol)
+    nuevo = Usuario(correo=correo, hash_contrasena=hash_contrasena, rol=rol,
+                    nombre=nombre, dni=dni, telefono=telefono, cargo=cargo)
     db.add(nuevo)                                   # lo prepara para guardar
     asignar_codigo(db, nuevo, prefijo_por_rol(rol))  # codigo legible AD-001 / CO-001
     db.commit()                                     # confirma el cambio en PostgreSQL
     db.refresh(nuevo)                               # recarga el objeto con el id ya asignado
     return nuevo
+
+
+def actualizar_datos_personales(db: Session, usuario: Usuario, campos: dict) -> Usuario:
+    """Actualiza los datos personales (nombre/dni/telefono/cargo) presentes en `campos`.
+    Recibe: el usuario y un dict con solo las claves a cambiar."""
+    for clave in ("nombre", "dni", "telefono", "cargo"):
+        if clave in campos:
+            setattr(usuario, clave, campos[clave])
+    db.commit()
+    db.refresh(usuario)
+    return usuario
 
 
 def actualizar_hash(db: Session, usuario_id: int, hash_contrasena: str) -> Optional[Usuario]:
