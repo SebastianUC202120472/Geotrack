@@ -1,0 +1,33 @@
+{
+  "name": "GeoTrack (SIOL · SAVA)",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20-bookworm",
+
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+
+  "forwardPorts": [8080, 8000, 8081, 19000, 19006],
+  "portsAttributes": {
+    "8080": { "label": "Panel web (admin / almacén)", "onAutoForward": "openBrowser" },
+    "8000": { "label": "API / Swagger", "visibility": "public" },
+    "8081": { "label": "Expo Metro" },
+    "19000": { "label": "Expo" },
+    "19006": { "label": "Expo Web" }
+  },
+
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "postStartCommand": "bash .devcontainer/up.sh",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-azuretools.vscode-docker",
+        "ms-python.python",
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss"
+      ]
+    }
+  },
+
+  "remoteUser": "node"
+}
