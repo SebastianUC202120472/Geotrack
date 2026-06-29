@@ -1,6 +1,7 @@
 // Pantalla de login del conductor (correo + contraseña). No hay registro: las
 // cuentas se crean desde el panel admin.
 import { useState } from "react";
+import { Image } from "expo-image";
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Screen } from "@/components/Screen";
@@ -70,9 +71,8 @@ export default function LoginScreen() {
         {/* Hero a sangre completa: el degradado sube bajo la barra de estado (sin hueco). */}
         <GradientHeader style={[estilos.cabecera, { paddingTop: insets.top + spacing.xxl }]}>
           <View style={estilos.marca}>
-            <View style={[estilos.logo, sombra(colors), { backgroundColor: colors.overlay }]}>
-              <Texto variante="display" color={colors.white}>G</Texto>
-            </View>
+            {/* Logo de la app en lugar del glifo "G". */}
+            <Image source={require("../../assets/logo.png")} style={estilos.logo} contentFit="contain" />
             <Texto variante="title" color={colors.white}>GeoTrack</Texto>
             <Texto variante="body" color={colors.white} style={estilos.subtitulo}>App del conductor</Texto>
           </View>
