@@ -8,8 +8,13 @@
 set -e
 cd "$(dirname "$0")/.."   # raíz del repo
 
-echo ">> Generando .env raíz..."
-cat > .env <<EOF
+if [ -n "${DOTENV}" ]; then
+  # OPCIÓN FÁCIL: pegaste tu .env completo en UN secreto llamado DOTENV. Se usa tal cual.
+  echo ">> Usando el secret DOTENV completo como .env"
+  printf '%s\n' "${DOTENV}" > .env
+else
+  echo ">> Generando .env raíz desde secretos individuales..."
+  cat > .env <<EOF
 # Generado automáticamente por el devcontainer. NO subir al repo.
 POSTGRES_USER=sava_admin
 POSTGRES_PASSWORD=sava_password123
@@ -41,10 +46,11 @@ SMTP_PORT=${SMTP_PORT:-587}
 MAIL_FOLDER=${MAIL_FOLDER:-INBOX}
 MAIL_FROM_NAME=${MAIL_FROM_NAME:-SAVA S.A.C.}
 EOF
+fi
 
-if [ -z "${DATABASE_URL}" ]; then
-  echo "!! AVISO: no hay Codespaces Secret DATABASE_URL. Se usará el Postgres local (vacío)."
-  echo "   Para ver tus datos de Supabase, agrega el secreto DATABASE_URL (ver .devcontainer/README.md)."
+if [ -z "${DOTENV}" ] && [ -z "${DATABASE_URL}" ]; then
+  echo "!! AVISO: no hay secret DOTENV ni DATABASE_URL. Se usará el Postgres local (vacío)."
+  echo "   Para ver tus datos de Supabase, agrega el secreto DOTENV o DATABASE_URL (ver .devcontainer/README.md)."
 fi
 
 echo ">> Generando mobile/.env (URL pública del backend en Codespaces)..."
