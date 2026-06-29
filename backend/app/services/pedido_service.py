@@ -74,11 +74,14 @@ def crear_pedido_desde_fila(
     recojo_id: int | None,
     estado: str,
     usuario_id: int | None,
+    geocodificar: bool = True,
 ) -> Pedido:
     """Construye y persiste un Pedido con el cliente ya resuelto por el llamador.
     Recibe: sesión DB, fila normalizada, objeto cliente, id de recojo origen (o None),
-    estado inicial y el id del usuario que ejecuta la acción.
-    Geocodifica el destino; si falla, conserva el estado recibido (lat/lng quedan en None)."""
+    estado inicial, el id del usuario que ejecuta la acción y si geocodificar en línea.
+    Si geocodificar=True intenta el destino al vuelo (si falla conserva el estado, lat/lng
+    quedan en None). Si geocodificar=False deja lat/lng en None para resolverlos después
+    (p.ej. en segundo plano al aceptar un recojo masivo, para no bloquear la petición)."""
     pedido = Pedido(
         referencia_externa=fila["referencia_externa"],
         cliente_id=cliente.id,
@@ -99,12 +102,13 @@ def crear_pedido_desde_fila(
 
     # Geocodificación inmediata; si falla se conserva el estado recibido (no GEOCODIFICACION_FALLIDA)
     # para no perder el estado semántico del pedido (p.ej. POR_RECOGER).
-    lat, lng = obtener_coordenadas(pedido.direccion_destino)
-    if lat and lng:
-        pedido.latitud = lat
-        pedido.longitud = lng
-        partes = pedido.direccion_destino.split(",")
-        pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
+    if geocodificar:
+        lat, lng = obtener_coordenadas(pedido.direccion_destino)
+        if lat and lng:
+            pedido.latitud = lat
+            pedido.longitud = lng
+            partes = pedido.direccion_destino.split(",")
+            pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
 
     return pedido
 
