@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.repositories import correo_repository
+from app.services import notificaciones_service
 
 # Prefijos típicos de respuesta/reenvío que quitamos para agrupar el hilo.
 _PREFIJOS = re.compile(r"^\s*(re|rv|fwd|fw)\s*:\s*", re.IGNORECASE)
@@ -153,6 +154,13 @@ def sincronizar(db: Session) -> dict:
             conv.no_leidos = (conv.no_leidos or 0) + 1
             conv.estado = "PENDIENTE"
             nuevos += 1
+            # Notifica al admin que llegó un correo entrante nuevo.
+            try:
+                notificaciones_service.registrar(
+                    db, "correos", "Nuevo correo entrante",
+                    f"De: {correo_origen or 'desconocido'} — {asunto or '(sin asunto)'}", "/bandeja", conv.id)
+            except Exception:
+                pass
 
         db.commit()
     except HTTPException:

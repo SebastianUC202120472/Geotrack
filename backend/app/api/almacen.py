@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.api.deps import get_current_almacen
 from app.models.usuario import Usuario
-from app.services import almacen_service, retorno_service, recojo_service
+from app.services import almacen_service, retorno_service, recojo_service, dashboard_service
 from app.schemas.almacen import (
     EscaneoRequest,
     EscaneoResponse,
@@ -20,6 +20,7 @@ from app.schemas.almacen import (
     EscaneoRetornoResponse,
 )
 from app.schemas.recojo import SolicitudArmarItem, AsignarRutaRecojoRequest, AsignarRutaRecojoResponse
+from app.schemas.dashboard import ConductorUbicacion
 
 router = APIRouter()
 
@@ -80,3 +81,11 @@ def asignar_ruta_recojo(datos: AsignarRutaRecojoRequest, db: Session = Depends(g
     """Arma la ruta de recojo (conductor + vehículo) con las solicitudes seleccionadas.
     Recibe: recojo_ids, conductor_id, vehiculo_placa y nombre opcional."""
     return recojo_service.asignar_ruta_recojo(db, datos, usuario.id)
+
+
+# --- Mapa de recojos en vivo ---
+@router.get("/flota/ubicaciones-recojo", response_model=List[ConductorUbicacion])
+def ubicaciones_recojo(db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
+    """Posiciones en vivo de los conductores en rutas de RECOJO activas.
+    Recibe: sesión de BD y usuario almacén autenticado."""
+    return dashboard_service.obtener_ubicaciones_flota(db, tipo="RECOJO")

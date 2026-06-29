@@ -1,4 +1,5 @@
 // Información de la app: nombre, versión y una breve descripción.
+import { Image } from "expo-image";
 import { ScrollView, StyleSheet, View } from "react-native";
 import Constants from "expo-constants";
 import { Screen } from "@/components/Screen";
@@ -19,9 +20,8 @@ export default function AcercaScreen() {
         <Aparecer>
           <Card>
             <View style={estilos.marca}>
-              <View style={[estilos.logo, { backgroundColor: colors.brand }]}>
-                <Texto variante="display" color={colors.white}>G</Texto>
-              </View>
+              {/* Logo de la app en lugar del glifo "G". */}
+              <Image source={require("../../assets/logo.png")} style={estilos.logo} contentFit="contain" />
               <Texto variante="title" color={colors.ink} style={{ marginTop: spacing.md }}>GeoTrack</Texto>
               <Texto variante="caption" color={colors.muted}>App del conductor · v{version}</Texto>
             </View>

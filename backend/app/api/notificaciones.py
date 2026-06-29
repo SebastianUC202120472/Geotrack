@@ -1,5 +1,5 @@
 # app/api/notificaciones.py
-# Endpoint del panel admin para obtener los contadores de avisos accionables.
+# Endpoints del panel admin para consultar y marcar notificaciones.
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -13,5 +13,11 @@ router = APIRouter()
 
 @router.get("", response_model=NotificacionesResponse, dependencies=[Depends(get_current_admin)])
 def listar_notificaciones(db: Session = Depends(get_db)):
-    """Feed de avisos accionables del admin (contadores por tipo)."""
-    return notificaciones_service.obtener(db)
+    """Historial de notificaciones del admin + contador de no vistas."""
+    return notificaciones_service.listar(db)
+
+
+@router.post("/marcar-vistas", dependencies=[Depends(get_current_admin)])
+def marcar_vistas(db: Session = Depends(get_db)):
+    """Marca todas las notificaciones como vistas; devuelve cuántas se marcaron."""
+    return {"marcadas": notificaciones_service.marcar_vistas(db)}

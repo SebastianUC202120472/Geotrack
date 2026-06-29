@@ -9,6 +9,7 @@ from app.repositories import reporte_repository, conductor_repository
 from app.models.pedido import Pedido
 from app.models.conductor import PerfilConductor
 from app.schemas.reporte import ReporteCreate, ResponderReporte
+from app.services import notificaciones_service
 
 
 def _a_respuesta(db: Session, r) -> dict:
@@ -47,6 +48,13 @@ def crear(db: Session, conductor_id: int, datos: ReporteCreate) -> dict:
         motivo=datos.motivo.strip(),
         descripcion=(datos.descripcion or None),
     )
+    # Notifica al admin que llegó un reporte de entrega fallida.
+    try:
+        notificaciones_service.registrar(
+            db, "reportes", "Nuevo reporte de entrega",
+            f"Pedido {pedido.codigo}: {datos.motivo.strip()}", "/pedidos", reporte.id)
+    except Exception:
+        pass
     return _a_respuesta(db, reporte)
 
 

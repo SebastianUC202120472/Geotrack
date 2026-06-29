@@ -1,14 +1,11 @@
 import { useEffect, useState } from "react";
-import { LogOut } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { obtenerResumen, listarRecojosAlmacen } from "../services/api";
 
 // Barra superior de escritorio: indicador de conexión (verde si el backend
-// responde) y botón de cerrar sesión. Entrada: ninguna (lee estado y auth).
+// responde). Entrada: ninguna (lee estado y auth).
 export default function Topbar() {
-  const navigate = useNavigate();
-  const { cerrarSesion, rol } = useAuth();
+  const { rol } = useAuth();
   const [enLinea, setEnLinea] = useState(null); // null = verificando
 
   // Revisa la conexión al montar y luego cada 20 s (y al volver el foco), para que
@@ -35,11 +32,6 @@ export default function Topbar() {
     };
   }, [rol]);
 
-  const salir = () => {
-    cerrarSesion();
-    navigate("/login", { replace: true });
-  };
-
   const estado =
     enLinea === null
       ? { txt: "Conectando…", cls: "bg-slate-100 text-slate-500", dot: "bg-slate-400" }
@@ -50,22 +42,21 @@ export default function Topbar() {
   return (
     <header className="hidden lg:flex items-center justify-end gap-3 border-b border-warm-200 bg-white px-8 py-3">
       {enLinea === null ? (
-        <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
+        <span
+          title="Verificando conexión…"
+          className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700"
+        >
           Actualizando <span className="updating-bar h-2 w-12 rounded-full" />
         </span>
       ) : (
-        <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${estado.cls}`}>
+        <span
+          title={enLinea ? "Servidor y base de datos conectados" : "Sin respuesta del servidor"}
+          className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${estado.cls}`}
+        >
           <span className={`h-2 w-2 rounded-full ${estado.dot} ${enLinea ? "live-dot text-success" : ""}`} />
           {estado.txt}
         </span>
       )}
-      <button
-        onClick={salir}
-        className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"
-      >
-        <LogOut size={16} />
-        Salir
-      </button>
     </header>
   );
 }

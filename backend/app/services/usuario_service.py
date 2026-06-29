@@ -7,6 +7,7 @@ from app.repositories import usuario_repository, solicitud_restablecimiento_repo
 from app.core.security import get_password_hash, verify_password, create_access_token
 from app.models.usuario import Usuario
 from app.schemas.usuario import UsuarioCreate, PersonalCreate, PersonalUpdate, PersonalResetContrasena
+from app.services import notificaciones_service
 
 # Mensaje genérico para la solicitud de restablecimiento: SIEMPRE el mismo, exista o
 # no el correo, para no revelar qué cuentas están registradas (anti-enumeración).
@@ -59,6 +60,13 @@ def solicitar_restablecimiento(db: Session, correo: str) -> dict:
     usuario = usuario_repository.obtener_por_correo(db, correo)
     if usuario and usuario.rol == "conductor" and usuario.estado:
         solicitud_restablecimiento_repository.crear_o_refrescar(db, usuario.id, correo)
+        # Notifica al admin que un conductor solicitó restablecimiento de contraseña.
+        try:
+            notificaciones_service.registrar(
+                db, "restablecimientos", "Restablecimiento solicitado",
+                f"Conductor: {correo}", "/conductores")
+        except Exception:
+            pass
     return {"mensaje": MENSAJE_SOLICITUD}
 
 

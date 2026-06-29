@@ -1,42 +1,42 @@
 import { useState } from "react";
 import { Search, Package, MapPin, Loader2, AlertCircle, Clock } from "lucide-react";
-import PageHeader from "../components/ui/PageHeader";
-import SectionCard from "../components/ui/SectionCard";
-import EmptyState from "../components/ui/EmptyState";
-import Button from "../components/ui/Button";
-import { EstadoBadge } from "../components/ui/Badge";
+import SectionCard from "./ui/SectionCard";
+import EmptyState from "./ui/EmptyState";
+import Button from "./ui/Button";
+import { EstadoBadge } from "./ui/Badge";
 import { obtenerHistorial } from "../services/api";
 
-// Trazabilidad de un paquete (CUS-35): búsqueda por código (PD-001) + ficha y
-// línea de tiempo de eventos.
-export default function Trazabilidad() {
+// Pestaña de trazabilidad de paquetes: buscador por código + ficha + línea de tiempo.
+// No recibe props; gestiona su propio estado de búsqueda.
+export default function TabTrazabilidad() {
   const [codigo, setCodigo] = useState("");
   const [historial, setHistorial] = useState(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
   const [buscado, setBuscado] = useState(false);
 
-  const buscar = async (e) => {
+  // Lanza la búsqueda del historial del código ingresado (PD-001, RT-001…).
+  const buscar = (e) => {
     e.preventDefault();
     if (!codigo.trim()) return;
     setCargando(true);
     setError("");
     setHistorial(null);
     setBuscado(true);
-    try {
-      setHistorial(await obtenerHistorial(codigo.trim()));
-    } catch (err) {
-      setError(err.message || "No se encontró el paquete.");
-    } finally {
-      setCargando(false);
-    }
+    obtenerHistorial(codigo.trim())
+      .then((data) => {
+        setCargando(false);
+        setHistorial(data);
+      })
+      .catch((err) => {
+        setCargando(false);
+        setError(err.message || "No se encontró el paquete.");
+      });
   };
 
   return (
-    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
-      <PageHeader titulo="Trazabilidad de Paquetes" subtitulo="Consulta la línea de tiempo de un pedido (CUS-35)." />
-
-      {/* Buscador con Input estilizado */}
+    <div className="space-y-6 animate-fade-in">
+      {/* Buscador */}
       <div className="rounded-card border border-slate-200 bg-white p-5 shadow-card animate-fade-up">
         <form onSubmit={buscar} className="flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
@@ -82,7 +82,7 @@ export default function Trazabilidad() {
         </div>
       )}
 
-      {/* Resultados */}
+      {/* Resultados: ficha + línea de tiempo */}
       {historial && (
         <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
           {/* Ficha del pedido */}
@@ -139,6 +139,7 @@ export default function Trazabilidad() {
   );
 }
 
+// Fila de dato etiqueta/valor con ícono opcional.
 function Dato({ etiqueta, valor, icono: Icono }) {
   return (
     <div className="flex items-start gap-2 text-sm">

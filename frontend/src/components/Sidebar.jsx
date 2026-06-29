@@ -10,7 +10,6 @@ import {
   UserCog,
   SlidersHorizontal,
   MapPin,
-  Search,
   LogOut,
   PackageCheck,
   Undo2,
@@ -54,19 +53,13 @@ const secciones = [
     ],
   },
   {
-    titulo: "Consulta",
-    roles: ["admin"],
-    items: [
-      { icon: Search, label: "Trazabilidad", path: "/trazabilidad" },
-    ],
-  },
-  {
     titulo: "Almacén",
     roles: ["almacen"],
     items: [
       { icon: RouteIcon, label: "Armar ruta de recojo", path: "/almacen/recojos" },
       { icon: PackageCheck, label: "Ingreso a Almacén", path: "/almacen" },
       { icon: Undo2, label: "Retornos de Ruta", path: "/almacen/retornos" },
+      { icon: MapPin, label: "Mapa de recojos", path: "/almacen/mapa" },
     ],
   },
 ];
