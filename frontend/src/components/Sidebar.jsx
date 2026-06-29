@@ -13,6 +13,8 @@ import {
   LogOut,
   PackageCheck,
   Undo2,
+  ClipboardList,
+  Wrench,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -42,6 +44,14 @@ const secciones = [
       { icon: Users, label: "Conductores", path: "/conductores" },
       { icon: Building2, label: "Clientes", path: "/clientes" },
       { icon: MapPin, label: "Seguimiento de Conductores", path: "/seguimiento-conductores" },
+    ],
+  },
+  {
+    titulo: "Trazabilidad",
+    roles: ["admin"],
+    items: [
+      { icon: ClipboardList, label: "Historial de Reportes", path: "/reportes" },
+      { icon: Wrench, label: "Historial de Auxilio", path: "/auxilio" },
     ],
   },
   {
