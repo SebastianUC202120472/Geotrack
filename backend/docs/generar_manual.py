@@ -269,7 +269,7 @@ def build():
     story.append(P("Estados (máquina de estados)", "h2"))
     story.append(tabla([
         [P("Entidad", "cellb"), P("Estados posibles", "cellb")],
-        [P("Pedido", "cell"), P("PENDIENTE → ASIGNADO → EN_RUTA → ENTREGADO / FALLIDO (o GEOCODIFICACION_FALLIDA)", "cell")],
+        [P("Pedido", "cell"), P("POR_RECOGER / OBSERVADO → LISTO_PARA_ENVIO → ASIGNADO → EN_RUTA → ENTREGADO / FALLIDO (o GEOCODIFICACION_FALLIDA)", "cell")],
         [P("Ruta", "cell"), P("CREADA → EN_PROGRESO → FINALIZADA", "cell")],
         [P("Entrega (detalle)", "cell"), P("PENDIENTE → ENTREGADO / FALLIDO", "cell")],
     ], [3.5 * cm, 12 * cm]))
@@ -394,7 +394,7 @@ def build():
     story.append(P("6.5 Enrutamiento  (/api/rutas)", "h2"))
     story.append(endpoint(
         "POST", "/api/rutas/asignar-bloque", "admin",
-        "Crea una ruta para un conductor con TODOS los pedidos PENDIENTES de un distrito (CUS-18).",
+        "Crea una ruta para un conductor con TODOS los pedidos LISTO_PARA_ENVIO de un distrito (CUS-18).",
         code('{\n  "nombre_ruta": "Ruta San Miguel - Mañana",\n  "distrito": "San Miguel",\n  "conductor_id": 2\n}'),
         code('{\n  "mensaje": "3 pedidos asignados...",\n  "ruta_id": 1, "codigo": "RT-001"\n}'),
         "ruta_service → ruta_repository + pedido_repository + historial_repository.",
@@ -469,7 +469,7 @@ def build():
         "GET", "/api/dashboard/resumen", "admin",
         "KPIs globales: total de pedidos por estado y conteo de rutas (CUS-33).",
         "Ninguno.",
-        code('{ "total_pedidos": 5,\n  "pedidos_por_estado": {"ENTREGADO": 2, "PENDIENTE": 3},\n  "total_rutas": 1, "rutas_activas": 1, "rutas_finalizadas": 0 }'),
+        code('{ "total_pedidos": 5,\n  "pedidos_por_estado": {"ENTREGADO": 2, "LISTO_PARA_ENVIO": 3},\n  "total_rutas": 1, "rutas_activas": 1, "rutas_finalizadas": 0 }'),
         "dashboard_service → pedido_repository + ruta_repository.",
     ))
     story.append(endpoint(
@@ -484,7 +484,7 @@ def build():
         "Línea de tiempo COMPLETA de un paquete por su código PD-NNN (CUS-35): cada cambio de estado, "
         "cuándo y quién lo hizo.",
         code('Ruta: el codigo del pedido en la URL (ej. PD-001)'),
-        code('{ "codigo": "PD-001", "estado_actual": "ENTREGADO",\n  "ruta_asignada": "RT-001",\n  "eventos": [\n   {"evento":"PENDIENTE","realizado_por":"admin@siol.com"},\n   {"evento":"ASIGNADO", ...},\n   {"evento":"EN_RUTA", "realizado_por":"c@siol.com"},\n   {"evento":"ENTREGADO", ...} ] }'),
+        code('{ "codigo": "PD-001", "estado_actual": "ENTREGADO",\n  "ruta_asignada": "RT-001",\n  "eventos": [\n   {"evento":"LISTO_PARA_ENVIO","realizado_por":"admin@siol.com"},\n   {"evento":"ASIGNADO", ...},\n   {"evento":"EN_RUTA", "realizado_por":"c@siol.com"},\n   {"evento":"ENTREGADO", ...} ] }'),
         "dashboard_service → historial_repository (tabla historial_pedidos) + pedido/ruta.",
     ))
     story.append(PageBreak())

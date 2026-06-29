@@ -222,18 +222,23 @@ def aceptar_solicitud(
 
 
 def geocodificar_pedidos_recojo(recojo_id: int) -> None:
-    """Tarea en segundo plano: geocodifica los pedidos de un recojo recién aceptado, uno por
-    uno (respetando el límite de 1 req/s de Nominatim), SIN bloquear la respuesta del upload.
-    Abre su PROPIA sesión de BD porque la de la petición ya se cerró al responder. Hace commit
-    por pedido para que vayan apareciendo ubicados en el panel a medida que se resuelven.
-    Recibe: id del recojo cuyos pedidos POR_RECOGER aún no tienen coordenadas."""
+    """Tarea en segundo plano: geocodifica los pedidos de un recojo (al aceptar la solicitud o
+    al confirmar el ingreso), uno por uno (respetando el límite de 1 req/s de Nominatim), SIN
+    bloquear la respuesta. Abre su PROPIA sesión de BD porque la de la petición ya se cerró.
+    Hace commit por pedido para que vayan apareciendo ubicados en el panel. Solo geocodifica
+    los que van a despacho (POR_RECOGER / LISTO_PARA_ENVIO); salta OBSERVADO para no gastar
+    cuota en pedidos que quizá no se envíen. Recibe: id del recojo."""
     from app.db.database import SessionLocal
 
     db = SessionLocal()
     try:
         pedidos = (
             db.query(Pedido)
-            .filter(Pedido.recojo_id == recojo_id, Pedido.latitud.is_(None))
+            .filter(
+                Pedido.recojo_id == recojo_id,
+                Pedido.latitud.is_(None),
+                Pedido.estado.in_(("POR_RECOGER", "LISTO_PARA_ENVIO")),
+            )
             .all()
         )
         for pedido in pedidos:
