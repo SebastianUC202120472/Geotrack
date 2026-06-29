@@ -83,9 +83,10 @@ function LeyendaMapa({ hayClientes }) {
 }
 
 // Mapa de la flota con Google Maps (se usa cuando hay VITE_GOOGLE_MAPS_KEY).
-// Entrada: `conductores` (ConductorUbicacion[] con _color), `apiKey`, y
-// `seleccionado` (conductor_id a centrar al hacer clic en la lista).
-export default function MapaFlotaGoogle({ conductores, apiKey, seleccionado }) {
+// Entrada: `conductores` (ConductorUbicacion[] con _color), `apiKey`,
+// `seleccionado` (conductor_id a centrar al hacer clic en la lista) y `mostrar`
+// = qué capa dibujar: "TODO" (conductores + pedidos) | "CONDUCTORES" | "PEDIDOS".
+export default function MapaFlotaGoogle({ conductores, apiKey, seleccionado, mostrar = "TODO" }) {
   const { isLoaded, loadError } = useJsApiLoader({ id: "gmaps-script", googleMapsApiKey: apiKey });
   const [abierto, setAbierto] = useState(null); // id del marcador con InfoWindow abierto
   const mapRef = useRef(null);
@@ -175,7 +176,7 @@ export default function MapaFlotaGoogle({ conductores, apiKey, seleccionado }) {
           const color = c._color || "#2563EB";
           return (
             <Fragment key={c.conductor_id}>
-              {c.paradas.map((p, i) => {
+              {mostrar !== "CONDUCTORES" && c.paradas.map((p, i) => {
                 const id = `parada-${c.conductor_id}-${i}`;
                 const orden = p.secuencia ?? i + 1;
                 // El color de la gota sale del estado de entrega (no del conductor).
@@ -201,7 +202,7 @@ export default function MapaFlotaGoogle({ conductores, apiKey, seleccionado }) {
               })}
 
               {/* Clientes corporativos (orígenes de recojo) — icono de edificio */}
-              {(c.clientes || []).map((cl, i) => {
+              {mostrar !== "CONDUCTORES" && (c.clientes || []).map((cl, i) => {
                 const id = `cliente-${c.conductor_id}-${i}`;
                 return (
                   <MarkerF
@@ -223,7 +224,7 @@ export default function MapaFlotaGoogle({ conductores, apiKey, seleccionado }) {
                 );
               })}
 
-              {c.latitud != null && c.longitud != null && (
+              {mostrar !== "PEDIDOS" && c.latitud != null && c.longitud != null && (
                 <MarkerF
                   position={{ lat: c.latitud, lng: c.longitud }}
                   icon={circulo(color, c.en_linea ? 0.95 : 0.45)}
