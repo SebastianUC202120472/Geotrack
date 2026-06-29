@@ -11,6 +11,7 @@ import Modal from "../components/ui/Modal";
 import ResolverDireccionModal from "../components/ResolverDireccionModal";
 import VistaPorRuta from "../components/seguimiento/VistaPorRuta";
 import VistaPorCliente from "../components/seguimiento/VistaPorCliente";
+import TabTrazabilidad from "../components/TabTrazabilidad";
 import { listarPedidos, listarZonas, obtenerHistorial, reprogramarPedido, cancelarPedido, responderReporte, listarReportes } from "../services/api";
 
 const POR_PAGINA = 12;
@@ -32,6 +33,7 @@ const VISTAS = [
   { id: "lista", label: "Lista", icon: List },
   { id: "ruta", label: "Por ruta", icon: Truck },
   { id: "cliente", label: "Por cliente", icon: Building2 },
+  { id: "trazabilidad", label: "Trazabilidad", icon: Search },
 ];
 
 // Explorador de pedidos: buscar, filtrar (zona, estado, fecha) y abrir el detalle
@@ -228,9 +230,10 @@ export default function Pedidos() {
         </div>
       </div>
 
-      {/* Vista Por ruta / Por cliente (autocontenidas) */}
+      {/* Vista Por ruta / Por cliente / Trazabilidad (autocontenidas) */}
       {vista === "ruta" && <VistaPorRuta />}
       {vista === "cliente" && <VistaPorCliente />}
+      {vista === "trazabilidad" && <TabTrazabilidad />}
 
       {/* Vista Lista: KPIs + filtros + tabla */}
       {vista === "lista" && <>

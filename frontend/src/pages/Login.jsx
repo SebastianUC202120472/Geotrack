@@ -54,7 +54,7 @@ export default function Login() {
             tu flota en tiempo real desde un solo panel.
           </p>
         </div>
-        <p className="relative z-10 text-xs text-slate-500">© SIOL · SAVA — GeoTrack</p>
+        <p className="relative z-10 text-xs text-slate-500">© SAVA S.A.C — GeoTrack</p>
       </div>
 
       {/* Formulario */}

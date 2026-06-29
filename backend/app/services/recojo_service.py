@@ -13,6 +13,7 @@ from app.models.cliente import ClienteCorporativo
 from app.models.ruta import Ruta
 from app.repositories import recojo_repository, ruta_repository, incidencia_repository
 from app.services.geocoder import obtener_coordenadas
+from app.services import notificaciones_service
 from app.services.router import optimizar_secuencia_pedidos, distancia_total
 from app.schemas.recojo import (
     SolicitudRecojoCreate,
@@ -71,6 +72,13 @@ def crear_solicitud(db: Session, datos: SolicitudRecojoCreate, usuario_id: int |
     recojo_repository.agregar(db, recojo)
     recojo_repository.guardar_cambios(db)
     db.refresh(recojo)
+    # Notifica al admin que llegó una solicitud de recojo nueva.
+    try:
+        notificaciones_service.registrar(
+            db, "recojos", "Nueva solicitud de recojo",
+            f"{cliente.razon_social} — {direccion}", "/bandeja", recojo.id)
+    except Exception:
+        pass
     return recojo
 
 

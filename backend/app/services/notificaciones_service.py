@@ -1,28 +1,53 @@
 # app/services/notificaciones_service.py
-# Lógica de negocio para el feed de notificaciones del panel admin.
+# Lógica de negocio para el historial de notificaciones del panel admin.
 from sqlalchemy.orm import Session
 
-from app.repositories import reporte_repository, incidencia_repository
-from app.models.solicitud_recojo import SolicitudRecojo
-from app.models.correo import Conversacion
-from app.models.solicitud_restablecimiento import SolicitudRestablecimiento
+from app.models.notificacion import Notificacion
 
 
-def obtener(db: Session) -> dict:
-    """Agrega los avisos accionables del admin en un solo feed. Recibe: sesión de BD."""
-    reportes = reporte_repository.contar_abiertos(db)
-    incidencias = incidencia_repository.contar_abiertas(db)
-    recojos = db.query(SolicitudRecojo).filter(SolicitudRecojo.estado == "SOLICITADO").count()
-    correos = db.query(Conversacion).filter(Conversacion.estado == "PENDIENTE").count()
-    restablecimientos = db.query(SolicitudRestablecimiento).filter(SolicitudRestablecimiento.estado == "PENDIENTE").count()
+def registrar(db: Session, tipo: str, titulo: str, mensaje: str = None,
+              ruta: str = None, entidad_id: int = None) -> Notificacion:
+    """Registra una notificación del admin en su propia transacción (best-effort): no
+    depende del commit del flujo que la origina ni lo afecta; si algo falla, revierte y
+    devuelve None sin romper nada.
+    Recibe: sesión de BD, tipo, título, mensaje opcional, ruta opcional, id de entidad opcional."""
+    try:
+        n = Notificacion(tipo=tipo, titulo=titulo, mensaje=mensaje,
+                         ruta=ruta, entidad_id=entidad_id)
+        db.add(n)
+        db.commit()
+        db.refresh(n)
+        return n
+    except Exception:
+        db.rollback()
+        return None
 
-    items = [
-        {"tipo": "reportes", "etiqueta": "Reportes de entrega", "count": reportes, "ruta": "/pedidos"},
-        {"tipo": "incidencias", "etiqueta": "Auxilio mecánico", "count": incidencias, "ruta": "/conductores"},
-        {"tipo": "recojos", "etiqueta": "Solicitudes de recojo", "count": recojos, "ruta": "/bandeja"},
-        {"tipo": "correos", "etiqueta": "Bandeja de correos", "count": correos, "ruta": "/bandeja"},
-        {"tipo": "restablecimientos", "etiqueta": "Restablecer contraseña", "count": restablecimientos, "ruta": "/conductores"},
-    ]
-    # Solo se incluyen los tipos con al menos un aviso pendiente.
-    items = [i for i in items if i["count"] > 0]
-    return {"total": sum(i["count"] for i in items), "items": items}
+
+def listar(db: Session, limite: int = 50) -> dict:
+    """Devuelve las últimas notificaciones y el total de no vistas.
+    Recibe: sesión de BD, límite de registros a devolver."""
+    items = (
+        db.query(Notificacion)
+        .order_by(Notificacion.creado_en.desc())
+        .limit(limite)
+        .all()
+    )
+    no_vistas = (
+        db.query(Notificacion)
+        .filter(Notificacion.visto_en == None)  # noqa: E711
+        .count()
+    )
+    return {"no_vistas": no_vistas, "items": items}
+
+
+def marcar_vistas(db: Session) -> int:
+    """Marca todas las notificaciones no vistas como vistas; devuelve cuántas se marcaron.
+    Recibe: sesión de BD."""
+    from datetime import datetime
+    n = (
+        db.query(Notificacion)
+        .filter(Notificacion.visto_en == None)  # noqa: E711
+        .update({Notificacion.visto_en: datetime.utcnow()})
+    )
+    db.commit()
+    return n
