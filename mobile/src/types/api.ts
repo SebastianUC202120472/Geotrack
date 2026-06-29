@@ -23,6 +23,10 @@ export interface RutaActiva {
   fallidas: number;
   pausada?: boolean;          // CUS-30: la ruta está pausada por un auxilio mecánico
   incidencia_id?: number | null;
+  // CUS-30: si el admin ya mandó ayuda, la ruta-activa expone el sello y el detalle
+  // (ej. "Grúa: en 30 min") para mostrar el aviso "Ayuda en camino" en el móvil.
+  ayuda_enviada_en?: string | null;
+  ayuda_detalle?: string | null;
   tipo?: string; // "ENTREGA" | "RECOJO" — la app elige el flujo de entregas o recepción
 }
 
@@ -156,6 +160,11 @@ export interface Incidencia {
   creado_en?: string | null;
   resuelto_en?: string | null;
   nota_resolucion?: string | null;
+  // CUS-30: el conductor indica al reportar si puede resolver la avería él mismo.
+  puede_solucionar_solo?: boolean;
+  // CUS-30: cuando el admin "manda ayuda" se sellan estos campos (null si aún no la envía).
+  ayuda_enviada_en?: string | null;   // fecha-hora ISO en que el admin mandó ayuda
+  ayuda_detalle?: string | null;      // descripción de la ayuda (ej. "Grúa: en 30 min")
 }
 
 // Un punto de origen de la ruta de recojo (GET /conductor/recojo/manifiesto).

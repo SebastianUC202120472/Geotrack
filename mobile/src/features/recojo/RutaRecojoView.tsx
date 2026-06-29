@@ -126,6 +126,17 @@ export function RutaRecojoView() {
           <Card style={{ backgroundColor: colors.dangerSoft }}>
             <Texto variante="bodyMedium" color={colors.danger}>🛠️ Ruta pausada por avería</Texto>
             <Texto variante="caption" color={colors.danger} style={{ marginTop: 2, marginBottom: spacing.sm }}>Reanúdala para seguir recogiendo.</Texto>
+            {/* CUS-30: si el admin ya mandó ayuda, se destaca el aviso "Ayuda en camino". */}
+            {ruta.data?.ayuda_enviada_en && (
+              <Card style={{ backgroundColor: colors.brandSoft, marginBottom: spacing.sm }}>
+                <Texto variante="bodyMedium" color={colors.brand}>🚐 Ayuda en camino</Texto>
+                {ruta.data.ayuda_detalle && (
+                  <Texto variante="caption" color={colors.brandInk} style={{ marginTop: 2 }}>
+                    {ruta.data.ayuda_detalle}
+                  </Texto>
+                )}
+              </Card>
+            )}
             <Button titulo="Reanudar ruta" onPress={reanudarRutaActiva} cargando={reanudar.isPending} />
           </Card>
         ) : (
