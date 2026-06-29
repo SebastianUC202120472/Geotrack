@@ -54,7 +54,7 @@ def reordenar_paradas(ruta_id: int, datos: ReordenarRequest, db: Session = Depen
 
 @router.delete("/{ruta_id}/paradas/{pedido_id}", dependencies=[Depends(get_current_admin)])
 def quitar_parada(ruta_id: int, pedido_id: int, db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
-    """CUS-20: quita un pedido de la ruta (vuelve a PENDIENTE)."""
+    """CUS-20: quita un pedido de la ruta (vuelve a LISTO_PARA_ENVIO)."""
     return ruta_service.quitar_parada(db, ruta_id, pedido_id, usuario_id=admin.id)
 
 

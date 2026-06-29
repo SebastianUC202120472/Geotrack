@@ -28,8 +28,9 @@ class Pedido(Base):
     longitud = Column(Float, nullable=True)
     peso_kg = Column(Float, nullable=True)
     volumen_m3 = Column(Float, nullable=True)
-    # POR_RECOGER -> PENDIENTE -> ASIGNADO -> EN_RUTA -> ENTREGADO / FALLIDO
-    estado = Column(String(50), default="PENDIENTE")
+    # POR_RECOGER -> OBSERVADO (faltante en almacén) | LISTO_PARA_ENVIO -> ASIGNADO -> EN_RUTA
+    #   -> ENTREGADO / FALLIDO. (Otros: GEOCODIFICACION_FALLIDA, CANCELADO)
+    estado = Column(String(50), default="LISTO_PARA_ENVIO")
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
     fecha_entrega = Column(DateTime, nullable=True)  # se sella al marcar ENTREGADO (CUS-26)
 
