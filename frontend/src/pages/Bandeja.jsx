@@ -24,6 +24,8 @@ export default function Bandeja() {
   const [sincronizando, setSincronizando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState(null);
+  // Datos del correo cuando se pulsa "Crear recojo" en un hilo; precarga el formulario.
+  const [solicitudDesdeCorreo, setSolicitudDesdeCorreo] = useState(null);
 
   // Carga la lista de conversaciones del backend.
   const cargarLista = () => {
@@ -176,8 +178,20 @@ export default function Bandeja() {
             title={detalle ? detalle.asunto : "Conversación"}
             action={detalle && (
               <div className="flex items-center gap-2">
-                {/* Atajo: cambia a la pestaña de registrar solicitud */}
-                <Button variant="secondary" size="sm" icon={Inbox} onClick={() => setPestana("registrar")}>
+                {/* Atajo: cambia a la pestaña de registrar solicitud precargando el cliente del correo */}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={Inbox}
+                  onClick={() => {
+                    setSolicitudDesdeCorreo({
+                      conversacion_id: detalle.id,
+                      nombre: detalle.contraparte_nombre,
+                      email: detalle.contraparte_email,
+                    });
+                    setPestana("registrar");
+                  }}
+                >
                   Crear recojo
                 </Button>
                 <Button variant="ghost" size="sm" onClick={alternarEstado}>
@@ -262,7 +276,7 @@ export default function Bandeja() {
       {/* Pestaña: Registrar solicitud (formulario de aceptación) */}
       {pestana === "registrar" && (
         <div className="animate-fade-up" style={{ animationDelay: "60ms" }}>
-          <FormAceptarSolicitud />
+          <FormAceptarSolicitud desdeCorreo={solicitudDesdeCorreo} />
         </div>
       )}
     </div>

@@ -14,7 +14,7 @@ import {
   PackageCheck,
   Undo2,
 } from "lucide-react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Logo from "./ui/Logo";
 import CampanaNotificaciones from "./CampanaNotificaciones";
@@ -66,6 +66,7 @@ const secciones = [
 
 export default function Sidebar({ onNavigate }) {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const { cerrarSesion, rol } = useAuth();
   const visibles = secciones.filter((s) => !s.roles || s.roles.includes(rol));
 
@@ -94,22 +95,19 @@ export default function Sidebar({ onNavigate }) {
             </p>
             <div className="space-y-1">
               {seccion.items.map(({ icon: Icon, label, path }) => (
-                <NavLink
+                <button
                   key={path}
-                  to={path}
-                  end={path === "/"}
-                  onClick={onNavigate}
-                  className={({ isActive }) =>
-                    `group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
-                      isActive
-                        ? "bg-gradient-to-r from-brand-600 to-brand-700 text-white shadow-[0_4px_12px_rgba(37,99,235,0.35)]"
-                        : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                    }`
-                  }
+                  onClick={() => { navigate(path); onNavigate?.(); }}
+                  aria-current={pathname === path ? "page" : undefined}
+                  className={`group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
+                    pathname === path
+                      ? "bg-gradient-to-r from-brand-600 to-brand-700 text-white shadow-[0_4px_12px_rgba(37,99,235,0.35)]"
+                      : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                  }`}
                 >
                   <Icon size={18} />
                   <span>{label}</span>
-                </NavLink>
+                </button>
               ))}
             </div>
           </div>

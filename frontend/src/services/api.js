@@ -349,12 +349,13 @@ export const cancelarPedido = (id) => request(`/pedidos/${id}/cancelar`, { metho
 ============================================================ */
 
 // Acepta una solicitud de recojo: sube el Excel del cliente y crea los pedidos en POR_RECOGER.
-// Entrada: clienteId (number), archivo (File), extras {referencia?, contacto_origen?}.
+// Entrada: clienteId (number), archivo (File), extras {referencia?, contacto_origen?, conversacion_id?}.
 export const aceptarSolicitud = (clienteId, archivo, extras = {}) => {
   const fd = new FormData();
   fd.append("cliente_id", clienteId);
   if (extras.referencia) fd.append("referencia", extras.referencia);
   if (extras.contacto_origen) fd.append("contacto_origen", extras.contacto_origen);
+  if (extras.conversacion_id) fd.append("conversacion_id", extras.conversacion_id);
   fd.append("file", archivo);
   return request("/recojos/aceptar", { method: "POST", body: fd });
 };
