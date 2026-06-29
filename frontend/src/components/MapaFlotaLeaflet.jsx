@@ -114,8 +114,9 @@ function LeyendaMapa({ hayClientes }) {
 }
 
 // Mapa de la flota con OpenStreetMap (gratis, sin API key). Fallback de Google Maps.
-// Entrada: `conductores` (ConductorUbicacion[] con _color), `seleccionado` (conductor_id).
-export default function MapaFlotaLeaflet({ conductores, seleccionado }) {
+// Entrada: `conductores` (ConductorUbicacion[] con _color), `seleccionado` (conductor_id),
+// `mostrar` = qué capa dibujar: "TODO" (conductores + pedidos) | "CONDUCTORES" | "PEDIDOS".
+export default function MapaFlotaLeaflet({ conductores, seleccionado, mostrar = "TODO" }) {
   const puntos = [];
   conductores.forEach((c) => {
     if (c.latitud != null && c.longitud != null) puntos.push([c.latitud, c.longitud]);
@@ -141,7 +142,7 @@ export default function MapaFlotaLeaflet({ conductores, seleccionado }) {
           return (
             <Fragment key={c.conductor_id}>
               {/* El color de la gota sale del estado de entrega (no del conductor). */}
-              {c.paradas.map((p, i) => (
+              {mostrar !== "CONDUCTORES" && c.paradas.map((p, i) => (
                 <Marker
                   key={`parada-${c.conductor_id}-${i}`}
                   position={[p.latitud, p.longitud]}
@@ -156,7 +157,7 @@ export default function MapaFlotaLeaflet({ conductores, seleccionado }) {
               ))}
 
               {/* Clientes corporativos (orígenes de recojo) — icono de edificio */}
-              {(c.clientes || []).map((cl, i) => (
+              {mostrar !== "CONDUCTORES" && (c.clientes || []).map((cl, i) => (
                 <Marker
                   key={`cliente-${c.conductor_id}-${i}`}
                   position={[cl.latitud, cl.longitud]}
@@ -170,7 +171,7 @@ export default function MapaFlotaLeaflet({ conductores, seleccionado }) {
                 </Marker>
               ))}
 
-              {c.latitud != null && c.longitud != null && (
+              {mostrar !== "PEDIDOS" && c.latitud != null && c.longitud != null && (
                 <CircleMarker
                   center={[c.latitud, c.longitud]}
                   radius={10}
