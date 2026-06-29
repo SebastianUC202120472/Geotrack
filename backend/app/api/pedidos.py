@@ -1,6 +1,6 @@
 # app/api/pedidos.py
 # Expone las URLs del módulo Inbound (gestión de pedidos del admin).
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -65,3 +65,12 @@ def reprogramar_pedido(pedido_id: int, db: Session = Depends(get_db), admin: Usu
 def cancelar_pedido(pedido_id: int, db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
     """CUS-31: cancela definitivamente un pedido FALLIDO (estado CANCELADO)."""
     return pedido_service.cancelar(db, pedido_id, usuario_id=admin.id)
+
+
+@router.post("/regeocodificar")
+def regeocodificar(background_tasks: BackgroundTasks, admin: Usuario = Depends(get_current_admin)):
+    """Re-geocodifica en segundo plano los pedidos no terminales para refrescar sus coordenadas
+    (útil tras activar Google Geocoding: corrige los puntos apilados de Nominatim). Responde al
+    instante; el avance se ve en el mapa a medida que se resuelven."""
+    background_tasks.add_task(pedido_service.regeocodificar_pedidos)
+    return {"mensaje": "Re-geocodificación iniciada en segundo plano"}

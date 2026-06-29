@@ -22,7 +22,7 @@ from app.schemas.dashboard import (
 
 
 ESTADOS_RUTA_ACTIVA = ("CREADA", "EN_PROGRESO")
-UMBRAL_EN_LINEA_SEG = 120  # un conductor está "en línea" si su última señal tiene < 2 min
+UMBRAL_EN_LINEA_SEG = 300  # "en línea" si su última señal tiene < 5 min (colchón con el envío en 2do plano)
 
 # Texto legible para cada estado, usado en la línea de tiempo (CUS-35).
 DESCRIPCIONES_ESTADO = {
@@ -127,10 +127,12 @@ def obtener_ubicaciones_flota(db: Session, tipo: str | None = None) -> list[Cond
                 if r.estado != "RECOGIDO" and r.latitud is not None and r.longitud is not None
             ]
         else:
+            # TODAS las paradas de la ruta (no solo pendientes) para que el mapa muestre el
+            # recorrido completo; el estado_entrega permite colorearlas (pendiente/entregado/fallido).
             detalles = (
                 db.query(RutaDetalle, Pedido)
                 .join(Pedido, RutaDetalle.pedido_id == Pedido.id)
-                .filter(RutaDetalle.ruta_id == ruta.id, RutaDetalle.estado_entrega == "PENDIENTE")
+                .filter(RutaDetalle.ruta_id == ruta.id)
                 .all()
             )
             paradas = [
@@ -139,6 +141,7 @@ def obtener_ubicaciones_flota(db: Session, tipo: str | None = None) -> list[Cond
                     longitud=pedido.longitud,
                     destinatario=pedido.nombre_destinatario,
                     secuencia=detalle.secuencia,
+                    estado=detalle.estado_entrega,
                 )
                 for detalle, pedido in detalles
                 if pedido.latitud is not None and pedido.longitud is not None
