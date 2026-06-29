@@ -67,13 +67,16 @@ def obtener_por_cliente(db: Session) -> list[ClienteSeguimiento]:
         nombre = cliente_origen or "Sin cliente"
         fila = acum.setdefault(
             nombre,
-            {"cliente": nombre, "total": 0, "entregados": 0, "fallidos": 0, "pendientes": 0, "en_proceso": 0},
+            {"cliente": nombre, "total": 0, "entregados": 0, "fallidos": 0,
+             "cancelados": 0, "pendientes": 0, "en_proceso": 0},
         )
         fila["total"] += total
         if estado == "ENTREGADO":
             fila["entregados"] += total
-        elif estado in ("FALLIDO", "GEOCODIFICACION_FALLIDA", "CANCELADO"):
-            # CANCELADO es terminal sin entrega: se agrupa junto a fallidos (mantiene contrato suma=total).
+        elif estado == "CANCELADO":
+            # CANCELADO no es un fallo de reparto: se cuenta aparte para no confundir al operador.
+            fila["cancelados"] += total
+        elif estado in ("FALLIDO", "GEOCODIFICACION_FALLIDA"):
             fila["fallidos"] += total
         elif estado in ("ASIGNADO", "EN_RUTA"):
             fila["en_proceso"] += total

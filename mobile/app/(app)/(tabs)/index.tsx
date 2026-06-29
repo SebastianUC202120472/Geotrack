@@ -173,8 +173,6 @@ function RutaEntregaView() {
         </Card>
 
         <Button titulo="Iniciar ruta desde mi ubicación" onPress={iniciarRuta} cargando={ubicacion.cargando || iniciar.isPending} />
-        {/* CUS-22: validar la carga escaneando el QR de cada caja antes de salir */}
-        <Button titulo="Validar carga (escanear QR)" variante="secondary" onPress={() => router.push("/validar-carga")} />
 
         {/* CUS-30: banner de pausa activa o botón para reportar auxilio mecánico */}
         {pausada ? (

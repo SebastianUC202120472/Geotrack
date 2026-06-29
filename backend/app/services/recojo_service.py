@@ -151,11 +151,24 @@ def aceptar_solicitud(
     if cliente.latitud is None or cliente.longitud is None:
         raise HTTPException(status_code=400, detail="El cliente no tiene una ubicación de recojo registrada")
 
+    # IDEMPOTENCIA: si la solicitud viene de un correo de la Bandeja y ese hilo YA fue
+    # atendido, no la procesamos de nuevo. Sin esto, un reintento del admin (p.ej. tras un
+    # timeout en la carga, que tarda con cientos de filas) creaba un recojo y N pedidos
+    # DUPLICADOS. Se valida contra el estado del hilo, que se sella al final de esta función.
+    from app.repositories import correo_repository
+    conv = correo_repository.obtener_conversacion(db, conversacion_id) if conversacion_id else None
+    if conv and conv.estado == "ATENDIDA":
+        raise HTTPException(
+            status_code=409,
+            detail="Esta solicitud ya fue aceptada (la conversación está ATENDIDA). No se crearon pedidos duplicados.",
+        )
+
     # Parsear el Excel ANTES de crear el recojo: si el archivo es inválido, no debe quedar
     # un recojo huérfano (sin pedidos) en la base de datos.
     filas = _pedido_svc.parsear_filas_excel(contenido, nombre_archivo)
 
-    # Crear el recojo copiando la ubicación del cliente (sin re-geocodificar).
+    # Crear el recojo copiando la ubicación del cliente (sin re-geocodificar). NO se commitea
+    # aquí: el recojo y sus pedidos se confirman juntos en UNA transacción al final (atomicidad).
     recojo = SolicitudRecojo(
         cliente_id=cliente.id,
         cliente_origen=cliente.razon_social,
@@ -167,48 +180,41 @@ def aceptar_solicitud(
         referencia=referencia,
         contacto_origen=contacto_origen,
     )
-    recojo_repository.agregar(db, recojo)
-    recojo_repository.guardar_cambios(db)
-    db.refresh(recojo)
+    recojo_repository.agregar(db, recojo)  # flush -> recojo.id disponible (sin commit)
 
-    # Crear un pedido por cada fila válida del Excel ya parseado. NO geocodificamos aquí:
-    # con archivos grandes (cientos de filas) hacerlo en línea bloquearía la petición varios
-    # minutos (Nominatim limita a 1 req/s) y el panel quedaría "Sin conexión". Los pedidos se
-    # crean al instante y la geocodificación corre en segundo plano (geocodificar_pedidos_recojo).
+    # Validar filas y crear los pedidos EN BLOQUE (un flush para todos + historial en bloque),
+    # en vez de ~2 flush por fila: con cientos de filas sobre Supabase eso eran cientos de idas
+    # y vueltas (~68 s). La geocodificación corre en segundo plano (geocodificar_pedidos_recojo).
     filas_rechazadas: list[str] = []
-    pedidos_creados = 0
-
+    filas_validas: list[dict] = []
     for i, fila in enumerate(filas, start=1):
-        # Validar campos mínimos por fila.
         if not (fila.get("referencia_externa") or "").strip():
             filas_rechazadas.append(f"Fila {i}: falta referencia_externa")
             continue
         if not (fila.get("direccion_destino") or "").strip():
             filas_rechazadas.append(f"Fila {i}: falta direccion_destino")
             continue
+        filas_validas.append(fila)
 
-        _pedido_svc.crear_pedido_desde_fila(
-            db, fila, cliente, recojo.id, "POR_RECOGER", usuario_id, geocodificar=False
-        )
-        pedidos_creados += 1
+    _pedido_svc.crear_pedidos_bulk(db, filas_validas, cliente, recojo.id, "POR_RECOGER", usuario_id)
+    pedidos_creados = len(filas_validas)
 
-    # Persistir todos los pedidos creados en el loop (cada uno solo hizo flush).
+    # Si la solicitud provino de un correo de la Bandeja, enlazar el hilo y marcarlo ATENDIDO
+    # en la MISMA transacción (así el sello de idempotencia y los pedidos son atómicos).
+    if conv:
+        recojo.conversacion_id = conversacion_id
+        conv.estado = "ATENDIDA"
+
+    # Un solo commit confirma recojo + pedidos + historial + estado del hilo.
     db.commit()
 
-    # Si la solicitud provino de un correo de la Bandeja, enlazar el hilo, marcarlo
-    # ATENDIDO y confirmar al cliente (best-effort, no bloquea la respuesta).
-    if conversacion_id:
+    # Confirmación al cliente por correo (best-effort, fuera de la transacción).
+    if conv:
         from app.services import correo_service
-        from app.repositories import correo_repository
-        recojo.conversacion_id = conversacion_id
-        conv = correo_repository.obtener_conversacion(db, conversacion_id)
-        if conv:
-            conv.estado = "ATENDIDA"
-            db.commit()
-            try:
-                correo_service.enviar_confirmacion_recojo(db, conv, pedidos_creados, usuario_id)
-            except Exception:
-                pass
+        try:
+            correo_service.enviar_confirmacion_recojo(db, conv, pedidos_creados, usuario_id)
+        except Exception:
+            pass
 
     return AceptarSolicitudResponse(
         recojo_id=recojo.id,
@@ -225,9 +231,9 @@ def geocodificar_pedidos_recojo(recojo_id: int) -> None:
     """Tarea en segundo plano: geocodifica los pedidos de un recojo (al aceptar la solicitud o
     al confirmar el ingreso), uno por uno (respetando el límite de 1 req/s de Nominatim), SIN
     bloquear la respuesta. Abre su PROPIA sesión de BD porque la de la petición ya se cerró.
-    Hace commit por pedido para que vayan apareciendo ubicados en el panel. Solo geocodifica
-    los que van a despacho (POR_RECOGER / LISTO_PARA_ENVIO); salta OBSERVADO para no gastar
-    cuota en pedidos que quizá no se envíen. Recibe: id del recojo."""
+    Commitea por LOTES (cada 20) para ir mostrando avance en el panel sin pagar un round-trip
+    por pedido. Solo geocodifica los que van a despacho (POR_RECOGER / LISTO_PARA_ENVIO); salta
+    OBSERVADO para no gastar cuota en pedidos que quizá no se envíen. Recibe: id del recojo."""
     from app.db.database import SessionLocal
 
     db = SessionLocal()
@@ -241,6 +247,7 @@ def geocodificar_pedidos_recojo(recojo_id: int) -> None:
             )
             .all()
         )
+        pendientes_commit = 0
         for pedido in pedidos:
             lat, lng = obtener_coordenadas(pedido.direccion_destino)
             if lat and lng:
@@ -248,7 +255,12 @@ def geocodificar_pedidos_recojo(recojo_id: int) -> None:
                 pedido.longitud = lng
                 partes = pedido.direccion_destino.split(",")
                 pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
-                db.commit()
+                pendientes_commit += 1
+                if pendientes_commit >= 20:   # commit por lote (avance visible sin N round-trips)
+                    db.commit()
+                    pendientes_commit = 0
+        if pendientes_commit:
+            db.commit()  # confirma el último lote parcial
     except Exception:
         db.rollback()
     finally:
@@ -296,9 +308,12 @@ def asignar_ruta_recojo(db: Session, datos: AsignarRutaRecojoRequest, usuario_id
             detail=f"El conductor ya tiene una ruta activa ('{activa.nombre}'). Debe cerrarla antes de asignar otra.",
         )
 
-    # Nombre por defecto: "Recojo <distrito del primer recojo con distrito>".
-    distrito = next((r.distrito for r in recojos if r.distrito), None)
-    nombre = (datos.nombre_ruta or "").strip() or f"Recojo {distrito or 'sin zona'}"
+    # Nombre por defecto: "Recojo <distrito>". El origen del cliente suele no tener un
+    # distrito real (ZONA_DESCONOCIDA), así que en ese caso usamos la razón social del
+    # cliente para que el nombre sea legible ("Recojo Ripley S.A." en vez de "Recojo ZONA_DESCONOCIDA").
+    distrito = next((r.distrito for r in recojos if r.distrito and r.distrito != "ZONA_DESCONOCIDA"), None)
+    cliente = next((r.cliente_origen for r in recojos if r.cliente_origen), None)
+    nombre = (datos.nombre_ruta or "").strip() or f"Recojo {distrito or cliente or 'sin zona'}"
 
     ruta = ruta_repository.crear_ruta(db, nombre=nombre, conductor_id=datos.conductor_id)
     ruta.tipo = "RECOJO"
