@@ -2,7 +2,7 @@
 # Endpoints del admin para el módulo Inbound de recojos (CUS-10 alta, CUS-11 asignación).
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -41,6 +41,7 @@ def listar_recojos(
 
 @router.post("/aceptar", response_model=AceptarSolicitudResponse)
 async def aceptar_solicitud(
+    background_tasks: BackgroundTasks,
     cliente_id: int = Form(...),
     referencia: str | None = Form(None),
     contacto_origen: str | None = Form(None),
@@ -50,11 +51,16 @@ async def aceptar_solicitud(
     admin: Usuario = Depends(get_current_admin),
 ):
     """Acepta una solicitud de recojo: crea el recojo y un pedido POR_RECOGER por fila del Excel.
-    Si se pasa conversacion_id, enlaza el hilo de correo y lo marca como ATENDIDO."""
+    Si se pasa conversacion_id, enlaza el hilo de correo y lo marca como ATENDIDO.
+    La geocodificación de los pedidos se agenda en segundo plano para que la carga responda al
+    instante (con cientos de filas, geocodificar en línea bloquearía la petición varios minutos)."""
     contenido = await file.read()
-    return recojo_service.aceptar_solicitud(
+    resultado = recojo_service.aceptar_solicitud(
         db, cliente_id, contenido, file.filename, referencia, contacto_origen, admin.id, conversacion_id
     )
+    # Geocodificar los pedidos recién creados fuera de la petición (no bloquea la respuesta).
+    background_tasks.add_task(recojo_service.geocodificar_pedidos_recojo, resultado.recojo_id)
+    return resultado
 
 
 @router.get("/{recojo_id}", response_model=SolicitudRecojoResponse)
