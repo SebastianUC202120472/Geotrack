@@ -249,7 +249,7 @@ def geocodificar_pedidos_recojo(recojo_id: int) -> None:
         )
         pendientes_commit = 0
         for pedido in pedidos:
-            lat, lng = obtener_coordenadas(pedido.direccion_destino)
+            lat, lng = obtener_coordenadas(pedido.direccion_destino, db)  # con caché de direcciones
             if lat and lng:
                 pedido.latitud = lat
                 pedido.longitud = lng
