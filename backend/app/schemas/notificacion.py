@@ -1,17 +1,25 @@
 # app/schemas/notificacion.py
-# Modelos de respuesta para el feed de notificaciones del panel admin.
+# Esquemas de respuesta para el historial de notificaciones del panel admin.
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
-class ItemNotificacion(BaseModel):
-    """Un aviso accionable con su contador y la ruta a la que navega el panel."""
-    tipo: str       # "reportes" | "incidencias" | "recojos" | "correos" | "restablecimientos"
-    etiqueta: str   # texto legible, p.ej. "Reportes de entrega"
-    count: int
-    ruta: str       # a dónde navega el panel, p.ej. "/pedidos"
+class NotificacionItem(BaseModel):
+    """Un aviso individual con su estado de lectura."""
+    id: int
+    tipo: str
+    titulo: str
+    mensaje: str | None
+    ruta: str | None
+    creado_en: datetime
+    visto_en: datetime | None
+
+    class Config:
+        from_attributes = True
 
 
 class NotificacionesResponse(BaseModel):
-    """Respuesta del endpoint de notificaciones: total accionable + detalle por tipo."""
-    total: int
-    items: list[ItemNotificacion]
+    """Respuesta del endpoint de notificaciones: contador no vistas + historial."""
+    no_vistas: int
+    items: list[NotificacionItem]
