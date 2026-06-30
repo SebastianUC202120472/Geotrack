@@ -47,6 +47,7 @@ frontend/.ds-dist/
 .superpowers/
 docs/superpowers/
 CLAUDE.md
+CONTEXTO.md
 .cursor/
 .cursorrules
 .aider*
