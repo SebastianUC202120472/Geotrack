@@ -5,9 +5,6 @@ Cubre el ciclo completo de un envío: el **cliente** solicita el recojo por corr
 lo acepta e importa los pedidos, el **almacén** valida la mercadería que llega, y el **conductor**
 recoge, reparte y cierra su ruta — todo trazado, estado por estado, desde un panel web y una app móvil.
 
-> 📋 ¿Retomas el proyecto desde cero (otra máquina/persona)? Lee [`CONTEXTO.md`](CONTEXTO.md):
-> reúne el flujo completo, las decisiones, el estado actual y lo pendiente.
-
 ---
 
 ## 1. ¿Qué es?
