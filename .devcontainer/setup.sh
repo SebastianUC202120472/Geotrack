@@ -68,9 +68,9 @@ echo "   EXPO_PUBLIC_API_URL=${API_HOST}/api"
 echo ">> Instalando dependencias de la app móvil (Expo)..."
 ( cd mobile && npm install --no-audit --no-fund ) || echo "!! npm install móvil falló (puedes reintentar luego)."
 
-# Expo necesita @expo/ngrok para el modo túnel. Lo preinstalamos para que el QR salga
-# al primer intento de 'bash .devcontainer/mobile.sh' (si no, Expo lo instala y se reinicia).
-echo ">> Preinstalando @expo/ngrok (para el túnel de Expo)..."
-npm install -g @expo/ngrok@^4.1.0 --no-audit --no-fund || echo "!! No se pudo preinstalar ngrok (Expo lo instalará al vuelo)."
+# Expo necesita @expo/ngrok para el túnel y lo busca en node_modules del proyecto (LOCAL,
+# no global). Lo instalamos dentro de mobile/ para que el QR salga al primer intento.
+echo ">> Preinstalando @expo/ngrok (local) para el túnel de Expo..."
+( cd mobile && npm install @expo/ngrok@^4.1.0 --no-audit --no-fund ) || echo "!! No se pudo preinstalar ngrok (Expo lo pedirá al vuelo)."
 
 echo ">> Setup completo. Al iniciar, el backend y el panel se levantan solos (postStart)."
