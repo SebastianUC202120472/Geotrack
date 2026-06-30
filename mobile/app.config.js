@@ -76,5 +76,11 @@ export default {
       ],
       "expo-font",
     ],
+    // ID del proyecto en EAS (necesario para 'eas build' con config dinámica).
+    extra: {
+      eas: {
+        projectId: "08197709-5894-478a-af6c-fe9550a11b3f",
+      },
+    },
   },
 };
