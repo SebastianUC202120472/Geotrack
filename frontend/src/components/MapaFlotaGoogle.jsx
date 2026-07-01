@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import { GoogleMap, useJsApiLoader, MarkerF, InfoWindowF } from "@react-google-maps/api";
+import { GoogleMap, useJsApiLoader, MarkerF, InfoWindowF, PolylineF } from "@react-google-maps/api";
+import { haceCuanto } from "../utils/formatoFecha";
 
 // Centro por defecto (Lima) y estilo del contenedor del mapa.
 const LIMA = { lat: -12.046, lng: -77.043 };
@@ -176,6 +177,13 @@ export default function MapaFlotaGoogle({ conductores, apiKey, seleccionado, mos
           const color = c._color || "#2563EB";
           return (
             <Fragment key={c.conductor_id}>
+              {/* Enrutamiento del conductor seleccionado: línea que une sus paradas en orden. */}
+              {seleccionado != null && mostrar !== "CONDUCTORES" && c.paradas.length >= 2 && (
+                <PolylineF
+                  path={c.paradas.map((p) => ({ lat: p.latitud, lng: p.longitud }))}
+                  options={{ strokeColor: color, strokeOpacity: 0.8, strokeWeight: 4 }}
+                />
+              )}
               {mostrar !== "CONDUCTORES" && c.paradas.map((p, i) => {
                 const id = `parada-${c.conductor_id}-${i}`;
                 const orden = p.secuencia ?? i + 1;
@@ -238,6 +246,12 @@ export default function MapaFlotaGoogle({ conductores, apiKey, seleccionado, mos
                         {c.ruta || "Ruta"}
                         <br />
                         {c.en_linea ? "🟢 En línea" : "⚪ Sin señal reciente"}
+                        {c.actualizado_en && (
+                          <>
+                            <br />
+                            Última señal {haceCuanto(c.actualizado_en)}
+                          </>
+                        )}
                       </div>
                     </InfoWindowF>
                   )}

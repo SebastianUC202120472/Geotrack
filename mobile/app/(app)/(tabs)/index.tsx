@@ -21,6 +21,7 @@ import { abrirNavegacionRuta } from "@/services/navegacion";
 import { useRutaActiva, useManifiesto, useNavegacion, useIniciarRuta, useFinalizarRuta, claves } from "@/features/ruta/hooks";
 import { useUbicacionActual } from "@/hooks/useUbicacionActual";
 import { useRastreoUbicacion } from "@/hooks/useRastreoUbicacion";
+import { useEnviarUbicacion } from "@/hooks/useEnviarUbicacion";
 import { useReanudarRuta } from "@/features/incidencia/hooks";
 import { usePendientesPorPedido } from "@/features/sync/hooks";
 import { mensajeDeError } from "@/api/client";
@@ -49,8 +50,13 @@ function RutaEntregaView() {
   // CUS-27: paradas con una acción en la cola offline (aún sin subir al servidor).
   const pendientesPorPedido = usePendientesPorPedido();
 
-  // Rastrea la posición del conductor en segundo plano mientras tenga ruta activa.
-  useRastreoUbicacion(!!ruta.data && ruta.data.estado !== "FINALIZADA");
+  // Rastrea la posición del conductor mientras tenga ruta activa. Dos vías en paralelo:
+  //  - segundo plano (requiere permiso "Permitir siempre"; sigue con la app minimizada),
+  //  - primer plano (con la app abierta, solo requiere permiso normal). El de primer plano
+  //    garantiza que el panel vea la posición aunque NO se conceda el permiso de fondo.
+  const rutaEnCurso = !!ruta.data && ruta.data.estado !== "FINALIZADA";
+  useRastreoUbicacion(rutaEnCurso);
+  useEnviarUbicacion(rutaEnCurso);
 
   // Al volver a esta pestaña, vuelve a pedir los datos (se ven los cambios al instante).
   useFocusEffect(
