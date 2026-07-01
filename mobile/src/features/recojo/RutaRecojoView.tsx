@@ -7,7 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
-import { MapaNativo } from "@/components/MapaNativo";
+import { Mapa } from "@/components/Mapa";
 import { Cargando, ErrorVista, Vacio } from "@/components/Estados";
 import { GradientHeader } from "@/components/GradientHeader";
 import { Cabecera } from "@/components/Cabecera";
@@ -119,7 +119,7 @@ export function RutaRecojoView() {
 
       <Aparecer style={{ gap: spacing.md, paddingHorizontal: spacing.lg }}>
         <Card style={{ marginTop: spacing.md, padding: spacing.sm }}>
-          <MapaNativo paradas={paradasMapa} />
+          <Mapa paradas={paradasMapa} />
         </Card>
         <Button titulo="Iniciar ruta desde mi ubicación" onPress={iniciarRuta} cargando={ubicacion.cargando || iniciar.isPending} />
         {pausada ? (
