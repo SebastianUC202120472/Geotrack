@@ -2,20 +2,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import MapView, { Marker, Callout, Polyline, PROVIDER_GOOGLE, type Region } from "react-native-maps";
-import { Ionicons } from "@expo/vector-icons";
 import { useTheme, fontSize, radius } from "@/theme";
 import type { ParadaManifiesto } from "@/types/api";
-
-// Calcula el rumbo en grados entre dos coordenadas. Recibe lat/lng de origen y destino.
-function rumbo(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const rad = Math.PI / 180;
-  const dLon = (lon2 - lon1) * rad;
-  const y = Math.sin(dLon) * Math.cos(lat2 * rad);
-  const x =
-    Math.cos(lat1 * rad) * Math.sin(lat2 * rad) -
-    Math.sin(lat1 * rad) * Math.cos(lat2 * rad) * Math.cos(dLon);
-  return (Math.atan2(y, x) * 180) / Math.PI;
-}
 
 interface Props {
   paradas: ParadaManifiesto[]; // paradas (con lat/lng) de la ruta
@@ -131,22 +119,6 @@ export function MapaNativo({ paradas, alto = 260 }: Props) {
             strokeWidth={4}
           />
         )}
-        {puntos.slice(0, -1).map((p, i) => {
-          const q = puntos[i + 1];
-          const medio = { latitude: (p.lat + q.lat) / 2, longitude: (p.lng + q.lng) / 2 };
-          return (
-            <Marker
-              key={`flecha-${p.sec}-${i}`}
-              coordinate={medio}
-              anchor={{ x: 0.5, y: 0.5 }}
-              flat
-              rotation={rumbo(p.lat, p.lng, q.lat, q.lng)}
-              tracksViewChanges={rastrearVistas}
-            >
-              <Ionicons name="caret-up" size={20} color="#1d4ed8" />
-            </Marker>
-          );
-        })}
         {puntos.map((p, i) => {
           const color = colorPorEstado(p.estado, p.esSiguiente);
           const tam = p.esSiguiente ? 38 : 30;
