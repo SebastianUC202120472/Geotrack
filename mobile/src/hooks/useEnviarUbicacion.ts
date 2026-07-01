@@ -18,8 +18,10 @@ export function useEnviarUbicacion(activa: boolean): void {
         const permiso = await Location.requestForegroundPermissionsAsync();
         if (permiso.status !== "granted" || cancelado) return;
 
+        // distanceInterval: 0 => emite por tiempo (cada ~12 s) aunque el conductor esté
+        // quieto; así el panel lo mantiene "en línea" mientras esté parado en una parada.
         suscripcion = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.High, timeInterval: 12000, distanceInterval: 20 },
+          { accuracy: Location.Accuracy.High, timeInterval: 12000, distanceInterval: 0 },
           (pos) => {
             // No esperamos la respuesta ni rompemos si falla (best-effort).
             enviarUbicacion(pos.coords.latitude, pos.coords.longitude).catch(() => {});
