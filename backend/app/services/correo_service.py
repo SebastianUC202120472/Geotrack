@@ -1,5 +1,3 @@
-# app/services/correo_service.py
-# Conecta con el correo de la empresa.
 import imaplib
 import smtplib
 import re
@@ -19,7 +17,6 @@ from app.core.config import settings
 from app.repositories import correo_repository
 from app.services import notificaciones_service
 
-# Prefijos típicos de respuesta/reenvío que quitamos para agrupar el hilo.
 _PREFIJOS = re.compile(r"^\s*(re|rv|fwd|fw)\s*:\s*", re.IGNORECASE)
 
 
@@ -36,7 +33,7 @@ def _exigir_configurado():
 
 
 def _decodificar(valor: str | None) -> str:
-    """Decodifica encabezados MIME (asuntos/nombres con tildes o codificados)."""
+    """Decodifica encabezados MIME. Recibe el valor crudo del encabezado."""
     if not valor:
         return ""
     try:
@@ -46,8 +43,8 @@ def _decodificar(valor: str | None) -> str:
 
 
 def _normalizar_asunto(asunto: str) -> str:
+    """Quita prefijos Re/Fwd del asunto para agrupar el hilo. Recibe el asunto crudo."""
     limpio = asunto or "(sin asunto)"
-    # Quita repetidamente "Re:", "Fwd:", etc. del inicio.
     anterior = None
     while anterior != limpio:
         anterior = limpio
@@ -66,7 +63,7 @@ def _fecha(msg) -> datetime:
 
 
 def _cuerpo(msg) -> str:
-    """Extrae el texto plano del correo (ignora adjuntos y prefiere text/plain)."""
+    """Extrae el texto plano del correo. Recibe el objeto message."""
     if msg.is_multipart():
         for parte in msg.walk():
             if parte.get_content_type() == "text/plain" and "attachment" not in str(parte.get("Content-Disposition")):
@@ -81,7 +78,7 @@ def _cuerpo(msg) -> str:
 
 
 def _adjuntos(msg):
-    """Devuelve los adjuntos del correo como [(nombre, content_type, bytes)]."""
+    """Devuelve lista de adjuntos como (nombre, content_type, bytes). Recibe el objeto message."""
     encontrados = []
     if not msg.is_multipart():
         return encontrados
@@ -90,7 +87,6 @@ def _adjuntos(msg):
             continue
         nombre = parte.get_filename()
         disposicion = str(parte.get("Content-Disposition") or "")
-        # Tomamos lo que tenga nombre de archivo o venga marcado como adjunto.
         if nombre or "attachment" in disposicion.lower():
             carga = parte.get_payload(decode=True)
             if carga:
@@ -102,9 +98,8 @@ def _adjuntos(msg):
     return encontrados
 
 
-# Lectura de la bandeja (IMAP)
 def sincronizar(db: Session) -> dict:
-    """Revisa la bandeja por IMAP e importa los correos entrantes nuevos."""
+    """Lee la bandeja por IMAP e importa correos entrantes nuevos. Recibe la sesion de BD."""
     if not _configurado():
         return {"mensaje": "El correo no está configurado todavía.", "nuevos": 0}
 
@@ -119,7 +114,6 @@ def sincronizar(db: Session) -> dict:
     try:
         estado, datos = imap.search(None, "UNSEEN")
         ids = datos[0].split() if datos and datos[0] else []
-        # Limitamos a los últimos 50 para no saturar en una sincronización.
         for num in ids[-50:]:
             estado, bruto = imap.fetch(num, "(RFC822)")
             if estado != "OK" or not bruto or not bruto[0]:
@@ -128,7 +122,7 @@ def sincronizar(db: Session) -> dict:
 
             message_id = (msg.get("Message-ID") or "").strip()
             if correo_repository.existe_mensaje(db, message_id):
-                continue  # ya lo importamos antes
+                continue
 
             nombre, correo_origen = parseaddr(msg.get("From", ""))
             asunto = _decodificar(msg.get("Subject"))
@@ -151,13 +145,11 @@ def sincronizar(db: Session) -> dict:
                 in_reply_to=(msg.get("In-Reply-To") or "").strip() or None,
                 leido=False,
             )
-            # Guardamos los adjuntos (ej. el Excel con los pedidos del recojo).
             for nombre_adj, tipo_adj, datos_adj in _adjuntos(msg):
                 correo_repository.agregar_adjunto(db, mensaje, nombre_adj, tipo_adj, datos_adj)
             conv.no_leidos = (conv.no_leidos or 0) + 1
             conv.estado = "PENDIENTE"
             nuevos += 1
-            # Notifica al admin que llegó un correo entrante nuevo.
             try:
                 notificaciones_service.registrar(
                     db, "correos", "Nuevo correo entrante",
@@ -180,9 +172,8 @@ def sincronizar(db: Session) -> dict:
     return {"mensaje": f"Sincronización completa. {nuevos} correo(s) nuevo(s).", "nuevos": nuevos}
 
 
-# Envío de respuestas (SMTP)
 def responder(db: Session, conversacion_id: int, cuerpo: str, admin_id: int | None = None) -> dict:
-    """Envía la respuesta del admin por SMTP y la guarda en el hilo."""
+    """Envia la respuesta del admin por SMTP y la guarda en el hilo. Recibe id de conversacion y cuerpo."""
     _exigir_configurado()
     conv = correo_repository.obtener_conversacion(db, conversacion_id)
     if not conv:
@@ -192,11 +183,8 @@ def responder(db: Session, conversacion_id: int, cuerpo: str, admin_id: int | No
 
     asunto = conv.asunto if conv.asunto.lower().startswith("re:") else f"Re: {conv.asunto}"
 
-    # Añadimos la firma corporativa al final de la respuesta (lo que se envía y
-    # lo que se guarda en el hilo son lo mismo, para que coincidan).
     cuerpo_final = f"{cuerpo.strip()}\n\n--\n{settings.firma}"
 
-    # Enlazamos la respuesta al último mensaje entrante (hilo en el cliente de correo).
     ultimo_entrante = next(
         (m for m in reversed(conv.mensajes) if m.direccion == "ENTRANTE" and m.message_id), None
     )
@@ -243,10 +231,7 @@ def responder(db: Session, conversacion_id: int, cuerpo: str, admin_id: int | No
 
 
 def enviar_confirmacion_recojo(db, conversacion, num_pedidos, admin_id=None):
-    """Best-effort: envía un correo HTML al cliente confirmando que su solicitud de recojo
-    está en proceso, con firma y logo, y lo guarda en el hilo. Si el correo no está
-    habilitado o el SMTP falla, no hace nada (no rompe el flujo). Recibe la conversación,
-    cuántos pedidos y el id del admin."""
+    """Envia correo HTML de confirmacion de recojo al cliente. Recibe conversacion, num_pedidos y admin_id. Best-effort."""
     if not _configurado():
         return
     asunto = f"Recibimos su solicitud de recojo ({num_pedidos} pedidos)"
@@ -296,10 +281,7 @@ def enviar_confirmacion_recojo(db, conversacion, num_pedidos, admin_id=None):
         servidor.send_message(raiz)
         servidor.quit()
     except Exception:
-        return  # best-effort: no abortar el flujo si el envío falla
-    # El correo ya se envió; persistimos el mensaje saliente en su propio commit
-    # (el llamador commitea antes de invocar esta función). Best-effort: si el
-    # guardado falla, hacemos rollback y salimos sin romper el flujo.
+        return
     try:
         correo_repository.agregar_mensaje(
             db, conversacion,
@@ -318,7 +300,6 @@ def enviar_confirmacion_recojo(db, conversacion, num_pedidos, admin_id=None):
         db.rollback()
 
 
-# Lecturas para el panel
 def listar(db: Session):
     return correo_repository.listar_conversaciones(db)
 

@@ -1,13 +1,10 @@
-# app/schemas/recojo.py
-# Moldes de datos del módulo Inbound de recojos para la API.
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel
 
 
-# --- CUS-10: alta de solicitud (admin) ---
 class SolicitudRecojoCreate(BaseModel):
-    """ENTRADA (CUS-10): datos del formulario de nueva solicitud de recojo."""
+    """Datos para crear una nueva solicitud de recojo. Recibe cliente_id, dirección y opcionales."""
     cliente_id: int
     direccion_origen: str
     volumen_estimado_m3: Optional[float] = None
@@ -17,7 +14,7 @@ class SolicitudRecojoCreate(BaseModel):
 
 
 class SolicitudRecojoUpdate(BaseModel):
-    """ENTRADA (CUS-10): campos editables mientras la solicitud está SOLICITADO."""
+    """Campos editables de una solicitud en estado SOLICITADO."""
     direccion_origen: Optional[str] = None
     volumen_estimado_m3: Optional[float] = None
     contacto_origen: Optional[str] = None
@@ -25,7 +22,7 @@ class SolicitudRecojoUpdate(BaseModel):
 
 
 class SolicitudRecojoResponse(BaseModel):
-    """SALIDA: una solicitud de recojo completa."""
+    """Solicitud de recojo completa devuelta por la API."""
     id: int
     codigo: Optional[str] = None
     cliente_id: int
@@ -50,9 +47,8 @@ class SolicitudRecojoResponse(BaseModel):
         from_attributes = True
 
 
-# --- CUS-11: asignar ruta de recojo (admin) ---
 class AsignarRutaRecojoRequest(BaseModel):
-    """ENTRADA (CUS-11): solicitudes a agrupar + conductor + vehículo."""
+    """Datos para asignar una ruta de recojo. Recibe lista de recojos, conductor y vehículo."""
     recojo_ids: List[int]
     conductor_id: int
     vehiculo_placa: str
@@ -60,13 +56,12 @@ class AsignarRutaRecojoRequest(BaseModel):
 
 
 class AsignarRutaRecojoResponse(BaseModel):
-    """SALIDA (CUS-11): confirmación con el id y código de la ruta creada."""
+    """Confirmación de ruta creada con su id y código."""
     mensaje: str
     ruta_id: int
     codigo: Optional[str] = None
 
 
-# --- CUS-12: manifiesto y recepción (conductor) ---
 class ParadaRecojo(BaseModel):
     """Un punto de origen del manifiesto de recojo."""
     secuencia: int
@@ -84,7 +79,7 @@ class ParadaRecojo(BaseModel):
 
 
 class ManifiestoRecojoResponse(BaseModel):
-    """SALIDA (CUS-12): la ruta de recojo y sus puntos ordenados por secuencia."""
+    """Ruta de recojo con sus paradas ordenadas por secuencia."""
     ruta_id: int
     codigo: Optional[str] = None
     nombre: str
@@ -94,7 +89,7 @@ class ManifiestoRecojoResponse(BaseModel):
 
 
 class RecepcionResponse(BaseModel):
-    """SALIDA (CUS-12): resultado de registrar la recepción condicionada."""
+    """Resultado de registrar la recepción de un punto de recojo."""
     recojo_id: int
     codigo: Optional[str] = None
     estado: str
@@ -105,23 +100,19 @@ class RecepcionResponse(BaseModel):
     mensaje: str
 
 
-# --- Aceptar solicitud con Excel (admin) ---
 class AceptarSolicitudResponse(BaseModel):
-    """SALIDA: resultado de aceptar una solicitud de recojo y crear sus pedidos POR_RECOGER."""
+    """Resultado de aceptar una solicitud y crear sus pedidos POR_RECOGER desde Excel."""
     recojo_id: int
     codigo: str
     pedidos_creados: int
     pedidos_geocodificados: int
     pedidos_sin_ubicar: int
-    # True cuando la geocodificación quedó corriendo en segundo plano (carga masiva): al
-    # responder ningún pedido tiene coordenadas todavía, se van ubicando en los minutos siguientes.
-    geocodificacion_en_segundo_plano: bool = False
+    geocodificacion_en_segundo_plano: bool = False  # True si la geocodificación sigue corriendo en segundo plano
     filas_rechazadas: list[str]
 
 
-# --- Armado de ruta de recojo (almacén, CUS-11) ---
 class SolicitudArmarItem(BaseModel):
-    """SALIDA: solicitud de recojo SOLICITADO para la vista de armado de ruta del almacén."""
+    """Solicitud de recojo en estado SOLICITADO para la vista de armado de ruta."""
     id: int
     codigo: Optional[str] = None
     cliente_origen: str

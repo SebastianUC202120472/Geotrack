@@ -1,17 +1,13 @@
-// Mapa de calles REAL dentro de la app, sin clave de Google: un WebView que
-// carga Leaflet + OpenStreetMap (como el panel web) y dibuja la ruta encima
-// (paradas numeradas + línea + la siguiente resaltada). Funciona en Expo Go.
 import { StyleSheet, Text, View } from "react-native";
 import { WebView } from "react-native-webview";
 import { useTheme, fontSize, radius } from "@/theme";
 import type { ParadaManifiesto } from "@/types/api";
 
 interface Props {
-  paradas: ParadaManifiesto[]; // paradas (con lat/lng) de la ruta
-  alto?: number; // alto del mapa en píxeles (por defecto 260)
+  paradas: ParadaManifiesto[];
+  alto?: number;
 }
 
-// Punto que se inyecta al HTML del WebView.
 interface PuntoWeb {
   lat: number;
   lng: number;
@@ -21,9 +17,7 @@ interface PuntoWeb {
   dir: string;
 }
 
-// Vuelve seguro el JSON de datos para incrustarlo dentro de un <script>: escapa
-// "<" (evita cerrar la etiqueta) y los separadores de línea Unicode U+2028/U+2029
-// (que romperían el literal del script). Recibe los puntos; devuelve un string JSON seguro.
+// Serializa puntos a JSON seguro para incrustar en un <script>. Recibe PuntoWeb[].
 function jsonSeguro(puntos: PuntoWeb[]): string {
   return JSON.stringify(puntos)
     .replace(/</g, "\\u003c")
@@ -31,7 +25,7 @@ function jsonSeguro(puntos: PuntoWeb[]): string {
     .split(String.fromCharCode(0x2029)).join("\\u2029");
 }
 
-// HTML con Leaflet + OSM. Los datos de la ruta se inyectan reemplazando __DATOS__.
+// Genera el HTML con Leaflet+OSM y las paradas pintadas. Recibe PuntoWeb[].
 function construirHtml(puntos: PuntoWeb[]): string {
   const datos = jsonSeguro(puntos);
   return `<!DOCTYPE html><html><head>
@@ -88,7 +82,7 @@ html,body,#map{height:100%;margin:0;background:#e9eef4}
 </body></html>`.replace("__DATOS__", () => datos);
 }
 
-// Mapa de calles de la ruta. Recibe: { paradas, alto? }.
+// Mapa OSM en WebView con paradas numeradas. Recibe paradas y alto opcional.
 export function MapaWeb({ paradas, alto = 260 }: Props) {
   const { colors } = useTheme();
 
@@ -122,7 +116,6 @@ export function MapaWeb({ paradas, alto = 260 }: Props) {
         source={{ html: construirHtml(puntos) }}
         style={{ flex: 1, backgroundColor: "#e9eef4" }}
         scrollEnabled={false}
-        // En Expo Go el mapa carga Leaflet/OSM desde internet (no necesita clave).
       />
     </View>
   );

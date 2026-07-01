@@ -1,5 +1,3 @@
-# app/api/auth.py
-# Expone las URLs de autenticación que consumen la Web y la App.
 from fastapi import APIRouter, Depends
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -19,24 +17,13 @@ def registrar_usuario(
     db: Session = Depends(get_db),
     admin: Usuario = Depends(get_current_admin),
 ):
-    """
-    Registra un usuario nuevo (CUS-01) — SOLO un admin puede hacerlo.
-    SEGURIDAD (OWASP A01): antes estaba abierto y aceptaba el 'rol' del cliente,
-    así que cualquiera podía crearse como admin (escalada de privilegios). Ahora
-    solo un admin autenticado da de alta usuarios.
-    FRONTEND: el alta de usuarios va en el panel del admin (con su token). El
-    primer admin se crea solo al arrancar (ver crear_admin_inicial / .env).
-    """
+    """Registra un usuario nuevo. Solo un admin autenticado puede hacerlo."""
     return usuario_service.registrar_usuario(db, usuario)
 
 
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    """
-    Inicia sesión (CUS-02) y devuelve el token JWT.
-    Usa OAuth2PasswordRequestForm: el cliente envía 'username' (=correo) y
-    'password'. Es lo que rellena el botón "Authorize" de Swagger.
-    """
+    """Autentica con correo y contrasena, devuelve el token JWT."""
     access_token = usuario_service.autenticar_y_generar_token(
         db, correo=form_data.username, contrasena=form_data.password
     )
@@ -45,9 +32,5 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
 @router.post("/solicitar-restablecimiento")
 def solicitar_restablecimiento(datos: SolicitudRestablecimientoRequest, db: Session = Depends(get_db)):
-    """
-    Extra CUS-04: PÚBLICO (sin token) — el conductor que olvidó su contraseña pide
-    desde el Login de la app que el admin se la restablezca. Responde siempre el mismo
-    mensaje genérico (exista o no el correo) para no revelar qué cuentas hay.
-    """
+    """Solicita restablecer contrasena (publico). Recibe correo del conductor."""
     return usuario_service.solicitar_restablecimiento(db, datos.correo)

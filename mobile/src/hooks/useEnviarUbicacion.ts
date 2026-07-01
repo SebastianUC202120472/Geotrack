@@ -1,11 +1,8 @@
-// Envía la posición del conductor al backend mientras tenga una ruta activa.
 import { useEffect } from "react";
 import * as Location from "expo-location";
 import { enviarUbicacion } from "@/api/conductor";
 
-// Mientras `activa` sea true, observa la posición (foreground / app abierta) y la
-// envía al backend cada ~12 s. Best-effort: ignora errores de permiso o de red
-// para no interrumpir la operación del conductor. No devuelve nada.
+// Envía la ubicacion del conductor al backend cada ~12 s mientras `activa` sea true.
 export function useEnviarUbicacion(activa: boolean): void {
   useEffect(() => {
     if (!activa) return;
@@ -18,17 +15,14 @@ export function useEnviarUbicacion(activa: boolean): void {
         const permiso = await Location.requestForegroundPermissionsAsync();
         if (permiso.status !== "granted" || cancelado) return;
 
-        // distanceInterval: 0 => emite por tiempo (cada ~12 s) aunque el conductor esté
-        // quieto; así el panel lo mantiene "en línea" mientras esté parado en una parada.
         suscripcion = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.High, timeInterval: 12000, distanceInterval: 0 },
           (pos) => {
-            // No esperamos la respuesta ni rompemos si falla (best-effort).
             enviarUbicacion(pos.coords.latitude, pos.coords.longitude).catch(() => {});
           }
         );
       } catch {
-        // Sin GPS o permiso denegado: no enviamos nada.
+        // Sin GPS o permiso denegado.
       }
     })();
 

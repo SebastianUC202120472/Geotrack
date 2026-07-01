@@ -1,5 +1,4 @@
-// Pestaña "Reportes": lista de los reportes de incidencia del conductor. Cada uno
-// es tocable y abre su detalle completo (motivo, descripción, estado y respuesta).
+// Lista los reportes de incidencia del conductor; toca uno para ver su detalle.
 import { useCallback } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";

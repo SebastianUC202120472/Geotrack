@@ -1,5 +1,3 @@
-# app/api/notificaciones.py
-# Endpoints del panel admin para consultar y marcar notificaciones.
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -13,8 +11,7 @@ router = APIRouter()
 
 @router.get("", response_model=NotificacionesResponse, dependencies=[Depends(get_current_admin)])
 def listar_notificaciones(limite: int = 50, db: Session = Depends(get_db)):
-    """Historial de notificaciones del admin + contador de no vistas. `limite` opcional
-    (la página de historial pide más; la campana usa el default)."""
+    """Lista notificaciones del admin con contador de no vistas. Recibe limite (int)."""
     return notificaciones_service.listar(db, limite=max(1, min(limite, 500)))
 
 

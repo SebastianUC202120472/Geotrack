@@ -1,5 +1,3 @@
-# app/repositories/recojo_repository.py
-# Única capa que consulta/escribe en la tabla 'solicitudes_recojo'.
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
@@ -9,21 +7,19 @@ from app.core.codigos import asignar_codigo, PREFIJO_RECOJO
 
 
 def agregar(db: Session, recojo: SolicitudRecojo) -> SolicitudRecojo:
-    """Persiste una solicitud nueva y le asigna el código RC-001 (hace flush -> id)."""
+    """Persiste una solicitud nueva y le asigna el código RC-001."""
     db.add(recojo)
     asignar_codigo(db, recojo, PREFIJO_RECOJO)
     return recojo
 
 
 def obtener_por_id(db: Session, recojo_id: int) -> Optional[SolicitudRecojo]:
-    """Busca una solicitud por su id. Devuelve None si no existe."""
+    """Busca una solicitud por id. Recibe: id de la solicitud."""
     return db.query(SolicitudRecojo).filter(SolicitudRecojo.id == recojo_id).first()
 
 
 def obtener_por_id_bloqueado(db: Session, recojo_id: int) -> Optional[SolicitudRecojo]:
-    """Como obtener_por_id pero con bloqueo de fila (SELECT ... FOR UPDATE). Serializa el
-    ingreso manual: dos confirmaciones simultáneas del mismo recojo se procesan en orden,
-    evitando que ambas lean los pedidos como POR_RECOGER y dupliquen el historial."""
+    """Busca una solicitud por id con bloqueo de fila (FOR UPDATE) para evitar confirmaciones simultáneas."""
     return (
         db.query(SolicitudRecojo)
         .filter(SolicitudRecojo.id == recojo_id)
@@ -33,7 +29,7 @@ def obtener_por_id_bloqueado(db: Session, recojo_id: int) -> Optional[SolicitudR
 
 
 def obtener_por_ids(db: Session, ids: List[int]) -> List[SolicitudRecojo]:
-    """Devuelve las solicitudes cuyos ids están en la lista. Recibe: lista de ids."""
+    """Devuelve solicitudes cuyos ids están en la lista. Recibe: lista de ids."""
     if not ids:
         return []
     return db.query(SolicitudRecojo).filter(SolicitudRecojo.id.in_(ids)).all()
@@ -67,13 +63,12 @@ def contar_pendientes_por_ruta(db: Session, ruta_id: int) -> int:
 
 
 def agregar_evidencia(db: Session, recojo_id: int, url_foto: str, secuencia: int) -> EvidenciaRecojo:
-    """Registra una foto de evidencia del recojo (no hace commit). Recibe: id del recojo,
-    URL servida en /media y el orden de captura."""
+    """Registra una foto de evidencia del recojo. Recibe: id del recojo, URL y orden de captura."""
     evidencia = EvidenciaRecojo(recojo_id=recojo_id, url_foto=url_foto, secuencia=secuencia)
     db.add(evidencia)
     return evidencia
 
 
 def guardar_cambios(db: Session) -> None:
-    """Confirma en PostgreSQL todos los cambios pendientes de la transacción."""
+    """Confirma todos los cambios pendientes de la transaccion."""
     db.commit()

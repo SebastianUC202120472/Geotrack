@@ -1,14 +1,7 @@
 import Skeleton from "./Skeleton";
 import EmptyState from "./EmptyState";
 
-// Tabla reutilizable con cabecera sticky, hover de fila y estados de carga/vacío.
-// Entrada:
-//   columns: [{ key, header, render?(fila), className? }]
-//   rows: array de objetos
-//   rowKey: (fila) => string|number  (clave única)
-//   loading (bool): muestra filas skeleton
-//   empty: { icon?, title, description? }  (cuando no hay filas)
-//   onRowClick?: (fila) => void
+// Tabla reutilizable con cabecera sticky y estados de carga/vacío. Recibe columns, rows, rowKey, loading, empty y onRowClick.
 export default function DataTable({ columns, rows, rowKey, loading = false, empty, onRowClick }) {
   return (
     <div className="overflow-hidden rounded-card border border-slate-200 bg-white shadow-card">

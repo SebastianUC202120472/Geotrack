@@ -1,5 +1,4 @@
-// Botón grande y accesible (alto >= 56). Primario con degradado de marca y leve
-// escala al presionar. Variantes: primary | secondary | danger.
+// Botón accesible con animacion de escala. Recibe titulo, onPress y variante (primary | secondary | danger).
 import { useRef } from "react";
 import { ActivityIndicator, Animated, Pressable, StyleSheet, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";

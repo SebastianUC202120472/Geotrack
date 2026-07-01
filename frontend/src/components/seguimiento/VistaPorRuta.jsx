@@ -7,13 +7,11 @@ import Button from "../ui/Button";
 import { EstadoBadge } from "../ui/Badge";
 import { obtenerFlota, descargarManifiesto } from "../../services/api";
 
-// Carga y muestra el avance de cada ruta activa (CUS-33).
-// Sin props: autocontenido; carga datos con obtenerFlota() al montar.
+// Muestra el avance de cada ruta activa. Sin props; carga datos con obtenerFlota() al montar.
 export default function VistaPorRuta() {
   const [rutas, setRutas] = useState(null);
   const [cargando, setCargando] = useState(true);
 
-  // Solicita la lista de rutas activas al montar; setState solo dentro de callbacks.
   useEffect(() => {
     let activo = true;
     obtenerFlota()
@@ -65,7 +63,6 @@ export default function VistaPorRuta() {
                 <EstadoBadge estado={r.estado} />
               </div>
 
-              {/* Barra de progreso de la ruta */}
               <div className="mb-4">
                 <div className="mb-1 flex justify-between text-sm">
                   <span className="text-slate-500">Avance</span>
@@ -81,14 +78,12 @@ export default function VistaPorRuta() {
                 </div>
               </div>
 
-              {/* Contadores de entregadas / fallidas / pendientes */}
               <div className="grid grid-cols-3 gap-2 text-center">
                 <Contador icon={CircleCheck} color="text-success" valor={r.entregadas} etiqueta="Entregadas" />
                 <Contador icon={CircleX} color="text-danger" valor={r.fallidas} etiqueta="Fallidas" />
                 <Contador icon={Clock} color="text-warning" valor={r.pendientes} etiqueta="Pendientes" />
               </div>
 
-              {/* CUS-21: descargar manifiesto de carga en Excel */}
               <div className="mt-4 flex gap-2">
                 <Button
                   variant="ghost"
@@ -107,8 +102,7 @@ export default function VistaPorRuta() {
   );
 }
 
-// Minibloque de conteo dentro de la tarjeta de ruta (icono + número + etiqueta).
-// Entrada: icon (componente lucide), color (clase css), valor (number), etiqueta (string).
+// Minibloque de conteo: icono, numero y etiqueta. Recibe icon, color, valor y etiqueta.
 function Contador({ icon: Icon, color, valor, etiqueta }) {
   return (
     <div className="rounded-xl bg-slate-50 py-3 transition-colors hover:bg-brand-50">

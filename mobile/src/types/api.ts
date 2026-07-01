@@ -1,5 +1,4 @@
-// Tipos del dominio que reflejan EXACTAMENTE las respuestas del backend
-// (app/schemas del FastAPI). Sirven para tipar el cliente HTTP y la UI.
+// Tipos que reflejan las respuestas del backend (FastAPI schemas).
 
 export interface TokenResponse {
   access_token: string;
@@ -8,29 +7,27 @@ export interface TokenResponse {
 
 export type EstadoEntrega = "PENDIENTE" | "ENTREGADO" | "FALLIDO";
 
-// Resumen de la ruta activa del conductor (GET /conductor/ruta-activa).
+// Resumen de la ruta activa del conductor.
 export interface RutaActiva {
   ruta_id: number;
   codigo?: string | null;
   nombre: string;
   estado: string; // CREADA | EN_PROGRESO | FINALIZADA
   fecha_creacion: string;
-  fecha_salida?: string | null; // CUS-23: salida del almacén (null si aún no inició)
+  fecha_salida?: string | null;
   vehiculo_placa?: string | null;
   total_paradas: number;
   pendientes: number;
   entregadas: number;
   fallidas: number;
-  pausada?: boolean;          // CUS-30: la ruta está pausada por un auxilio mecánico
+  pausada?: boolean;          // true si hay auxilio mecánico activo
   incidencia_id?: number | null;
-  // CUS-30: si el admin ya mandó ayuda, la ruta-activa expone el sello y el detalle
-  // (ej. "Grúa: en 30 min") para mostrar el aviso "Ayuda en camino" en el móvil.
   ayuda_enviada_en?: string | null;
   ayuda_detalle?: string | null;
-  tipo?: string; // "ENTREGA" | "RECOJO" — la app elige el flujo de entregas o recepción
+  tipo?: string; // "ENTREGA" | "RECOJO"
 }
 
-// Una parada del manifiesto (GET /conductor/ruta-activa/manifiesto).
+// Una parada del manifiesto de entrega.
 export interface ParadaManifiesto {
   secuencia: number;
   detalle_id: number;
@@ -45,7 +42,7 @@ export interface ParadaManifiesto {
   longitud?: number | null;
   peso_kg?: number | null;
   estado_entrega: EstadoEntrega;
-  url_evidencia?: string | null; // foto POD ya subida (CUS-26), servida en /media
+  url_evidencia?: string | null; // foto POD ya subida
 }
 
 export interface Manifiesto {
@@ -57,7 +54,7 @@ export interface Manifiesto {
   paradas: ParadaManifiesto[];
 }
 
-// Punto de navegación para el mapa (GET /conductor/ruta-activa/navegacion).
+// Punto de navegación para el mapa.
 export interface ParadaNavegacion {
   secuencia: number;
   pedido_id: number;
@@ -72,7 +69,7 @@ export interface Navegacion {
   paradas: ParadaNavegacion[];
 }
 
-// Resultado de gestionar una parada (estado o evidencia).
+// Resultado de gestionar una parada.
 export interface GestionParada {
   pedido_id: number;
   codigo?: string | null;
@@ -92,9 +89,9 @@ export interface CierreRuta {
   ruta_id: number;
   estado: string;
   fecha_fin?: string | null;
-  hora_inicio?: string | null;      // CUS-28: salida (o creación si no hubo salida)
-  hora_fin?: string | null;         // CUS-28: cierre de la ruta
-  duracion_minutos?: number | null; // CUS-28: horas trabajadas, en minutos
+  hora_inicio?: string | null;
+  hora_fin?: string | null;
+  duracion_minutos?: number | null;
   total_paradas: number;
   entregadas: number;
   fallidas: number;
@@ -102,13 +99,13 @@ export interface CierreRuta {
   mensaje: string;
 }
 
-// Coordenadas geográficas simples (las que entrega expo-location).
+// Coordenadas geográficas simples.
 export interface Coordenadas {
   latitud: number;
   longitud: number;
 }
 
-// Perfil del conductor (GET /conductor/perfil).
+// Perfil del conductor.
 export interface PerfilConductor {
   usuario_id: number;
   codigo?: string | null;
@@ -120,7 +117,7 @@ export interface PerfilConductor {
   foto_url?: string | null;
 }
 
-// Reporte de incidencia de un pedido.
+// Reporte de falla de un pedido.
 export interface Reporte {
   id: number;
   pedido_id: number;
@@ -135,7 +132,7 @@ export interface Reporte {
   respondido_en?: string | null;
 }
 
-// Incidencia de auxilio mecánico (CUS-30).
+// Incidencia de auxilio mecánico.
 export interface Incidencia {
   id: number;
   codigo?: string | null;
@@ -153,14 +150,12 @@ export interface Incidencia {
   creado_en?: string | null;
   resuelto_en?: string | null;
   nota_resolucion?: string | null;
-  // CUS-30: el conductor indica al reportar si puede resolver la avería él mismo.
   puede_solucionar_solo?: boolean;
-  // CUS-30: cuando el admin "manda ayuda" se sellan estos campos (null si aún no la envía).
-  ayuda_enviada_en?: string | null;   // fecha-hora ISO en que el admin mandó ayuda
-  ayuda_detalle?: string | null;      // descripción de la ayuda (ej. "Grúa: en 30 min")
+  ayuda_enviada_en?: string | null;
+  ayuda_detalle?: string | null;
 }
 
-// Un punto de origen de la ruta de recojo (GET /conductor/recojo/manifiesto).
+// Un punto de origen de la ruta de recojo.
 export interface ParadaRecojo {
   secuencia: number;
   recojo_id: number;
@@ -185,9 +180,7 @@ export interface ManifiestoRecojo {
   paradas: ParadaRecojo[];
 }
 
-// Resultado de registrar la recepción condicionada (CUS-12).
-// El backend acepta varias fotos de evidencia (boleta/guía/bultos) bajo el campo `files`
-// y devuelve la lista de URLs en `fotos` (la primera se conserva también en `url_guia`).
+// Resultado de registrar la recepción de un recojo.
 export interface Recepcion {
   recojo_id: number;
   codigo?: string | null;

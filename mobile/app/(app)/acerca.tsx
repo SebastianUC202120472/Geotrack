@@ -20,7 +20,6 @@ export default function AcercaScreen() {
         <Aparecer>
           <Card>
             <View style={estilos.marca}>
-              {/* Logo de la app en lugar del glifo "G". */}
               <Image source={require("../../assets/logo.png")} style={estilos.logo} contentFit="contain" />
               <Texto variante="title" color={colors.ink} style={{ marginTop: spacing.md }}>GeoTrack</Texto>
               <Texto variante="caption" color={colors.muted}>App del conductor · v{version}</Texto>

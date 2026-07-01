@@ -1,5 +1,4 @@
-// Validaciones de formularios (estándar Perú). Cada función devuelve un mensaje
-// de error o "" si es válido. Las mismas reglas viven en el backend (Pydantic).
+// Validaciones de formularios (estándar Perú). Devuelven "" si es válido o mensaje de error.
 
 export const validarNombre = (v) =>
   (v || "").trim().length < 3 ? "El nombre debe tener al menos 3 caracteres" : "";

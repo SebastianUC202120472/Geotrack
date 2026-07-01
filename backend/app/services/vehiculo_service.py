@@ -1,5 +1,3 @@
-# app/services/vehiculo_service.py
-# Listar y registrar vehículos (evitando placas duplicadas).
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -8,8 +6,7 @@ from app.schemas.vehiculo import VehiculoCreate, VehiculoUpdate
 
 
 def listar_vehiculos(db: Session):
-    """Devuelve los vehículos activos. El estado se recalcula: si el conductor del
-    vehículo tiene una ruta activa, el vehículo aparece EN_RUTA (no DISPONIBLE)."""
+    """Devuelve los vehículos activos; recalcula estado a EN_RUTA si el conductor tiene ruta activa."""
     vehiculos = vehiculo_repository.listar(db)
     salida = []
     for v in vehiculos:
@@ -65,22 +62,17 @@ def _a_dict(vehiculo) -> dict:
 
 
 def actualizar_vehiculo(db: Session, vehiculo_id: int, datos: VehiculoUpdate):
-    """CUS-08/09: edita un vehículo (marca/capacidades) y/o (re)asigna su conductor.
-    Recibe: id del vehículo y los campos a cambiar (solo se aplican los enviados).
-    Si llega conductor_id no nulo, valida que sea un conductor activo y mantiene la
-    relación 1-a-1 (libera el vehículo previo del conductor)."""
+    """Edita campos del vehículo y/o reasigna conductor. Recibe id y campos a cambiar."""
     vehiculo = vehiculo_repository.obtener_por_id(db, vehiculo_id)
     if vehiculo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehículo no encontrado")
 
-    campos = datos.model_dump(exclude_unset=True)  # solo lo que el cliente envió
+    campos = datos.model_dump(exclude_unset=True)
 
-    # Datos simples del vehículo.
     for campo in ("marca", "capacidad_volumetrica", "capacidad_cajas"):
         if campo in campos:
             setattr(vehiculo, campo, campos[campo])
 
-    # Reasignación de conductor (si se envió conductor_id, aunque sea null = desvincular).
     if "conductor_id" in campos:
         conductor_id = campos["conductor_id"]
         if conductor_id is not None:
@@ -90,7 +82,6 @@ def actualizar_vehiculo(db: Session, vehiculo_id: int, datos: VehiculoUpdate):
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="El conductor indicado no existe o no está activo",
                 )
-        # reasignar_conductor confirma TODOS los cambios pendientes del vehículo.
         vehiculo_repository.reasignar_conductor(db, vehiculo, conductor_id)
     else:
         db.commit()
@@ -100,7 +91,7 @@ def actualizar_vehiculo(db: Session, vehiculo_id: int, datos: VehiculoUpdate):
 
 
 def eliminar_vehiculo(db: Session, vehiculo_id: int) -> dict:
-    """CUS-08: da de baja (lógica) un vehículo y libera a su conductor. Recibe: id."""
+    """Da de baja lógica un vehículo y libera a su conductor. Recibe: id."""
     vehiculo = vehiculo_repository.obtener_por_id(db, vehiculo_id)
     if vehiculo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vehículo no encontrado")

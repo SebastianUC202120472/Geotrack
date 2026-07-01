@@ -1,5 +1,3 @@
-# app/models/notificacion.py
-# Modelo de la tabla `notificaciones` para el historial de avisos del panel admin.
 from datetime import datetime
 
 from sqlalchemy import Column, Integer, String, DateTime

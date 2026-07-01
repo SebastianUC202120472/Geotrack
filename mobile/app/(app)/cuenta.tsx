@@ -1,4 +1,3 @@
-// Estado de la cuenta del conductor: si está activa, su rol, código y correo.
 import { ScrollView, StyleSheet, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";

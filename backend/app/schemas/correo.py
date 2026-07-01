@@ -1,5 +1,3 @@
-# app/schemas/correo.py
-# Moldes de entrada/salida de la bandeja.
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel

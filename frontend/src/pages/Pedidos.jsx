@@ -19,7 +19,7 @@ const POR_PAGINA = 12;
 const fmt = (f) => (f ? new Date(f).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—");
 const fmtDia = (f) => (f ? new Date(f).toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit" }) : "—");
 
-// Filtra una fecha según el rango elegido (hoy / últimos 7 días / todos).
+// Comprueba si fechaStr cae dentro del rango indicado. Recibe fechaStr (ISO) y modo ("hoy"/"semana"/"todos").
 function enRango(fechaStr, modo) {
   if (modo === "todos" || !fechaStr) return true;
   const f = new Date(fechaStr);
@@ -29,7 +29,6 @@ function enRango(fechaStr, modo) {
   return true;
 }
 
-// Vistas disponibles en la cabecera de Pedidos.
 const VISTAS = [
   { id: "lista", label: "Lista", icon: List },
   { id: "ruta", label: "Por ruta", icon: Truck },
@@ -37,17 +36,14 @@ const VISTAS = [
   { id: "trazabilidad", label: "Trazabilidad", icon: Search },
 ];
 
-// Explorador de pedidos: buscar, filtrar (zona, estado, fecha) y abrir el detalle
-// con su ruta/conductor y línea de tiempo. Pensado para manejar cientos de pedidos.
+// Página de pedidos con filtros, KPIs, tabla paginada y detalle lateral.
 export default function Pedidos() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [pedidos, setPedidos] = useState([]);
   const [zonas, setZonas] = useState([]);
   const [cargando, setCargando] = useState(true);
-  // Vista activa: "lista" (tabla), "ruta" o "cliente".
   const [vista, setVista] = useState("lista");
-  // Mapa de reportes abiertos indexado por pedido_id para acceso O(1).
   const [reportePorPedido, setReportePorPedido] = useState({});
 
   const [busqueda, setBusqueda] = useState("");
@@ -58,7 +54,7 @@ export default function Pedidos() {
   const [pagina, setPagina] = useState(1);
   const [seleccionado, setSeleccionado] = useState(null);
 
-  // Obtiene reportes abiertos y construye el mapa pedido_id → reporte.
+  // Carga reportes abiertos y construye mapa pedido_id → reporte.
   const cargarReportes = () => {
     listarReportes("ABIERTO").then((lista) => {
       const mapa = {};
@@ -88,7 +84,7 @@ export default function Pedidos() {
     cargarReportes();
   }, []);
 
-  // Mantiene los filtros sincronizados con la URL (para enlaces desde Dashboard/Zonas).
+  // Sincroniza filtros con los query params de la URL.
   useEffect(() => {
     setDistrito(params.get("distrito") || "");
     setEstado(params.get("estado") || "");
@@ -115,7 +111,6 @@ export default function Pedidos() {
       if (distrito && (p.distrito || "") !== distrito) return false;
       if (estado && p.estado !== estado) return false;
       if (!enRango(p.fecha_creacion, fecha)) return false;
-      // Filtro "Sin ubicar": muestra solo pedidos con lat/lng nulos.
       if (sinUbicar && !(p.latitud == null || p.longitud == null)) return false;
       if (!q) return true;
       return [p.codigo, p.cliente_origen, p.nombre_destinatario, p.direccion_destino, p.conductor_nombre]
@@ -123,7 +118,6 @@ export default function Pedidos() {
     });
   }, [pedidos, busqueda, distrito, estado, fecha, sinUbicar]);
 
-  // Resetea paginación al cambiar filtros (dentro de callbacks, sin riesgo de lint)
   const aplicarBusqueda = (v) => { setBusqueda(v); setPagina(1); };
   const aplicarFecha = (v) => { setFecha(v); setPagina(1); };
 
@@ -145,7 +139,6 @@ export default function Pedidos() {
 
   const hayFiltros = busqueda || distrito || estado || fecha !== "todos" || sinUbicar;
 
-  // Columnas para DataTable
   const columnas = [
     {
       key: "codigo",
@@ -208,7 +201,6 @@ export default function Pedidos() {
         subtitulo="Busca, filtra por zona/estado/fecha y abre la trazabilidad de cada pedido."
       />
 
-      {/* Selector de vista: Lista / Por ruta / Por cliente */}
       <div className="animate-fade-up">
         <div className="inline-flex items-center gap-1 rounded-2xl border border-warm-200 bg-white p-1 shadow-card">
           {VISTAS.map((v) => {
@@ -232,15 +224,12 @@ export default function Pedidos() {
         </div>
       </div>
 
-      {/* Vista Por ruta / Por cliente / Trazabilidad (autocontenidas) */}
       {vista === "ruta" && <VistaPorRuta />}
       {vista === "cliente" && <VistaPorCliente />}
       {vista === "trazabilidad" && <TabTrazabilidad />}
 
-      {/* Vista Lista: KPIs + filtros + tabla */}
       {vista === "lista" && <>
 
-      {/* KPIs derivados de los pedidos cargados */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 animate-fade-up">
         <KpiCard label="Total" value={kpis.total} icon={Package} tone="brand" />
         <KpiCard label="Listo p/envío" value={kpis.pendientes} icon={Filter} tone="warning" />
@@ -249,7 +238,6 @@ export default function Pedidos() {
         <KpiCard label="Fallidos" value={kpis.fallidos} icon={Package} tone="danger" />
       </div>
 
-      {/* Filtros */}
       <div className="rounded-card border border-slate-200 bg-white p-5 shadow-card animate-fade-up" style={{ animationDelay: "60ms" }}>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2">
@@ -285,7 +273,6 @@ export default function Pedidos() {
                 </button>
               ))}
             </div>
-            {/* Toggle para mostrar solo pedidos sin coordenadas geocodificadas */}
             <button
               onClick={() => { setSinUbicar((v) => !v); setPagina(1); }}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${sinUbicar ? "bg-warning-soft text-warning-strong ring-1 ring-warning/40" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
@@ -305,7 +292,6 @@ export default function Pedidos() {
         </div>
       </div>
 
-      {/* Tabla principal */}
       <div className="animate-fade-up" style={{ animationDelay: "120ms" }}>
         <DataTable
           columns={columnas}
@@ -321,7 +307,6 @@ export default function Pedidos() {
         />
       </div>
 
-      {/* Paginación */}
       {!cargando && totalPaginas > 1 && (
         <div className="flex items-center justify-between text-sm text-slate-500">
           <span>Página {pagina} de {totalPaginas}</span>
@@ -351,15 +336,12 @@ export default function Pedidos() {
   );
 }
 
-// Panel lateral con el detalle del pedido, su ruta/conductor y línea de tiempo.
-// Recibe `reporte` (objeto del reporte abierto o null), `onAccion` (refresca lista +
-// reportes) y `onVerReporte` (navega a Reportes de pedido con el código precargado).
+// Panel lateral de detalle. Recibe pedido, reporte abierto (o null) y callbacks de acción.
 function DetallePedido({ pedido, reporte, onCerrar, onAccion, onDireccionResuelta, onVerReporte }) {
   const [historial, setHistorial] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [accionando, setAccionando] = useState(false);
-  // Controla si se muestra el modal de resolución de dirección.
   const [mostrarResolver, setMostrarResolver] = useState(false);
 
   useEffect(() => {
@@ -406,9 +388,6 @@ function DetallePedido({ pedido, reporte, onCerrar, onAccion, onDireccionResuelt
         <Dato etiqueta="Ruta asignada" valor={pedido.ruta_nombre || historial?.ruta_asignada || "Sin asignar"} icono={Truck} />
         <Dato etiqueta="Conductor" valor={pedido.conductor_nombre || historial?.conductor_asignado || "Sin asignar"} icono={User} />
 
-        {/* Bloque de reporte abierto: indica que hay un reporte y permite ir a
-            "Reportes de pedido" para responderlo. Las acciones del pedido
-            (reprogramar/cancelar) siguen disponibles aquí. */}
         {pedido.estado === "FALLIDO" && reporte && (
           <div className="rounded-xl border border-warning/40 bg-warning-soft p-4 space-y-3">
             <div className="flex items-center gap-2">
@@ -420,7 +399,6 @@ function DetallePedido({ pedido, reporte, onCerrar, onAccion, onDireccionResuelt
             )}
             {error && <p className="text-xs text-red-600">{error}</p>}
 
-            {/* Botones de acción del pedido + acceso al reporte */}
             <div className="flex flex-wrap gap-2 pt-1">
               <Button size="sm" icon={RotateCcw} onClick={reprogramar} disabled={accionando}>
                 {accionando ? "Procesando…" : "Reprogramar"}
@@ -436,7 +414,6 @@ function DetallePedido({ pedido, reporte, onCerrar, onAccion, onDireccionResuelt
           </div>
         )}
 
-        {/* Pedido FALLIDO sin reporte abierto: solo opción de reprogramar */}
         {pedido.estado === "FALLIDO" && !reporte && (
           <div className="rounded-xl border border-warning/30 bg-warning-soft p-4">
             <p className="text-sm text-warning-strong">Este pedido está fallido. Puedes reprogramarlo para reasignarlo.</p>
@@ -449,7 +426,6 @@ function DetallePedido({ pedido, reporte, onCerrar, onAccion, onDireccionResuelt
           </div>
         )}
 
-        {/* Si el pedido no tiene coordenadas, ofrecer resolución contextual */}
         {(pedido.latitud == null || pedido.longitud == null) && (
           <div className="rounded-xl border border-brand-200 bg-brand-50 p-4">
             <p className="text-sm text-brand-800">Este pedido no tiene ubicación geocodificada.</p>
@@ -484,7 +460,6 @@ function DetallePedido({ pedido, reporte, onCerrar, onAccion, onDireccionResuelt
         </div>
       </div>
 
-      {/* Modal de resolución de dirección (se abre sobre el panel lateral) */}
       <Modal open={mostrarResolver} onClose={() => setMostrarResolver(false)} variant="center">
         {mostrarResolver && (
           <ResolverDireccionModal

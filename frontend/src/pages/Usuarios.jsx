@@ -11,15 +11,14 @@ import Badge, { EstadoBadge } from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
 import { listarUsuarios, crearUsuario, actualizarUsuario, restablecerContrasenaUsuario } from "../services/api";
 
-// Roles que se gestionan en el panel (el conductor se administra en su sección).
+// Roles disponibles en el panel (conductores tienen su propia sección).
 const ROLES = [
   { valor: "admin", etiqueta: "Administrador" },
   { valor: "almacen", etiqueta: "Almacén" },
 ];
 const etiquetaRol = (r) => ROLES.find((x) => x.valor === r)?.etiqueta || r;
 
-// Gestión de las cuentas del panel (CUS-03): crear, cambiar rol, activar/desactivar y
-// restablecer contraseña. Los conductores tienen su propia sección.
+// Pagina de usuarios del panel: crear, editar rol, activar/desactivar y restablecer contrasena.
 export default function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -29,15 +28,13 @@ export default function Usuarios() {
   const [aviso, setAviso] = useState(null);
   const [guardando, setGuardando] = useState(false);
 
-  // Sin setCargando(true) síncrono (inicia en true; refresca en callbacks de promesa)
-  // para no disparar el error de lint "setState síncrono en effect".
+  // Recarga la lista de usuarios desde el backend.
   const cargar = async () => {
     try { setUsuarios(await listarUsuarios()); }
     catch (err) { console.error("No se pudo cargar usuarios:", err.message); }
     finally { setCargando(false); }
   };
 
-  // Carga inicial con setState en callbacks de promesa (evita el lint de effect).
   useEffect(() => {
     let activo = true;
     listarUsuarios()
@@ -58,7 +55,6 @@ export default function Usuarios() {
     setAviso(null);
     setGuardando(true);
     try {
-      // Los datos personales son opcionales: solo se envían si tienen valor.
       const u = await crearUsuario({
         correo: form.correo.trim(),
         contrasena: form.contrasena,
@@ -117,7 +113,6 @@ export default function Usuarios() {
             <Input as="select" label="Rol" value={form.rol} onChange={(e) => setForm((f) => ({ ...f, rol: e.target.value }))}>
               {ROLES.map((r) => <option key={r.valor} value={r.valor}>{r.etiqueta}</option>)}
             </Input>
-            {/* Datos personales (opcionales): se muestran luego en "Mi Perfil". */}
             <Input label="Nombre completo (opcional)" value={form.nombre}
               onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))} placeholder="Ej. Ana Pérez" />
             <div className="grid grid-cols-2 gap-3">
@@ -154,11 +149,10 @@ export default function Usuarios() {
   );
 }
 
-// Detalle: cambiar rol, activar/desactivar y restablecer contraseña.
+// Modal de detalle de usuario: editar rol/datos, activar/desactivar y restablecer contrasena.
 function DetalleUsuario({ usuario: u, onCerrar, onCambios }) {
   const [modo, setModo] = useState("ver"); // "ver" | "clave"
   const [rol, setRol] = useState(u.rol);
-  // Datos personales editables (opcionales); se inician con lo que ya tiene el usuario.
   const [datos, setDatos] = useState({
     nombre: u.nombre || "",
     dni: u.dni || "",
@@ -170,7 +164,7 @@ function DetalleUsuario({ usuario: u, onCerrar, onCambios }) {
   const [aviso, setAviso] = useState(null);
   const [trabajando, setTrabajando] = useState(false);
 
-  // Guarda rol + datos personales en un solo PATCH (los vacíos se mandan como null).
+  // Guarda rol y datos personales del usuario. Recibe el id del usuario.
   const guardarRol = async () => {
     setTrabajando(true); setAviso(null);
     try {
@@ -227,7 +221,6 @@ function DetalleUsuario({ usuario: u, onCerrar, onCambios }) {
           <Input as="select" label="Rol" value={rol} onChange={(e) => setRol(e.target.value)}>
             {ROLES.map((r) => <option key={r.valor} value={r.valor}>{r.etiqueta}</option>)}
           </Input>
-          {/* Datos personales editables (opcionales) */}
           <Input label="Nombre completo" value={datos.nombre}
             onChange={(e) => setDatos((d) => ({ ...d, nombre: e.target.value }))} placeholder="Ej. Ana Pérez" />
           <div className="grid grid-cols-2 gap-3">

@@ -1,5 +1,3 @@
-# app/schemas/notificacion.py
-# Esquemas de respuesta para el historial de notificaciones del panel admin.
 from datetime import datetime
 
 from pydantic import BaseModel

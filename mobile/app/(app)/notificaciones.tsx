@@ -1,6 +1,4 @@
-// Apartado de notificaciones del conductor (in-app). Por ahora deriva un aviso de
-// la ruta activa asignada; el seguimiento de "no leídas" se añade más adelante.
-// Pantalla navegable desde la campana de la cabecera.
+// Pantalla de notificaciones del conductor. Muestra aviso de ruta activa asignada.
 import { ScrollView, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";

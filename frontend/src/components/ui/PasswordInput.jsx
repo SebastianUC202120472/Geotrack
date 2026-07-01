@@ -1,5 +1,4 @@
-// Campo de contraseña con botón de ojo para ver/ocultar lo que se escribe.
-// Misma apariencia y estado de error que <Input>.
+// Campo de contraseña con toggle de visibilidad y soporte de error/hint.
 import { useId, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 

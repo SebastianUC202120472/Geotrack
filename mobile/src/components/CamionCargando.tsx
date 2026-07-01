@@ -1,19 +1,16 @@
-// Pantalla de carga con un camión que avanza por una vía. Se usa mientras la app
-// arranca (o mientras carga la ruta). Respeta "reducir movimiento" del SO.
+// Pantalla de carga animada con camión. Recibe: { texto? }.
 import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Texto } from "@/components/Texto";
 import { useTheme, spacing, radius } from "@/theme";
 
-// Recibe: { texto? } — mensaje bajo el nombre de la app.
 export function CamionCargando({ texto = "Cargando tu ruta…" }: { texto?: string }) {
   const { colors } = useTheme();
   const avance = useRef(new Animated.Value(0)).current; // desplazamiento horizontal
   const salto = useRef(new Animated.Value(0)).current; // pequeño rebote vertical
   const [reducir, setReducir] = useState(false);
 
-  // Lee la preferencia de "reducir movimiento" una vez al montar.
   useEffect(() => {
     let activo = true;
     AccessibilityInfo.isReduceMotionEnabled().then((v) => activo && setReducir(v));
@@ -22,7 +19,6 @@ export function CamionCargando({ texto = "Cargando tu ruta…" }: { texto?: stri
     };
   }, []);
 
-  // Arranca los bucles de animación (camión avanzando + rebote), salvo reducir movimiento.
   useEffect(() => {
     if (reducir) return;
     const conducir = Animated.loop(

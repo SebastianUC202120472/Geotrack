@@ -1,10 +1,8 @@
-# app/schemas/parametro.py
-# Moldes del catálogo de parámetros (CUS-06). Por ahora, motivos de rechazo.
 from pydantic import BaseModel, field_validator
 
 
 class MotivoCreate(BaseModel):
-    """ENTRADA (CUS-06): alta de un motivo de rechazo."""
+    """Alta de un motivo de rechazo. Recibe texto."""
     texto: str
 
     @field_validator("texto")
@@ -19,12 +17,12 @@ class MotivoCreate(BaseModel):
 
 
 class MotivoResponse(BaseModel):
-    """SALIDA (CUS-06): un motivo de rechazo del catálogo."""
+    """Respuesta con un motivo de rechazo del catálogo."""
     id: int
     texto: str
 
 
 class CombustibleConfig(BaseModel):
-    """Parámetros de combustible (CUS-34), editables desde el panel."""
+    """Parámetros de combustible editables desde el panel."""
     consumo_l_100km: float
     precio_soles_litro: float
