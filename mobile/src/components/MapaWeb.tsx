@@ -52,6 +52,8 @@ html,body,#map{height:100%;margin:0;background:#e9eef4}
   var paradas = __DATOS__;
   // Escapa texto para mostrarlo en el popup como TEXTO, no como HTML (anti-XSS).
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  // Rumbo (grados, 0=norte, sentido horario) para orientar las flechas de dirección.
+  function rumbo(a, b){ var r=Math.PI/180, dLon=(b[1]-a[1])*r; var y=Math.sin(dLon)*Math.cos(b[0]*r); var x=Math.cos(a[0]*r)*Math.sin(b[0]*r)-Math.sin(a[0]*r)*Math.cos(b[0]*r)*Math.cos(dLon); return Math.atan2(y,x)*180/Math.PI; }
   var map = L.map('map', { zoomControl: true });
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
   var pts = [], siguienteUsada = false;
@@ -69,7 +71,17 @@ html,body,#map{height:100%;margin:0;background:#e9eef4}
     L.marker([p.lat, p.lng], { icon: icon }).addTo(map).bindPopup('<b>' + esc(p.dest || 'Parada') + '</b><br>' + esc(p.dir || ''));
     pts.push([p.lat, p.lng]);
   });
-  if (pts.length > 1) { L.polyline(pts, { color: '#2563eb', weight: 4 }).addTo(map); map.fitBounds(pts, { padding: [40, 40] }); }
+  if (pts.length > 1) {
+    L.polyline(pts, { color: '#2563eb', weight: 4 }).addTo(map);
+    // Flecha de dirección en el medio de cada tramo, apuntando al siguiente destino.
+    for (var k = 0; k + 1 < pts.length; k++) {
+      var a = pts[k], b = pts[k + 1];
+      var flecha = L.divIcon({ className: '', iconSize: [20, 20], iconAnchor: [10, 10],
+        html: '<div style="transform:rotate(' + rumbo(a, b) + 'deg);color:#1d4ed8;font-size:18px;line-height:20px;text-align:center">▲</div>' });
+      L.marker([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], { icon: flecha, interactive: false, keyboard: false }).addTo(map);
+    }
+    map.fitBounds(pts, { padding: [40, 40] });
+  }
   else if (pts.length === 1) { map.setView(pts[0], 15); }
   else { map.setView([-12.046, -77.043], 12); }
 </script>

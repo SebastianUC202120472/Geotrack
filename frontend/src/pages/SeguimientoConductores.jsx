@@ -8,6 +8,7 @@ import LiveBadge from "../components/ui/LiveBadge";
 import Button from "../components/ui/Button";
 import MapaFlota from "../components/MapaFlota";
 import { obtenerUbicacionesFlota } from "../services/api";
+import { haceCuanto } from "../utils/formatoFecha";
 
 const REFRESCO_MS = 15000; // el mapa se actualiza solo cada 15 s (polling)
 
@@ -205,6 +206,10 @@ export default function SeguimientoConductores() {
                             {pendientesDe(c)} parada{pendientesDe(c) !== 1 ? "s" : ""} pendiente{pendientesDe(c) !== 1 ? "s" : ""} ·{" "}
                             {c.en_linea ? "en línea" : "sin señal"}
                           </p>
+                          {/* Hora de la última señal recibida del conductor. */}
+                          {c.actualizado_en && (
+                            <p className="text-[11px] text-slate-400">Última señal {haceCuanto(c.actualizado_en)}</p>
+                          )}
                         </div>
                       </button>
                     </li>
