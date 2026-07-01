@@ -14,31 +14,23 @@ import { listarIncidencias, mandarAyuda } from "../services/api";
 // Fecha legible corta (es-PE). Entrada: fecha ISO. Salida: "dd/mm/aa hh:mm" o "—".
 const fmt = (f) => (f ? new Date(f).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—");
 
-// Tipos de ayuda que el admin puede mandar a un conductor en ruta.
 const TIPOS_AYUDA = ["Mecánico", "Grúa", "Combustible", "Vehículo de reemplazo", "Otro"];
 
-// Badge del estado de la incidencia (ABIERTA/RESUELTA) con tono semántico.
+// Badge del estado de la incidencia. Recibe estado (ABIERTA/RESUELTA).
 function BadgeEstado({ estado }) {
   if (estado === "RESUELTA") return <Badge tono="success">Resuelta</Badge>;
   return <Badge tono="danger">Abierta</Badge>;
 }
 
-// Auxilio mecánico (CUS-30): tabla con TODAS las incidencias de la flota y
-// filtros por conductor + estado. Al abrir una incidencia ABIERTA, el admin puede
-// mandar ayuda (el conductor es quien cierra la incidencia desde su app).
+// Tabla de incidencias mecánicas de la flota con filtros y panel de envío de ayuda.
 export default function AuxilioMecanico() {
   const [params] = useSearchParams();
   const [incidencias, setIncidencias] = useState([]);
   const [cargando, setCargando] = useState(true);
-  // Estado inicial leído de los query params (una sola vez, sin setState en effect):
-  // ?conductor=<id> preselecciona ese conductor; ?estado=ABIERTA preselecciona el filtro.
-  const [conductorId, setConductorId] = useState(() => params.get("conductor") || "TODOS"); // id (string) o "TODOS"
-  const [estado, setEstado] = useState(() => (params.get("estado") === "ABIERTA" ? "ABIERTA" : "TODAS")); // TODAS | ABIERTA | RESUELTA
-  // Incidencia seleccionada para el panel de detalle.
+  const [conductorId, setConductorId] = useState(() => params.get("conductor") || "TODOS");
+  const [estado, setEstado] = useState(() => (params.get("estado") === "ABIERTA" ? "ABIERTA" : "TODAS"));
   const [seleccionada, setSeleccionada] = useState(null);
 
-  // Carga inicial: trae TODAS las incidencias (sin filtro). El filtrado es
-  // client-side. setState en callbacks de promesa (evita el lint de effect).
   useEffect(() => {
     let activo = true;
     listarIncidencias()
@@ -48,14 +40,14 @@ export default function AuxilioMecanico() {
     return () => { activo = false; };
   }, []);
 
-  // Recarga la lista (tras mandar ayuda) sin tocar el spinner inicial.
+  // Recarga incidencias sin mostrar spinner. Sin parámetros.
   const recargar = () => {
     listarIncidencias()
       .then((d) => setIncidencias(Array.isArray(d) ? d : []))
       .catch(() => {});
   };
 
-  // Conductores distintos presentes en la data (para armar el dropdown de filtro).
+  // Lista de conductores únicos para el filtro dropdown.
   const conductores = useMemo(() => {
     const mapa = new Map();
     incidencias.forEach((i) => {
@@ -66,14 +58,14 @@ export default function AuxilioMecanico() {
     return [...mapa.entries()].map(([id, nombre]) => ({ id, nombre }));
   }, [incidencias]);
 
-  // KPIs derivados de la lista cargada (sin fetch extra).
+  // KPIs calculados desde la lista cargada.
   const kpis = useMemo(() => ({
     total: incidencias.length,
     abiertas: incidencias.filter((i) => i.estado === "ABIERTA").length,
     resueltas: incidencias.filter((i) => i.estado === "RESUELTA").length,
   }), [incidencias]);
 
-  // Aplica los filtros de conductor y estado sobre la lista (client-side).
+  // Filtra incidencias por conductor y estado (client-side).
   const filtradas = useMemo(() => {
     return incidencias.filter((i) => {
       if (estado !== "TODAS" && i.estado !== estado) return false;
@@ -151,7 +143,6 @@ export default function AuxilioMecanico() {
           empty={{ icon: Wrench, title: "Sin incidencias", description: "No hay incidencias que coincidan con el filtro." }} />
       </SectionCard>
 
-      {/* Panel lateral con el detalle de la incidencia y el envío de ayuda */}
       <Modal open={!!seleccionada} onClose={() => setSeleccionada(null)} variant="right">
         {seleccionada && (
           <DetalleIncidencia
@@ -165,12 +156,8 @@ export default function AuxilioMecanico() {
   );
 }
 
-// Panel de detalle de una incidencia. Si está ABIERTA: muestra aviso si el
-// conductor puede resolverla solo; si no, ofrece el form para mandar ayuda (o
-// reenviarla si ya hay una). El admin NO resuelve incidencias (eso lo hace el
-// conductor desde su app). Entrada: incidencia, onCerrar (fn), onAyudaEnviada (fn).
+// Detalle de una incidencia con formulario de envío de ayuda. Recibe incidencia, onCerrar, onAyudaEnviada.
 function DetalleIncidencia({ incidencia: i, onCerrar, onAyudaEnviada }) {
-  // Muestra el form de ayuda abierto cuando aún no se envió, o al pulsar "Editar".
   const [mostrarForm, setMostrarForm] = useState(!i.ayuda_enviada_en);
   const [tipo, setTipo] = useState(TIPOS_AYUDA[0]);
   const [nota, setNota] = useState("");
@@ -180,7 +167,7 @@ function DetalleIncidencia({ incidencia: i, onCerrar, onAyudaEnviada }) {
   const puedeSolo = i.puede_solucionar_solo;
   const yaEnviada = !!i.ayuda_enviada_en;
 
-  // Manda (o reenvía) la ayuda con el tipo elegido y una nota opcional.
+  // Envía o reenvía la ayuda al backend. Recibe tipo y nota del estado local.
   const enviarAyuda = () => {
     if (!tipo) return;
     setEnviando(true);
@@ -211,7 +198,6 @@ function DetalleIncidencia({ incidencia: i, onCerrar, onAyudaEnviada }) {
         <Dato etiqueta="Descripción" valor={i.descripcion || "Sin detalle"} />
         <Dato etiqueta="Reportada" valor={fmt(i.creado_en)} />
 
-        {/* Enlace a ubicación GPS si existe */}
         {i.latitud != null && i.longitud != null && (
           <a
             className="inline-flex items-center gap-1.5 rounded-xl bg-brand-50 px-4 py-2.5 text-sm font-medium text-brand-600 hover:underline"
@@ -223,7 +209,6 @@ function DetalleIncidencia({ incidencia: i, onCerrar, onAyudaEnviada }) {
           </a>
         )}
 
-        {/* Foto de evidencia si existe */}
         {i.url_evidencia && (
           <div>
             <p className="mb-1.5 text-xs text-slate-400">Foto de evidencia</p>
@@ -235,10 +220,8 @@ function DetalleIncidencia({ incidencia: i, onCerrar, onAyudaEnviada }) {
           <p className="rounded-xl bg-danger-soft px-4 py-2.5 text-sm text-danger-strong">{error}</p>
         )}
 
-        {/* Acciones de ayuda: solo cuando la incidencia sigue ABIERTA */}
         {i.estado === "ABIERTA" && (
           <>
-            {/* El conductor indicó que puede resolverlo solo: sin botón de ayuda */}
             {puedeSolo && (
               <div className="flex items-start gap-2 rounded-xl border border-info/30 bg-info-soft p-4 text-sm text-info-strong">
                 <ShieldCheck size={18} className="mt-0.5 shrink-0" />
@@ -246,7 +229,6 @@ function DetalleIncidencia({ incidencia: i, onCerrar, onAyudaEnviada }) {
               </div>
             )}
 
-            {/* No puede solo: mostrar ayuda enviada y/o el formulario para mandarla */}
             {!puedeSolo && (
               <>
                 {yaEnviada && (
@@ -289,7 +271,6 @@ function DetalleIncidencia({ incidencia: i, onCerrar, onAyudaEnviada }) {
           </>
         )}
 
-        {/* Incidencia ya resuelta (por el conductor): nota de resolución en solo lectura */}
         {i.estado === "RESUELTA" && (
           <div className="rounded-xl border border-success/30 bg-success-soft p-4">
             <p className="flex items-center gap-1.5 text-sm font-semibold text-success-strong">
@@ -303,7 +284,7 @@ function DetalleIncidencia({ incidencia: i, onCerrar, onAyudaEnviada }) {
   );
 }
 
-// Fila de dato simple con etiqueta + valor (para el panel de detalle).
+// Fila de etiqueta + valor para el panel de detalle. Recibe etiqueta y valor.
 function Dato({ etiqueta, valor }) {
   return (
     <div className="text-sm">

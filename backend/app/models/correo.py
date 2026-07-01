@@ -1,5 +1,3 @@
-# app/models/correo.py
-# Guarda las conversaciones por correo con los clientes (solicitudes de recojo) y cada mensaje del hilo.
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, LargeBinary
 from sqlalchemy.orm import relationship
@@ -8,7 +6,7 @@ from app.db.database import Base
 
 
 class Conversacion(Base):
-    """Un hilo de correo con una contraparte (normalmente un cliente)."""
+    """Hilo de correo con un cliente."""
     __tablename__ = "correo_conversaciones"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -55,10 +53,7 @@ class MensajeCorreo(Base):
 
 
 class MensajeAdjunto(Base):
-    """Archivo adjunto de un correo (ej. el Excel con los pedidos del recojo).
-
-    El contenido se guarda en la BD para que persista y solo se pueda descargar
-    con sesión de admin (no queda expuesto como archivo estático público)."""
+    """Adjunto de un mensaje; contenido guardado en BD (no expuesto como archivo estático)."""
     __tablename__ = "correo_adjuntos"
 
     id = Column(Integer, primary_key=True, index=True)

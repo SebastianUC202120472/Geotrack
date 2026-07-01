@@ -1,5 +1,4 @@
-// Guarda el token JWT de forma SEGURA (cifrado) con expo-secure-store.
-// Nunca en texto plano ni en logs.
+// Token JWT cifrado con expo-secure-store.
 import * as SecureStore from "expo-secure-store";
 
 const CLAVE_TOKEN = "geotrack_token";

@@ -5,8 +5,7 @@ import Button from "./ui/Button";
 import MapaPicker from "./MapaPicker";
 import { buscarDireccion, fijarUbicacionPedido } from "../services/api";
 
-// Modal reutilizable para ubicar un pedido sin geocodificar en el mapa (CUS-17).
-// Props: pedido (objeto), onClose (fn), onGuardado (fn llamada tras guardar con éxito).
+// Modal para ubicar un pedido sin geocodificar. Recibe pedido, onClose y onGuardado.
 export default function ResolverDireccionModal({ pedido, onClose, onGuardado }) {
   const [busqueda, setBusqueda] = useState(pedido.direccion_destino || "");
   const [lat, setLat] = useState(pedido.latitud ?? null);

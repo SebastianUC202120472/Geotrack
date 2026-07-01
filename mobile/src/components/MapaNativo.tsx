@@ -1,8 +1,4 @@
-// Mapa NATIVO de la ruta con Google Maps (react-native-maps). Reemplaza al
-// WebView+Leaflet (MapaWeb) en el build de desarrollo: dibuja un marcador por
-// cada parada coloreado según su estado (pendiente/entregado/fallido) y resalta
-// la siguiente pendiente. Necesita la clave de Google (app.config.js) y NO
-// funciona en Expo Go (requiere dev build).
+// Mapa nativo de la ruta con Google Maps. Recibe paradas y las pinta con marcadores coloreados por estado.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import MapView, { Marker, Callout, Polyline, PROVIDER_GOOGLE, type Region } from "react-native-maps";
@@ -10,9 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme, fontSize, radius } from "@/theme";
 import type { ParadaManifiesto } from "@/types/api";
 
-// Rumbo (bearing) en grados de un punto a otro (0=norte, 90=este, sentido horario).
-// Recibe: lat/lng de origen y destino. Devuelve: los grados para orientar la flecha
-// de dirección de la ruta.
+// Calcula el rumbo en grados entre dos coordenadas. Recibe lat/lng de origen y destino.
 function rumbo(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const rad = Math.PI / 180;
   const dLon = (lon2 - lon1) * rad;
@@ -28,7 +22,6 @@ interface Props {
   alto?: number; // alto del mapa en píxeles (por defecto 260)
 }
 
-// Punto ya validado y normalizado para pintar en el mapa.
 interface PuntoMapa {
   lat: number;
   lng: number;
@@ -39,17 +32,14 @@ interface PuntoMapa {
   esSiguiente: boolean; // primera parada PENDIENTE de la secuencia
 }
 
-// Color del pin según el estado de entrega. Recibe: estado y si es la siguiente
-// pendiente. Devuelve: un color hex válido para `pinColor` de <Marker>.
+// Devuelve color hex del pin según estado y si es la siguiente parada pendiente.
 function colorPorEstado(estado: string, esSiguiente: boolean): string {
   if (estado === "ENTREGADO") return "#16a34a"; // verde
   if (estado === "FALLIDO") return "#dc2626"; // rojo
-  // Pendiente: la siguiente se resalta en azul; las demás en azul más claro.
   return esSiguiente ? "#2563eb" : "#60a5fa";
 }
 
-// Calcula una región (centro + deltas) que enmarque todos los puntos. Recibe:
-// la lista de puntos (>=1). Devuelve: una Region para `initialRegion`.
+// Calcula la Region que enmarca todos los puntos dados. Recibe lista de puntos (>=1).
 function regionQueEnmarca(puntos: PuntoMapa[]): Region {
   const lats = puntos.map((p) => p.lat);
   const lngs = puntos.map((p) => p.lng);
@@ -57,7 +47,6 @@ function regionQueEnmarca(puntos: PuntoMapa[]): Region {
   const maxLat = Math.max(...lats);
   const minLng = Math.min(...lngs);
   const maxLng = Math.max(...lngs);
-  // Margen para que los pines no queden pegados al borde.
   const latDelta = Math.max((maxLat - minLat) * 1.4, 0.02);
   const lngDelta = Math.max((maxLng - minLng) * 1.4, 0.02);
   return {
@@ -68,13 +57,11 @@ function regionQueEnmarca(puntos: PuntoMapa[]): Region {
   };
 }
 
-// Mapa de calles nativo de la ruta. Recibe: { paradas, alto? }.
+// Componente principal del mapa nativo. Recibe { paradas, alto? }.
 export function MapaNativo({ paradas, alto = 260 }: Props) {
   const { colors } = useTheme();
   const mapRef = useRef<MapView | null>(null);
 
-  // Normaliza: solo paradas con coords, ordenadas por secuencia, marcando la
-  // primera PENDIENTE como "siguiente".
   const puntos = useMemo<PuntoMapa[]>(() => {
     let siguienteUsada = false;
     return paradas
@@ -97,10 +84,7 @@ export function MapaNativo({ paradas, alto = 260 }: Props) {
       });
   }, [paradas]);
 
-  // react-native-maps (Android) necesita `tracksViewChanges=true` un instante para
-  // rasterizar los marcadores custom (el <View> numerado); si no, salen vacíos/rotos.
-  // Lo activamos al montar y cuando cambian las paradas, y lo apagamos luego (ahorra
-  // batería y evita el parpadeo del pin resaltado).
+  // Activa tracksViewChanges brevemente para que Android rasterice los marcadores custom.
   const [rastrearVistas, setRastrearVistas] = useState(true);
   useEffect(() => {
     setRastrearVistas(true);
@@ -120,9 +104,9 @@ export function MapaNativo({ paradas, alto = 260 }: Props) {
 
   const region = regionQueEnmarca(puntos);
 
-  // Al terminar de montar el mapa, ajusta el encuadre a todas las paradas.
+  // Ajusta el encuadre del mapa para mostrar todas las paradas.
   const ajustarEncuadre = () => {
-    if (puntos.length < 2) return; // con un solo punto basta initialRegion
+    if (puntos.length < 2) return;
     mapRef.current?.fitToCoordinates(
       puntos.map((p) => ({ latitude: p.lat, longitude: p.lng })),
       { edgePadding: { top: 50, right: 50, bottom: 50, left: 50 }, animated: false }
@@ -140,7 +124,6 @@ export function MapaNativo({ paradas, alto = 260 }: Props) {
         showsMyLocationButton
         onMapReady={ajustarEncuadre}
       >
-        {/* Línea de la ruta: conecta las paradas en orden (igual que el mapa OSM). */}
         {puntos.length > 1 && (
           <Polyline
             coordinates={puntos.map((p) => ({ latitude: p.lat, longitude: p.lng }))}
@@ -148,7 +131,6 @@ export function MapaNativo({ paradas, alto = 260 }: Props) {
             strokeWidth={4}
           />
         )}
-        {/* Flechas de dirección: una entre cada par de paradas, apuntando al siguiente destino. */}
         {puntos.slice(0, -1).map((p, i) => {
           const q = puntos[i + 1];
           const medio = { latitude: (p.lat + q.lat) / 2, longitude: (p.lng + q.lng) / 2 };
@@ -166,8 +148,6 @@ export function MapaNativo({ paradas, alto = 260 }: Props) {
           );
         })}
         {puntos.map((p, i) => {
-          // Marcador PERSONALIZADO: círculo de color con el NÚMERO del pedido dentro
-          // (como en el panel web). La siguiente parada se dibuja más grande para destacarla.
           const color = colorPorEstado(p.estado, p.esSiguiente);
           const tam = p.esSiguiente ? 38 : 30;
           return (
@@ -203,7 +183,6 @@ export function MapaNativo({ paradas, alto = 260 }: Props) {
 const estilos = StyleSheet.create({
   caja: { borderRadius: radius.lg, borderWidth: 1, overflow: "hidden" },
   vacio: { borderRadius: radius.lg, borderWidth: 1, alignItems: "center", justifyContent: "center", padding: 16 },
-  // Pin numerado: círculo de color con borde blanco y el número del pedido al centro.
   pin: {
     alignItems: "center",
     justifyContent: "center",

@@ -1,5 +1,3 @@
-// CUS-30: el conductor reporta un auxilio mecánico (avería). Al enviarlo, su ruta queda
-// pausada (no puede gestionar paradas ni cerrar el día) hasta que la reanude.
 import { useState } from "react";
 import { Alert, Image, StyleSheet, Switch, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -23,10 +21,9 @@ export default function AuxilioScreen() {
   const ubicacion = useUbicacionActual();
   const [descripcion, setDescripcion] = useState("");
   const [foto, setFoto] = useState<string | null>(null);
-  // El conductor indica si puede resolver la avería él mismo (el admin no manda ayuda).
   const [puedeSolucionarSolo, setPuedeSolucionarSolo] = useState(false);
 
-  // Toma una foto de la avería con la cámara (opcional).
+  // Solicita permiso y abre la cámara para adjuntar una foto de la avería.
   const tomarFoto = async () => {
     const permiso = await ImagePicker.requestCameraPermissionsAsync();
     if (!permiso.granted) { Alert.alert("Cámara", "Necesitamos permiso de cámara para la foto."); return; }
@@ -34,7 +31,7 @@ export default function AuxilioScreen() {
     if (!r.canceled && r.assets?.[0]?.uri) setFoto(r.assets[0].uri);
   };
 
-  // Envía el auxilio: adjunta coords (best-effort) y foto (si hay), y vuelve a Mi Ruta.
+  // Envía el reporte de auxilio con coords y foto opcionales, luego vuelve atrás.
   const enviar = async () => {
     const coords = (await ubicacion.obtener()) ?? undefined;
     reportar.mutate(
@@ -72,7 +69,6 @@ export default function AuxilioScreen() {
           style={{ marginTop: spacing.md }}
         />
 
-        {/* Toggle: el conductor declara si puede resolver la avería sin ayuda del almacén. */}
         <Card>
           <View style={estilos.toggle}>
             <View style={{ flex: 1 }}>

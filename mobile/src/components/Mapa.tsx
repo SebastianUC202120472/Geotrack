@@ -1,16 +1,8 @@
-// Selector de mapa. Por defecto usa el mapa OSM (WebView, sin clave de Google) que
-// funciona sin recompilar. Para usar el mapa NATIVO de Google, compila el APK con
-// EXPO_PUBLIC_MAPA_NATIVO=1 (requiere también EXPO_PUBLIC_GOOGLE_MAPS_KEY en el build).
-// Así el mismo código sirve para OSM (rápido) o Google (nativo) según la bandera.
 import { MapaWeb } from "./MapaWeb";
 import { MapaNativo } from "./MapaNativo";
 import type { ParadaManifiesto } from "@/types/api";
 
-// Elige el mapa igual que el panel web: si hay clave de Google
-// (EXPO_PUBLIC_GOOGLE_MAPS_KEY) usa el mapa NATIVO de Google; si no hay clave,
-// cae al mapa OSM (WebView), que no necesita clave ni recompilar. Nota: el APK
-// del dev build también debe traer la clave horneada (app.config.js) o el mapa
-// nativo saldrá vacío ("API key not found").
+// Usa mapa nativo (Google) si hay clave de build; si no, cae a OSM (WebView).
 const USAR_NATIVO = !!process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY;
 
 type Props = {

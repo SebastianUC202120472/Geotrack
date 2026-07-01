@@ -1,5 +1,4 @@
-// Tokens de tipografía (Inter). En RN con fuentes custom hay que fijar fontFamily
-// por peso: fontWeight NO selecciona el archivo. Cada rol define familia+tamaño.
+// Tokens de tipografía Inter; fontFamily por peso (fontWeight no selecciona el archivo en RN).
 import type { TextStyle } from "react-native";
 
 export const fuentes = {

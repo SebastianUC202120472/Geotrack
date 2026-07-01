@@ -1,6 +1,4 @@
-// Cabecera de página: título + subtítulo a la izquierda y acciones a la derecha.
-// Unifica el encabezado de todas las pantallas (antes cada página repetía su
-// propio título, que además chocaba con la barra superior).
+// Cabecera de página reutilizable: título, subtítulo y acciones (children).
 export default function PageHeader({ titulo, subtitulo, children }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

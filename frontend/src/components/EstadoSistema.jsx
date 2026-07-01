@@ -3,8 +3,7 @@ import { CircleCheck, CircleX, Loader2 } from "lucide-react";
 import Card from "./ui/Card";
 import { obtenerResumen } from "../services/api";
 
-// Refleja el estado real de la conexión con el backend: si el resumen del
-// dashboard responde, la API y la base de datos están operativas.
+// Muestra el estado de la API y la BD consultando el resumen del dashboard.
 export default function EstadoSistema() {
   const [estado, setEstado] = useState("verificando"); // verificando | ok | error
 

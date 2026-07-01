@@ -1,18 +1,4 @@
-# =============================================================================
-# docker-compose de la RAÍZ del monorepo GeoTrack.
-# Levanta todo el stack con:   docker compose up --build
-#
-#   db        -> PostgreSQL con volumen persistente + healthcheck
-#   backend   -> FastAPI (REUTILIZA su Dockerfile existente; NO se reescribe)
-#   frontend  -> React/Vite servido por Nginx, que ademas hace de reverse proxy
-#
-# Todas las variables sensibles vienen del .env (ver .env.example).
-# =============================================================================
-
 services:
-  # ---------------------------------------------------------------------------
-  # Base de datos
-  # ---------------------------------------------------------------------------
   db:
     image: postgres:15-alpine
     environment:
@@ -22,18 +8,14 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      # Espera a que Postgres acepte conexiones antes de arrancar el backend.
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
     restart: unless-stopped
 
-  # ---------------------------------------------------------------------------
-  # Backend (FastAPI) — YA viene dockerizado: usamos SU Dockerfile tal cual.
-  # ---------------------------------------------------------------------------
   backend:
-    build: ./backend            # <- reutiliza backend/Dockerfile existente (no se toca)
+    build: ./backend
     environment:
       DATABASE_URL: ${DATABASE_URL}
       SECRET_KEY: ${SECRET_KEY}
@@ -41,10 +23,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      # Geocoding preciso de Google (SOLO backend). Vacía = usa Nominatim/OSM (gratis, menos preciso).
       GOOGLE_GEOCODING_KEY: ${GOOGLE_GEOCODING_KEY:-}
-      # Bandeja de correos (opcional). Si no se configuran, la bandeja queda en
-      # modo "no configurado" y el resto del backend funciona igual.
       MAIL_ENABLED: ${MAIL_ENABLED:-false}
       MAIL_ADDRESS: ${MAIL_ADDRESS:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
@@ -56,26 +35,18 @@ services:
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-SAVA S.A.C.}
       MAIL_SIGNATURE: ${MAIL_SIGNATURE:-}
     volumes:
-      # Persiste las evidencias POD / archivos subidos (el backend los sirve en /media).
       - backend_uploads:/app/uploads
     ports:
-      # Publicado para poder abrir Swagger directamente en http://localhost:8000/docs.
-      # El navegador de la app NO usa este puerto: pasa por Nginx (frontend).
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
     restart: unless-stopped
 
-  # ---------------------------------------------------------------------------
-  # Frontend (Nginx sirviendo la SPA + reverse proxy hacia el backend)
-  # ---------------------------------------------------------------------------
   frontend:
     build:
       context: ./frontend
       args:
-        # Rutas RELATIVAS: el bundle pega contra el mismo origen y Nginx hace el
-        # proxy a "backend". Asi no hay CORS ni localhost hardcodeado.
         VITE_API_URL: /api
         VITE_WS_URL: /
         VITE_GOOGLE_MAPS_KEY: ${VITE_GOOGLE_MAPS_KEY}

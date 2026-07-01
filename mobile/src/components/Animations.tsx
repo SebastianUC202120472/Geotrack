@@ -1,11 +1,11 @@
-// Envoltorios de animación reutilizables con el API Animated nativo. Animan la
-// entrada (fade + leve desplazamiento). Respetan "reducir movimiento" del SO.
+// Envoltorios de animación reutilizables (fade + desplazamiento). Respetan "reducir movimiento" del SO.
 import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, StyleSheet, View, type ViewProps } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Texto } from "./Texto";
 import { useTheme, radius, type VarianteTexto } from "@/theme";
 
+// Devuelve true si el SO tiene activa la opcion de reducir movimiento.
 function useReducirMovimiento(): boolean {
   const [reducir, setReducir] = useState(false);
   useEffect(() => {
@@ -55,8 +55,7 @@ export function ItemLista({ index = 0, ...props }: AparecerProps & { index?: num
   return <Aparecer delay={Math.min(index, 8) * 50} {...props} />;
 }
 
-// Barra que anima su ancho según valor/total. Entrada: { valor, total, color?, fondo?, porEstado? }.
-// Con porEstado, el color del relleno cambia por avance: <33% rojo, 33–79% ámbar, ≥80% verde.
+// Barra que anima su ancho segun valor/total. Entrada: { valor, total, color?, fondo?, porEstado? }.
 export function BarraProgreso({ valor, total, color, fondo, porEstado }: { valor: number; total: number; color?: string; fondo?: string; porEstado?: boolean }) {
   const { colors } = useTheme();
   const reducir = useReducirMovimiento();
@@ -67,7 +66,6 @@ export function BarraProgreso({ valor, total, color, fondo, porEstado }: { valor
     Animated.timing(anim, { toValue: pct, duration: 600, useNativeDriver: false }).start();
   }, [pct, reducir, anim]);
   const ancho = anim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] });
-  // Color por estado de avance (umbral) si se pide; si no, el color recibido o blanco.
   const colorEstado = pct >= 0.8 ? colors.success : pct >= 0.33 ? colors.warning : colors.danger;
   const colorRelleno = porEstado ? colorEstado : color ?? colors.white;
   return (

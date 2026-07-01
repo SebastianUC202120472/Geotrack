@@ -1,11 +1,6 @@
 import useCountUp from "../../hooks/useCountUp";
 
-// Tarjeta de KPI con icono en chip, número (animado), y tendencia opcional.
-// Entrada:
-//   label (string), value (number|string), icon (componente lucide),
-//   tone ("brand"|"info"|"success"|"warning"|"danger"),
-//   trend ({ dir: "up"|"down", text: string }, opcional),
-//   live (bool: muestra punto con pulso "en vivo", opcional).
+// Tarjeta KPI con icono, valor animado y tendencia opcional. Recibe label, value, icon, tone, trend y live.
 const tonos = {
   brand: { chip: "bg-brand-50 text-brand-600", dot: "text-brand-600" },
   info: { chip: "bg-info-soft text-info-strong", dot: "text-info" },

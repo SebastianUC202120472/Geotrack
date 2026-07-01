@@ -5,26 +5,17 @@ import { obtenerResumen, listarRecojosAlmacen } from "../services/api";
 import Modal from "./ui/Modal";
 import MiPerfil from "./MiPerfil";
 
-// Barra superior de escritorio: indicador de conexión (verde si el backend
-// responde) e icono de perfil que abre "Mi Perfil". Entrada: ninguna (lee estado
-// y auth).
+// Barra superior: indicador de conexión y botón de perfil. Sin props.
 export default function Topbar() {
   const { rol } = useAuth();
-  const [enLinea, setEnLinea] = useState(null); // null = verificando
-  const [ultimoOk, setUltimoOk] = useState(null); // marca de tiempo (ms) del último sondeo OK
+  const [enLinea, setEnLinea] = useState(null);
+  const [ultimoOk, setUltimoOk] = useState(null);
   const [perfilAbierto, setPerfilAbierto] = useState(false);
-  // Reloj que avanza cada segundo (en estado, para no llamar Date.now() en render);
-  // sirve para recalcular el "hace Xs" del tooltip sin volver a sondear el backend.
   const [ahora, setAhora] = useState(() => Date.now());
 
-  // Endpoint que se sondea según el rol (texto solo para mostrarlo en el tooltip).
   const endpoint = rol === "almacen" ? "/almacen/recojos" : "/dashboard/resumen";
 
-  // Revisa la conexión al montar y luego cada 20 s (y al volver el foco), para que
-  // un arranque lento o un reinicio del backend se recupere solo sin recargar.
-  // Sondea un endpoint que el rol actual pueda consultar (admin → resumen;
-  // almacén → su lista de recojos) para que el indicador refleje la conexión real
-  // y no un 403 de permisos.
+  // Sondea el backend cada 20 s y al recuperar foco. Recibe: rol actual.
   useEffect(() => {
     let activo = true;
     const sondear = rol === "almacen" ? listarRecojosAlmacen : obtenerResumen;
@@ -48,15 +39,12 @@ export default function Topbar() {
     };
   }, [rol]);
 
-  // Avanza el reloj una vez por segundo (setState en callback del timer, no en el
-  // cuerpo del efecto) para refrescar el "hace Xs" del tooltip.
+  // Avanza el reloj cada segundo para actualizar el tooltip sin re-sondear.
   useEffect(() => {
     const id = setInterval(() => setAhora(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
 
-  // Segundos transcurridos desde el último sondeo OK (para el tooltip). Se calcula
-  // contra el reloj en estado para no llamar Date.now() durante el render.
   const segundosDesdeOk = ultimoOk ? Math.max(0, Math.floor((ahora - ultimoOk) / 1000)) : null;
   const ultimaVerif =
     segundosDesdeOk === null
@@ -79,8 +67,6 @@ export default function Topbar() {
           Actualizando <span className="updating-bar h-2 w-12 rounded-full" />
         </span>
       ) : (
-        // Indicador con tooltip al hover (CSS group-hover, sin dependencias):
-        // muestra el detalle del último sondeo y el endpoint consultado.
         <div className="group relative">
           <span
             className={`inline-flex cursor-default items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${estado.cls}`}
@@ -115,7 +101,6 @@ export default function Topbar() {
         </div>
       )}
 
-      {/* Icono de perfil: abre el modal "Mi Perfil" (admin y almacén) */}
       <button
         onClick={() => setPerfilAbierto(true)}
         aria-label="Mi perfil"

@@ -1,6 +1,3 @@
-# app/services/incidencia_service.py
-# CUS-30: lógica del auxilio mecánico. Al reportar una incidencia la ruta queda PAUSADA
-# (mientras la incidencia esté ABIERTA); al reanudar/resolver, la ruta vuelve a operar.
 import os
 from datetime import datetime
 
@@ -11,13 +8,12 @@ from app.repositories import incidencia_repository, ruta_repository, usuario_rep
 from app.models.conductor import PerfilConductor
 from app.services import notificaciones_service
 
-# Carpeta de fotos de avería (servidas en /media, igual que las POD).
 DIR_INCIDENCIAS = os.path.join("uploads", "incidencias")
 EXTENSIONES_IMAGEN = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 def _nombre_conductor(db: Session, conductor_id: int):
-    """Nombre del conductor (de su perfil) o su correo. Recibe: conductor_id."""
+    """Devuelve el nombre del conductor o su correo. Recibe conductor_id."""
     perfil = db.query(PerfilConductor).filter(PerfilConductor.usuario_id == conductor_id).first()
     if perfil and perfil.nombre:
         return perfil.nombre
@@ -26,7 +22,7 @@ def _nombre_conductor(db: Session, conductor_id: int):
 
 
 def _a_respuesta(db: Session, inc) -> dict:
-    """Arma la respuesta de una incidencia con nombres legibles. Recibe: la incidencia."""
+    """Serializa una incidencia con nombres legibles. Recibe la instancia de incidencia."""
     ruta = ruta_repository.obtener_ruta_por_id(db, inc.ruta_id)
     return {
         "id": inc.id,
@@ -52,8 +48,7 @@ def _a_respuesta(db: Session, inc) -> dict:
 
 
 def reportar(db: Session, conductor_id: int, datos) -> dict:
-    """CONDUCTOR: reporta un auxilio mecánico sobre su ruta activa, que queda pausada.
-    Recibe: conductor_id e IncidenciaCreate. Si ya hay una abierta, la devuelve (no duplica)."""
+    """Registra un auxilio mecánico pausando la ruta activa. Recibe conductor_id y IncidenciaCreate."""
     ruta = ruta_repository.obtener_ruta_activa_por_conductor(db, conductor_id)
     if not ruta:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No tienes una ruta activa para reportar un auxilio")
@@ -73,7 +68,6 @@ def reportar(db: Session, conductor_id: int, datos) -> dict:
         longitud=datos.longitud,
         puede_solucionar_solo=bool(getattr(datos, "puede_solucionar_solo", False)),
     )
-    # Notifica al admin que un conductor solicitó auxilio mecánico (lo lleva al historial de auxilio).
     try:
         nombre = _nombre_conductor(db, conductor_id)
         solo = " (puede solucionarlo solo)" if inc.puede_solucionar_solo else ""
@@ -86,8 +80,7 @@ def reportar(db: Session, conductor_id: int, datos) -> dict:
 
 
 def guardar_evidencia(db: Session, incidencia_id: int, conductor_id: int, contenido: bytes, nombre_archivo: str) -> dict:
-    """CONDUCTOR: guarda la foto de la avería y la asocia a la incidencia. Recibe:
-    id de incidencia, conductor, bytes de la imagen y el nombre del archivo."""
+    """Guarda la foto de averia y la asocia a la incidencia. Recibe id, conductor_id, bytes e imagen."""
     inc = incidencia_repository.obtener(db, incidencia_id)
     if not inc or inc.conductor_id != conductor_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incidencia no encontrada")
@@ -106,7 +99,7 @@ def guardar_evidencia(db: Session, incidencia_id: int, conductor_id: int, conten
 
 
 def _cerrar(db: Session, incidencia_id: int, usuario_id: int, nota, por_defecto: str) -> dict:
-    """Marca una incidencia como RESUELTA (reanudar = conductor, resolver = admin)."""
+    """Marca la incidencia como RESUELTA. Recibe id, usuario, nota y texto por defecto."""
     inc = incidencia_repository.obtener(db, incidencia_id)
     if not inc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incidencia no encontrada")
@@ -121,8 +114,7 @@ def _cerrar(db: Session, incidencia_id: int, usuario_id: int, nota, por_defecto:
 
 
 def reanudar(db: Session, incidencia_id: int, usuario_id: int, nota=None) -> dict:
-    """CONDUCTOR: reanuda su ruta cerrando la incidencia abierta. Es el ÚNICO que puede cerrarla
-    (el admin solo observa y manda ayuda). Recibe: id, conductor, nota."""
+    """El conductor reanuda su ruta cerrando la incidencia abierta. Recibe id, conductor_id y nota."""
     inc = incidencia_repository.obtener(db, incidencia_id)
     if not inc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incidencia no encontrada")
@@ -132,16 +124,12 @@ def reanudar(db: Session, incidencia_id: int, usuario_id: int, nota=None) -> dic
 
 
 def mandar_ayuda(db: Session, incidencia_id: int, admin_id: int, tipo: str, nota=None) -> dict:
-    """ADMIN: registra que se le envía ayuda al conductor (tipo adaptable + nota). Sella quién/cuándo
-    y el detalle; el conductor lo verá como "Ayuda en camino" en su app. NO resuelve la incidencia
-    (solo el conductor la cierra al reanudar). Re-enviar actualiza el detalle. Recibe: id, admin, tipo, nota."""
+    """Registra el envio de ayuda al conductor sin resolver la incidencia. Recibe id, admin_id, tipo y nota."""
     inc = incidencia_repository.obtener(db, incidencia_id)
     if not inc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incidencia no encontrada")
     if inc.estado == "RESUELTA":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La incidencia ya fue resuelta")
-    # El conductor declaró que puede resolverlo solo: no se le manda ayuda (el panel ya
-    # oculta el botón; aquí lo reforzamos para que la API no dependa solo de la UI).
     if inc.puede_solucionar_solo:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="El conductor indicó que puede solucionarlo solo; no procede mandar ayuda.")
@@ -156,10 +144,10 @@ def mandar_ayuda(db: Session, incidencia_id: int, admin_id: int, tipo: str, nota
 
 
 def listar(db: Session, estado=None) -> list:
-    """ADMIN: lista las incidencias (filtro opcional por estado). Recibe: estado opcional."""
+    """Lista las incidencias con filtro opcional por estado."""
     return [_a_respuesta(db, i) for i in incidencia_repository.listar(db, estado)]
 
 
 def contar_abiertas(db: Session) -> int:
-    """Cuenta las incidencias abiertas (aviso del panel). Recibe: la sesión."""
+    """Cuenta las incidencias con estado ABIERTA."""
     return incidencia_repository.contar_abiertas(db)

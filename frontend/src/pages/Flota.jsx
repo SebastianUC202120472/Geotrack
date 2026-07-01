@@ -11,8 +11,7 @@ import { EstadoBadge } from "../components/ui/Badge";
 import { listarVehiculos, crearVehiculo, listarConductores, actualizarVehiculo, eliminarVehiculo } from "../services/api";
 import { validarPlaca, validarCapacidad } from "../utils/validaciones";
 
-// Registro de vehículos y su asignación a un conductor. El alta de conductores
-// vive en su propia sección (Conductores).
+// Página de flota: lista y registro de vehículos con asignación de conductor.
 export default function Flota() {
   const [vehiculos, setVehiculos] = useState([]);
   const [conductores, setConductores] = useState([]);
@@ -25,7 +24,7 @@ export default function Flota() {
   const [conductorId, setConductorId] = useState("");
   const [errores, setErrores] = useState({});
   const [aviso, setAviso] = useState(null);
-  const [editando, setEditando] = useState(null);  // vehículo que se edita/elimina (CUS-08/09)
+  const [editando, setEditando] = useState(null);
 
   const cargar = async () => {
     setCargando(true);
@@ -44,10 +43,9 @@ export default function Flota() {
     cargar();
   }, []);
 
-  // Mapa id de conductor -> nombre, para mostrarlo en la tabla.
   const nombrePorId = Object.fromEntries(conductores.map((c) => [c.usuario_id, c.nombre || c.codigo]));
 
-  // KPIs calculados desde los vehículos cargados (sin petición extra).
+  // KPIs derivados de los vehículos ya cargados. No hace petición extra.
   const kpis = useMemo(() => {
     const total = vehiculos.length;
     const conConductor = vehiculos.filter((v) => v.conductor_id).length;
@@ -83,7 +81,6 @@ export default function Flota() {
     }
   };
 
-  // Columnas para DataTable
   const columnas = [
     {
       key: "codigo",
@@ -142,7 +139,6 @@ export default function Flota() {
         subtitulo="Registra los vehículos y asígnalos a un conductor."
       />
 
-      {/* KPIs derivados de los vehículos cargados */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 animate-fade-up">
         <KpiCard label="Total" value={kpis.total} icon={Truck} tone="brand" />
         <KpiCard label="Con conductor" value={kpis.conConductor} icon={Truck} tone="info" />
@@ -151,7 +147,6 @@ export default function Flota() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
-        {/* Formulario de alta */}
         <SectionCard title="Registrar vehículo" subtitle="El conductor es opcional (vacío = de la empresa)." className="lg:col-span-1">
           <form onSubmit={altaVehiculo} noValidate className="space-y-4">
             <Input label="Placa" required value={placa}
@@ -183,7 +178,6 @@ export default function Flota() {
           </form>
         </SectionCard>
 
-        {/* Tabla de vehículos */}
         <div className="lg:col-span-2">
           <DataTable
             columns={columnas}
@@ -199,7 +193,6 @@ export default function Flota() {
         </div>
       </div>
 
-      {/* CUS-08/09: editar (marca/capacidades/conductor) o dar de baja un vehículo */}
       <Modal open={!!editando} onClose={() => setEditando(null)} variant="center">
         {editando && (
           <EditarVehiculo
@@ -214,8 +207,7 @@ export default function Flota() {
   );
 }
 
-// Edición de un vehículo (CUS-08): marca, capacidades, conductor (CUS-09) y baja.
-// Recibe: el vehículo, la lista de conductores y los callbacks de cierre/recarga.
+// Modal para editar o dar de baja un vehículo. Recibe vehiculo, conductores y callbacks de cierre/recarga.
 function EditarVehiculo({ vehiculo, conductores, onCerrar, onCambios }) {
   const [modo, setModo] = useState("editar"); // "editar" | "confirmar"
   const [marca, setMarca] = useState(vehiculo.marca || "");

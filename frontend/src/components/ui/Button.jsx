@@ -1,6 +1,3 @@
-// Botón estándar del panel. Variantes de color + tamaños, con foco visible
-// para accesibilidad. Acepta un icono opcional a la izquierda.
-
 const variantes = {
   primary:
     "bg-brand-600 text-white shadow-[0_6px_16px_rgba(37,99,235,0.25)] hover:bg-brand-700 hover:shadow-[0_8px_20px_rgba(37,99,235,0.32)] focus-visible:ring-brand-600",
@@ -18,6 +15,7 @@ const tamanos = {
   lg: "text-base px-5 py-3 gap-2",
 };
 
+// Boton reutilizable. Recibe variant, size, icon, block, className y props HTML de button.
 export default function Button({
   variant = "primary",
   size = "md",

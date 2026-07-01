@@ -17,9 +17,7 @@ export function useCola(): { pendientes: number } {
   return { pendientes };
 }
 
-// Mapa reactivo pedidoId -> estado encolado ("ENTREGADO" | "FALLIDO"). Sirve para
-// superponer la cola sobre el manifiesto: una parada gestionada offline sigue
-// mostrándose resuelta aunque el poll del servidor la devuelva como PENDIENTE.
+// Mapa reactivo pedidoId -> estado encolado ("ENTREGADO" | "FALLIDO") para superponer la cola offline sobre el manifiesto.
 export function usePendientesPorPedido(): Map<number, "ENTREGADO" | "FALLIDO"> {
   const [mapa, setMapa] = useState<Map<number, "ENTREGADO" | "FALLIDO">>(new Map());
   useEffect(() => {

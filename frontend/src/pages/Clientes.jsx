@@ -9,13 +9,11 @@ import Button from "../components/ui/Button";
 import Modal from "../components/ui/Modal";
 import { listarClientes, crearCliente, actualizarCliente, eliminarCliente } from "../services/api";
 
-// Administración de empresas cliente (CUS-07): alta, edición y baja.
-// Al importar pedidos el cliente debe estar registrado aquí (ya no se crea solo).
+// Pagina de administracion de clientes corporativos: alta, edicion y baja.
 export default function Clientes() {
   const [clientes, setClientes] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [seleccionado, setSeleccionado] = useState(null);
-  // Modo con el que se abre el modal: "ver" (click en fila), "editar" o "confirmar" (botones de acción)
   const [modoInicial, setModoInicial] = useState("ver");
 
   const [form, setForm] = useState({ razon_social: "", identificador_unico: "", contacto: "", direccion_origen: "" });
@@ -23,9 +21,7 @@ export default function Clientes() {
   const [aviso, setAviso] = useState(null);
   const [guardando, setGuardando] = useState(false);
 
-  // No se hace setCargando(true) aquí: el estado inicia en true y, al refrescar tras
-  // crear/editar, los setState ocurren en los callbacks de la promesa (evita el error
-  // de lint "setState síncrono en effect" al llamar cargar() desde el useEffect).
+  // Recarga la lista de clientes desde el backend.
   const cargar = async () => {
     try {
       setClientes(await listarClientes());
@@ -36,8 +32,6 @@ export default function Clientes() {
     }
   };
 
-  // Carga inicial: los setState van en los callbacks de la promesa (no en el cuerpo
-  // del efecto) para no disparar el lint "setState síncrono en effect".
   useEffect(() => {
     let activo = true;
     listarClientes()
@@ -83,7 +77,6 @@ export default function Clientes() {
     { key: "razon_social", header: "Razón social", render: (c) => <span className="text-slate-700">{c.razon_social}</span> },
     { key: "identificador_unico", header: "RUC", render: (c) => <span className="text-slate-600 nums">{c.identificador_unico || "—"}</span> },
     { key: "contacto", header: "Contacto", render: (c) => <span className="text-slate-600">{c.contacto || "—"}</span> },
-    // Columna de acciones: abre el modal directamente en el modo correspondiente
     {
       key: "acciones",
       header: "",
@@ -151,8 +144,7 @@ export default function Clientes() {
   );
 }
 
-// Detalle del cliente con modos ver / editar / confirmar (baja). Acepta modoInicial
-// para abrir directamente en el modo solicitado desde los botones de acción de la fila.
+// Modal de detalle de cliente con modos ver, editar y baja. Recibe el cliente y modoInicial.
 function DetalleCliente({ cliente: c, onCerrar, onCambios, modoInicial = "ver" }) {
   const [modo, setModo] = useState(modoInicial);
   const [form, setForm] = useState({ razon_social: c.razon_social || "", identificador_unico: c.identificador_unico || "", contacto: c.contacto || "", direccion_origen: c.direccion_origen || "" });

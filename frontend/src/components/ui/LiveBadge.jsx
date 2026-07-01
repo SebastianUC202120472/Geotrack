@@ -1,6 +1,4 @@
-// Chip de estado con punto que late ("en vivo"). Reusa el patrón del indicador
-// de conexión, pero como pieza reutilizable.
-// Entrada: tone ("brand"|"success"|"info"|"warning"|"danger"|"neutral"), children, pulse (bool).
+// Chip de estado con punto pulsante. Recibe tone, pulse y children.
 const tonos = {
   brand: { chip: "bg-brand-50 text-brand-700", dot: "bg-brand-500 text-brand-500" },
   success: { chip: "bg-success-soft text-success-strong", dot: "bg-success text-success" },

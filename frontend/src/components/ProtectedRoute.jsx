@@ -1,8 +1,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-// Protege las rutas del panel: sin sesión, manda al login. Además, el rol 'almacen'
-// solo puede acceder a su módulo (/almacen); cualquier otra ruta lo redirige ahí.
+// Protege rutas: redirige al login sin sesión; almacen solo accede a /almacen.
 export default function ProtectedRoute({ children }) {
   const { autenticado, rol } = useAuth();
   const location = useLocation();

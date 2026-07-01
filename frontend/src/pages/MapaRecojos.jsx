@@ -14,14 +14,13 @@ const REFRESCO_MS = 15000; // polling cada 15 s
 // Colores por conductor (coinciden con sus marcadores en el mapa).
 const COLORES = ["#2563EB", "#DC2626", "#059669", "#D97706", "#7C3AED", "#DB2777", "#0891B2", "#65A30D"];
 
-// Mapa de recojos en vivo: posición de los conductores en rutas de RECOJO activas.
-// Reutiliza el componente MapaFlota del admin con datos filtrados por tipo=RECOJO.
+// Mapa de recojos en vivo con conductores en rutas de RECOJO activas.
 export default function MapaRecojos() {
   const [ubicaciones, setUbicaciones] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [seleccionado, setSeleccionado] = useState(null); // conductor_id centrado en el mapa
 
-  // Carga manual con indicador de carga.
+  // Recarga los datos con indicador de carga.
   const actualizar = () => {
     setCargando(true);
     obtenerUbicacionesRecojo()
@@ -30,8 +29,7 @@ export default function MapaRecojos() {
       .finally(() => setCargando(false));
   };
 
-  // Carga inicial + refresco automático cada 15 s. Los setState van en los callbacks
-  // de la promesa (no en el cuerpo del efecto) para no activar la regla de lint.
+  // Carga inicial y refresco automático cada 15 s.
   useEffect(() => {
     let activo = true;
     const traer = () =>
@@ -47,18 +45,15 @@ export default function MapaRecojos() {
     };
   }, []);
 
-  // Métricas derivadas del estado ya cargado.
   const totalConductores = ubicaciones.length;
   const enLinea = ubicaciones.filter((c) => c.en_linea).length;
   const sinSenal = totalConductores - enLinea;
   const totalParadas = ubicaciones.reduce((acc, c) => acc + (c.paradas?.length ?? 0), 0);
 
-  // Asignar color por conductor.
   const conductores = ubicaciones.map((c, i) => ({ ...c, _color: COLORES[i % COLORES.length] }));
 
   return (
     <div className="space-y-6 p-6 lg:p-8">
-      {/* Cabecera con badge en vivo */}
       <div className="animate-fade-up">
         <PageHeader
           titulo="Mapa de Recojos"
@@ -71,7 +66,6 @@ export default function MapaRecojos() {
         </PageHeader>
       </div>
 
-      {/* KPIs (solo si hay datos) */}
       {!cargando && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 animate-fade-up">
           <KpiCard
@@ -103,7 +97,6 @@ export default function MapaRecojos() {
         </div>
       )}
 
-      {/* Cuerpo: spinner, estado vacío o mapa */}
       {cargando ? (
         <div className="animate-fade-up rounded-xl border border-slate-200 bg-white shadow-card p-10 text-center text-sm text-slate-500">
           Cargando mapa…
@@ -125,7 +118,6 @@ export default function MapaRecojos() {
         </div>
       ) : (
         <div className="flex flex-col gap-4 lg:flex-row animate-fade-up">
-          {/* Panel lateral: lista de conductores */}
           <div className="w-full lg:w-72 shrink-0">
             <SectionCard
               title="Conductores"
@@ -144,7 +136,6 @@ export default function MapaRecojos() {
                           activo ? "bg-brand-50" : "hover:bg-slate-50"
                         }`}
                       >
-                        {/* Punto del color del conductor */}
                         <span
                           className={`mt-1 h-3 w-3 shrink-0 rounded-full border border-white shadow ${c.en_linea ? "live-dot" : ""}`}
                           style={{ backgroundColor: c._color, opacity: c.en_linea ? 1 : 0.5 }}
@@ -168,7 +159,6 @@ export default function MapaRecojos() {
             </SectionCard>
           </div>
 
-          {/* Mapa de flota reutilizado */}
           <div className="flex-1 overflow-hidden rounded-xl border border-slate-200">
             <MapaFlota conductores={conductores} seleccionado={seleccionado} />
           </div>

@@ -1,5 +1,4 @@
-// Cliente HTTP central (axios). Inyecta el token en cada request y, si el
-// backend responde 401, dispara el cierre de sesión registrado.
+// Cliente HTTP central. Inyecta token en cada request y cierra sesión ante 401.
 import axios from "axios";
 import { API_BASE_URL } from "./config";
 import { leerToken } from "./tokenStorage";
@@ -9,7 +8,6 @@ export const api = axios.create({
   timeout: 15000,
 });
 
-// Callback que el AuthProvider registra para cerrar sesión ante un 401.
 let alExpirarSesion: (() => void) | null = null;
 
 // Registra qué hacer cuando el token expira. Recibe: función sin argumentos.

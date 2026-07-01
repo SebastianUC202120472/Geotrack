@@ -1,7 +1,4 @@
-// Tarjeta blanca estándar (superficie del panel). Borde y sombra suaves desde
-// los tokens del sistema. Opcionalmente acepta título y acción en la cabecera.
-// Entrada: title, subtitle, action (nodo a la derecha de la cabecera),
-//   hover (bool: eleva al pasar el mouse), className, children.
+// Tarjeta blanca con cabecera opcional. Recibe title, subtitle, action, hover, className, children.
 export default function Card({ title, subtitle, action, hover = false, className = "", children }) {
   const interaccion = hover
     ? "transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"

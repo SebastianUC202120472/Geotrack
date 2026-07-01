@@ -1,5 +1,3 @@
-# app/services/notificaciones_service.py
-# Lógica de negocio para el historial de notificaciones del panel admin.
 from sqlalchemy.orm import Session
 
 from app.models.notificacion import Notificacion
@@ -7,10 +5,7 @@ from app.models.notificacion import Notificacion
 
 def registrar(db: Session, tipo: str, titulo: str, mensaje: str = None,
               ruta: str = None, entidad_id: int = None) -> Notificacion:
-    """Registra una notificación del admin en su propia transacción (best-effort): no
-    depende del commit del flujo que la origina ni lo afecta; si algo falla, revierte y
-    devuelve None sin romper nada.
-    Recibe: sesión de BD, tipo, título, mensaje opcional, ruta opcional, id de entidad opcional."""
+    """Registra una notificación best-effort; si falla revierte y devuelve None. Recibe sesión de BD, tipo, título y campos opcionales."""
     try:
         n = Notificacion(tipo=tipo, titulo=titulo, mensaje=mensaje,
                          ruta=ruta, entidad_id=entidad_id)
@@ -24,8 +19,7 @@ def registrar(db: Session, tipo: str, titulo: str, mensaje: str = None,
 
 
 def listar(db: Session, limite: int = 50) -> dict:
-    """Devuelve las últimas notificaciones y el total de no vistas.
-    Recibe: sesión de BD, límite de registros a devolver."""
+    """Devuelve las últimas notificaciones y el total de no vistas. Recibe sesión de BD y límite."""
     items = (
         db.query(Notificacion)
         .order_by(Notificacion.creado_en.desc())
@@ -41,8 +35,7 @@ def listar(db: Session, limite: int = 50) -> dict:
 
 
 def marcar_vistas(db: Session) -> int:
-    """Marca todas las notificaciones no vistas como vistas; devuelve cuántas se marcaron.
-    Recibe: sesión de BD."""
+    """Marca todas las notificaciones no vistas como vistas y devuelve cuántas. Recibe sesión de BD."""
     from datetime import datetime
     n = (
         db.query(Notificacion)

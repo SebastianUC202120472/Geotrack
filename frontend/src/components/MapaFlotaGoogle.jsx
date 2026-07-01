@@ -2,21 +2,16 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { GoogleMap, useJsApiLoader, MarkerF, InfoWindowF, PolylineF } from "@react-google-maps/api";
 import { haceCuanto } from "../utils/formatoFecha";
 
-// Centro por defecto (Lima) y estilo del contenedor del mapa.
 const LIMA = { lat: -12.046, lng: -77.043 };
 const ESTILO_MAPA = { width: "100%", height: "100%" };
 const OPCIONES = { streetViewControl: false, mapTypeControl: false, fullscreenControl: false };
-// Path SVG de un pin (gota) ~24x24, punta abajo; se usa para las PARADAS.
 const PIN_PATH = "M12 0C7.58 0 4 3.58 4 8c0 5.5 8 16 8 16s8-10.5 8-16c0-4.42-3.58-8-8-8z";
-// Path SVG de un edificio/almacén (~24x24, base abajo); se usa para los CLIENTES corporativos.
 const EDIFICIO_PATH = "M3 23V8l7-4v3l7-4v20h-5v-4h-3v4H3z";
-// Colores de la gota de parada según su estado de entrega.
 const COLOR_PENDIENTE = "#2563eb";
 const COLOR_ENTREGADO = "#16a34a";
 const COLOR_FALLIDO = "#dc2626";
 
-// Devuelve el color de una parada según su `estado` (estado_entrega).
-// Entrada: `estado` = "PENDIENTE" | "ENTREGADO" | "FALLIDO" (vacío = pendiente).
+// Devuelve el color de marcador segun el estado de entrega de una parada.
 function colorPorEstado(estado) {
   const e = (estado || "PENDIENTE").toUpperCase();
   if (e === "ENTREGADO") return COLOR_ENTREGADO;
@@ -24,7 +19,7 @@ function colorPorEstado(estado) {
   return COLOR_PENDIENTE;
 }
 
-// Mensaje a pantalla completa dentro del marco del mapa (carga / error).
+// Mensaje centrado en el area del mapa. Recibe `texto`.
 function Aviso({ texto }) {
   return (
     <div className="flex items-center justify-center rounded-card border border-slate-200 bg-white text-sm text-slate-500 shadow-card" style={{ height: 520 }}>
@@ -33,8 +28,7 @@ function Aviso({ texto }) {
   );
 }
 
-// Leyenda flotante con los tipos de marcador del mapa. Entrada: `hayClientes`
-// (bool) para mostrar u ocultar la fila de cliente corporativo.
+// Leyenda flotante de tipos de marcador. Recibe `hayClientes` para mostrar u ocultar esa fila.
 function LeyendaMapa({ hayClientes }) {
   return (
     <div className="absolute bottom-3 right-3 z-[1] rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-card">
@@ -83,16 +77,13 @@ function LeyendaMapa({ hayClientes }) {
   );
 }
 
-// Mapa de la flota con Google Maps (se usa cuando hay VITE_GOOGLE_MAPS_KEY).
-// Entrada: `conductores` (ConductorUbicacion[] con _color), `apiKey`,
-// `seleccionado` (conductor_id a centrar al hacer clic en la lista) y `mostrar`
-// = qué capa dibujar: "TODO" (conductores + pedidos) | "CONDUCTORES" | "PEDIDOS".
+// Mapa de flota con Google Maps. Recibe `conductores`, `apiKey`, `seleccionado` y `mostrar` ("TODO"|"CONDUCTORES"|"PEDIDOS").
 export default function MapaFlotaGoogle({ conductores, apiKey, seleccionado, mostrar = "TODO" }) {
   const { isLoaded, loadError } = useJsApiLoader({ id: "gmaps-script", googleMapsApiKey: apiKey });
   const [abierto, setAbierto] = useState(null); // id del marcador con InfoWindow abierto
   const mapRef = useRef(null);
 
-  // Al cargar el mapa, encuadra todos los puntos (conductores + paradas).
+  // Ajusta el encuadre del mapa para mostrar todos los puntos al cargar.
   const onLoad = useCallback(
     (map) => {
       mapRef.current = map;
@@ -100,7 +91,6 @@ export default function MapaFlotaGoogle({ conductores, apiKey, seleccionado, mos
       conductores.forEach((c) => {
         if (c.latitud != null && c.longitud != null) puntos.push({ lat: c.latitud, lng: c.longitud });
         c.paradas.forEach((p) => puntos.push({ lat: p.latitud, lng: p.longitud }));
-        // Los clientes corporativos (orígenes de recojo) también entran en el encuadre.
         (c.clientes || []).forEach((cl) => puntos.push({ lat: cl.latitud, lng: cl.longitud }));
       });
       if (puntos.length === 0) {
@@ -120,7 +110,7 @@ export default function MapaFlotaGoogle({ conductores, apiKey, seleccionado, mos
     [conductores]
   );
 
-  // Al seleccionar un conductor en la lista, centra el mapa en su ubicación actual.
+  // Centra el mapa en el conductor seleccionado.
   useEffect(() => {
     if (!mapRef.current || seleccionado == null) return;
     const c = conductores.find((x) => x.conductor_id === seleccionado);
@@ -133,7 +123,7 @@ export default function MapaFlotaGoogle({ conductores, apiKey, seleccionado, mos
   if (loadError) return <Aviso texto="No se pudo cargar Google Maps. Revisa la API key." />;
   if (!isLoaded) return <Aviso texto="Cargando mapa…" />;
 
-  // Marcador circular (ubicación del conductor). Atenuado si no tiene señal.
+  // Icono circular para la ubicacion del conductor.
   const circulo = (color, opacidad) => ({
     path: window.google.maps.SymbolPath.CIRCLE,
     scale: 8,
@@ -142,7 +132,7 @@ export default function MapaFlotaGoogle({ conductores, apiKey, seleccionado, mos
     strokeColor: "#FFFFFF",
     strokeWeight: 2,
   });
-  // Pin (gota) para una PARADA, con el color de su estado de entrega y un número de orden.
+  // Icono de gota para una parada. Recibe el color segun estado.
   const pinParada = (color) => ({
     path: PIN_PATH,
     fillColor: color,
@@ -153,8 +143,7 @@ export default function MapaFlotaGoogle({ conductores, apiKey, seleccionado, mos
     anchor: new window.google.maps.Point(12, 23),
     labelOrigin: new window.google.maps.Point(12, 9),
   });
-  // Icono de edificio/almacén para un CLIENTE corporativo (origen de recojo), con
-  // el color del conductor. Distinto de la gota de parada.
+  // Icono de edificio para un cliente corporativo (origen de recojo).
   const iconoCliente = (color) => ({
     path: EDIFICIO_PATH,
     fillColor: color,
@@ -165,19 +154,16 @@ export default function MapaFlotaGoogle({ conductores, apiKey, seleccionado, mos
     anchor: new window.google.maps.Point(12, 23),
   });
 
-  // ¿Hay algún cliente corporativo? Solo entonces se muestra su fila en la leyenda.
   const hayClientes = conductores.some((c) => (c.clientes || []).length > 0);
 
   return (
     <div className="relative overflow-hidden rounded-card border border-slate-200 shadow-card" style={{ height: 520 }}>
-      {/* Leyenda de los tipos de marcador (encima del mapa) */}
       <LeyendaMapa hayClientes={hayClientes} />
       <GoogleMap mapContainerStyle={ESTILO_MAPA} center={LIMA} zoom={12} onLoad={onLoad} options={OPCIONES}>
         {conductores.map((c) => {
           const color = c._color || "#2563EB";
           return (
             <Fragment key={c.conductor_id}>
-              {/* Enrutamiento del conductor seleccionado: línea que une sus paradas en orden. */}
               {seleccionado != null && mostrar !== "CONDUCTORES" && c.paradas.length >= 2 && (
                 <PolylineF
                   path={c.paradas.map((p) => ({ lat: p.latitud, lng: p.longitud }))}
@@ -187,7 +173,6 @@ export default function MapaFlotaGoogle({ conductores, apiKey, seleccionado, mos
               {mostrar !== "CONDUCTORES" && c.paradas.map((p, i) => {
                 const id = `parada-${c.conductor_id}-${i}`;
                 const orden = p.secuencia ?? i + 1;
-                // El color de la gota sale del estado de entrega (no del conductor).
                 return (
                   <MarkerF
                     key={id}
@@ -209,7 +194,6 @@ export default function MapaFlotaGoogle({ conductores, apiKey, seleccionado, mos
                 );
               })}
 
-              {/* Clientes corporativos (orígenes de recojo) — icono de edificio */}
               {mostrar !== "CONDUCTORES" && (c.clientes || []).map((cl, i) => {
                 const id = `cliente-${c.conductor_id}-${i}`;
                 return (

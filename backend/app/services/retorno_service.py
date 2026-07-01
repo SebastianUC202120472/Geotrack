@@ -1,6 +1,4 @@
-# app/services/retorno_service.py
-# Lógica de logística inversa (CUS-32): recepción por escaneo de los paquetes FALLIDO
-# que el conductor devuelve al cerrar una ruta de entrega, y su conciliación.
+# Logica de retorno: recepcion y conciliacion de paquetes FALLIDO devueltos por el conductor.
 from datetime import datetime
 
 from fastapi import HTTPException
