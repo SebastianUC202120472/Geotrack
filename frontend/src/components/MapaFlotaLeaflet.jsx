@@ -1,7 +1,8 @@
 import { Fragment, useEffect } from "react";
-import { MapContainer, TileLayer, CircleMarker, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Marker, Polyline, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { haceCuanto } from "../utils/formatoFecha";
 
 // Centro por defecto (Lima) cuando todavía no hay puntos que mostrar.
 const LIMA = [-12.046, -77.043];
@@ -141,6 +142,13 @@ export default function MapaFlotaLeaflet({ conductores, seleccionado, mostrar = 
           const color = c._color || "#2563EB";
           return (
             <Fragment key={c.conductor_id}>
+              {/* Enrutamiento del conductor seleccionado: línea que une sus paradas en orden. */}
+              {seleccionado != null && mostrar !== "CONDUCTORES" && c.paradas.length >= 2 && (
+                <Polyline
+                  positions={c.paradas.map((p) => [p.latitud, p.longitud])}
+                  pathOptions={{ color, weight: 4, opacity: 0.8 }}
+                />
+              )}
               {/* El color de la gota sale del estado de entrega (no del conductor). */}
               {mostrar !== "CONDUCTORES" && c.paradas.map((p, i) => (
                 <Marker
@@ -183,6 +191,12 @@ export default function MapaFlotaLeaflet({ conductores, seleccionado, mostrar = 
                     {c.ruta || "Ruta"}
                     <br />
                     {c.en_linea ? "🟢 En línea" : "⚪ Sin señal reciente"}
+                    {c.actualizado_en && (
+                      <>
+                        <br />
+                        Última señal {haceCuanto(c.actualizado_en)}
+                      </>
+                    )}
                   </Popup>
                 </CircleMarker>
               )}
