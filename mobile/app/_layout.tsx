@@ -1,6 +1,6 @@
 // Layout raíz: tema, React Query, sesión y protección de rutas.
-import { useEffect, useState } from "react";
-import { AppState } from "react-native";
+import { Component, useEffect, useState, type ReactNode } from "react";
+import { AppState, View, Text, Pressable, ScrollView } from "react-native";
 import { Slot, useRouter, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -76,6 +76,44 @@ function Guardia() {
   );
 }
 
+// Red de seguridad: atrapa cualquier crash de render y muestra el error en pantalla
+// (en vez de dejar la app en blanco), con un botón para reintentar.
+class LimiteDeError extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error) {
+    console.error("Crash atrapado:", error);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <View style={{ flex: 1, padding: 24, paddingTop: 64, backgroundColor: "#ffffff" }}>
+          <Text style={{ fontSize: 18, fontWeight: "700", marginBottom: 8, color: "#0f172a" }}>
+            Algo falló al abrir la app
+          </Text>
+          <Text style={{ color: "#334155", marginBottom: 12 }}>Toma una captura y envíala a soporte:</Text>
+          <ScrollView style={{ maxHeight: 320, backgroundColor: "#f1f5f9", borderRadius: 8, padding: 12 }}>
+            <Text style={{ color: "#b91c1c", fontSize: 12 }}>
+              {String(this.state.error?.message ?? this.state.error)}
+              {"\n\n"}
+              {String(this.state.error?.stack ?? "")}
+            </Text>
+          </ScrollView>
+          <Pressable
+            onPress={() => this.setState({ error: null })}
+            style={{ marginTop: 16, backgroundColor: "#2563eb", padding: 14, borderRadius: 8 }}
+          >
+            <Text style={{ color: "#ffffff", textAlign: "center", fontWeight: "700" }}>Reintentar</Text>
+          </Pressable>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // Punto de entrada de la navegación. Registra el foco de AppState para React Query.
 export default function RootLayout() {
   useEffect(() => {
@@ -86,15 +124,17 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <Barra />
-            <Guardia />
-          </AuthProvider>
-        </QueryClientProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <LimiteDeError>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              <Barra />
+              <Guardia />
+            </AuthProvider>
+          </QueryClientProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </LimiteDeError>
   );
 }
