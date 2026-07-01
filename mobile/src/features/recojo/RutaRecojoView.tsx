@@ -19,6 +19,7 @@ import { useReanudarRuta } from "@/features/incidencia/hooks";
 import { useUbicacionActual } from "@/hooks/useUbicacionActual";
 import { useRastreoUbicacion } from "@/hooks/useRastreoUbicacion";
 import { mensajeDeError } from "@/api/client";
+import { abrirNavegacionRuta } from "@/services/navegacion";
 import { useTheme, spacing } from "@/theme";
 import type { ParadaManifiesto, ParadaRecojo } from "@/types/api";
 
@@ -47,6 +48,11 @@ export function RutaRecojoView() {
 
   const paradas: ParadaRecojo[] = manifiesto.data?.paradas ?? [];
   const pendientes = paradas.filter((p) => p.estado !== "RECOGIDO").sort((a, b) => a.secuencia - b.secuencia);
+
+  // Puntos de recojo pendientes con coordenadas (en orden), para navegar en Google Maps.
+  const puntosNavegar = pendientes
+    .filter((p) => p.latitud != null && p.longitud != null)
+    .map((p) => ({ lat: p.latitud, lng: p.longitud }));
 
   // Adapta los recojos al shape que pinta MapaWeb (RECOGIDO -> verde, resto -> pendiente).
   const paradasMapa = paradas.map((p) => ({
@@ -122,6 +128,10 @@ export function RutaRecojoView() {
           <Mapa paradas={paradasMapa} />
         </Card>
         <Button titulo="Iniciar ruta desde mi ubicación" onPress={iniciarRuta} cargando={ubicacion.cargando || iniciar.isPending} />
+        {/* Navegación real turn-by-turn: abre la ruta de recojo en Google Maps (origen = tu ubicación). */}
+        {puntosNavegar.length > 0 && (
+          <Button titulo="Navegar en Google Maps" variante="secondary" onPress={() => abrirNavegacionRuta(puntosNavegar)} />
+        )}
         {pausada ? (
           <Card style={{ backgroundColor: colors.dangerSoft }}>
             <Texto variante="bodyMedium" color={colors.danger}>🛠️ Ruta pausada por avería</Texto>
