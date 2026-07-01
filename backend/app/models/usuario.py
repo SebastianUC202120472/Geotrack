@@ -1,24 +1,21 @@
-# app/models/usuario.py
-# Define la tabla 'usuarios' en PostgreSQL usando SQLAlchemy.
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from app.db.database import Base
 
 
 class Usuario(Base):
-    __tablename__ = "usuarios"  # nombre real de la tabla en la BD
+    """Modelo de usuario del sistema (admin o conductor)."""
+
+    __tablename__ = "usuarios"
 
     id = Column(Integer, primary_key=True, index=True)
-    codigo = Column(String(20), unique=True, index=True, nullable=True)  # legible: AD-001 / CO-001 (según rol)
-    correo = Column(String(100), unique=True, index=True, nullable=False)  # login (único)
-    hash_contrasena = Column(String(255), nullable=False)  # contraseña ENCRIPTADA (nunca en texto)
-    rol = Column(String(20), nullable=False)               # 'admin' (Web) o 'conductor' (App Móvil)
-    estado = Column(Boolean, default=True)                 # True = activo; False = deshabilitado
+    codigo = Column(String(20), unique=True, index=True, nullable=True)  # ej. AD-001 / CO-001
+    correo = Column(String(100), unique=True, index=True, nullable=False)
+    hash_contrasena = Column(String(255), nullable=False)
+    rol = Column(String(20), nullable=False)  # 'admin' o 'conductor'
+    estado = Column(Boolean, default=True)  # False = deshabilitado
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
-
-    # --- Datos personales del personal de panel (admin/almacén). Nullable: cuentas
-    # antiguas o conductores (cuyos datos viven en PerfilConductor) pueden no tenerlos. ---
-    nombre = Column(String(120), nullable=True)            # nombre completo
-    dni = Column(String(15), nullable=True)                # documento de identidad
+    nombre = Column(String(120), nullable=True)
+    dni = Column(String(15), nullable=True)
     telefono = Column(String(20), nullable=True)
-    cargo = Column(String(80), nullable=True)              # p.ej. "Jefe de almacén"
+    cargo = Column(String(80), nullable=True)

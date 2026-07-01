@@ -1,5 +1,3 @@
-# app/api/clientes.py
-# El "apartado de clientes" del panel web del admin (Fase 4 / tesis).
 from typing import List
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -26,11 +24,11 @@ def crear_cliente(datos: ClienteCreate, db: Session = Depends(get_db)):
 
 @router.patch("/{cliente_id}", response_model=ClienteResponse, dependencies=[Depends(get_current_admin)])
 def actualizar_cliente(cliente_id: int, datos: ClienteUpdate, db: Session = Depends(get_db)):
-    """CUS-07: edita los datos de una empresa cliente."""
+    """Edita los datos de una empresa cliente. Recibe cliente_id y datos parciales."""
     return cliente_service.actualizar_cliente(db, cliente_id, datos)
 
 
 @router.delete("/{cliente_id}", dependencies=[Depends(get_current_admin)])
 def eliminar_cliente(cliente_id: int, db: Session = Depends(get_db)):
-    """CUS-07: da de baja una empresa cliente (borrado lógico)."""
+    """Da de baja una empresa cliente (borrado logico). Recibe cliente_id."""
     return cliente_service.eliminar_cliente(db, cliente_id)

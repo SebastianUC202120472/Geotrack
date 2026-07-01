@@ -1,13 +1,10 @@
-# app/models/solicitud_restablecimiento.py
-# Tabla 'solicitudes_restablecimiento' (extra del CUS-04): cuando un conductor olvida
-# su contraseña, pide desde el Login que se la restablezcan. La solicitud queda
-# PENDIENTE hasta que el admin le fija una clave nueva (entonces pasa a ATENDIDA).
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from app.db.database import Base
 
 
 class SolicitudRestablecimiento(Base):
+    """Solicitud de restablecimiento de contraseña de un conductor. Estados: PENDIENTE -> ATENDIDA."""
     __tablename__ = "solicitudes_restablecimiento"
 
     id = Column(Integer, primary_key=True, index=True)

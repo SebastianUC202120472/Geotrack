@@ -1,7 +1,4 @@
-// Cabecera propia de las pantallas con pestañas (Ruta, Pedidos, Historial).
-// Muestra el título, la campana de notificaciones y la foto del conductor (que
-// abre su perfil). Reemplaza a la cabecera nativa, así que añade el área segura
-// superior por sí misma. Recibe: { titulo }.
+// Cabecera superior con título, campana y avatar del conductor. Recibe: { titulo, atras? }.
 import { Pressable, StyleSheet, View } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,20 +11,16 @@ import { obtenerPerfil } from "@/api/conductor";
 import { colorDeNombre } from "@/utils/colorDeNombre";
 import { urlMedia } from "@/api/config";
 
-// Recibe: { titulo, atras? }. Con `atras` muestra una flecha de retroceso junto
-// al título (pantallas a las que se entra); sin él, muestra campana + foto (pestañas).
 export function Cabecera({ titulo, atras }: { titulo: string; atras?: boolean }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  // Comparte la caché de "perfil" con el resto de la app (mismo queryKey).
   const { data: p } = useQuery({ queryKey: ["perfil"], queryFn: obtenerPerfil, refetchInterval: 10_000 });
   const fotoUri = urlMedia(p?.foto_url);
   const inicial = (p?.nombre || p?.correo || "?").charAt(0).toUpperCase();
 
   const padTop = { paddingTop: insets.top + spacing.sm };
 
-  // Modo "atrás": flecha + título (sin campana ni foto).
   if (atras) {
     return (
       <View style={[estilos.cont, padTop, { backgroundColor: colors.canvas, borderBottomColor: colors.border }]}>

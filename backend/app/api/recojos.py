@@ -1,5 +1,3 @@
-# app/api/recojos.py
-# Endpoints del admin para el módulo Inbound de recojos (CUS-10 alta, CUS-11 asignación).
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Query, UploadFile
@@ -25,7 +23,7 @@ def crear_recojo(
     db: Session = Depends(get_db),
     admin: Usuario = Depends(get_current_admin),
 ):
-    """CUS-10: el admin registra una solicitud de recojo."""
+    """Registra una solicitud de recojo. Recibe datos del admin."""
     return recojo_service.crear_solicitud(db, datos, usuario_id=admin.id)
 
 
@@ -35,7 +33,7 @@ def listar_recojos(
     db: Session = Depends(get_db),
     admin: Usuario = Depends(get_current_admin),
 ):
-    """CUS-10: lista las solicitudes de recojo (filtro opcional por estado)."""
+    """Lista las solicitudes de recojo. Recibe filtro opcional por estado."""
     return recojo_service.listar_solicitudes(db, estado)
 
 
@@ -50,15 +48,11 @@ async def aceptar_solicitud(
     db: Session = Depends(get_db),
     admin: Usuario = Depends(get_current_admin),
 ):
-    """Acepta una solicitud de recojo: crea el recojo y un pedido POR_RECOGER por fila del Excel.
-    Si se pasa conversacion_id, enlaza el hilo de correo y lo marca como ATENDIDO.
-    La geocodificación de los pedidos se agenda en segundo plano para que la carga responda al
-    instante (con cientos de filas, geocodificar en línea bloquearía la petición varios minutos)."""
+    """Acepta una solicitud: crea pedidos POR_RECOGER desde Excel y geocodifica en segundo plano. Recibe Excel + metadatos del admin."""
     contenido = await file.read()
     resultado = recojo_service.aceptar_solicitud(
         db, cliente_id, contenido, file.filename, referencia, contacto_origen, admin.id, conversacion_id
     )
-    # Geocodificar los pedidos recién creados fuera de la petición (no bloquea la respuesta).
     background_tasks.add_task(recojo_service.geocodificar_pedidos_recojo, resultado.recojo_id)
     return resultado
 
@@ -69,7 +63,7 @@ def obtener_recojo(
     db: Session = Depends(get_db),
     admin: Usuario = Depends(get_current_admin),
 ):
-    """CUS-10: detalle de una solicitud de recojo."""
+    """Devuelve el detalle de una solicitud de recojo. Recibe recojo_id."""
     return recojo_service.obtener_solicitud(db, recojo_id)
 
 
@@ -80,5 +74,5 @@ def editar_recojo(
     db: Session = Depends(get_db),
     admin: Usuario = Depends(get_current_admin),
 ):
-    """CUS-10: edita una solicitud mientras está SOLICITADO."""
+    """Edita una solicitud en estado SOLICITADO. Recibe recojo_id y campos a actualizar."""
     return recojo_service.editar_solicitud(db, recojo_id, datos)

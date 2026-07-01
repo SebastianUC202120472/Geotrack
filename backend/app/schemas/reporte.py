@@ -1,26 +1,24 @@
-# app/schemas/reporte.py
-# Moldes de los reportes de incidencia (conductor crea; admin responde).
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel
 
 
 class ReporteCreate(BaseModel):
-    """ENTRADA (conductor): reporta la falla de un pedido."""
+    """Datos para crear un reporte de falla. Recibe pedido_id, motivo y descripcion opcional."""
     pedido_id: int
     motivo: str
     descripcion: Optional[str] = None
 
 
 class ResponderReporte(BaseModel):
-    """ENTRADA (admin): responde un reporte con la solución."""
+    """Datos para que el admin responda un reporte. Recibe respuesta, accion y estado."""
     respuesta: str
     accion: Optional[str] = None
     estado: Optional[str] = "RESUELTO"  # ABIERTO | RESUELTO
 
 
 class ReporteResponse(BaseModel):
-    """SALIDA: el reporte con sus datos y la respuesta del admin si la hay."""
+    """Reporte completo con respuesta del admin si la hay."""
     id: int
     pedido_id: int
     pedido_codigo: Optional[str] = None

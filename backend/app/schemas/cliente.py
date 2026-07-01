@@ -1,29 +1,27 @@
-# app/schemas/cliente.py
-# Moldes de entrada/salida del módulo de Clientes Corporativos.
 from typing import Optional
 from pydantic import BaseModel
 
 
 class ClienteCreate(BaseModel):
-    """ENTRADA: datos para registrar una empresa cliente."""
+    """Datos para registrar una empresa cliente."""
     razon_social: str
     identificador_unico: Optional[str] = None  # RUC
     contacto: Optional[str] = None
-    direccion_origen: str                       # dirección del almacén/tienda del cliente (requerida)
+    direccion_origen: str
 
 
 class ClienteUpdate(BaseModel):
-    """ENTRADA: edición de una empresa cliente. Todos los campos son opcionales."""
+    """Edicion parcial de una empresa cliente; si cambia direccion_origen se re-geocodifica."""
     razon_social: Optional[str] = None
     identificador_unico: Optional[str] = None  # RUC
     contacto: Optional[str] = None
-    direccion_origen: Optional[str] = None      # dirección del punto de recojo; si cambia, se re-geocodifica
+    direccion_origen: Optional[str] = None
 
 
 class ClienteResponse(BaseModel):
-    """SALIDA: datos de una empresa cliente."""
+    """Datos de salida de una empresa cliente."""
     id: int
-    codigo: Optional[str] = None  # CL-001
+    codigo: Optional[str] = None
     razon_social: str
     identificador_unico: Optional[str] = None
     contacto: Optional[str] = None

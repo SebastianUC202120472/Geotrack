@@ -1,6 +1,4 @@
-// Recepción Condicionada en Origen (CUS-12): el conductor ingresa la cantidad total
-// declarada por el cliente y captura una foto de la Guía de Remisión firmada; el lote
-// se recibe a bulto cerrado (sin validación unitaria).
+// Pantalla de recepción condicionada: el conductor ingresa cantidad y fotos de evidencia.
 import { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { Image } from "expo-image";
@@ -31,20 +29,18 @@ export default function RecepcionScreen() {
   const manifiesto = useManifiestoRecojo();
   const registrar = useRegistrarRecepcion();
 
-  // Varias fotos de evidencia (boleta/guía/bultos): se acumulan en este array.
   const [fotos, setFotos] = useState<string[]>([]);
   const [cantidad, setCantidad] = useState("");
 
   const recojo = manifiesto.data?.paradas.find((p: ParadaRecojo) => p.recojo_id === recojoId);
 
-  // Agrega uris al array evitando duplicados (acumula sobre las ya seleccionadas).
+  // Acumula uris sin duplicados.
   const agregarFotos = (uris: string[]) =>
     setFotos((prev) => [...prev, ...uris.filter((u) => !prev.includes(u))]);
 
-  // Quita una foto del array por su uri.
   const quitarFoto = (uri: string) => setFotos((prev) => prev.filter((u) => u !== uri));
 
-  // Abre la cámara y agrega la foto capturada a la evidencia (una por captura).
+  // Solicita permiso de cámara y agrega la foto capturada.
   const tomarFoto = async () => {
     const permiso = await ImagePicker.requestCameraPermissionsAsync();
     if (!permiso.granted) { Alert.alert("Cámara", "Necesitamos permiso de cámara para la evidencia."); return; }
@@ -52,13 +48,12 @@ export default function RecepcionScreen() {
     if (!res.canceled) agregarFotos(res.assets.map((a) => a.uri));
   };
 
-  // Abre la galería permitiendo selección múltiple y agrega todas las elegidas.
   const elegirFotos = async () => {
     const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.6, allowsMultipleSelection: true });
     if (!res.canceled) agregarFotos(res.assets.map((a) => a.uri));
   };
 
-  // Valida cantidad (entero > 0) y que haya al menos una foto, luego envía la recepción.
+  // Valida cantidad y fotos antes de enviar la recepción al backend.
   const confirmar = () => {
     const n = Number(cantidad);
     if (!Number.isInteger(n) || n <= 0) { Alert.alert("Cantidad", "Ingresa la cantidad declarada (entero mayor que 0)."); return; }
@@ -75,7 +70,6 @@ export default function RecepcionScreen() {
   if (!recojo) return <Screen conPadding={false}><Cabecera titulo="Recepción" atras /><Vacio titulo="Recojo no encontrado" /></Screen>;
 
   const registrado = recojo.estado === "RECOGIDO";
-  // CUS-30: la ruta está pausada por avería; no se permiten acciones hasta reanudarla.
   const pausada = !!ruta.data?.pausada;
 
   return (
@@ -83,7 +77,6 @@ export default function RecepcionScreen() {
       <Cabecera titulo="Recepción" atras />
       <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
         <Aparecer style={{ gap: spacing.lg }}>
-          {/* Ficha del punto de recojo */}
           <Card>
             <Texto variante="label" color={colors.muted}>{recojo.codigo ?? `Recojo ${recojo.recojo_id}`}</Texto>
             <Texto variante="title" color={colors.ink} style={{ marginTop: 2 }}>{recojo.cliente_origen}</Texto>
@@ -105,13 +98,11 @@ export default function RecepcionScreen() {
           </Card>
 
           {registrado ? (
-            /* Estado RECOGIDO: muestra la guía guardada desde el backend. */
             <Card style={{ backgroundColor: colors.successSoft }}>
               <Texto variante="subtitle" color={colors.success} style={{ textAlign: "center" }}>Recepción registrada</Texto>
               <Texto variante="body" color={colors.success} style={{ textAlign: "center", marginTop: 2 }}>
                 Cantidad declarada: {recojo.cantidad_declarada ?? "—"}
               </Texto>
-              {/* CUS-12: la guía se lee del backend (persistida en BD), no de un caché temporal. */}
               {urlMedia(recojo.url_guia) && (
                 <Image
                   source={{ uri: urlMedia(recojo.url_guia) }}
@@ -122,14 +113,12 @@ export default function RecepcionScreen() {
               )}
             </Card>
           ) : pausada ? (
-            /* CUS-30: ruta pausada — bloquea el registro de recepción. */
             <Card style={{ backgroundColor: colors.dangerSoft }}>
               <Texto variante="bodyMedium" color={colors.danger} style={{ textAlign: "center" }}>
                 🛠️ Ruta pausada por avería. Reanúdala desde Mi Ruta para continuar.
               </Texto>
             </Card>
           ) : (
-            /* Formulario de recepción condicionada (cantidad + foto de la guía). */
             <Card>
               <Texto variante="subtitle" color={colors.ink} style={{ marginBottom: spacing.md }}>
                 Recepción condicionada (a bulto cerrado)

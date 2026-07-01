@@ -21,9 +21,7 @@ import { useAuth } from "../context/AuthContext";
 import Logo from "./ui/Logo";
 import CampanaNotificaciones from "./CampanaNotificaciones";
 
-// Menú agrupado por bloques de trabajo. Cada entrada apunta a una pantalla que
-// consume un endpoint real del admin. (Las funciones de la app móvil del
-// conductor no viven aquí.)
+// Secciones de navegacion agrupadas por rol.
 const secciones = [
   {
     titulo: "Operación",
@@ -74,6 +72,7 @@ const secciones = [
   },
 ];
 
+// Barra lateral de navegacion. Recibe onNavigate (callback opcional al navegar).
 export default function Sidebar({ onNavigate }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -87,7 +86,6 @@ export default function Sidebar({ onNavigate }) {
 
   return (
     <aside className="flex h-full w-72 flex-col border-r border-[#222b38] bg-[#1f2733] text-slate-300">
-      {/* Header: logo + campana de notificaciones (solo admin, con espacio flex) */}
       <div className="flex items-center gap-2 px-6 py-5 border-b border-[#2b3543]">
         <Logo light />
         {rol === "admin" && (

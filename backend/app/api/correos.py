@@ -1,4 +1,3 @@
-# app/api/correos.py
 # Expone la bandeja de solicitudes de recojo.
 from typing import List
 from fastapi import APIRouter, Depends, Response

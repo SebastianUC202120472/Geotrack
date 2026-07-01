@@ -1,5 +1,4 @@
-// Reportar un error / feedback de la app. Como aún no hay endpoint de feedback,
-// el mensaje se envía a coordinación por WhatsApp con el texto escrito.
+// Pantalla para reportar un error: envia el mensaje a coordinacion por WhatsApp.
 import { useState } from "react";
 import { Linking, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { Screen } from "@/components/Screen";

@@ -1,7 +1,4 @@
-// Escena de logística animada para el panel de marca del login: un camión que
-// reparte mientras un barrio (casas con ventanas y pedidos en las puertas) se
-// desplaza en bucle continuo. Sin dependencias; solo SVG + clases de index.css.
-// No recibe props.
+// Tile: bloque SVG de barrio repetido para el scroll infinito. Sin props.
 const Tile = () => (
   <svg width="380" height="96" viewBox="0 0 380 96">
     <g opacity="0.9">
@@ -32,6 +29,7 @@ const Tile = () => (
   </svg>
 );
 
+// EscenaReparto: animacion de camion + barrio desplazandose para la pantalla de login. Sin props.
 export default function EscenaReparto() {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">

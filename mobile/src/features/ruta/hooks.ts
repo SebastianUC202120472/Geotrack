@@ -1,5 +1,4 @@
-// Hooks de React Query para la ruta del conductor: consultas (ruta activa,
-// manifiesto, navegación) y acciones (iniciar/optimizar y finalizar).
+// Hooks de React Query para ruta activa, manifiesto, navegacion e inicio/cierre.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   obtenerRutaActiva,
@@ -15,7 +14,6 @@ export const claves = {
   rutaActiva: ["ruta-activa"] as const,
   manifiesto: ["manifiesto"] as const,
   navegacion: ["navegacion"] as const,
-  // MINOR 4: clave centralizada para la query de reportes (evita literales dispersos).
   misReportes: ["mis-reportes"] as const,
 };
 

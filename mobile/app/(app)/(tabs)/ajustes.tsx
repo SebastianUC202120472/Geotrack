@@ -1,5 +1,4 @@
-// Ajustes del conductor (pestaña ⚙): lista de opciones (notificaciones, reportar
-// un error, estado de la cuenta, información de la app, ayuda) + cerrar sesión.
+// Pantalla de ajustes del conductor: notificaciones, opciones y cerrar sesión.
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -23,13 +22,11 @@ export default function AjustesScreen() {
   const { cerrarSesion } = useAuth();
 
   const [notif, setNotif] = useState(true);
-  // Carga la preferencia guardada al montar.
   useEffect(() => {
     SecureStore.getItemAsync(CLAVE_NOTIF).then((v) => {
       if (v != null) setNotif(v === "1");
     });
   }, []);
-  // Cambia y persiste la preferencia de notificaciones.
   const cambiarNotif = (v: boolean) => {
     setNotif(v);
     SecureStore.setItemAsync(CLAVE_NOTIF, v ? "1" : "0");
@@ -40,7 +37,6 @@ export default function AjustesScreen() {
       <Cabecera titulo="Ajustes" />
       <DeslizarPestanas>
         <ScrollView contentContainerStyle={estilos.cuerpo}>
-          {/* Notificaciones (interruptor) */}
           <Aparecer>
             <Card style={estilos.grupo}>
               <View style={estilos.fila}>
@@ -56,7 +52,6 @@ export default function AjustesScreen() {
             </Card>
           </Aparecer>
 
-          {/* Opciones (cada fila abre su pantalla) */}
           <Aparecer delay={60}>
             <Card style={estilos.grupo}>
               <FilaNav icono="bug-outline" titulo="Reportar un error" onPress={() => router.push("/feedback")} c={colors} />

@@ -1,6 +1,3 @@
-# app/services/recojo_service.py
-# Lógica del módulo Inbound de recojos: alta de solicitudes (CUS-10), asignación de
-# ruta de recojo (CUS-11) y recepción condicionada en origen (CUS-12).
 import os
 from datetime import datetime
 
@@ -29,22 +26,18 @@ from app.schemas.recojo import (
 from app.services import pedido_service as _pedido_svc
 from app.schemas.ruta import OptimizacionRequest, CierreRutaResponse
 
-# Carpeta donde se guardan las fotos de las Guías de Remisión (servidas en /media/guias).
 DIR_GUIAS = os.path.join("uploads", "guias")
 EXTENSIONES_IMAGEN = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 def _distrito_de(direccion: str) -> str:
-    """Deriva el distrito del texto de la dirección (igual que pedidos, CUS-16):
-    toma lo que va tras la primera coma. Recibe: la dirección de origen."""
+    """Extrae el distrito de una dirección tomando el texto tras la primera coma. Recibe: direccion."""
     partes = (direccion or "").split(",")
     return partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
 
 
-# === CUS-10: alta de solicitud de recojo (admin) ===
 def crear_solicitud(db: Session, datos: SolicitudRecojoCreate, usuario_id: int | None = None) -> SolicitudRecojo:
-    """Crea una solicitud de recojo: valida el cliente, geocodifica el origen y la deja
-    en SOLICITADO. Recibe: los datos del formulario (CUS-10)."""
+    """Crea una solicitud de recojo geocodificando el origen. Recibe: datos del formulario."""
     cliente = db.query(ClienteCorporativo).filter(ClienteCorporativo.id == datos.cliente_id).first()
     if not cliente:
         raise HTTPException(status_code=400, detail="El cliente indicado no existe")
@@ -72,7 +65,6 @@ def crear_solicitud(db: Session, datos: SolicitudRecojoCreate, usuario_id: int |
     recojo_repository.agregar(db, recojo)
     recojo_repository.guardar_cambios(db)
     db.refresh(recojo)
-    # Notifica al admin que llegó una solicitud de recojo nueva.
     try:
         notificaciones_service.registrar(
             db, "recojos", "Nueva solicitud de recojo",
@@ -83,12 +75,12 @@ def crear_solicitud(db: Session, datos: SolicitudRecojoCreate, usuario_id: int |
 
 
 def listar_solicitudes(db: Session, estado: str | None = None):
-    """Lista las solicitudes de recojo (filtro opcional por estado)."""
+    """Lista solicitudes de recojo filtrando por estado opcional. Recibe: estado."""
     return recojo_repository.listar(db, estado)
 
 
 def obtener_solicitud(db: Session, recojo_id: int) -> SolicitudRecojo:
-    """Devuelve una solicitud por id, o 404 si no existe. Recibe: id del recojo."""
+    """Devuelve una solicitud por id o lanza 404. Recibe: recojo_id."""
     recojo = recojo_repository.obtener_por_id(db, recojo_id)
     if not recojo:
         raise HTTPException(status_code=404, detail="Solicitud de recojo no encontrada")
@@ -96,8 +88,7 @@ def obtener_solicitud(db: Session, recojo_id: int) -> SolicitudRecojo:
 
 
 def editar_solicitud(db: Session, recojo_id: int, datos: SolicitudRecojoUpdate) -> SolicitudRecojo:
-    """Edita una solicitud mientras está SOLICITADO; re-geocodifica si cambió la dirección.
-    Recibe: id del recojo y los campos a actualizar."""
+    """Edita una solicitud en estado SOLICITADO y re-geocodifica si cambia la dirección. Recibe: recojo_id, datos."""
     recojo = obtener_solicitud(db, recojo_id)
     if recojo.estado != "SOLICITADO":
         raise HTTPException(status_code=400, detail="Solo se puede editar una solicitud en estado SOLICITADO")
@@ -125,7 +116,6 @@ def editar_solicitud(db: Session, recojo_id: int, datos: SolicitudRecojoUpdate) 
     return recojo
 
 
-# === Aceptar solicitud con Excel: crea el recojo y los pedidos POR_RECOGER ===
 def aceptar_solicitud(
     db: Session,
     cliente_id: int,
@@ -136,11 +126,7 @@ def aceptar_solicitud(
     usuario_id: int | None,
     conversacion_id: int | None = None,
 ) -> AceptarSolicitudResponse:
-    """Acepta una solicitud de recojo cargada por el admin con un Excel de pedidos.
-    Recibe: id de cliente, bytes del archivo, nombre del archivo, referencia, contacto,
-    el id del admin y el id de la conversación de correo opcional. Crea el recojo en
-    SOLICITADO (origen del cliente) y un pedido POR_RECOGER por cada fila válida del Excel."""
-    # Validar que el cliente exista y no esté eliminado.
+    """Acepta una solicitud con Excel del admin: crea el recojo y un pedido POR_RECOGER por fila válida. Recibe: cliente_id, bytes del Excel y metadatos."""
     cliente = (
         db.query(ClienteCorporativo)
         .filter(ClienteCorporativo.id == cliente_id, ClienteCorporativo.eliminado_en.is_(None))
@@ -151,10 +137,7 @@ def aceptar_solicitud(
     if cliente.latitud is None or cliente.longitud is None:
         raise HTTPException(status_code=400, detail="El cliente no tiene una ubicación de recojo registrada")
 
-    # IDEMPOTENCIA: si la solicitud viene de un correo de la Bandeja y ese hilo YA fue
-    # atendido, no la procesamos de nuevo. Sin esto, un reintento del admin (p.ej. tras un
-    # timeout en la carga, que tarda con cientos de filas) creaba un recojo y N pedidos
-    # DUPLICADOS. Se valida contra el estado del hilo, que se sella al final de esta función.
+    # Idempotencia: si la conversación ya fue ATENDIDA, evita duplicados ante reintentos.
     from app.repositories import correo_repository
     conv = correo_repository.obtener_conversacion(db, conversacion_id) if conversacion_id else None
     if conv and conv.estado == "ATENDIDA":
@@ -163,12 +146,9 @@ def aceptar_solicitud(
             detail="Esta solicitud ya fue aceptada (la conversación está ATENDIDA). No se crearon pedidos duplicados.",
         )
 
-    # Parsear el Excel ANTES de crear el recojo: si el archivo es inválido, no debe quedar
-    # un recojo huérfano (sin pedidos) en la base de datos.
+    # Parsear antes de crear el recojo para evitar recojos huérfanos si el archivo es inválido.
     filas = _pedido_svc.parsear_filas_excel(contenido, nombre_archivo)
 
-    # Crear el recojo copiando la ubicación del cliente (sin re-geocodificar). NO se commitea
-    # aquí: el recojo y sus pedidos se confirman juntos en UNA transacción al final (atomicidad).
     recojo = SolicitudRecojo(
         cliente_id=cliente.id,
         cliente_origen=cliente.razon_social,
@@ -182,9 +162,6 @@ def aceptar_solicitud(
     )
     recojo_repository.agregar(db, recojo)  # flush -> recojo.id disponible (sin commit)
 
-    # Validar filas y crear los pedidos EN BLOQUE (un flush para todos + historial en bloque),
-    # en vez de ~2 flush por fila: con cientos de filas sobre Supabase eso eran cientos de idas
-    # y vueltas (~68 s). La geocodificación corre en segundo plano (geocodificar_pedidos_recojo).
     filas_rechazadas: list[str] = []
     filas_validas: list[dict] = []
     for i, fila in enumerate(filas, start=1):
@@ -199,13 +176,10 @@ def aceptar_solicitud(
     _pedido_svc.crear_pedidos_bulk(db, filas_validas, cliente, recojo.id, "POR_RECOGER", usuario_id)
     pedidos_creados = len(filas_validas)
 
-    # Si la solicitud provino de un correo de la Bandeja, enlazar el hilo y marcarlo ATENDIDO
-    # en la MISMA transacción (así el sello de idempotencia y los pedidos son atómicos).
     if conv:
         recojo.conversacion_id = conversacion_id
         conv.estado = "ATENDIDA"
 
-    # Un solo commit confirma recojo + pedidos + historial + estado del hilo.
     db.commit()
 
     # Confirmación al cliente por correo (best-effort, fuera de la transacción).
@@ -228,12 +202,7 @@ def aceptar_solicitud(
 
 
 def geocodificar_pedidos_recojo(recojo_id: int) -> None:
-    """Tarea en segundo plano: geocodifica los pedidos de un recojo (al aceptar la solicitud o
-    al confirmar el ingreso), uno por uno (respetando el límite de 1 req/s de Nominatim), SIN
-    bloquear la respuesta. Abre su PROPIA sesión de BD porque la de la petición ya se cerró.
-    Commitea por LOTES (cada 20) para ir mostrando avance en el panel sin pagar un round-trip
-    por pedido. Solo geocodifica los que van a despacho (POR_RECOGER / LISTO_PARA_ENVIO); salta
-    OBSERVADO para no gastar cuota en pedidos que quizá no se envíen. Recibe: id del recojo."""
+    """Geocodifica en segundo plano los pedidos sin ubicar de un recojo, en lotes de 20. Recibe: recojo_id."""
     from app.db.database import SessionLocal
 
     db = SessionLocal()
@@ -256,21 +225,19 @@ def geocodificar_pedidos_recojo(recojo_id: int) -> None:
                 partes = pedido.direccion_destino.split(",")
                 pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
                 pendientes_commit += 1
-                if pendientes_commit >= 20:   # commit por lote (avance visible sin N round-trips)
+                if pendientes_commit >= 20:
                     db.commit()
                     pendientes_commit = 0
         if pendientes_commit:
-            db.commit()  # confirma el último lote parcial
+            db.commit()
     except Exception:
         db.rollback()
     finally:
         db.close()
 
 
-# === Armado de ruta de recojo (almacén) ===
 def listar_para_armar(db: Session) -> list[SolicitudArmarItem]:
-    """Devuelve las solicitudes en estado SOLICITADO con el número de pedidos asociados,
-    listas para que el almacén arme la ruta. Recibe: sesión de base de datos."""
+    """Lista solicitudes SOLICITADO con su cantidad de pedidos para armar la ruta de recojo. Recibe: db."""
     recojos = recojo_repository.listar(db, estado="SOLICITADO")
     resultado = []
     for r in recojos:
@@ -286,11 +253,8 @@ def listar_para_armar(db: Session) -> list[SolicitudArmarItem]:
     return resultado
 
 
-# === CUS-11: asignar una ruta de recojo (admin) ===
 def asignar_ruta_recojo(db: Session, datos: AsignarRutaRecojoRequest, usuario_id: int | None = None) -> AsignarRutaRecojoResponse:
-    """Crea una ruta de recojo (tipo=RECOJO) con conductor + vehículo y le cuelga las
-    solicitudes seleccionadas. Valida que estén SOLICITADO y que el conductor esté libre.
-    Recibe: recojo_ids, conductor_id, vehiculo_placa y nombre opcional (CUS-11)."""
+    """Crea una ruta de tipo RECOJO y asocia las solicitudes seleccionadas al conductor. Recibe: recojo_ids, conductor_id, vehiculo_placa."""
     if not datos.recojo_ids:
         raise HTTPException(status_code=400, detail="Selecciona al menos una solicitud de recojo")
 
@@ -308,9 +272,7 @@ def asignar_ruta_recojo(db: Session, datos: AsignarRutaRecojoRequest, usuario_id
             detail=f"El conductor ya tiene una ruta activa ('{activa.nombre}'). Debe cerrarla antes de asignar otra.",
         )
 
-    # Nombre por defecto: "Recojo <distrito>". El origen del cliente suele no tener un
-    # distrito real (ZONA_DESCONOCIDA), así que en ese caso usamos la razón social del
-    # cliente para que el nombre sea legible ("Recojo Ripley S.A." en vez de "Recojo ZONA_DESCONOCIDA").
+    # Nombre por defecto usa el distrito si es válido; sino la razón social del cliente.
     distrito = next((r.distrito for r in recojos if r.distrito and r.distrito != "ZONA_DESCONOCIDA"), None)
     cliente = next((r.cliente_origen for r in recojos if r.cliente_origen), None)
     nombre = (datos.nombre_ruta or "").strip() or f"Recojo {distrito or cliente or 'sin zona'}"
@@ -332,10 +294,8 @@ def asignar_ruta_recojo(db: Session, datos: AsignarRutaRecojoRequest, usuario_id
     )
 
 
-# === CUS-12: lado conductor ===
 def _ruta_recojo_activa_o_404(db: Session, conductor_id: int) -> Ruta:
-    """Devuelve la ruta de recojo activa del conductor (404 si no tiene ruta, 400 si su
-    ruta activa no es de recojo). Recibe: id del conductor."""
+    """Devuelve la ruta de recojo activa del conductor o lanza 404/400. Recibe: conductor_id."""
     ruta = ruta_repository.obtener_ruta_activa_por_conductor(db, conductor_id)
     if not ruta:
         raise HTTPException(status_code=404, detail="No tienes una ruta activa asignada")
@@ -345,8 +305,7 @@ def _ruta_recojo_activa_o_404(db: Session, conductor_id: int) -> Ruta:
 
 
 def obtener_manifiesto_recojo(db: Session, conductor_id: int) -> ManifiestoRecojoResponse:
-    """CUS-12: manifiesto de la ruta de recojo activa, con los puntos de origen ordenados
-    por secuencia. Recibe: id del conductor."""
+    """Devuelve el manifiesto de la ruta de recojo activa ordenado por secuencia. Recibe: conductor_id."""
     ruta = _ruta_recojo_activa_o_404(db, conductor_id)
     recojos = recojo_repository.obtener_por_ruta(db, ruta.id)
     paradas = [
@@ -373,9 +332,7 @@ def obtener_manifiesto_recojo(db: Session, conductor_id: int) -> ManifiestoRecoj
 
 
 def optimizar_recojo(db: Session, datos: OptimizacionRequest, conductor_id: int) -> dict:
-    """CUS-19 (recojo): optimiza la secuencia de la ruta de recojo desde la posición del
-    conductor (reusa el VRP de pedidos). Sella la salida y pasa ruta + recojos a EN_RUTA.
-    Recibe: ruta_id + lat/lng actuales del conductor."""
+    """Optimiza la secuencia de la ruta de recojo desde la posición del conductor y la pasa a EN_RUTA. Recibe: ruta_id, lat/lng del conductor."""
     ruta = ruta_repository.obtener_ruta_por_id(db, datos.ruta_id)
     if not ruta:
         raise HTTPException(status_code=404, detail="Ruta no encontrada")
@@ -406,7 +363,6 @@ def optimizar_recojo(db: Session, datos: OptimizacionRequest, conductor_id: int)
             recojo.estado = "EN_RUTA"
         secuencia += 1
 
-    # CUS-23: la primera optimización = salida del almacén.
     if ruta.fecha_salida is None:
         ruta.fecha_salida = datetime.utcnow()
         ruta.estado = "EN_PROGRESO"
@@ -417,9 +373,7 @@ def optimizar_recojo(db: Session, datos: OptimizacionRequest, conductor_id: int)
 
 def registrar_recepcion(db: Session, conductor_id: int, recojo_id: int, cantidad_declarada: int,
                         archivos: list[tuple[bytes, str]]) -> RecepcionResponse:
-    """CUS-12: recepción condicionada a bulto cerrado. Valida pertenencia y pausa, guarda
-    VARIAS fotos de evidencia (boleta/guía/bultos) y deja el recojo en RECOGIDO. Recibe:
-    conductor, recojo_id, cantidad declarada (>0) y una lista de (bytes, nombre) por foto."""
+    """Registra la recepción de un recojo con fotos de evidencia y lo pasa a RECOGIDO. Recibe: conductor_id, recojo_id, cantidad_declarada, lista de (bytes, nombre) por foto."""
     if cantidad_declarada is None or cantidad_declarada <= 0:
         raise HTTPException(status_code=400, detail="La cantidad declarada debe ser un entero mayor que 0")
     if not archivos:
@@ -427,7 +381,6 @@ def registrar_recepcion(db: Session, conductor_id: int, recojo_id: int, cantidad
 
     ruta = _ruta_recojo_activa_o_404(db, conductor_id)
 
-    # CUS-30: si la ruta está pausada por una incidencia, no se puede registrar.
     if incidencia_repository.tiene_abierta(db, ruta.id):
         raise HTTPException(status_code=400, detail="La ruta está pausada por una incidencia. Reanúdala antes de continuar.")
 
@@ -437,7 +390,6 @@ def registrar_recepcion(db: Session, conductor_id: int, recojo_id: int, cantidad
     if recojo.estado == "RECOGIDO":
         raise HTTPException(status_code=400, detail="Este recojo ya fue registrado")
 
-    # Validar el formato de TODAS las fotos antes de escribir ninguna (no dejar a medias).
     for _, nombre_archivo in archivos:
         _, extension = os.path.splitext((nombre_archivo or "").lower())
         if extension not in EXTENSIONES_IMAGEN:
@@ -454,7 +406,7 @@ def registrar_recepcion(db: Session, conductor_id: int, recojo_id: int, cantidad
         urls.append(url)
         recojo_repository.agregar_evidencia(db, recojo_id, url, i)
 
-    recojo.url_guia = urls[0]  # compat: primera foto (el resto en evidencias_recojo)
+    recojo.url_guia = urls[0]  # primera foto; el resto en evidencias_recojo
     recojo.cantidad_declarada = cantidad_declarada
     recojo.estado = "RECOGIDO"
     recojo.fecha_recojo = datetime.utcnow()
@@ -472,8 +424,7 @@ def registrar_recepcion(db: Session, conductor_id: int, recojo_id: int, cantidad
 
 
 def finalizar_ruta_recojo(db: Session, ruta: Ruta) -> CierreRutaResponse:
-    """CUS-28 (recojo): cierra una ruta de recojo. Exige que no queden recojos pendientes.
-    Recibe: la ruta de recojo activa (la pasa ruta_service.finalizar_ruta)."""
+    """Cierra una ruta de recojo exigiendo que no queden recojos pendientes. Recibe: ruta activa."""
     if incidencia_repository.tiene_abierta(db, ruta.id):
         raise HTTPException(status_code=400, detail="La ruta está pausada por una incidencia. Reanúdala antes de cerrar el día.")
 

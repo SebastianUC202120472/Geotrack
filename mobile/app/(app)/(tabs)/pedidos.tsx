@@ -1,7 +1,4 @@
-// Apartado "Pedidos": TODOS los pedidos asignados (en orden de enrutamiento), con
-// resumen cuantitativo, buscador preciso, filtro por distrito y la evidencia de
-// entrega (foto) en los pedidos ya entregados. Reemplaza también al antiguo
-// "Historial" (los entregados se ven aquí). La entrega se hace desde el detalle.
+// Pantalla de pedidos asignados con buscador, filtro por distrito y evidencia de entrega.
 import { useCallback, useMemo, useState } from "react";
 import { FlatList, RefreshControl, ScrollView, StyleSheet, TextInput, Pressable, View } from "react-native";
 import { Image } from "expo-image";
@@ -47,12 +44,12 @@ export default function PedidosScreen() {
     () => [...(manifiesto.data?.paradas ?? [])].sort((a, b) => a.secuencia - b.secuencia),
     [manifiesto.data]
   );
-  // Distritos presentes (para el filtro).
+  // Distritos únicos para el filtro.
   const distritos = useMemo(
     () => Array.from(new Set(todas.map((p) => p.distrito).filter(Boolean))) as string[],
     [todas]
   );
-  // Lista filtrada por distrito + búsqueda precisa (código, destinatario, cliente, dirección).
+  // Lista filtrada por distrito y búsqueda.
   const filtradas = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
     return todas.filter((p) => {
@@ -90,12 +87,10 @@ export default function PedidosScreen() {
     );
   }
 
-  // Encabezado de la lista: resumen + buscador + filtro por distrito + conteo.
   const Encabezado = (
     <View style={estilos.encabezado}>
       {ruta.data && <ResumenPedidos ruta={ruta.data} />}
 
-      {/* Buscador preciso */}
       <View style={[estilos.buscador, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Ionicons name="search" size={18} color={colors.muted} />
         <TextInput
@@ -114,7 +109,6 @@ export default function PedidosScreen() {
         )}
       </View>
 
-      {/* Filtro por distrito */}
       {distritos.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={estilos.chips}>
           <ChipDistrito etiqueta="Todos" activo={distrito === null} onPress={() => setDistrito(null)} c={colors} />
@@ -141,8 +135,7 @@ export default function PedidosScreen() {
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={<Texto variante="body" color={colors.muted} style={estilos.vacioFiltro}>Sin resultados para tu búsqueda.</Texto>}
         renderItem={({ item, index }: { item: ParadaManifiesto; index: number }) => {
-          // La foto POD viene del backend (url_evidencia, persistida en BD); si aún no
-          // llegó por el refresco, usamos la caché de esta sesión como respaldo.
+          // Foto POD: del backend si ya se refrescó, si no desde la caché de sesión.
           const evidencia = item.estado_entrega === "ENTREGADO"
             ? (urlMedia(item.url_evidencia) ?? obtenerEvidencia(item.pedido_id))
             : undefined;

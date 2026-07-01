@@ -13,15 +13,11 @@ import SectionCard from "../components/ui/SectionCard";
 import { listarConductores, crearConductor, actualizarConductor, eliminarConductor, subirFotoConductor, restablecerContrasenaConductor, urlMedia, obtenerEficienciaConductores, listarIncidencias } from "../services/api";
 import { validarNombre, validarCorreo, validarPassword, validarTelefono, validarDni, soloDigitos } from "../utils/validaciones";
 
-// Apartado de conductores: ficha completa (nombre, teléfono, DNI), vehículo
-// asignado y detalle en un modal. La cuenta (correo/contraseña) es la que el
-// conductor usa en la app móvil.
+// Página de conductores: lista, registro y detalle (editar/eliminar/restablecer clave).
 export default function Conductores() {
   const navigate = useNavigate();
   const [conductores, setConductores] = useState([]);
-  // Mapa conductor_id -> datos de eficiencia (km recorridos/ahorrados, ahorro en S/).
   const [eficiencia, setEficiencia] = useState({});
-  // Mapa conductor_id -> incidencia abierta (carga paralela a la lista de conductores).
   const [incidenciasAbiertas, setIncidenciasAbiertas] = useState({});
   const [cargando, setCargando] = useState(true);
   const [seleccionado, setSeleccionado] = useState(null);
@@ -31,17 +27,15 @@ export default function Conductores() {
   const [aviso, setAviso] = useState(null);
   const [guardando, setGuardando] = useState(false);
 
-  // Recarga conductores, eficiencia e incidencias abiertas (setState en callbacks de promesa).
+  // Recarga conductores, eficiencia e incidencias abiertas.
   const cargar = async () => {
     setCargando(true);
     try {
       setConductores(await listarConductores());
-      // CUS-34: carga la eficiencia tras obtener conductores (setState post-await, sin lint de effect).
       try {
         const efs = await obtenerEficienciaConductores();
         setEficiencia(Object.fromEntries(efs.map((e) => [e.conductor_id, e])));
       } catch { /* si falla el endpoint de eficiencia, la tabla sigue mostrando "—" */ }
-      // Carga incidencias abiertas para mostrar el botón de auxilio en la fila del conductor.
       listarIncidencias("ABIERTA")
         .then((lista) => {
           const mapa = {};
@@ -66,7 +60,6 @@ export default function Conductores() {
     const activos = conductores.filter((c) => c.estado).length;
     const sinVehiculo = conductores.filter((c) => c.estado && !c.vehiculo).length;
     const inactivos = conductores.filter((c) => !c.estado).length;
-    // Conductores que pidieron restablecer su clave y siguen pendientes (extra CUS-04).
     const solicitudes = conductores.filter((c) => c.solicito_restablecimiento).length;
     return { total, activos, sinVehiculo, inactivos, solicitudes };
   }, [conductores]);
@@ -115,8 +108,7 @@ export default function Conductores() {
     }
   };
 
-  // Columnas para DataTable. Dependen de `eficiencia` e `incidenciasAbiertas` para que
-  // la columna de eficiencia y el botón de auxilio accedan al estado más reciente.
+  // Columnas para DataTable. Dependen de `eficiencia` e `incidenciasAbiertas`.
   const columnas = useMemo(() => [
     {
       key: "codigo",
@@ -157,7 +149,6 @@ export default function Conductores() {
       render: (c) => <EstadoBadge estado={!c.estado ? "INACTIVO" : c.en_ruta ? "EN_RUTA" : "DISPONIBLE"} />,
     },
     {
-      // CUS-34: km ahorrados y ahorro económico acumulado por conductor.
       key: "eficiencia",
       header: "Eficiencia",
       render: (c) => {
@@ -171,14 +162,11 @@ export default function Conductores() {
       },
     },
     {
-      // Botón de auxilio mecánico: solo visible si el conductor tiene una incidencia abierta.
       key: "acciones",
       header: "",
       render: (c) => {
         const inc = incidenciasAbiertas[c.usuario_id];
         if (!inc) return null;
-        // stopPropagation evita que el click del botón dispare onRowClick de la fila.
-        // Navega al apartado de Auxilio mecánico con el conductor preseleccionado.
         return (
           <button
             className="parpadeo-alerta inline-flex items-center gap-1.5 rounded-xl bg-danger px-3 py-1.5 text-xs font-semibold text-white"
@@ -199,7 +187,6 @@ export default function Conductores() {
         subtitulo="Registra y consulta a los conductores de reparto."
       />
 
-      {/* Aviso: conductores que solicitaron restablecer su contraseña (extra CUS-04) */}
       {kpis.solicitudes > 0 && (
         <div className="flex items-center gap-2 rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning-strong animate-fade-up">
           <KeyRound size={18} className="shrink-0" />
@@ -210,7 +197,6 @@ export default function Conductores() {
         </div>
       )}
 
-      {/* KPIs derivados de la lista cargada */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 animate-fade-up">
         <KpiCard label="Total" value={kpis.total} icon={Users} tone="brand" />
         <KpiCard label="Activos" value={kpis.activos} icon={Users} tone="success" />
@@ -219,7 +205,6 @@ export default function Conductores() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
-        {/* Formulario de alta */}
         <SectionCard title="Registrar conductor" className="lg:col-span-1">
           <form onSubmit={registrar} noValidate className="space-y-4">
             <Input label="Nombre completo" required value={form.nombre} onChange={set("nombre")}
@@ -249,7 +234,6 @@ export default function Conductores() {
           </form>
         </SectionCard>
 
-        {/* Tabla de conductores */}
         <div className="lg:col-span-2">
           <DataTable
             columns={columnas}
@@ -280,9 +264,7 @@ export default function Conductores() {
   );
 }
 
-// Detalle del conductor con tres modos: ver la ficha, editarla, o confirmar su
-// eliminación. `onCambios` se llama tras editar/eliminar (cierra + recarga lista).
-// `efic` son los datos de eficiencia CUS-34 (km recorridos/ahorrados, ahorro S/).
+// Modal de detalle del conductor: ver, editar, eliminar o restablecer contraseña.
 function DetalleConductor({ conductor: c, efic, onCerrar, onCambios }) {
   const [modo, setModo] = useState("ver"); // "ver" | "editar" | "confirmar" | "clave"
   const [form, setForm] = useState({ nombre: c.nombre || "", telefono: c.telefono || "", dni: c.dni || "" });
@@ -290,7 +272,6 @@ function DetalleConductor({ conductor: c, efic, onCerrar, onCambios }) {
   const [aviso, setAviso] = useState(null);
   const [trabajando, setTrabajando] = useState(false);
   const [subiendoFoto, setSubiendoFoto] = useState(false);
-  // CUS-04: restablecer contraseña (nueva clave + estado del proceso).
   const [nuevaClave, setNuevaClave] = useState("");
   const [errorClave, setErrorClave] = useState("");
   const [claveOk, setClaveOk] = useState(false);
@@ -342,7 +323,7 @@ function DetalleConductor({ conductor: c, efic, onCerrar, onCambios }) {
     }
   };
 
-  // Sube la foto elegida y recarga la lista. Recibe: el evento del <input file>.
+  // Sube la foto del conductor y recarga la lista.
   const cambiarFoto = async (e) => {
     const archivo = e.target.files?.[0];
     if (!archivo) return;
@@ -357,8 +338,7 @@ function DetalleConductor({ conductor: c, efic, onCerrar, onCambios }) {
     }
   };
 
-  // CUS-04: valida y fija la nueva contraseña del conductor. No cierra el modal:
-  // muestra confirmación para que el admin pueda comunicarle la clave.
+  // Valida y aplica la nueva contraseña del conductor.
   const restablecer = async () => {
     const error = validarPassword(nuevaClave);
     if (error) {
@@ -418,7 +398,6 @@ function DetalleConductor({ conductor: c, efic, onCerrar, onCambios }) {
             <Dato icono={Truck} etiqueta="Vehículo asignado"
               valor={c.vehiculo ? `${c.vehiculo.placa}${c.vehiculo.codigo ? ` (${c.vehiculo.codigo})` : ""}` : "Sin vehículo asignado"} />
           </div>
-          {/* CUS-34: bloque de eficiencia de combustible acumulada del conductor */}
           <div className="mt-5">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Eficiencia acumulada</p>
             {efic ? (

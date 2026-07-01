@@ -1,10 +1,9 @@
-// Hooks de React Query para el auxilio mecánico (CUS-30): reportar y reanudar.
+// Hooks de React Query para el auxilio mecánico: reportar y reanudar.
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { reportarIncidencia, subirEvidenciaIncidencia, reanudarRuta } from "@/api/conductor";
 import { claves } from "@/features/ruta/hooks";
 
-// Reporta un auxilio (con foto y coords opcionales) y refresca la ruta (queda pausada).
-// Devuelve: mutación que recibe { descripcion?, coords?, uriFoto?, puedeSolucionarSolo? }.
+// Reporta un auxilio (con foto y coords opcionales) y refresca la ruta. Recibe descripcion, coords, uriFoto, puedeSolucionarSolo.
 export function useReportarAuxilio() {
   const qc = useQueryClient();
   return useMutation({
@@ -20,8 +19,7 @@ export function useReportarAuxilio() {
   });
 }
 
-// Reanuda la ruta (cierra la incidencia) y refresca el estado.
-// Devuelve: mutación que recibe { incidenciaId, nota? }.
+// Reanuda la ruta cerrando la incidencia. Recibe incidenciaId y nota opcional.
 export function useReanudarRuta() {
   const qc = useQueryClient();
   return useMutation({

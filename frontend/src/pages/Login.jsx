@@ -9,6 +9,7 @@ import Input from "../components/ui/Input";
 import PasswordInput from "../components/ui/PasswordInput";
 import Button from "../components/ui/Button";
 
+// Pantalla de login admin. Valida credenciales y redirige al destino original.
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -21,6 +22,7 @@ export default function Login() {
 
   const destino = location.state?.from?.pathname || "/";
 
+  // Envia credenciales al backend. Recibe el evento del formulario.
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -38,7 +40,6 @@ export default function Login() {
 
   return (
     <div className="min-h-screen w-full lg:grid lg:grid-cols-2">
-      {/* Panel de marca (solo escritorio) */}
       <div
         className="relative hidden flex-col justify-between overflow-hidden p-12 text-white lg:flex"
         style={{ background: "radial-gradient(130% 130% at 0% 0%, #2b3545 0%, #161c26 65%)" }}
@@ -57,7 +58,6 @@ export default function Login() {
         <p className="relative z-10 text-xs text-slate-500">© SAVA S.A.C — GeoTrack</p>
       </div>
 
-      {/* Formulario */}
       <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 lg:min-h-0">
         <div className="w-full max-w-md">
           <div className="mb-8 lg:hidden">

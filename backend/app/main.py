@@ -1,5 +1,3 @@
-# app/main.py
-# - Crea la app FastAPI y configura CORS (permite que la Web y la App Móvil llamen a la API desde otro origen).
 import asyncio
 import os
 from datetime import datetime, timedelta
@@ -11,36 +9,31 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.db.database import engine, Base, SessionLocal
-# Importar los modelos registra sus tablas en Base.metadata (necesario para create_all).
 from app.models import Usuario, Pedido, Ruta, RutaDetalle
 from app.services import usuario_service, parametro_service
 
-# Routers (cada uno agrupa los endpoints de un módulo).
 from app.api.auth import router as auth_router
 from app.api.pedidos import router as pedidos_router
 from app.api.rutas import router as rutas_router
 from app.api.conductor import router as conductor_router
-from app.api.dashboard import router as dashboard_router  # Fase 4: trazabilidad
-from app.api.clientes import router as clientes_router    # Fase 4: clientes corporativos
-from app.api.vehiculos import router as vehiculos_router  # Fase 4: flota de vehículos
-from app.api.correos import router as correos_router      # Bandeja de solicitudes de recojo
-from app.api.conductores import router as conductores_router  # Gestión de conductores
-from app.api.reportes import router as reportes_router      # Reportes de incidencia
-from app.api.usuarios import router as usuarios_router        # CUS-03: gestión de usuarios del panel
-from app.api.parametros import router as parametros_router    # CUS-06: catálogos (motivos)
-from app.api.incidencias import router as incidencias_router    # CUS-30: auxilio mecánico
-from app.api.recojos import router as recojos_router            # Tier 3: recojos inbound
-from app.api.almacen import router as almacen_router              # Tier 3: ingreso a almacén (CUS-14)
-from app.api.notificaciones import router as notificaciones_router  # Campana de notificaciones del panel
+from app.api.dashboard import router as dashboard_router
+from app.api.clientes import router as clientes_router
+from app.api.vehiculos import router as vehiculos_router
+from app.api.correos import router as correos_router
+from app.api.conductores import router as conductores_router
+from app.api.reportes import router as reportes_router
+from app.api.usuarios import router as usuarios_router
+from app.api.parametros import router as parametros_router
+from app.api.incidencias import router as incidencias_router
+from app.api.recojos import router as recojos_router
+from app.api.almacen import router as almacen_router
+from app.api.notificaciones import router as notificaciones_router
 
 
 async def tarea_limpieza_usuarios():
-    """
-    Tarea en segundo plano: cada hora borra los usuarios de prueba
-    (@prueba.com) con más de 6 horas de antigüedad. Mantiene limpia la BD del MVP.
-    """
+    """Borra cada hora usuarios @prueba.com con mas de 6 horas de antiguedad."""
     while True:
-        await asyncio.sleep(3600)  # espera 1 hora
+        await asyncio.sleep(3600)
         db = SessionLocal()
         try:
             hace_6_horas = datetime.utcnow() - timedelta(hours=6)
@@ -59,29 +52,19 @@ async def tarea_limpieza_usuarios():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Ciclo de vida de la app. El código antes de 'yield' corre al ARRANCAR;
-    el de después corre al APAGAR.
-    """
-    # Docker puede levantar la app antes de que PostgreSQL esté listo:
-    # esperamos unos segundos para evitar el error de conexión inicial.
+    """Ciclo de vida: inicializa BD, admin, catalogos y tarea de limpieza al arrancar."""
     print("Esperando 5 segundos a que PostgreSQL esté 100% listo...")
     await asyncio.sleep(5)
 
-    # Crea las tablas que aún no existan (no modifica las ya creadas).
     print("Creando tablas en la base de datos...")
     Base.metadata.create_all(bind=engine)
 
-    # Crea el admin inicial si no existe (para poder entrar, ya que el registro
-    # está restringido a admins). Sus credenciales vienen de variables de entorno.
     db = SessionLocal()
     try:
         usuario_service.crear_admin_inicial(db, settings.ADMIN_EMAIL, settings.ADMIN_PASSWORD)
         print(f"Admin inicial asegurado: {settings.ADMIN_EMAIL}")
-        # CUS-06: siembra los motivos de rechazo por defecto si el catálogo está vacío.
         parametro_service.asegurar_motivos_iniciales(db)
         print("Catálogo de motivos de rechazo asegurado.")
-        # CUS-34: siembra los parámetros de combustible por defecto si faltan.
         parametro_service.asegurar_combustible_inicial(db)
         print("Parámetros de combustible asegurados.")
     except Exception as e:
@@ -89,27 +72,21 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
 
-    # Arranca la limpieza periódica en segundo plano.
     print("Iniciando tarea de limpieza en segundo plano...")
     tarea_background = asyncio.create_task(tarea_limpieza_usuarios())
 
-    yield  # <-- aquí la app queda atendiendo peticiones
+    yield
 
-    # Al apagar, cancelamos la tarea de fondo.
     tarea_background.cancel()
 
 
-# --- Creación de la app ---
 app = FastAPI(
     title="SIOL-SAVA API",
     version="1.0.0",
     lifespan=lifespan,
 )
 
-# CORS: permite que el frontend (otro origen) consuma la API.
-# Los orígenes vienen de la config (CORS_ORIGINS). allow_credentials=False porque
-# usamos JWT en el header Authorization (no cookies): así '*' sigue siendo válido
-# y NO complica al frontend, evitando el combo inseguro '*' + credentials=True.
+# CORS: JWT en Authorization header, sin cookies, por eso allow_credentials=False.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -118,13 +95,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Servir las evidencias POD (CUS-26/29) como archivos estáticos en /media.
-# NOTA: las liquidaciones (CUS-36) NO van aquí: contienen datos personales y se
-# guardan en una carpeta privada, descargables solo por un endpoint autenticado.
 os.makedirs(os.path.join("uploads", "evidencias"), exist_ok=True)
 app.mount("/media", StaticFiles(directory="uploads"), name="media")
 
-# Registro de routers. Cada 'prefix' es la base de las URLs de ese módulo.
 app.include_router(auth_router, prefix="/api/auth", tags=["Autenticación"])
 app.include_router(clientes_router, prefix="/api/clientes", tags=["Clientes Corporativos"])
 app.include_router(vehiculos_router, prefix="/api/vehiculos", tags=["Flota de Vehículos"])
@@ -145,5 +118,5 @@ app.include_router(notificaciones_router, prefix="/api/notificaciones", tags=["N
 
 @app.get("/")
 def health_check():
-    """Endpoint de salud: confirma rápidamente que el backend está vivo."""
+    """Confirma que el backend esta vivo."""
     return {"status": "online", "message": "Backend SIOL-SAVA operativo"}

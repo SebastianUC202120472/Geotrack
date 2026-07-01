@@ -1,6 +1,3 @@
-// Pantalla principal del conductor: su ruta activa con la secuencia de paradas,
-// el mapa del recorrido y los botones para iniciar (desde su ubicación) y
-// finalizar la ruta.
 import { useCallback, useState } from "react";
 import { Alert, FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -28,7 +25,7 @@ import { mensajeDeError } from "@/api/client";
 import { BannerSync } from "@/components/BannerSync";
 import { useTheme, spacing } from "@/theme";
 
-// El tab "Ruta" muestra el flujo de entregas o el de recojo según el tipo de la ruta activa.
+// Muestra el flujo de entregas o de recojo según el tipo de ruta activa.
 export default function RutaScreen() {
   const rutaActiva = useRutaActiva();
   if (rutaActiva.data?.tipo === "RECOJO") return <RutaRecojoView />;
@@ -47,18 +44,14 @@ function RutaEntregaView() {
   const reanudar = useReanudarRuta();
   const pausada = !!ruta.data?.pausada;
   const qc = useQueryClient();
-  // CUS-27: paradas con una acción en la cola offline (aún sin subir al servidor).
+  // Paradas con acción en cola offline aún sin subir.
   const pendientesPorPedido = usePendientesPorPedido();
 
-  // Rastrea la posición del conductor mientras tenga ruta activa. Dos vías en paralelo:
-  //  - segundo plano (requiere permiso "Permitir siempre"; sigue con la app minimizada),
-  //  - primer plano (con la app abierta, solo requiere permiso normal). El de primer plano
-  //    garantiza que el panel vea la posición aunque NO se conceda el permiso de fondo.
+  // Rastrea y envía la posición mientras la ruta esté en curso.
   const rutaEnCurso = !!ruta.data && ruta.data.estado !== "FINALIZADA";
   useRastreoUbicacion(rutaEnCurso);
   useEnviarUbicacion(rutaEnCurso);
 
-  // Al volver a esta pestaña, vuelve a pedir los datos (se ven los cambios al instante).
   useFocusEffect(
     useCallback(() => {
       qc.invalidateQueries({ queryKey: claves.rutaActiva });
@@ -67,24 +60,19 @@ function RutaEntregaView() {
     }, [qc])
   );
 
-  // "Ruta" muestra solo las próximas 5 paradas PENDIENTES (ventana que se va
-  // llenando: al entregar una, entra la siguiente). El listado completo está en "Pedidos".
   const paradasPendientes = [...(manifiesto.data?.paradas ?? [])]
     .filter((p) => p.estado_entrega === "PENDIENTE" && !pendientesPorPedido.has(p.pedido_id))
     .sort((a, b) => a.secuencia - b.secuencia);
   const proximas = paradasPendientes.slice(0, 5);
   const sinRuta = (ruta.error as { response?: { status?: number } } | null)?.response?.status === 404;
 
-  // Paradas pendientes con coordenadas (en orden), para navegar la ruta en Google Maps.
   const puntosNavegar = paradasPendientes
     .filter((p) => p.latitud != null && p.longitud != null)
     .map((p) => ({ lat: p.latitud, lng: p.longitud }));
 
-  // Estado del pull-to-refresh manual. Se mantiene aparte de isFetching para que el
-  // spinner NO aparezca en cada refresco automático/de foco (eso parecía "recargar").
   const [refrescando, setRefrescando] = useState(false);
 
-  // Refresca las tres consultas a la vez (pull-to-refresh).
+  // Refresca las tres consultas a la vez. Recibe: llamada por pull-to-refresh.
   const refrescar = async () => {
     setRefrescando(true);
     try {
@@ -94,7 +82,7 @@ function RutaEntregaView() {
     }
   };
 
-  // Inicia la ruta: toma la ubicación actual y pide la optimización al backend.
+  // Inicia la ruta desde la ubicación actual y solicita optimización al backend.
   const iniciarRuta = async () => {
     if (!ruta.data) return;
     const coords = await ubicacion.obtener();
@@ -111,7 +99,7 @@ function RutaEntregaView() {
     );
   };
 
-  // Cierra el día (con confirmación). Solo disponible si no quedan pendientes.
+  // Cierra el día con confirmación. Solo disponible sin paradas pendientes.
   const finalizarRuta = () => {
     Alert.alert("Cerrar el día", "¿Cerrar la ruta de hoy? Ya gestionaste todas las paradas.", [
       { text: "Cancelar", style: "cancel" },
@@ -131,7 +119,7 @@ function RutaEntregaView() {
     ]);
   };
 
-  // Reanuda la ruta cerrando la incidencia abierta (CUS-30).
+  // Reanuda la ruta cerrando la incidencia abierta.
   const reanudarRutaActiva = () => {
     if (!ruta.data?.incidencia_id) return;
     reanudar.mutate(
@@ -140,12 +128,10 @@ function RutaEntregaView() {
     );
   };
 
-  // Total y pendientes de la ruta; solo se puede cerrar el día sin pendientes ni pausa activa.
   const totalParadas = ruta.data?.total_paradas ?? 0;
   const pendientes = ruta.data?.pendientes ?? 0;
   const puedeCerrar = !!ruta.data && totalParadas > 0 && pendientes === 0 && !pausada;
 
-  // Encabezado de la lista: degradado con resumen, mapa montado y acciones.
   const Encabezado = (
     <View style={estilos.cabecera}>
       {ruta.data && (
@@ -158,7 +144,6 @@ function RutaEntregaView() {
           <Texto variante="body" color={colors.white} style={{ opacity: 0.9, textTransform: "lowercase" }}>
             {(ruta.data.codigo ?? "—")} · {ruta.data.estado.replace("_", " ").toLowerCase()}
           </Texto>
-          {/* CUS-23: sello de salida del almacén (cuando la ruta ya inició) */}
           {horaLocal(ruta.data.fecha_salida) && (
             <Texto variante="caption" color={colors.white} style={{ opacity: 0.9, marginTop: 2 }}>
               🕑 Salida {horaLocal(ruta.data.fecha_salida)}
@@ -180,25 +165,21 @@ function RutaEntregaView() {
       <Aparecer style={estilos.secciones}>
         <BannerSync />
         <Card style={{ marginTop: spacing.md, padding: spacing.sm }}>
-          {/* El mapa muestra TODAS las paradas del manifiesto, no solo las próximas. */}
           <Mapa paradas={manifiesto.data?.paradas ?? []} />
         </Card>
 
         <Button titulo="Iniciar ruta desde mi ubicación" onPress={iniciarRuta} cargando={ubicacion.cargando || iniciar.isPending} />
 
-        {/* Navegación real turn-by-turn: abre la ruta completa en Google Maps (origen = tu ubicación). */}
         {puntosNavegar.length > 0 && (
           <Button titulo="Navegar en Google Maps" variante="secondary" onPress={() => abrirNavegacionRuta(puntosNavegar)} />
         )}
 
-        {/* CUS-30: banner de pausa activa o botón para reportar auxilio mecánico */}
         {pausada ? (
           <Card style={{ backgroundColor: colors.dangerSoft }}>
             <Texto variante="bodyMedium" color={colors.danger}>🛠️ Ruta pausada por avería</Texto>
             <Texto variante="caption" color={colors.danger} style={{ marginTop: 2, marginBottom: spacing.sm }}>
               Reanúdala cuando el vehículo esté listo para seguir entregando.
             </Texto>
-            {/* CUS-30: si el admin ya mandó ayuda, se destaca el aviso "Ayuda en camino". */}
             {ruta.data?.ayuda_enviada_en && (
               <Card style={{ backgroundColor: colors.brandSoft, marginBottom: spacing.sm }}>
                 <Texto variante="bodyMedium" color={colors.brand}>🚐 Ayuda en camino</Texto>
@@ -227,8 +208,6 @@ function RutaEntregaView() {
     </View>
   );
 
-  // Pie de la lista: cierre del día. El botón solo aparece cuando ya no hay
-  // paradas pendientes; mientras tanto, muestra el progreso que falta.
   const Pie = ruta.data ? (
     <Aparecer style={{ ...estilos.pie, paddingHorizontal: spacing.lg }}>
       <Card>
@@ -306,8 +285,7 @@ function RutaEntregaView() {
   );
 }
 
-// Convierte una hora ISO del backend (UTC) a "HH:MM" en la zona del dispositivo.
-// Recibe: la fecha ISO o null. Devuelve: el texto de la hora, o null.
+// Convierte fecha ISO a "HH:MM" local. Recibe: string ISO o null.
 function horaLocal(iso?: string | null): string | null {
   if (!iso) return null;
   const tieneZona = /[zZ]|[+-]\d\d:?\d\d$/.test(iso);
@@ -315,7 +293,7 @@ function horaLocal(iso?: string | null): string | null {
   return fecha.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" });
 }
 
-// Formatea una duración en minutos como "Xh Ymin". Recibe: minutos o null.
+// Formatea minutos como "Xh Ymin". Recibe: minutos o null.
 function formatDuracion(min?: number | null): string | null {
   if (min == null) return null;
   const horas = Math.floor(min / 60);
@@ -325,7 +303,7 @@ function formatDuracion(min?: number | null): string | null {
   return `${minutos}min`;
 }
 
-// Cifra animada con su etiqueta (texto blanco sobre el degradado). Recibe: { valor, etiqueta }.
+// Cifra animada con etiqueta en blanco. Recibe: { valor, etiqueta }.
 function ContadorEtiqueta({ valor, etiqueta }: { valor: number; etiqueta: string }) {
   const { colors } = useTheme();
   return (

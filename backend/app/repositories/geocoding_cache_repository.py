@@ -1,5 +1,3 @@
-# app/repositories/geocoding_cache_repository.py
-# Única capa que lee/escribe la tabla 'geocodificaciones_cache' (caché de direcciones).
 import re
 from typing import Optional
 
@@ -9,13 +7,12 @@ from app.models.geocoding_cache import GeocodificacionCache
 
 
 def _normalizar(direccion: str) -> str:
-    """Clave de caché: dirección en minúsculas y con los espacios colapsados, para que
-    'Av. Larco 137 ' y 'av.  larco 137' apunten a la misma entrada. Recibe: la dirección."""
+    """Normaliza una dirección a minúsculas y sin espacios extra. Recibe: la dirección."""
     return re.sub(r"\s+", " ", (direccion or "").strip().lower())
 
 
 def obtener(db: Session, direccion: str) -> Optional[GeocodificacionCache]:
-    """Devuelve la entrada cacheada de una dirección, o None si no está. Recibe: la dirección."""
+    """Devuelve la entrada cacheada de una dirección o None. Recibe: sesión y dirección."""
     norm = _normalizar(direccion)
     if not norm:
         return None
@@ -27,9 +24,7 @@ def obtener(db: Session, direccion: str) -> Optional[GeocodificacionCache]:
 
 
 def guardar(db: Session, direccion: str, latitud: float, longitud: float, proveedor: Optional[str]) -> None:
-    """Inserta o actualiza la coordenada cacheada de una dirección. Hace flush (NO commit) para
-    que una segunda búsqueda en la MISMA transacción ya la encuentre (la sesión usa autoflush=False).
-    Recibe: la dirección, lat/lng y el proveedor que la resolvió."""
+    """Inserta o actualiza la coordenada cacheada y hace flush. Recibe: sesión, dirección, lat/lng y proveedor."""
     norm = _normalizar(direccion)
     if not norm:
         return

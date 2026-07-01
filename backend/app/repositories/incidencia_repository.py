@@ -1,5 +1,3 @@
-# app/repositories/incidencia_repository.py
-# Única capa que consulta/escribe en la tabla 'incidencias' (CUS-30).
 from typing import List, Optional
 from sqlalchemy.orm import Session
 

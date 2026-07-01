@@ -7,8 +7,7 @@ import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import { listarRutasRetorno, obtenerRetornoRuta, escanearRetorno } from "../services/api";
 
-// CUS-32: logística inversa. Lista de rutas con paquetes FALLIDO; al elegir una se
-// escanean los paquetes devueltos y se concilia que todos hayan regresado.
+// Lista rutas con paquetes FALLIDO y permite conciliar su retorno al CD.
 export default function RetornosAlmacen() {
   const [rutas, setRutas] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -136,7 +135,7 @@ function PanelRetorno({ rutaId, onVolver }) {
   );
 }
 
-// Tarjeta de contador con tono semántico. Recibe: { etiqueta, valor, tono }.
+// Tarjeta de contador con tono semantico. Recibe etiqueta, valor y tono.
 function Contador({ etiqueta, valor, tono = "neutral" }) {
   const colores = { neutral: "text-slate-700", success: "text-success-strong", warning: "text-warning-strong" };
   return (

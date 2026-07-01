@@ -6,8 +6,7 @@ import { obtenerMiPerfil } from "../services/api";
 const etiquetaRol = (r) =>
   r === "admin" ? "Administrador" : r === "almacen" ? "Almacén" : r || "—";
 
-// Iniciales para el avatar a partir del nombre (o del correo si no hay nombre).
-// Entrada: perfil ({ nombre, correo }). Salida: 1-2 letras en mayúscula.
+// Devuelve 1-2 iniciales en mayúscula a partir del nombre o correo del perfil.
 function iniciales(perfil) {
   const base = perfil?.nombre?.trim() || perfil?.correo || "";
   const partes = base.split(/[\s@.]+/).filter(Boolean);
@@ -30,15 +29,12 @@ function Dato({ icon: Icon, label, value }) {
   );
 }
 
-// Contenido del modal "Mi Perfil" (solo lectura): carga los datos de la cuenta
-// autenticada con obtenerMiPerfil() y los muestra. Disponible para admin y almacén.
-// Entrada: onCerrar (fn) para cerrar el modal.
+// Modal de solo lectura con los datos del usuario autenticado. Recibe onCerrar (fn).
 export default function MiPerfil({ onCerrar }) {
   const [perfil, setPerfil] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
 
-  // Carga del perfil con setState en callbacks de promesa (evita el lint de effect).
   useEffect(() => {
     let activo = true;
     obtenerMiPerfil()

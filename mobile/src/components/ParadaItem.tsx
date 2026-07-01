@@ -1,5 +1,3 @@
-// Fila de una parada: número de secuencia, destinatario, dirección y estado.
-// Táctil para abrir el detalle.
 import { Pressable, StyleSheet, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,11 +7,11 @@ import { EstadoBadge } from "./EstadoBadge";
 import type { ParadaManifiesto } from "@/types/api";
 
 interface Props {
-  parada: ParadaManifiesto; // datos de la parada
-  onPress: () => void; // acción al tocar la fila
+  parada: ParadaManifiesto;
+  onPress: () => void;
 }
 
-// Recibe: { parada: ParadaManifiesto, onPress: () => void }.
+// Fila táctil de una parada. Recibe parada y onPress.
 export function ParadaItem({ parada, onPress }: Props) {
   const { colors } = useTheme();
   const titulo = parada.nombre_destinatario || parada.cliente_origen;
