@@ -3,7 +3,7 @@ import os
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -94,6 +94,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Compat: la app cliente puede llegar con la URL base SIN el prefijo /api. Antepone
+# /api a la ruta (salvo raiz, docs y /media) para que funcione con o sin /api.
+_SIN_PREFIJO = ("/", "/docs", "/redoc", "/openapi.json")
+
+
+@app.middleware("http")
+async def compat_prefijo_api(request: Request, call_next):
+    ruta = request.scope.get("path", "")
+    if not ruta.startswith("/api") and not ruta.startswith("/media") and ruta not in _SIN_PREFIJO:
+        nueva = "/api" + ruta
+        request.scope["path"] = nueva
+        request.scope["raw_path"] = nueva.encode("utf-8")
+    return await call_next(request)
+
 
 os.makedirs(os.path.join("uploads", "evidencias"), exist_ok=True)
 app.mount("/media", StaticFiles(directory="uploads"), name="media")
