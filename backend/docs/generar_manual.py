@@ -232,8 +232,8 @@ def build():
     story.append(P("3. Puesta en marcha", "h1"))
     story.append(P("Requisitos: tener <b>Docker Desktop</b> instalado y corriendo.", "body"))
     story.append(P("Paso 1 — Variables de entorno:", "h2"))
-    story.append(P("Copia la plantilla y ajusta los valores (la clave secreta, credenciales, etc.):", "body"))
-    story.append(code("copy .env.example .env     (Windows)\ncp .env.example .env       (Linux/Mac)"))
+    story.append(P("Crea un archivo .env en la raiz y ajusta los valores (la clave secreta, credenciales, etc.):", "body"))
+    story.append(code("SECRET_KEY=...\nDATABASE_URL=...\nADMIN_EMAIL=...\nADMIN_PASSWORD=..."))
     story.append(P("Paso 2 — Levantar todo (API + base de datos):", "h2"))
     story.append(code("docker compose down -v && docker compose up --build"))
     story.append(P("El <b>-v</b> recrea la base de datos desde cero (necesario tras cambios de esquema). "
@@ -533,7 +533,7 @@ def build():
     story.append(P("8.2 Gestión de secretos (sin credenciales en el código)", "h2"))
     story.append(bullets([
         "La clave del JWT, las credenciales de la BD y el CORS se leen de <b>variables de entorno</b> (módulo app/core/config.py).",
-        "El archivo <font name='Courier'>.env</font> está en .gitignore (no se sube al repositorio). Hay una plantilla <font name='Courier'>.env.example</font>.",
+        "El archivo <font name='Courier'>.env</font> está en .gitignore (no se sube al repositorio).",
     ]))
     story.append(P("8.3 Configuración y comunicación", "h2"))
     story.append(bullets([
@@ -593,9 +593,7 @@ def build():
         ".github/dependabot.yml    # actualizaciones de dependencias\n"
         "tests/                    # pruebas automáticas (pytest)\n"
         "docker-compose.yml        # API + base de datos\n"
-        ".env.example              # plantilla de variables de entorno\n"
-        "SEGURIDAD.md              # detalle de seguridad\n"
-        "GUIA_PRUEBAS.md           # guía paso a paso para probar"
+        "SEGURIDAD.md              # detalle de seguridad"
     ))
     story.append(Spacer(1, 10))
     story.append(HRFlowable(width="100%", thickness=1, color=GRIS_BORDE))

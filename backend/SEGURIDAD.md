@@ -11,7 +11,7 @@ mínimo privilegio).
 Los secretos **ya no están en el código**. Se leen de variables de entorno a
 través de `app/core/config.py` (módulo central con `pydantic-settings`).
 
-- **Configurar:** copia `.env.example` a `.env` y rellena los valores. El `.env`
+- **Configurar:** crea un `.env` con los valores. El `.env`
   está en `.gitignore` (nunca se sube).
 - **Generar una clave fuerte:**
   ```bash

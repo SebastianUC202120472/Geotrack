@@ -61,8 +61,7 @@ geotrack/
 ├── backend/    API REST — FastAPI + PostgreSQL + SQLAlchemy/Alembic   (dockerizado)
 ├── frontend/   Panel web del admin/almacén — React 19 + Vite + Tailwind (Nginx, dockerizado)
 ├── mobile/     App del conductor — Expo (SDK 52) + React Native + TypeScript (NO se dockeriza)
-├── docker-compose.yml   Levanta db + backend + frontend con un comando
-└── .env.example         Plantilla de variables (copiar a .env)
+└── docker-compose.yml   Levanta db + backend + frontend con un comando
 ```
 
 | Capa | Tecnologías |
@@ -96,7 +95,7 @@ geotrack/
 ```bash
 git clone https://github.com/SebastianUC202120472/Geotrack.git
 cd Geotrack
-cp .env.example .env        # Windows:  copy .env.example .env
+# Crea un archivo .env en la raíz (ver la tabla de variables de abajo).
 ```
 Abre `.env` y ajusta los valores. Grupos de variables:
 
@@ -110,7 +109,7 @@ Abre `.env` y ajusta los valores. Grupos de variables:
 | **Correo (opcional)** | `MAIL_ENABLED`, `MAIL_*`, `IMAP_*`, `SMTP_*` | Con `MAIL_ENABLED=false` la bandeja queda inactiva y el resto funciona igual. |
 
 ### 4.2 Elegir la base de datos
-- **Opción A — local (por defecto):** deja `DATABASE_URL` apuntando a `db` (lo que trae `.env.example`).
+- **Opción A — local (por defecto):** deja `DATABASE_URL` apuntando a `db` (el Postgres del `docker-compose`).
   El contenedor `db` levanta un PostgreSQL con volumen persistente.
 - **Opción B — Supabase u otra remota:** reemplaza `DATABASE_URL` por la cadena de tu proveedor, p. ej.:
   ```
@@ -148,7 +147,7 @@ Todo funciona **sin** Google (panel con OSM; geocoding con Nominatim). Para acti
 cd mobile
 npm install
 npx expo install --check          # alinea versiones nativas con el SDK
-cp .env.example .env              # y pon la IP de tu PC (no localhost):
+# Crea mobile/.env con la IP de tu PC (no localhost):
 #   EXPO_PUBLIC_API_URL=http://192.168.x.x:8000/api
 npx expo start -c                 # escanea el QR con Expo Go (misma WiFi)
 ```
