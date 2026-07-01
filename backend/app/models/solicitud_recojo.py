@@ -34,3 +34,8 @@ class SolicitudRecojo(Base):
 
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
     fecha_recojo = Column(DateTime, nullable=True)          # se sella al pasar a RECOGIDO
+
+
+# Estados en los que el conductor YA levantó el recojo: recogido, o ya ingresado en
+# almacén. Para el conductor ambos cuentan como "recogido" (no pendiente).
+ESTADOS_RECOGIDO = ("RECOGIDO", "INGRESADO")
