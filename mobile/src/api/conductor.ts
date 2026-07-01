@@ -1,5 +1,4 @@
-// Endpoints que consume la app del conductor. El backend ya filtra por el
-// usuario del token, así que solo se devuelven los datos del propio conductor.
+// Endpoints de la app del conductor; el backend filtra por token.
 import { api } from "./client";
 import type {
   RutaActiva,
@@ -22,8 +21,7 @@ export async function obtenerPerfil(): Promise<PerfilConductor> {
   return data;
 }
 
-// Reporta la falla de un pedido. Recibe: pedidoId (number), motivo (string),
-// descripcion opcional (string). Devuelve: el Reporte creado.
+// Reporta la falla de un pedido. Recibe pedidoId, motivo y descripcion opcional.
 export async function crearReporte(
   pedidoId: number,
   motivo: string,
@@ -43,8 +41,7 @@ export async function obtenerMisReportes(): Promise<Reporte[]> {
   return data;
 }
 
-// CUS-06: motivos de rechazo configurados por el admin (para el reporte de falla).
-// Devuelve: lista de textos. Antes esta lista estaba fija en la app.
+// Obtiene los motivos de rechazo configurados por el admin.
 export async function obtenerMotivos(): Promise<string[]> {
   const { data } = await api.get<string[]>("/conductor/motivos");
   return data;
@@ -68,8 +65,7 @@ export async function obtenerNavegacion(): Promise<Navegacion> {
   return data;
 }
 
-// Marca una parada como ENTREGADO o FALLIDO. Recibe: pedidoId (number),
-// estado ("ENTREGADO" | "FALLIDO"), motivoFallo opcional (string).
+// Marca una parada como ENTREGADO o FALLIDO. Recibe pedidoId, estado y motivoFallo opcional.
 export async function marcarEstadoParada(
   pedidoId: number,
   estado: "ENTREGADO" | "FALLIDO",
@@ -82,12 +78,10 @@ export async function marcarEstadoParada(
   return data;
 }
 
-// Sube la foto de evidencia (POD) por multipart. Recibe: pedidoId (number),
-// uriFoto (string: uri local de la imagen). Devuelve: GestionParada con url_evidencia.
+// Sube la foto de evidencia (POD) por multipart. Recibe pedidoId y uri local de la imagen.
 export async function subirEvidencia(pedidoId: number, uriFoto: string): Promise<GestionParada> {
   const nombre = uriFoto.split("/").pop() ?? `pod_${pedidoId}.jpg`;
   const form = new FormData();
-  // En React Native el archivo se envía como { uri, name, type }.
   form.append("file", { uri: uriFoto, name: nombre, type: "image/jpeg" } as unknown as Blob);
 
   const { data } = await api.post<GestionParada>(
@@ -104,15 +98,12 @@ export async function finalizarRuta(): Promise<CierreRuta> {
   return data;
 }
 
-// Envía la posición actual del conductor (mapa de flota en vivo del panel admin).
-// Recibe: latitud y longitud. Best-effort: no devuelve datos.
+// Envía la posición actual al backend (mapa de flota). Recibe latitud y longitud.
 export async function enviarUbicacion(latitud: number, longitud: number): Promise<void> {
   await api.post("/conductor/ubicacion", { latitud, longitud });
 }
 
-// CUS-30: reporta un auxilio mecánico sobre la ruta activa (la ruta queda pausada).
-// Recibe: descripcion opcional, coords opcionales {latitud, longitud} y un flag
-// puede_solucionar_solo (el conductor indica si puede resolver la avería él mismo).
+// Reporta una avería mecánica y pausa la ruta. Recibe descripcion, coords y flag puedeSolucionarSolo.
 export async function reportarIncidencia(
   descripcion?: string,
   coords?: { latitud: number; longitud: number },
@@ -128,7 +119,7 @@ export async function reportarIncidencia(
   return data;
 }
 
-// CUS-30: sube la foto de la avería (multipart). Recibe: id de incidencia y uri local.
+// Sube la foto de la avería por multipart. Recibe incidenciaId y uri local.
 export async function subirEvidenciaIncidencia(incidenciaId: number, uriFoto: string): Promise<Incidencia> {
   const nombre = uriFoto.split("/").pop() ?? `inc_${incidenciaId}.jpg`;
   const form = new FormData();
@@ -141,7 +132,7 @@ export async function subirEvidenciaIncidencia(incidenciaId: number, uriFoto: st
   return data;
 }
 
-// CUS-30: reanuda la ruta cerrando la incidencia. Recibe: id de incidencia y nota opcional.
+// Reanuda la ruta cerrando la incidencia. Recibe incidenciaId y nota opcional.
 export async function reanudarRuta(incidenciaId: number, nota?: string): Promise<Incidencia> {
   const { data } = await api.post<Incidencia>(`/conductor/incidencias/${incidenciaId}/reanudar`, {
     nota: nota ?? null,
@@ -149,13 +140,13 @@ export async function reanudarRuta(incidenciaId: number, nota?: string): Promise
   return data;
 }
 
-// CUS-12: manifiesto de la ruta de recojo activa. Devuelve: ManifiestoRecojo.
+// Obtiene el manifiesto de la ruta de recojo activa.
 export async function obtenerManifiestoRecojo(): Promise<ManifiestoRecojo> {
   const { data } = await api.get<ManifiestoRecojo>("/conductor/recojo/manifiesto");
   return data;
 }
 
-// CUS-19 (recojo): optimiza la ruta de recojo desde la ubicación actual. Recibe: rutaId y coords.
+// Optimiza la ruta de recojo desde la ubicacion actual. Recibe rutaId y coords.
 export async function optimizarRecojo(rutaId: number, coords: Coordenadas): Promise<OptimizacionResultado> {
   const { data } = await api.post<OptimizacionResultado>("/conductor/recojo/optimizar", {
     ruta_id: rutaId,
@@ -165,13 +156,10 @@ export async function optimizarRecojo(rutaId: number, coords: Coordenadas): Prom
   return data;
 }
 
-// CUS-12: registra la recepción (cantidad declarada + varias fotos de evidencia) por multipart.
-// Recibe: recojoId, cantidad (>0) y un array de uris locales de las fotos
-// (boleta/guía/bultos). Adjunta todas bajo el campo `files`. Devuelve: Recepcion.
+// Registra la recepcion con cantidad declarada y fotos de evidencia por multipart. Recibe recojoId, cantidad y uris.
 export async function registrarRecepcion(recojoId: number, cantidad: number, uris: string[]): Promise<Recepcion> {
   const form = new FormData();
   form.append("cantidad_declarada", String(cantidad));
-  // Un append por foto, todas bajo el mismo campo `files` (multipart múltiple).
   uris.forEach((uri, i) => {
     const nombre = uri.split("/").pop() ?? `guia_${recojoId}_${i}.jpg`;
     form.append("files", { uri, name: nombre, type: "image/jpeg" } as unknown as Blob);

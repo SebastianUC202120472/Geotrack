@@ -1,5 +1,4 @@
-// Texto tematizado: aplica la tipografía Inter por variante y el color del tema.
-// Recibe: { variante?, color?, ...props de Text }.
+// Componente de texto tematizado por variante y color. Recibe variante?, color? y props de Text.
 import { Text, type TextProps } from "react-native";
 import { useTheme } from "@/theme";
 import { tipografia, type VarianteTexto } from "@/theme/tipografia";

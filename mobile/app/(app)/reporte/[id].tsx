@@ -1,6 +1,4 @@
-// Detalle completo de un reporte de incidencia: pedido, motivo, descripción,
-// estado y la respuesta de coordinación. Se abre al tocar un reporte en la pestaña
-// "Reportes". El dato se toma de la lista ya cacheada (queryKey "mis-reportes").
+// Pantalla de detalle de un reporte. Recibe el id por params y busca en la cache "mis-reportes".
 import { ScrollView, StyleSheet, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";

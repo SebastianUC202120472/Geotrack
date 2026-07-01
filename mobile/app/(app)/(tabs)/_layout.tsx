@@ -1,6 +1,4 @@
-// Navegador de pestañas: Pedidos · Ruta · Reportes · Ajustes (⚙). Abre en "Ruta".
-// Las pantallas de detalle (perfil, ayuda, etc.) NO viven aquí: están en el Stack
-// padre (app)/_layout, para que el botón "atrás" vuelva a la pantalla anterior.
+// Navegador de pestañas principal. Las pantallas de detalle viven en el Stack padre.
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme, fuentes } from "@/theme";
@@ -12,8 +10,8 @@ export default function TabsLayout() {
     <Tabs
       initialRouteName="index"
       screenOptions={{
-        headerShown: false, // cada pestaña usa su propia <Cabecera>
-        animation: "shift", // transición suave al cambiar de pestaña
+        headerShown: false,
+        animation: "shift",
         tabBarActiveTintColor: colors.brand,
         tabBarInactiveTintColor: colors.muted,
         tabBarLabelStyle: { fontSize: 11, fontFamily: fuentes.semibold },

@@ -1,5 +1,3 @@
-# app/repositories/parametro_repository.py
-# Única capa que escribe/lee la tabla 'parametros_sistema' (CUS-06).
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
@@ -47,8 +45,7 @@ def eliminar(db: Session, parametro: ParametroSistema) -> None:
 
 
 def crear_con_valor(db: Session, categoria: str, clave: str, valor) -> ParametroSistema:
-    """Crea un parámetro con valor_json (config numérica/estructurada). Recibe: categoría,
-    clave y el valor a guardar en valor_json."""
+    """Crea un parámetro con valor_json. Recibe: categoría, clave y valor."""
     parametro = ParametroSistema(categoria=categoria, clave=clave, valor_json=valor)
     db.add(parametro)
     db.commit()
@@ -57,8 +54,7 @@ def crear_con_valor(db: Session, categoria: str, clave: str, valor) -> Parametro
 
 
 def fijar_valor(db: Session, categoria: str, clave: str, valor) -> ParametroSistema:
-    """Crea o actualiza el valor_json de un parámetro (categoria+clave únicos). Recibe:
-    categoría, clave y el nuevo valor."""
+    """Crea o actualiza el valor_json de un parámetro por categoría+clave. Recibe: categoría, clave y valor."""
     fila = (
         db.query(ParametroSistema)
         .filter(ParametroSistema.categoria == categoria, ParametroSistema.clave == clave)

@@ -6,8 +6,7 @@ import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import { listarMotivos, crearMotivo, eliminarMotivo, obtenerCombustible, actualizarCombustible } from "../services/api";
 
-// Parámetros del sistema (CUS-06). Por ahora: motivos de rechazo, que la app del
-// conductor usa al reportar una entrega fallida (antes estaban fijos en el código).
+// Pagina de parametros del sistema: motivos de rechazo y parametros de combustible.
 export default function Parametros() {
   const [motivos, setMotivos] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -15,11 +14,10 @@ export default function Parametros() {
   const [aviso, setAviso] = useState(null);
   const [guardando, setGuardando] = useState(false);
 
-  // Estado de los parámetros de combustible (CUS-34): consumo L/100km y precio S//L.
   const [combustible, setCombustible] = useState({ consumo_l_100km: "", precio_soles_litro: "" });
   const [guardandoComb, setGuardandoComb] = useState(false);
 
-  // Carga los parámetros de combustible al montar (setState en callback de promesa).
+  // Carga parametros de combustible al montar.
   useEffect(() => {
     let activo = true;
     obtenerCombustible()
@@ -28,7 +26,7 @@ export default function Parametros() {
     return () => { activo = false; };
   }, []);
 
-  // Guarda los parámetros de combustible en el backend.
+  // Guarda consumo y precio de combustible en el backend.
   const guardarCombustible = (e) => {
     e.preventDefault();
     setGuardandoComb(true);
@@ -38,15 +36,14 @@ export default function Parametros() {
       .finally(() => setGuardandoComb(false));
   };
 
-  // Sin setCargando(true) síncrono (inicia en true; refresca en callbacks de promesa)
-  // para no disparar el error de lint "setState síncrono en effect".
+  // Recarga la lista de motivos desde el backend.
   const cargar = async () => {
     try { setMotivos(await listarMotivos()); }
     catch (err) { console.error("No se pudo cargar motivos:", err.message); }
     finally { setCargando(false); }
   };
 
-  // Carga inicial con setState en callbacks de promesa (evita el lint de effect).
+  // Carga inicial de motivos de rechazo.
   useEffect(() => {
     let activo = true;
     listarMotivos()
@@ -118,7 +115,6 @@ export default function Parametros() {
         </SectionCard>
       </div>
 
-      {/* Sección de combustible (CUS-34): consumo y precio para calcular el ahorro */}
       <div className="grid gap-6 animate-fade-up">
         <SectionCard
           title="Combustible (CUS-34)"

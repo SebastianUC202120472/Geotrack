@@ -1,6 +1,4 @@
-// Estado vacío reutilizable: ilustración SVG + título + descripción + acción.
-// Evita pantallas en blanco cuando no hay datos.
-// Entrada: icon (componente lucide opcional), title, description, action (nodo).
+// Muestra un estado vacío con icono, titulo, descripcion y accion opcional.
 export default function EmptyState({ icon: Icon, title, description, action }) {
   return (
     <div className="flex flex-col items-center justify-center px-6 py-14 text-center">

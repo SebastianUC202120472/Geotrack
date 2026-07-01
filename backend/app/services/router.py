@@ -1,15 +1,10 @@
-# app/services/router.py
-# Decide EN QUÉ ORDEN visitar los pedidos para recorrer la menor distancia posible.
 import math
 
 
 def calcular_distancia(lat1, lon1, lat2, lon2):
-    """
-    Fórmula de Haversine: distancia en KM entre dos puntos (lat/lon) sobre la Tierra.
-    """
-    R = 6371.0  # Radio de la Tierra en km
+    """Distancia en km entre dos puntos usando la fórmula de Haversine. Recibe lat/lon de ambos puntos."""
+    R = 6371.0
 
-    # Convertir grados a radianes (lo que necesitan las funciones trigonométricas).
     lat1_rad = math.radians(lat1)
     lon1_rad = math.radians(lon1)
     lat2_rad = math.radians(lat2)
@@ -18,7 +13,6 @@ def calcular_distancia(lat1, lon1, lat2, lon2):
     dlon = lon2_rad - lon1_rad
     dlat = lat2_rad - lat1_rad
 
-    # Fórmula de Haversine.
     a = math.sin(dlat / 2) ** 2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2) ** 2
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
@@ -26,19 +20,12 @@ def calcular_distancia(lat1, lon1, lat2, lon2):
 
 
 def optimizar_secuencia_pedidos(pedidos, lat_origen, lon_origen):
-    """
-    Ordena la lista de 'pedidos' empezando desde (lat_origen, lon_origen).
-    Devuelve la misma lista pero en el orden óptimo de visita.
-
-    Garantía: procesa TODOS los pedidos; si alguno no tiene coordenadas, lo
-    añade al final sin perderlo.
-    """
+    """Ordena pedidos por vecino más cercano desde el origen. Recibe lista de pedidos y lat/lon de partida."""
     pedidos_pendientes = pedidos.copy()
     ruta_optima = []
 
     punto_actual = (lat_origen, lon_origen)
 
-    # Tope de seguridad para evitar bucles infinitos.
     intentos = len(pedidos_pendientes) * 2
 
     while pedidos_pendientes and intentos > 0:
@@ -47,28 +34,25 @@ def optimizar_secuencia_pedidos(pedidos, lat_origen, lon_origen):
         pedido_mas_cercano = None
         distancia_minima = float("inf")
 
-        # Buscamos, entre los que faltan, el más cercano al punto actual.
         for pedido in pedidos_pendientes:
             if pedido.latitud is None or pedido.longitud is None:
-                continue  # sin coordenadas: no se puede medir, lo saltamos por ahora
+                continue
 
             distancia = calcular_distancia(
                 punto_actual[0], punto_actual[1],
                 pedido.latitud, pedido.longitud,
             )
 
-            # '<=' maneja el caso de dos pedidos en la misma coordenada (distancia 0).
             if distancia <= distancia_minima:
                 distancia_minima = distancia
                 pedido_mas_cercano = pedido
 
         if pedido_mas_cercano:
-            # Lo añadimos a la ruta y nos "movemos" hasta él.
             ruta_optima.append(pedido_mas_cercano)
             pedidos_pendientes.remove(pedido_mas_cercano)
             punto_actual = (pedido_mas_cercano.latitud, pedido_mas_cercano.longitud)
         else:
-            # No quedó ninguno medible (sin coordenadas): los agregamos al final.
+            # pedidos sin coordenadas: se agregan al final
             ruta_optima.extend(pedidos_pendientes)
             break
 
@@ -76,8 +60,7 @@ def optimizar_secuencia_pedidos(pedidos, lat_origen, lon_origen):
 
 
 def distancia_total(origen_lat, origen_lon, pedidos) -> float:
-    """Suma la distancia (km) de recorrer 'pedidos' EN EL ORDEN DADO partiendo del origen.
-    Ignora los pedidos sin coordenadas. Recibe: lat/lon de origen y la lista de pedidos."""
+    """Suma km del recorrido de pedidos en el orden dado desde el origen. Ignora pedidos sin coordenadas."""
     total = 0.0
     actual = (origen_lat, origen_lon)
     for pedido in pedidos:

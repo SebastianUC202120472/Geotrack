@@ -9,12 +9,7 @@ const tonos = {
   danger: { chip: "bg-danger-soft text-danger-strong", barra: "bg-danger" },
 };
 
-// Tarjeta de KPI: etiqueta, número grande (animado), icono en chip y, opcional,
-// una barra de progreso real (progress 0–100) o un texto de apoyo (hint).
-// Entrada:
-//   label (string), value (number | string), icon (componente lucide),
-//   tone ("brand"|"info"|"success"|"warning"|"danger"), progress (0–100, opcional),
-//   progressLabel (string bajo la barra, opcional), hint (string, opcional).
+// Tarjeta de KPI con valor animado, icono, barra de progreso opcional y hint. Recibe label, value, icon, tone, progress, progressLabel, hint.
 export default function StatCard({
   label,
   value,

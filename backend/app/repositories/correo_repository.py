@@ -1,5 +1,3 @@
-# app/repositories/correo_repository.py
-# Única capa que consulta/escribe en las tablas de conversaciones y mensajes. La USA.
 from datetime import datetime
 from typing import List, Optional
 from sqlalchemy.orm import Session
@@ -59,8 +57,7 @@ def existe_mensaje(db: Session, message_id: str) -> bool:
 def agregar_mensaje(db: Session, conversacion: Conversacion, **datos) -> MensajeCorreo:
     mensaje = MensajeCorreo(conversacion_id=conversacion.id, **datos)
     db.add(mensaje)
-    db.flush()  # asigna el id para poder colgarle adjuntos
-    # La actividad del hilo se mueve a la fecha del mensaje.
+    db.flush()  # asigna id para colgar adjuntos
     conversacion.ultimo_mensaje_en = datos.get("fecha") or datetime.utcnow()
     return mensaje
 
@@ -82,7 +79,7 @@ def obtener_adjunto(db: Session, adjunto_id: int) -> Optional[MensajeAdjunto]:
 
 
 def marcar_leida(db: Session, conversacion: Conversacion) -> None:
-    """Al abrir el hilo: marca los mensajes como leídos y reinicia el contador."""
+    """Marca mensajes como leidos y reinicia el contador de no leidos."""
     conversacion.no_leidos = 0
     for m in conversacion.mensajes:
         if not m.leido:

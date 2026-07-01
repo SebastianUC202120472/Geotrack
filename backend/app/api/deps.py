@@ -1,5 +1,3 @@
-# app/api/deps.py
-# Provee "porteros" reutilizables que protegen los endpoints.
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
@@ -9,8 +7,7 @@ from app.db.database import get_db
 from app.core.security import decode_access_token
 from app.models.usuario import Usuario
 
-# Apunta al endpoint de login ya existente (CUS-02). Swagger usará esto
-# para el botón "Authorize".
+# Esquema OAuth2; apunta al login para el botón "Authorize" de Swagger.
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
@@ -18,7 +15,7 @@ def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> Usuario:
-    """Decodifica el JWT, recupera el usuario y verifica que esté activo."""
+    """Decodifica el JWT y devuelve el usuario activo. Recibe token y sesion de BD."""
     credenciales_invalidas = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="No se pudieron validar las credenciales",
@@ -41,7 +38,7 @@ def get_current_user(
 
 
 def get_current_conductor(usuario: Usuario = Depends(get_current_user)) -> Usuario:
-    """Restringe el acceso a usuarios con rol 'conductor' (App Móvil)."""
+    """Valida que el usuario tenga rol conductor. Recibe usuario autenticado."""
     if usuario.rol != "conductor":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -51,7 +48,7 @@ def get_current_conductor(usuario: Usuario = Depends(get_current_user)) -> Usuar
 
 
 def get_current_admin(usuario: Usuario = Depends(get_current_user)) -> Usuario:
-    """Restringe el acceso a usuarios con rol 'admin' (Panel Web)."""
+    """Valida que el usuario tenga rol admin. Recibe usuario autenticado."""
     if usuario.rol != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -61,7 +58,7 @@ def get_current_admin(usuario: Usuario = Depends(get_current_user)) -> Usuario:
 
 
 def get_current_almacen(usuario: Usuario = Depends(get_current_user)) -> Usuario:
-    """Restringe el módulo de almacén (CUS-14) a usuarios con rol 'almacen' o 'admin'."""
+    """Valida que el usuario tenga rol almacen o admin. Recibe usuario autenticado."""
     if usuario.rol not in ("almacen", "admin"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

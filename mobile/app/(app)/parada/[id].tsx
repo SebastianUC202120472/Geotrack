@@ -1,6 +1,4 @@
-// Detalle de una parada: muestra los datos del pedido y permite (a) marcar
-// ENTREGADO adjuntando una foto (POD) o (b) reportar un problema (falla), que
-// el administrador verá en su panel de reportes.
+// Pantalla de detalle de parada: permite marcar entregado (con foto) o reportar falla.
 import { useState } from "react";
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
 import { Image } from "expo-image";
@@ -27,7 +25,7 @@ import { BannerSync } from "@/components/BannerSync";
 import { useTheme, fontSize, radius, spacing } from "@/theme";
 import type { ParadaManifiesto } from "@/types/api";
 
-// Lista por defecto si aún no llegan los motivos del backend (CUS-06).
+// Motivos de falla por defecto si el backend no los devuelve.
 const MOTIVOS_DEFECTO = ["Cliente ausente", "Dirección incorrecta", "Pedido rechazado", "Zona inaccesible", "Otro"];
 
 export default function ParadaScreen() {
@@ -39,10 +37,8 @@ export default function ParadaScreen() {
   const manifiesto = useManifiesto();
   const entregar = useEntregarConEvidencia();
   const reportar = useReportarFalla();
-  // CUS-27: paradas con una acción en la cola offline (aún sin subir al servidor).
   const pendientesPorPedido = usePendientesPorPedido();
 
-  // CUS-06: los motivos vienen del catálogo del backend (con respaldo por defecto).
   const motivosQuery = useQuery({ queryKey: ["motivos"], queryFn: obtenerMotivos, staleTime: 60_000 });
   const motivos = motivosQuery.data && motivosQuery.data.length ? motivosQuery.data : MOTIVOS_DEFECTO;
 
@@ -50,12 +46,11 @@ export default function ParadaScreen() {
   const [modoReporte, setModoReporte] = useState(false);
   const [motivo, setMotivo] = useState(MOTIVOS_DEFECTO[0]);
   const [descripcion, setDescripcion] = useState("");
-  // Estado para mostrar el check animado tras confirmar entrega.
   const [exito, setExito] = useState(false);
 
   const parada = manifiesto.data?.paradas.find((p: ParadaManifiesto) => p.pedido_id === pedidoId);
 
-  // Abre la cámara y guarda la foto elegida.
+  // Abre la cámara y guarda la URI de la foto. No recibe parámetros.
   const tomarFoto = async () => {
     const permiso = await ImagePicker.requestCameraPermissionsAsync();
     if (!permiso.granted) {
@@ -66,13 +61,13 @@ export default function ParadaScreen() {
     if (!res.canceled) setFoto(res.assets[0].uri);
   };
 
-  // Abre la galería y guarda la imagen elegida.
+  // Abre la galería y guarda la URI de la imagen elegida. No recibe parámetros.
   const elegirFoto = async () => {
     const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.6 });
     if (!res.canceled) setFoto(res.assets[0].uri);
   };
 
-  // Confirma la entrega: marca ENTREGADO y sube la evidencia.
+  // Envía la foto al backend y marca la parada como ENTREGADO. No recibe parámetros.
   const confirmarEntrega = () => {
     if (!foto) return;
     entregar.mutate(
@@ -92,7 +87,7 @@ export default function ParadaScreen() {
     );
   };
 
-  // Envía el reporte de falla: marca FALLIDO y crea el reporte para el admin.
+  // Envía el reporte de falla al backend y marca la parada como FALLIDO. No recibe parámetros.
   const enviarReporte = () => {
     reportar.mutate(
       { pedidoId, motivo, descripcion: descripcion.trim() || undefined },
@@ -113,14 +108,10 @@ export default function ParadaScreen() {
   if (!parada) return <Screen conPadding={false}><Cabecera titulo="Entrega" atras /><Vacio titulo="Pedido no encontrado" /></Screen>;
 
   const gestionada = parada.estado_entrega !== "PENDIENTE";
-  // CUS-27: la parada tiene una acción en la cola offline aún sin subir. La
-  // tratamos como gestionada (bloqueamos el formulario) para evitar re-gestionarla
-  // y duplicar la acción cuando el poll del servidor la devuelva como PENDIENTE.
+  // Bloquea el formulario si hay una acción offline pendiente de subir (evita duplicados).
   const enCola = !gestionada && pendientesPorPedido.has(parada.pedido_id);
-  // CUS-30: la ruta está pausada por avería; no se permiten acciones hasta reanudarla.
   const pausada = !!ruta.data?.pausada;
 
-  // Capa de éxito: muestra el check animado mientras el componente navega atrás.
   if (exito) {
     return (
       <Screen>
@@ -144,7 +135,6 @@ export default function ParadaScreen() {
               <EstadoBadge estado={parada.estado_entrega} />
             </View>
 
-            {/* Destacar a quién y de quién es el pedido */}
             <Texto variante="caption" color={colors.muted} style={estilos.rol}>Para</Texto>
             <Texto variante="title" color={colors.ink} style={estilos.destacado}>{parada.nombre_destinatario || "—"}</Texto>
 
@@ -188,7 +178,6 @@ export default function ParadaScreen() {
               <Texto variante="subtitle" color={parada.estado_entrega === "ENTREGADO" ? colors.success : colors.danger} style={{ textAlign: "center" }}>
                 {parada.estado_entrega === "ENTREGADO" ? "Esta parada ya fue entregada." : "Esta parada fue reportada como fallida."}
               </Texto>
-              {/* CUS-26: la foto POD se lee del backend (persistida en BD), no de un caché temporal. */}
               {parada.estado_entrega === "ENTREGADO" && urlMedia(parada.url_evidencia) && (
                 <Image
                   source={{ uri: urlMedia(parada.url_evidencia) }}
@@ -199,8 +188,6 @@ export default function ParadaScreen() {
               )}
             </Card>
           ) : enCola ? (
-            /* CUS-27: acción guardada sin conexión, pendiente de subir. Bloquea el
-               formulario para no re-gestionar la parada (evita duplicados). */
             <Card style={{ backgroundColor: colors.brandSoft }}>
               <Texto variante="subtitle" color={colors.brand} style={{ textAlign: "center" }}>
                 {pendientesPorPedido.get(parada.pedido_id) === "FALLIDO"
@@ -212,7 +199,6 @@ export default function ParadaScreen() {
               </Texto>
             </Card>
           ) : pausada ? (
-            /* CUS-30: ruta pausada — bloquea las acciones de entrega y reporte. */
             <Card style={{ backgroundColor: colors.dangerSoft }}>
               <Texto variante="bodyMedium" color={colors.danger} style={{ textAlign: "center" }}>
                 🛠️ Ruta pausada por avería. Reanúdala desde Mi Ruta para continuar.

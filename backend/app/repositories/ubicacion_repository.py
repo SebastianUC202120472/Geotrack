@@ -1,5 +1,3 @@
-# app/repositories/ubicacion_repository.py
-# Única capa que lee/escribe la última posición del conductor.
 from datetime import datetime
 from typing import Optional
 from sqlalchemy.orm import Session
@@ -13,8 +11,7 @@ def obtener(db: Session, conductor_id: int) -> Optional[UbicacionConductor]:
 
 
 def upsert(db: Session, conductor_id: int, latitud: float, longitud: float) -> UbicacionConductor:
-    """Inserta o actualiza (sobrescribe) la última posición del conductor.
-    Recibe: conductor_id y las coordenadas. Refresca `actualizado_en`."""
+    """Inserta o actualiza la última posición del conductor. Recibe conductor_id, latitud y longitud."""
     ubicacion = obtener(db, conductor_id)
     if ubicacion:
         ubicacion.latitud = latitud

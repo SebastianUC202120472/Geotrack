@@ -1,9 +1,7 @@
 import { ResponsiveContainer } from "recharts";
 import SectionCard from "./SectionCard";
 
-// Envoltorio de gráfico: cabecera + área responsiva para recharts, con
-// animación de entrada nativa de recharts (isAnimationActive).
-// Entrada: title, subtitle, action, height (px, def 240), children (gráfico recharts).
+// Envoltorio responsivo para graficos recharts. Recibe title, subtitle, action, height y children.
 export default function ChartCard({ title, subtitle, action, height = 240, children }) {
   return (
     <SectionCard title={title} subtitle={subtitle} action={action}>

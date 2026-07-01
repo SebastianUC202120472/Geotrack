@@ -1,11 +1,7 @@
-// Servicio de ruta: encapsula la optimización del orden de paradas para poder
-// cambiar el proveedor sin tocar la UI.
 import type { Coordenadas, ParadaManifiesto } from "@/types/api";
 import { optimizarRuta } from "@/api/rutas";
 
-// Optimiza en el SERVIDOR la ruta desde la ubicación actual del conductor.
-// Recibe: rutaId (number), coords ({latitud, longitud}).
-// Devuelve: número total de paradas reordenadas.
+// Llama al servidor para optimizar el orden de paradas. Recibe rutaId y coords del conductor.
 export async function optimizarDesdeUbicacion(
   rutaId: number,
   coords: Coordenadas
@@ -14,11 +10,7 @@ export async function optimizarDesdeUbicacion(
   return resultado.total_paradas;
 }
 
-// Orden local por cercanía (Vecino Más Cercano) para una vista previa instantánea
-// en el mapa antes de que responda el servidor. Recibe: paradas (ParadaManifiesto[])
-// con lat/lng y origen ({latitud, longitud}). Devuelve: las paradas reordenadas.
-// TODO: reemplazar por un proveedor de rutas real (p. ej. Google Directions) si
-//       se necesita orden por calles reales en vez de distancia en línea recta.
+// Ordena paradas localmente por vecino más cercano. Recibe paradas con lat/lng y origen.
 export function ordenarPorCercania(
   paradas: ParadaManifiesto[],
   origen: Coordenadas

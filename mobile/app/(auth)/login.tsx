@@ -1,5 +1,4 @@
-// Pantalla de login del conductor (correo + contraseña). No hay registro: las
-// cuentas se crean desde el panel admin.
+// Pantalla de login del conductor. Recibe: nada (accede al estado global de auth).
 import { useState } from "react";
 import { Image } from "expo-image";
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from "react-native";
@@ -15,7 +14,6 @@ import { solicitarRestablecimiento } from "@/api/auth";
 import { mensajeDeError } from "@/api/client";
 import { useTheme, sombra, spacing, radius } from "@/theme";
 
-// Formulario de inicio de sesión. Sin inputs (es la pantalla raíz de auth).
 export default function LoginScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -24,11 +22,10 @@ export default function LoginScreen() {
   const [contrasena, setContrasena] = useState("");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
-  // Extra CUS-04: solicitud de restablecimiento de contraseña.
   const [mensajeSolicitud, setMensajeSolicitud] = useState("");
   const [solicitando, setSolicitando] = useState(false);
 
-  // Valida y ejecuta el inicio de sesión. Sin parámetros (usa el estado local).
+  // Valida y llama a iniciarSesion con correo y contrasena del estado local.
   const entrar = async () => {
     if (!correo.trim() || !contrasena) {
       setError("Ingresa tu correo y contraseña.");
@@ -45,8 +42,7 @@ export default function LoginScreen() {
     }
   };
 
-  // Pide al admin que restablezca la clave (usa el correo escrito arriba). El backend
-  // responde un mensaje genérico exista o no la cuenta.
+  // Solicita restablecimiento de contrasena al backend usando el correo del estado.
   const solicitarReset = async () => {
     if (!correo.trim()) {
       setError("Escribe tu correo arriba y vuelve a tocar para solicitar el restablecimiento.");
@@ -68,17 +64,14 @@ export default function LoginScreen() {
   return (
     <Screen conPadding={false}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={estilos.contenedor}>
-        {/* Hero a sangre completa: el degradado sube bajo la barra de estado (sin hueco). */}
         <GradientHeader style={[estilos.cabecera, { paddingTop: insets.top + spacing.xxl }]}>
           <View style={estilos.marca}>
-            {/* Logo de la app en lugar del glifo "G". */}
             <Image source={require("../../assets/logo.png")} style={estilos.logo} contentFit="contain" />
             <Texto variante="title" color={colors.white}>GeoTrack</Texto>
             <Texto variante="body" color={colors.white} style={estilos.subtitulo}>App del conductor</Texto>
           </View>
         </GradientHeader>
 
-        {/* Tarjeta del formulario superpuesta al hero (da profundidad). */}
         <Aparecer style={estilos.cuerpo}>
           <View style={[estilos.tarjeta, sombra(colors), { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Field label="Correo" value={correo} onChangeText={setCorreo} placeholder="conductor@siol.com"
@@ -92,7 +85,6 @@ export default function LoginScreen() {
 
             <Button titulo={cargando ? "Ingresando…" : "Iniciar sesión"} onPress={entrar} cargando={cargando} />
 
-            {/* Extra CUS-04: solicitar restablecimiento de contraseña */}
             <Pressable onPress={solicitarReset} disabled={solicitando} accessibilityRole="button"
               accessibilityLabel="Olvidé mi contraseña" style={estilos.olvide}>
               <Texto variante="body" color={colors.brand}>
@@ -113,12 +105,10 @@ export default function LoginScreen() {
 
 const estilos = StyleSheet.create({
   contenedor: { flex: 1 },
-  // Hero alto, con espacio extra abajo para que la tarjeta se superponga.
   cabecera: { paddingBottom: spacing.xxl + spacing.xl },
   marca: { alignItems: "center", gap: spacing.sm },
   logo: { width: 76, height: 76, borderRadius: radius.xl, alignItems: "center", justifyContent: "center" },
   subtitulo: { textAlign: "center", opacity: 0.9 },
-  // La tarjeta sube sobre el hero (margen negativo) para dar profundidad.
   cuerpo: { paddingHorizontal: spacing.lg, marginTop: -spacing.xl },
   tarjeta: { borderRadius: radius.xl, borderWidth: 1, padding: spacing.lg, gap: spacing.lg },
   error: { padding: spacing.md, borderRadius: radius.md, textAlign: "center" },

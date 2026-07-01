@@ -1,6 +1,4 @@
-// Bloque "esqueleto" para estados de carga. Reutilizable como línea, bloque o
-// tarjeta. Entrada: className (tamaño/forma vía Tailwind) y rounded (borde).
-// Ejemplos: <Skeleton className="h-8 w-24" />  <Skeleton className="h-64 w-full" />
+// Bloque esqueleto para estados de carga. Recibe className y rounded.
 export default function Skeleton({ className = "", rounded = "rounded-lg" }) {
   return <div aria-hidden="true" className={`skeleton ${rounded} ${className}`} />;
 }

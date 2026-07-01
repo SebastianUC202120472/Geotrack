@@ -1,7 +1,4 @@
-// Acciones de una parada: entregar con evidencia (POD) o reportar una falla.
-// Offline-aware (CUS-27): si no hay conexión (o la llamada falla por red), la
-// acción se ENCOLA y se actualiza el manifiesto de forma optimista; el motor de
-// sync la sube al reconectar. Devuelven { encolado } para que la UI avise.
+// Hooks para entregar (POD) o reportar falla en una parada; encola si no hay red.
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { marcarEstadoParada, subirEvidencia, crearReporte } from "@/api/conductor";
 import { guardarEvidencia } from "@/store/evidenciaCache";
@@ -9,12 +6,10 @@ import { urlEvidencia } from "@/api/config";
 import { claves } from "@/features/ruta/hooks";
 import { estaOnline } from "@/hooks/useConexion";
 import { encolar } from "@/store/colaSync";
-// MINOR 3: esErrorDeRed centralizado en client (sin duplicar).
 import { esErrorDeRed } from "@/api/client";
 import type { Manifiesto } from "@/types/api";
 
-// UI optimista: marca la parada como gestionada en el cache del manifiesto, para
-// que la pantalla la muestre resuelta de inmediato (offline) sin tocar contadores.
+// Actualiza el cache del manifiesto con el nuevo estado de la parada (optimista). Recibe qc, pedidoId, estado.
 function marcarOptimista(qc: QueryClient, pedidoId: number, estado: "ENTREGADO" | "FALLIDO"): void {
   qc.setQueryData<Manifiesto>(claves.manifiesto, (prev: Manifiesto | undefined) =>
     prev
@@ -23,24 +18,20 @@ function marcarOptimista(qc: QueryClient, pedidoId: number, estado: "ENTREGADO" 
   );
 }
 
-// Registra una entrega con su foto. { pedidoId, uriFoto }. Online: sube la evidencia
-// (POD) y LUEGO marca ENTREGADO; el backend exige que la foto exista antes de aceptar
-// el ENTREGADO. Offline/fallo de red: encola + optimista.
+// Sube la evidencia y marca ENTREGADO; encola si no hay red. Recibe pedidoId y uriFoto.
 export function useEntregarConEvidencia() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ pedidoId, uriFoto }: { pedidoId: number; uriFoto: string }): Promise<{ encolado: boolean }> => {
       if (await estaOnline()) {
         try {
-          // 1.º la evidencia (POD), 2.º marcar ENTREGADO: así nunca queda un ENTREGADO sin foto.
           const resultado = await subirEvidencia(pedidoId, uriFoto);
           await marcarEstadoParada(pedidoId, "ENTREGADO");
           const url = urlEvidencia(resultado.url_evidencia);
           if (url) guardarEvidencia(pedidoId, url);
           return { encolado: false };
         } catch (e) {
-          if (!esErrorDeRed(e)) throw e;   // error real del servidor: propaga
-          // error de red: cae a encolar
+          if (!esErrorDeRed(e)) throw e;
         }
       }
       await encolar({ tipo: "ENTREGA", pedidoId, fotoUri: uriFoto });
@@ -48,8 +39,6 @@ export function useEntregarConEvidencia() {
       return { encolado: true };
     },
     onSuccess: (res) => {
-      // Solo invalidamos si la acción llegó al servidor; si se encoló (offline),
-      // dejamos el estado optimista (un refetch traería PENDIENTE y lo borraría).
       if (!res.encolado) {
         qc.invalidateQueries({ queryKey: claves.manifiesto });
         qc.invalidateQueries({ queryKey: claves.rutaActiva });
@@ -58,8 +47,7 @@ export function useEntregarConEvidencia() {
   });
 }
 
-// Reporta una falla. { pedidoId, motivo, descripcion? }. Online: marca FALLIDO y
-// crea el reporte. Offline/fallo de red: encola + optimista.
+// Marca FALLIDO y crea el reporte; encola si no hay red. Recibe pedidoId, motivo y descripcion opcional.
 export function useReportarFalla() {
   const qc = useQueryClient();
   return useMutation({

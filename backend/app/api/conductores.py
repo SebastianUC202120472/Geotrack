@@ -1,5 +1,3 @@
-# app/api/conductores.py
-# GET /api/conductores -> lista de conductores con su ficha y el vehículo asignado.
 from typing import List
 from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.orm import Session
@@ -38,7 +36,7 @@ def eliminar_conductor(usuario_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{usuario_id}/restablecer-contrasena", dependencies=[Depends(get_current_admin)])
 def restablecer_contrasena(usuario_id: int, datos: ConductorResetContrasena, db: Session = Depends(get_db)):
-    """CUS-04: el admin fija una nueva contraseña para un conductor que la olvidó."""
+    """El admin fija una nueva contraseña para un conductor que la olvidó."""
     return conductor_service.restablecer_contrasena(db, usuario_id, datos)
 
 

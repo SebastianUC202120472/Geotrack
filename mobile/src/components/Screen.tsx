@@ -5,13 +5,9 @@ import { useTheme, spacing } from "@/theme";
 
 interface Props extends ViewProps {
   conPadding?: boolean; // agrega padding interno (por defecto true)
-  // Aplica el margen de área segura SUPERIOR. Solo debe ser true en pantallas SIN
-  // cabecera de navegación (p. ej. login). En las pantallas con cabecera del navegador,
-  // dejarlo false evita el "hueco" por doble margen superior.
-  topInset?: boolean;
+  topInset?: boolean; // true solo en pantallas sin cabecera de navegacion (ej. login)
 }
 
-// Recibe: children, conPadding?, topInset?, y props de View.
 export function Screen({ children, conPadding = true, topInset = false, style, ...props }: Props) {
   const { colors } = useTheme();
   const edges: Edge[] = topInset ? ["top", "bottom"] : ["bottom"];

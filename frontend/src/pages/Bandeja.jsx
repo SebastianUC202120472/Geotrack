@@ -13,8 +13,7 @@ import {
 
 const fmt = (f) => (f ? new Date(f).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "");
 
-// Bandeja con dos pestañas: "Solicitud del cliente" (correos/conversaciones)
-// y "Registrar solicitud" (formulario de aceptación de recojo).
+// Bandeja de solicitudes con pestañas de correos y registro manual.
 export default function Bandeja() {
   const [pestana, setPestana] = useState("correos");
   const [conversaciones, setConversaciones] = useState([]);
@@ -24,10 +23,9 @@ export default function Bandeja() {
   const [sincronizando, setSincronizando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState(null);
-  // Datos del correo cuando se pulsa "Crear recojo" en un hilo; precarga el formulario.
   const [solicitudDesdeCorreo, setSolicitudDesdeCorreo] = useState(null);
 
-  // Carga la lista de conversaciones del backend.
+  // Carga la lista de conversaciones. Recibe nada.
   const cargarLista = () => {
     listarConversaciones()
       .then((data) => setConversaciones(data))
@@ -38,7 +36,7 @@ export default function Bandeja() {
     cargarLista();
   }, []);
 
-  // Abre el hilo de una conversación y refresca el contador de no leídos.
+  // Abre el detalle de una conversacion. Recibe id.
   const abrir = (id) => {
     setSelId(id);
     setDetalle(null);
@@ -50,7 +48,7 @@ export default function Bandeja() {
       .catch((err) => setAviso({ ok: false, texto: err.message }));
   };
 
-  // Solicita al backend que revise la bandeja IMAP y trae los correos nuevos.
+  // Sincroniza correos nuevos desde el servidor IMAP.
   const sincronizar = () => {
     setSincronizando(true);
     setAviso(null);
@@ -63,7 +61,7 @@ export default function Bandeja() {
       .finally(() => setSincronizando(false));
   };
 
-  // Envía la respuesta al hilo seleccionado por SMTP.
+  // Envia la respuesta al hilo seleccionado. Recibe el evento del formulario.
   const responder = (e) => {
     e.preventDefault();
     if (!texto.trim() || !selId) return;
@@ -78,13 +76,13 @@ export default function Bandeja() {
       .finally(() => setEnviando(false));
   };
 
-  // Descarga un adjunto de un mensaje del hilo.
+  // Descarga un adjunto. Recibe el objeto adjunto con id y nombre_archivo.
   const descargar = (adj) => {
     descargarAdjunto(adj.id, adj.nombre_archivo)
       .catch((err) => setAviso({ ok: false, texto: err.message }));
   };
 
-  // Alterna el estado de la conversación entre PENDIENTE y ATENDIDA.
+  // Alterna el estado de la conversacion entre PENDIENTE y ATENDIDA.
   const alternarEstado = () => {
     if (!detalle) return;
     const nuevo = detalle.estado === "ATENDIDA" ? "PENDIENTE" : "ATENDIDA";
@@ -93,7 +91,6 @@ export default function Bandeja() {
       .catch((err) => setAviso({ ok: false, texto: err.message }));
   };
 
-  // Opciones del selector de pestañas.
   const PESTANAS = [
     { id: "correos", label: "Solicitud del cliente" },
     { id: "registrar", label: "Registrar solicitud" },
@@ -109,7 +106,6 @@ export default function Bandeja() {
         )}
       </PageHeader>
 
-      {/* Selector de pestañas */}
       <div className="flex gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 w-fit animate-fade-up">
         {PESTANAS.map((p) => (
           <button
@@ -133,10 +129,8 @@ export default function Bandeja() {
         </div>
       )}
 
-      {/* Pestaña: Solicitud del cliente (correos / conversaciones) */}
       {pestana === "correos" && (
         <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
-          {/* Lista de conversaciones */}
           <SectionCard title="Conversaciones" className="lg:col-span-1">
             {conversaciones.length === 0 ? (
               <EmptyState
@@ -172,13 +166,11 @@ export default function Bandeja() {
             )}
           </SectionCard>
 
-          {/* Hilo seleccionado */}
           <SectionCard
             className="lg:col-span-2"
             title={detalle ? detalle.asunto : "Conversación"}
             action={detalle && (
               <div className="flex items-center gap-2">
-                {/* Atajo: cambia a la pestaña de registrar solicitud precargando el cliente del correo */}
                 <Button
                   variant="secondary"
                   size="sm"
@@ -216,7 +208,6 @@ export default function Bandeja() {
                   <Badge tono="neutral">{detalle.contraparte_email}</Badge>
                 </div>
 
-                {/* Mensajes */}
                 <div className="space-y-3">
                   {detalle.mensajes.map((m) => {
                     const saliente = m.direccion === "SALIENTE";
@@ -251,7 +242,6 @@ export default function Bandeja() {
                   })}
                 </div>
 
-                {/* Responder */}
                 <form onSubmit={responder} className="mt-2 border-t border-slate-100 pt-4">
                   <textarea
                     value={texto}
@@ -273,7 +263,6 @@ export default function Bandeja() {
         </div>
       )}
 
-      {/* Pestaña: Registrar solicitud (formulario de aceptación) */}
       {pestana === "registrar" && (
         <div className="animate-fade-up" style={{ animationDelay: "60ms" }}>
           <FormAceptarSolicitud desdeCorreo={solicitudDesdeCorreo} />

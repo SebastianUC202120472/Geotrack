@@ -1,5 +1,4 @@
-// Tarjeta con superficie, borde y sombra suave según el tema. Si recibe onPress,
-// es táctil y hace una leve escala al presionar.
+// Tarjeta con superficie y sombra. Si recibe onPress, es tactil con animacion de escala.
 import { useRef } from "react";
 import { Animated, Pressable, StyleSheet, View, type ViewProps } from "react-native";
 import { useTheme, radius, spacing, sombra } from "@/theme";

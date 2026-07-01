@@ -6,8 +6,7 @@ import Button from "./ui/Button";
 import { EstadoBadge } from "./ui/Badge";
 import { obtenerHistorial } from "../services/api";
 
-// Pestaña de trazabilidad de paquetes: buscador por código + ficha + línea de tiempo.
-// No recibe props; gestiona su propio estado de búsqueda.
+// Pestaña de trazabilidad: buscador por código de paquete, muestra ficha y línea de tiempo.
 export default function TabTrazabilidad() {
   const [codigo, setCodigo] = useState("");
   const [historial, setHistorial] = useState(null);
@@ -36,7 +35,6 @@ export default function TabTrazabilidad() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Buscador */}
       <div className="rounded-card border border-slate-200 bg-white p-5 shadow-card animate-fade-up">
         <form onSubmit={buscar} className="flex flex-col gap-3 sm:flex-row">
           <div className="relative flex-1">
@@ -55,14 +53,12 @@ export default function TabTrazabilidad() {
         </form>
       </div>
 
-      {/* Estado de carga */}
       {cargando && (
         <div className="flex items-center justify-center py-8 text-sm text-slate-500 animate-fade-up">
           <Loader2 className="animate-spin mr-2" size={18} /> Buscando paquete…
         </div>
       )}
 
-      {/* Error de búsqueda */}
       {error && (
         <div className="rounded-card border border-danger/30 bg-white p-5 shadow-card animate-fade-up">
           <div className="flex items-center gap-3 text-danger-strong">
@@ -71,7 +67,6 @@ export default function TabTrazabilidad() {
         </div>
       )}
 
-      {/* Estado vacío: aún no se ha buscado nada */}
       {!buscado && !cargando && (
         <div className="animate-fade-up" style={{ animationDelay: "80ms" }}>
           <EmptyState
@@ -82,10 +77,8 @@ export default function TabTrazabilidad() {
         </div>
       )}
 
-      {/* Resultados: ficha + línea de tiempo */}
       {historial && (
         <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
-          {/* Ficha del pedido */}
           <SectionCard title="Ficha del pedido">
             <div className="mb-4 flex items-center gap-3">
               <span className="rounded-xl bg-brand-600 p-3 text-white"><Package size={22} /></span>
@@ -109,7 +102,6 @@ export default function TabTrazabilidad() {
             </div>
           </SectionCard>
 
-          {/* Línea de tiempo */}
           <SectionCard title="Línea de tiempo" className="lg:col-span-2">
             {historial.eventos.length === 0 ? (
               <EmptyState

@@ -7,8 +7,7 @@ import SectionCard from "../components/ui/SectionCard";
 import EmptyState from "../components/ui/EmptyState";
 import { obtenerNotificaciones } from "../services/api";
 
-// Devuelve una cadena legible del tiempo transcurrido desde una fecha ISO.
-// (Mismo formato que la campana del sidebar.) Entrada: fechaIso. Salida: "hace X…".
+// Devuelve tiempo relativo legible desde una fecha ISO. Recibe fechaIso.
 function tiempoRelativo(fechaIso) {
   const diff = Date.now() - new Date(fechaIso).getTime();
   const min = Math.floor(diff / 60000);
@@ -23,8 +22,7 @@ function tiempoRelativo(fechaIso) {
 // Fecha absoluta corta (es-PE) para el detalle de cada ítem.
 const fmt = (f) => (f ? new Date(f).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—");
 
-// Página de historial completo de notificaciones (pide limite=200) con un filtro
-// simple (Todas / No vistas) y la lista cronológica (recientes primero).
+// Página de historial de notificaciones con filtro Todas/No vistas.
 export default function Notificaciones() {
   const navigate = useNavigate();
   const [items, setItems] = useState([]);
@@ -32,7 +30,6 @@ export default function Notificaciones() {
   const [cargando, setCargando] = useState(true);
   const [filtro, setFiltro] = useState("todas"); // "todas" | "no_vistas"
 
-  // Carga el historial completo (limite=200). setState en callbacks de promesa.
   useEffect(() => {
     let activo = true;
     obtenerNotificaciones(200)
@@ -46,13 +43,11 @@ export default function Notificaciones() {
     return () => { activo = false; };
   }, []);
 
-  // Aplica el filtro Todas / No vistas sobre la lista cargada.
   const filtrados = useMemo(
     () => (filtro === "no_vistas" ? items.filter((i) => i.visto_en === null) : items),
     [items, filtro],
   );
 
-  // Navega a la ruta asociada a la notificación (si la trae).
   const irA = (ruta) => { if (ruta) navigate(ruta); };
 
   const botonFiltro = (valor, etiqueta) => (

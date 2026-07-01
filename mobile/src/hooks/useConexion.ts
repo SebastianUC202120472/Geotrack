@@ -1,6 +1,3 @@
-// Estado de conexión a internet, vía NetInfo. Online = hay conexión y (cuando se
-// sabe) internet es alcanzable; si 'isInternetReachable' es desconocido (null) se
-// asume online para no bloquear al conductor.
 import { useEffect, useState } from "react";
 import NetInfo from "@react-native-community/netinfo";
 

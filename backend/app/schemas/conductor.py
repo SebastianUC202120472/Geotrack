@@ -1,17 +1,13 @@
-# app/schemas/conductor.py
-# Moldes para registrar un conductor (con sus datos) y para listarlos junto al vehículo que tienen asignado.
 import re
 from typing import Optional
 from pydantic import BaseModel, EmailStr, field_validator
 
-# Reglas (estándar Perú): celular = 9 dígitos empezando en 9; DNI = 8 dígitos.
 _RE_TELEFONO = re.compile(r"^9\d{8}$")
 _RE_DNI = re.compile(r"^\d{8}$")
 
 
 def validar_fuerza_contrasena(v: str) -> str:
-    """Valida que una contraseña sea segura (se reutiliza al crear y al restablecer):
-    mínimo 8, con mayúscula, minúscula, número y carácter especial. Recibe: la clave."""
+    """Valida fuerza de contraseña (min 8, mayus, minus, numero, especial). Recibe: la clave."""
     if len(v) < 8:
         raise ValueError("La contraseña debe tener al menos 8 caracteres")
     if not re.search(r"[A-Z]", v):
@@ -26,8 +22,8 @@ def validar_fuerza_contrasena(v: str) -> str:
 
 
 class ConductorCreate(BaseModel):
-    """ENTRADA: alta de un conductor (crea su cuenta + su ficha)."""
-    correo: EmailStr            # EmailStr valida el formato del correo
+    """Datos para dar de alta un conductor. Recibe correo, contrasena, nombre y datos opcionales."""
+    correo: EmailStr
     contrasena: str
     nombre: str
     telefono: Optional[str] = None
@@ -44,7 +40,6 @@ class ConductorCreate(BaseModel):
     @field_validator("contrasena")
     @classmethod
     def _v_contrasena(cls, v: str) -> str:
-        # Contraseña segura (se guardará hasheada). Misma regla que al restablecerla.
         return validar_fuerza_contrasena(v)
 
     @field_validator("telefono")
@@ -69,8 +64,7 @@ class ConductorCreate(BaseModel):
 
 
 class ConductorUpdate(BaseModel):
-    """ENTRADA: edición de la ficha de un conductor. Todos los campos son
-    opcionales; el correo (acceso) NO se edita aquí."""
+    """Datos opcionales para editar la ficha de un conductor (correo no editable aqui)."""
     nombre: Optional[str] = None
     telefono: Optional[str] = None
     dni: Optional[str] = None
@@ -107,7 +101,7 @@ class ConductorUpdate(BaseModel):
 
 
 class ConductorResetContrasena(BaseModel):
-    """ENTRADA (CUS-04): el admin define una nueva contraseña para el conductor."""
+    """Nueva contrasena definida por el admin para un conductor. Recibe: contrasena."""
     contrasena: str
 
     @field_validator("contrasena")
@@ -117,7 +111,7 @@ class ConductorResetContrasena(BaseModel):
 
 
 class UbicacionRequest(BaseModel):
-    """ENTRADA: la app del conductor reporta su posición actual (foreground)."""
+    """Posicion actual reportada por la app del conductor. Recibe: latitud y longitud."""
     latitud: float
     longitud: float
 
@@ -132,15 +126,15 @@ class VehiculoAsignado(BaseModel):
 
 
 class ConductorResponse(BaseModel):
-    """SALIDA: ficha del conductor + su vehículo asignado (si tiene)."""
+    """Ficha del conductor con su vehiculo asignado (si tiene)."""
     usuario_id: int
-    codigo: Optional[str] = None   # CO-001
+    codigo: Optional[str] = None
     correo: str
     estado: bool
-    en_ruta: bool = False   # True si tiene una ruta activa (CREADA/EN_PROGRESO)
-    solicito_restablecimiento: bool = False   # True si pidió restablecer su clave (pendiente)
+    en_ruta: bool = False
+    solicito_restablecimiento: bool = False
     nombre: Optional[str] = None
     telefono: Optional[str] = None
     dni: Optional[str] = None
-    foto_url: Optional[str] = None   # URL pública de la foto (o None si no tiene)
+    foto_url: Optional[str] = None
     vehiculo: Optional[VehiculoAsignado] = None

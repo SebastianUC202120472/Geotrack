@@ -1,9 +1,7 @@
-// Provee el tema a toda la app. La app es SOLO modo claro (se eliminó el modo
-// oscuro y el selector de apariencia).
+// Provee el tema claro a toda la app (modo oscuro eliminado).
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { construirPaleta, type Esquema, type Palette } from "./palettes";
 
-// Se conserva el tipo por compatibilidad de exports, aunque ya no se use el selector.
 export type Modo = "system" | "light" | "dark";
 
 interface ContextoTema {

@@ -9,11 +9,7 @@ import Skeleton from "../components/ui/Skeleton";
 import Button from "../components/ui/Button";
 import { listarPedidos } from "../services/api";
 
-// Agrupa los pedidos por distrito y, dentro de cada uno, cuenta pendientes y
-// asignados. Solo interesan las zonas con trabajo por gestionar.
-// Entrada: pedidos (array con `distrito` y `estado`).
-// Salida: array de zonas { distrito, pendientes, asignados } con al menos un
-// pendiente o asignado, ordenadas por la mayor cantidad de esos dos.
+// Agrupa pedidos por distrito contando pendientes y asignados. Recibe array de pedidos.
 function agruparZonas(pedidos) {
   const mapa = new Map();
   for (const p of pedidos) {
@@ -28,8 +24,7 @@ function agruparZonas(pedidos) {
     .sort((a, b) => b.pendientes + b.asignados - (a.pendientes + a.asignados));
 }
 
-// Pastilla de conteo clicable para cada estado de zona (pendiente / asignado).
-// Entrada: tono ("warning"|"info"), label, valor (number), onClick.
+// Pastilla clicable de conteo por estado. Recibe tono, label, valor y onClick.
 function PildoraEstado({ tono, label, valor, onClick }) {
   const estilos = {
     warning: {
@@ -59,9 +54,7 @@ function PildoraEstado({ tono, label, valor, onClick }) {
   );
 }
 
-// Tarjeta de zona individual con "Confianza cálida": cabecera con icono de pin,
-// nombre del distrito, total de pedidos gestionados, y pastillas de estado clicables.
-// Entrada: zona { distrito, pendientes, asignados }, irAPedidos (fn navegación).
+// Tarjeta de zona con cabecera y pastillas de estado clicables. Recibe zona, irAPedidos e indice.
 function ZonaCard({ zona, irAPedidos, indice }) {
   const total = zona.pendientes + zona.asignados;
   return (
@@ -69,7 +62,6 @@ function ZonaCard({ zona, irAPedidos, indice }) {
       className="animate-fade-up rounded-card border border-warm-200 bg-white shadow-card transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover"
       style={{ animationDelay: `${indice * 60}ms` }}
     >
-      {/* Cabecera: zona + total clicable */}
       <button
         onClick={() => irAPedidos(zona.distrito, null)}
         className="flex w-full items-center gap-3 px-4 py-4 text-left"
@@ -88,10 +80,8 @@ function ZonaCard({ zona, irAPedidos, indice }) {
         <ChevronRight size={16} className="shrink-0 text-slate-300" />
       </button>
 
-      {/* Separador sutil */}
       <div className="mx-4 border-t border-warm-200" />
 
-      {/* Pastillas de estado */}
       <div className="flex gap-2 p-3">
         <PildoraEstado
           tono="warning"
@@ -110,7 +100,7 @@ function ZonaCard({ zona, irAPedidos, indice }) {
   );
 }
 
-// Silueta de carga para la cuadrícula de zonas (3 tarjetas placeholder).
+// Placeholder de carga con 3 tarjetas de zona en esqueleto.
 function EsqueletoZonas() {
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -157,7 +147,7 @@ export default function AgrupacionZonas() {
   const totalPendientes = zonas.reduce((acc, z) => acc + z.pendientes, 0);
   const totalAsignados = zonas.reduce((acc, z) => acc + z.asignados, 0);
 
-  // Navega al listado de Pedidos filtrado por distrito (y opcionalmente estado).
+  // Navega a Pedidos filtrado por distrito y estado opcionales.
   const irAPedidos = (distrito, estado) => {
     const params = new URLSearchParams();
     if (distrito) params.set("distrito", distrito);
@@ -174,7 +164,6 @@ export default function AgrupacionZonas() {
         <Button variant="secondary" icon={RefreshCw} onClick={cargar}>Actualizar</Button>
       </PageHeader>
 
-      {/* KPIs resumen */}
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
           label="Zonas activas"
@@ -199,7 +188,6 @@ export default function AgrupacionZonas() {
         />
       </div>
 
-      {/* Cuadrícula de zonas */}
       <SectionCard
         title="Zonas operativas detectadas"
         subtitle="Haz clic en un conteo para ir al listado filtrado"

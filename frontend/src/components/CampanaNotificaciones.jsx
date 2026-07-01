@@ -3,8 +3,7 @@ import { Bell } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useNotificaciones } from "../hooks/useNotificaciones";
 
-// Devuelve una cadena legible del tiempo transcurrido desde una fecha ISO.
-// Entrada: fechaIso (string). Salida: "hace X minutos/horas/días".
+// Convierte una fecha ISO en texto relativo ("hace X min/h/días"). Recibe fechaIso string.
 function tiempoRelativo(fechaIso) {
   const diff = Date.now() - new Date(fechaIso).getTime();
   const min = Math.floor(diff / 60000);
@@ -16,16 +15,13 @@ function tiempoRelativo(fechaIso) {
   return `hace ${dias} día${dias > 1 ? "s" : ""}`;
 }
 
-// Campana de notificaciones del admin: ícono con badge de no vistas, parpadea si hay pendientes.
-// Al abrir marca todo como visto; el popover lista el historial cronológico con resaltado de no vistas.
-// Entrada: ninguna (solo se monta cuando rol === "admin").
+// Campana de notificaciones con badge y popover de historial; al abrir marca todo como visto.
 export default function CampanaNotificaciones() {
   const navigate = useNavigate();
   const { no_vistas, items, marcarVistas } = useNotificaciones(true);
   const [abierto, setAbierto] = useState(false);
   const panelRef = useRef(null);
 
-  // Cierra el popover al hacer click fuera de él.
   useEffect(() => {
     if (!abierto) return;
     const manejarClickFuera = (e) => {
@@ -37,7 +33,6 @@ export default function CampanaNotificaciones() {
     return () => document.removeEventListener("mousedown", manejarClickFuera);
   }, [abierto]);
 
-  // Cierra el popover con la tecla Escape.
   useEffect(() => {
     if (!abierto) return;
     const manejarEscape = (e) => {
@@ -47,7 +42,6 @@ export default function CampanaNotificaciones() {
     return () => document.removeEventListener("keydown", manejarEscape);
   }, [abierto]);
 
-  // Abre/cierra el popover; al abrir, marca las notificaciones como vistas.
   const alternarPanel = () => {
     setAbierto((v) => {
       const nuevoEstado = !v;
@@ -56,7 +50,6 @@ export default function CampanaNotificaciones() {
     });
   };
 
-  // Navega a la ruta del ítem y cierra el popover.
   const irA = (ruta) => {
     setAbierto(false);
     navigate(ruta);
@@ -64,7 +57,6 @@ export default function CampanaNotificaciones() {
 
   return (
     <div ref={panelRef} className="relative">
-      {/* Botón de campana con badge de notificaciones no vistas */}
       <button
         onClick={alternarPanel}
         aria-label="Notificaciones"
@@ -78,7 +70,6 @@ export default function CampanaNotificaciones() {
         )}
       </button>
 
-      {/* Popover con el historial de notificaciones (cronológico, recientes primero) */}
       {abierto && (
         <div className="absolute left-0 top-full z-50 mt-2 w-80 rounded-xl border border-[#2b3543] bg-[#1a2230] shadow-2xl">
           <div className="border-b border-[#2b3543] px-4 py-3">
@@ -108,7 +99,6 @@ export default function CampanaNotificaciones() {
               ))
             )}
           </ul>
-          {/* Pie del popover: enlace al historial completo de notificaciones */}
           <div className="border-t border-[#2b3543] px-4 py-2.5">
             <button
               onClick={() => irA("/notificaciones")}
