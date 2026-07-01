@@ -20,6 +20,7 @@ TRUNCATE TABLE
   notificaciones,
   historial_pedidos,
   evidencias_entrega,
+  evidencias_recojo,
   liquidaciones,
   ubicaciones_conductor,
   clientes_corporativos,
