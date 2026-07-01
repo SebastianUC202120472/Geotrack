@@ -49,7 +49,9 @@ export function RutaRecojoView() {
   }, [qc]));
 
   const paradas: ParadaRecojo[] = manifiesto.data?.paradas ?? [];
-  const pendientes = paradas.filter((p) => p.estado !== "RECOGIDO").sort((a, b) => a.secuencia - b.secuencia);
+  // RECOGIDO e INGRESADO cuentan como recogido: si almacén ya ingresó el recojo, para el conductor sigue recogido.
+  const RECOGIDOS = ["RECOGIDO", "INGRESADO"];
+  const pendientes = paradas.filter((p) => !RECOGIDOS.includes(p.estado)).sort((a, b) => a.secuencia - b.secuencia);
 
   const puntosNavegar = pendientes
     .filter((p) => p.latitud != null && p.longitud != null)
@@ -59,7 +61,7 @@ export function RutaRecojoView() {
     secuencia: p.secuencia, detalle_id: p.recojo_id, pedido_id: p.recojo_id, codigo: p.codigo,
     cliente_origen: p.cliente_origen, nombre_destinatario: p.cliente_origen, telefono_destinatario: null,
     direccion_destino: p.direccion_origen, distrito: p.distrito, latitud: p.latitud, longitud: p.longitud,
-    peso_kg: null, estado_entrega: p.estado === "RECOGIDO" ? "ENTREGADO" : "PENDIENTE", url_evidencia: p.url_guia,
+    peso_kg: null, estado_entrega: RECOGIDOS.includes(p.estado) ? "ENTREGADO" : "PENDIENTE", url_evidencia: p.url_guia,
   })) as ParadaManifiesto[];
 
   // Refresca ruta y manifiesto juntos. Pull-to-refresh.

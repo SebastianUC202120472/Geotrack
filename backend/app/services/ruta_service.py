@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.ruta import Ruta, RutaDetalle
 from app.models.pedido import Pedido
+from app.models.solicitud_recojo import ESTADOS_RECOGIDO
 from app.repositories import ruta_repository, pedido_repository, historial_repository, evidencia_repository, incidencia_repository, recojo_repository
 from app.services.router import optimizar_secuencia_pedidos, distancia_total
 from app.schemas.ruta import (
@@ -62,7 +63,7 @@ def obtener_resumen_ruta_activa(db: Session, conductor_id: int) -> RutaActivaRes
     if ruta.tipo == "RECOJO":
         recojos = recojo_repository.obtener_por_ruta(db, ruta.id)
         total = len(recojos)
-        recogidas = sum(1 for r in recojos if r.estado == "RECOGIDO")
+        recogidas = sum(1 for r in recojos if r.estado in ESTADOS_RECOGIDO)
         return RutaActivaResponse(
             ruta_id=ruta.id, codigo=ruta.codigo, nombre=ruta.nombre, estado=ruta.estado,
             fecha_creacion=ruta.fecha_creacion, fecha_salida=ruta.fecha_salida,

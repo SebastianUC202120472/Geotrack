@@ -4,7 +4,7 @@ from datetime import datetime
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.models.solicitud_recojo import SolicitudRecojo
+from app.models.solicitud_recojo import SolicitudRecojo, ESTADOS_RECOGIDO
 from app.models.pedido import Pedido
 from app.models.cliente import ClienteCorporativo
 from app.models.ruta import Ruta
@@ -429,8 +429,8 @@ def finalizar_ruta_recojo(db: Session, ruta: Ruta) -> CierreRutaResponse:
         raise HTTPException(status_code=400, detail="La ruta está pausada por una incidencia. Reanúdala antes de cerrar el día.")
 
     recojos = recojo_repository.obtener_por_ruta(db, ruta.id)
-    pendientes = sum(1 for r in recojos if r.estado != "RECOGIDO")
-    recogidas = sum(1 for r in recojos if r.estado == "RECOGIDO")
+    pendientes = sum(1 for r in recojos if r.estado not in ESTADOS_RECOGIDO)
+    recogidas = sum(1 for r in recojos if r.estado in ESTADOS_RECOGIDO)
     if pendientes:
         raise HTTPException(status_code=400, detail=f"No puedes cerrar la ruta: quedan {pendientes} recojo(s) pendiente(s).")
 
