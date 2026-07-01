@@ -13,18 +13,18 @@ import EmptyState from "../components/ui/EmptyState";
 import { agruparPedidosPorDia } from "../utils/dashboard";
 import { obtenerResumen, listarPedidos, obtenerSeguimientoClientes, obtenerUbicacionesFlota } from "../services/api";
 
-// Color de marca para cada estado (gráficos y puntos de la línea de tiempo).
+// Colores por estado para gráficos.
 const COLOR_ESTADO = {
-  POR_RECOGER: "#94a3b8",          // aún en el origen del cliente
-  OBSERVADO: "#f97316",            // naranja: faltante/discrepancia en almacén
-  LISTO_PARA_ENVIO: "#f59e0b",     // ámbar: validado, listo para asignar
+  POR_RECOGER: "#94a3b8",
+  OBSERVADO: "#f97316",
+  LISTO_PARA_ENVIO: "#f59e0b",
   ASIGNADO: "#2563eb",
   EN_RUTA: "#0ea5e9",
   EN_PROGRESO: "#0ea5e9",
   ENTREGADO: "#16a34a",
   FALLIDO: "#dc2626",
   GEOCODIFICACION_FALLIDA: "#dc2626",
-  CANCELADO: "#94a3b8",  // gris neutro: estado terminal sin entrega, diferente al azul de ASIGNADO
+  CANCELADO: "#94a3b8",
   CREADA: "#94a3b8",
 };
 
@@ -33,19 +33,14 @@ export default function Dashboard() {
   const [resumen, setResumen] = useState(null);
   const [pedidos, setPedidos] = useState([]);
   const [cargando, setCargando] = useState(true);
-  // Indica si hay un refresco silencioso en curso (no bloquea la pantalla).
   const [actualizando, setActualizando] = useState(false);
-  // Clientes con pedidos pendientes ordenados de mayor a menor (top 6).
   const [pendientesPorCliente, setPendientesPorCliente] = useState([]);
-  // Número de conductores que enviaron ubicación recientemente (en_linea=true).
   const [conductoresEnLinea, setConductoresEnLinea] = useState(0);
 
   // Lleva a la lista de Pedidos ya filtrada por estado (clic en gráfica).
   const irAEstado = (estadoRaw) => estadoRaw && navigate(`/pedidos?estado=${encodeURIComponent(estadoRaw)}`);
 
   useEffect(() => {
-    // Acumula las respuestas de clientes y flota para actualizarlas en setState
-    // dentro de callbacks (no en el cuerpo del effect, evitando renders en cascada).
     const actualizarClientes = (data) => {
       const top6 = [...data].sort((a, b) => b.pendientes - a.pendientes).slice(0, 6);
       setPendientesPorCliente(top6);
@@ -54,8 +49,7 @@ export default function Dashboard() {
       setConductoresEnLinea(data.filter((u) => u.en_linea === true).length);
     };
 
-    // Refresco silencioso: activa el indicador, lanza todas las peticiones y lo apaga.
-    // silencioso=true: usa `actualizando`; silencioso=false: usa `cargando`.
+    // Refresca todos los datos. Recibe silencioso: si true usa actualizando, si false usa cargando.
     const refrescar = (silencioso) => {
       if (silencioso) setActualizando(true);
       Promise.allSettled([
@@ -69,10 +63,9 @@ export default function Dashboard() {
       });
     };
 
-    // Carga inicial: setState solo dentro de los callbacks de la promesa.
     refrescar(false);
 
-    // Auto-refresco cada 20 s (silencioso) + al recuperar el foco.
+    // Auto-refresco cada 20 s y al recuperar el foco.
     const intervalo = setInterval(() => refrescar(true), 20000);
     const alFoco = () => refrescar(true);
     window.addEventListener("focus", alFoco);
@@ -93,17 +86,15 @@ export default function Dashboard() {
   const recientes = [...pedidos].slice(-6).reverse();
   const pedidosPorDia = agruparPedidosPorDia(pedidos, 7);
 
-  // Máximo de pendientes del top-6 de clientes (para escalar las barras de progreso).
+  // Maximo de pendientes del top-6 para escalar las barras de progreso.
   const maxPendCliente = Math.max(1, ...pendientesPorCliente.map((c) => c.pendientes));
 
-  // Fecha legible en español (se calcula en el cliente, en cada render).
   const fecha = new Date().toLocaleDateString("es-PE", {
     weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
 
   return (
     <div className="space-y-6 p-6 lg:p-8">
-      {/* Cabecera tipo "hero": saludo, fecha y acciones */}
       <div className="animate-fade-up flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Resumen operativo</h1>
@@ -118,7 +109,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* KPIs */}
       <div className="animate-fade-up" style={{ animationDelay: "60ms" }}>
         {cargando ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -146,7 +136,6 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Gráficos: barras + dona */}
       <div className="animate-fade-up grid gap-6 lg:grid-cols-3" style={{ animationDelay: "120ms" }}>
         <Card title="Pedidos por estado" subtitle="Toca un estado para ver esos pedidos" className="lg:col-span-2">
           {datosEstado.length === 0 ? (
@@ -197,7 +186,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Tendencia por día */}
       <div className="animate-fade-up" style={{ animationDelay: "180ms" }}>
         <Card title="Pedidos por día" subtitle="Últimos 7 días (por fecha de creación)">
           <ResponsiveContainer width="100%" height={240}>
@@ -212,7 +200,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Pedidos pendientes por cliente + Actividad reciente (línea de tiempo) */}
       <div className="animate-fade-up grid gap-6 lg:grid-cols-2" style={{ animationDelay: "240ms" }}>
         <Card title="Pedidos pendientes por cliente" subtitle="Top 6 · toca para ver los pedidos">
           {pendientesPorCliente.length === 0 ? (

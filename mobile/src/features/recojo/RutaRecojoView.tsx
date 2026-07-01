@@ -1,5 +1,4 @@
-// Vista de la tab "Ruta" cuando la ruta activa es de RECOJO (CUS-12): resumen,
-// mapa de los puntos de origen, iniciar (optimizar), lista de recojos y cierre.
+// Vista de ruta de recojo: resumen, mapa, lista de paradas y cierre del día.
 import { useCallback, useState } from "react";
 import { Alert, FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -24,7 +23,7 @@ import { abrirNavegacionRuta } from "@/services/navegacion";
 import { useTheme, spacing } from "@/theme";
 import type { ParadaManifiesto, ParadaRecojo } from "@/types/api";
 
-// Componente principal: muestra el resumen, mapa y lista de la ruta de RECOJO.
+// Componente principal de la ruta de recojo. Sin params.
 export function RutaRecojoView() {
   const router = useRouter();
   const { colors } = useTheme();
@@ -38,14 +37,12 @@ export function RutaRecojoView() {
   const qc = useQueryClient();
   const [refrescando, setRefrescando] = useState(false);
 
-  // Rastrea la posición del conductor mientras tenga ruta activa: segundo plano
-  // (permiso "siempre") + primer plano (app abierta). El de primer plano asegura que
-  // el panel vea la posición aunque no se conceda el permiso de fondo.
+  // Rastrea y envía la ubicación mientras la ruta esté activa.
   const rutaEnCurso = !!ruta.data && ruta.data.estado !== "FINALIZADA";
   useRastreoUbicacion(rutaEnCurso);
   useEnviarUbicacion(rutaEnCurso);
 
-  // Al volver a esta pestaña, invalida las consultas para ver los cambios al instante.
+  // Invalida consultas al enfocar la pantalla.
   useFocusEffect(useCallback(() => {
     qc.invalidateQueries({ queryKey: claves.rutaActiva });
     qc.invalidateQueries({ queryKey: clavesRecojo.manifiesto });
@@ -54,12 +51,10 @@ export function RutaRecojoView() {
   const paradas: ParadaRecojo[] = manifiesto.data?.paradas ?? [];
   const pendientes = paradas.filter((p) => p.estado !== "RECOGIDO").sort((a, b) => a.secuencia - b.secuencia);
 
-  // Puntos de recojo pendientes con coordenadas (en orden), para navegar en Google Maps.
   const puntosNavegar = pendientes
     .filter((p) => p.latitud != null && p.longitud != null)
     .map((p) => ({ lat: p.latitud, lng: p.longitud }));
 
-  // Adapta los recojos al shape que pinta MapaWeb (RECOGIDO -> verde, resto -> pendiente).
   const paradasMapa = paradas.map((p) => ({
     secuencia: p.secuencia, detalle_id: p.recojo_id, pedido_id: p.recojo_id, codigo: p.codigo,
     cliente_origen: p.cliente_origen, nombre_destinatario: p.cliente_origen, telefono_destinatario: null,
@@ -67,13 +62,13 @@ export function RutaRecojoView() {
     peso_kg: null, estado_entrega: p.estado === "RECOGIDO" ? "ENTREGADO" : "PENDIENTE", url_evidencia: p.url_guia,
   })) as ParadaManifiesto[];
 
-  // Refresca las consultas a la vez (pull-to-refresh).
+  // Refresca ruta y manifiesto juntos. Pull-to-refresh.
   const refrescar = async () => {
     setRefrescando(true);
     try { await Promise.all([ruta.refetch(), manifiesto.refetch()]); } finally { setRefrescando(false); }
   };
 
-  // Inicia la ruta de recojo: toma la ubicación actual y pide la optimización al backend.
+  // Inicia y optimiza la ruta desde la ubicación actual.
   const iniciarRuta = async () => {
     if (!ruta.data) return;
     const coords = await ubicacion.obtener();
@@ -84,7 +79,7 @@ export function RutaRecojoView() {
     });
   };
 
-  // Cierra el día de recojo (con confirmación).
+  // Cierra el día de recojo tras confirmación.
   const cerrarDia = () => {
     Alert.alert("Cerrar el día", "¿Cerrar la ruta de recojo de hoy?", [
       { text: "Cancelar", style: "cancel" },
@@ -95,7 +90,7 @@ export function RutaRecojoView() {
     ]);
   };
 
-  // Reanuda la ruta cerrando la incidencia abierta (CUS-30).
+  // Reanuda la ruta cerrando la incidencia abierta.
   const reanudarRutaActiva = () => {
     if (!ruta.data?.incidencia_id) return;
     reanudar.mutate({ incidenciaId: ruta.data.incidencia_id }, { onError: (e) => Alert.alert("No se pudo reanudar", mensajeDeError(e)) });
@@ -105,7 +100,6 @@ export function RutaRecojoView() {
   const recogidas = ruta.data?.entregadas ?? 0;
   const puedeCerrar = !!ruta.data && total > 0 && (ruta.data.pendientes ?? 0) === 0 && !pausada;
 
-  // Encabezado de la lista: degradado con resumen, mapa y acciones.
   const Encabezado = (
     <View style={{ marginBottom: spacing.md }}>
       {ruta.data && (
@@ -133,7 +127,6 @@ export function RutaRecojoView() {
           <Mapa paradas={paradasMapa} />
         </Card>
         <Button titulo="Iniciar ruta desde mi ubicación" onPress={iniciarRuta} cargando={ubicacion.cargando || iniciar.isPending} />
-        {/* Navegación real turn-by-turn: abre la ruta de recojo en Google Maps (origen = tu ubicación). */}
         {puntosNavegar.length > 0 && (
           <Button titulo="Navegar en Google Maps" variante="secondary" onPress={() => abrirNavegacionRuta(puntosNavegar)} />
         )}
@@ -141,7 +134,6 @@ export function RutaRecojoView() {
           <Card style={{ backgroundColor: colors.dangerSoft }}>
             <Texto variante="bodyMedium" color={colors.danger}>🛠️ Ruta pausada por avería</Texto>
             <Texto variante="caption" color={colors.danger} style={{ marginTop: 2, marginBottom: spacing.sm }}>Reanúdala para seguir recogiendo.</Texto>
-            {/* CUS-30: si el admin ya mandó ayuda, se destaca el aviso "Ayuda en camino". */}
             {ruta.data?.ayuda_enviada_en && (
               <Card style={{ backgroundColor: colors.brandSoft, marginBottom: spacing.sm }}>
                 <Texto variante="bodyMedium" color={colors.brand}>🚐 Ayuda en camino</Texto>
@@ -165,7 +157,6 @@ export function RutaRecojoView() {
     </View>
   );
 
-  // Pie de la lista: sección de cierre del día.
   const Pie = ruta.data ? (
     <Aparecer style={{ marginTop: spacing.lg, gap: spacing.md, paddingHorizontal: spacing.lg }}>
       <Card>
@@ -214,7 +205,7 @@ export function RutaRecojoView() {
   );
 }
 
-// Cifra animada con su etiqueta (texto blanco sobre el degradado). Recibe: { valor, etiqueta }.
+// Cifra animada con etiqueta. Recibe: { valor, etiqueta }.
 function ContadorEtiqueta({ valor, etiqueta }: { valor: number; etiqueta: string }) {
   const { colors } = useTheme();
   return (

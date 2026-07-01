@@ -6,8 +6,7 @@ import "leaflet/dist/leaflet.css";
 // Centro por defecto (Lima) cuando aún no hay un punto elegido.
 const LIMA = [-12.046, -77.043];
 
-// Pin rojo (gota) para el punto elegido. Usamos divIcon para no depender de las
-// imágenes por defecto de Leaflet (que suelen romperse con el bundler).
+// Pin rojo tipo gota usando divIcon (evita dependencia de imágenes por defecto de Leaflet).
 const iconoPin = L.divIcon({
   className: "",
   html: `<div style="background:#cf3b3b;width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45)"></div>`,
@@ -30,8 +29,7 @@ function Recentrar({ lat, lng }) {
   return null;
 }
 
-// Mapa para ELEGIR una ubicación (CUS-17). El admin hace clic o arrastra el pin.
-// Props: lat, lng (number|null) y onChange(lat, lng) que se llama al elegir.
+// Mapa para elegir una ubicación. Recibe lat, lng (number|null) y onChange(lat, lng).
 export default function MapaPicker({ lat, lng, onChange }) {
   const hayPunto = lat != null && lng != null;
   const centro = hayPunto ? [lat, lng] : LIMA;

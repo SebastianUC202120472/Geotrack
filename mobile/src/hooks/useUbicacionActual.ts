@@ -4,13 +4,12 @@ import * as Location from "expo-location";
 import type { Coordenadas } from "@/types/api";
 
 interface ResultadoUbicacion {
-  obtener: () => Promise<Coordenadas | null>; // pide permiso y lee la posición
+  obtener: () => Promise<Coordenadas | null>;
   cargando: boolean;
   error: string | null;
 }
 
-// Hook de ubicación. No recibe inputs. Devuelve: { obtener, cargando, error }.
-// `obtener` resuelve con las coordenadas o null si se deniega el permiso.
+// Hook que pide permiso de ubicación y devuelve { obtener, cargando, error }.
 export function useUbicacionActual(): ResultadoUbicacion {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);

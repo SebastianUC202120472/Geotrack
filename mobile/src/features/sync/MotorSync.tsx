@@ -1,6 +1,4 @@
-// Componente sin UI: dispara la sincronización al montar, al reconectar (NetInfo)
-// y al volver la app a primer plano (AppState). Se monta una sola vez en el layout
-// protegido (con sesión y dentro del QueryClientProvider).
+// Componente sin UI: dispara sincronización al montar, al reconectar y al volver a primer plano.
 import { useEffect } from "react";
 import { AppState } from "react-native";
 import NetInfo from "@react-native-community/netinfo";

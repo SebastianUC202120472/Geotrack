@@ -1,5 +1,3 @@
-# app/repositories/almacen_repository.py
-# Acceso a datos del módulo de almacén: pedidos del recojo y sus evidencias.
 from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 
@@ -27,8 +25,7 @@ def obtener_pedido_por_tracking(db: Session, recojo_id: int, codigo: str) -> Opt
 
 
 def contar_pedidos(db: Session, recojo_id: int) -> Tuple[int, int, int, int]:
-    """Devuelve (total, listos, observados, por_recoger) de pedidos en el recojo:
-    listos = LISTO_PARA_ENVIO; observados = OBSERVADO; por_recoger = POR_RECOGER (sin procesar)."""
+    """Devuelve (total, listos, observados, por_recoger) de pedidos del recojo."""
     base = db.query(Pedido).filter(Pedido.recojo_id == recojo_id)
     total = base.count()
     listos = base.filter(Pedido.estado == "LISTO_PARA_ENVIO").count()

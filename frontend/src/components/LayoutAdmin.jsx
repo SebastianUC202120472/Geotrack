@@ -5,21 +5,18 @@ import Sidebar from "./Sidebar";
 import Logo from "./ui/Logo";
 import Topbar from "./Topbar";
 
-// Estructura del panel: barra lateral fija en escritorio y, en móvil/tablet,
-// un cajón (drawer) que se abre con el botón de menú. El contenido de cada
-// página se pinta en el Outlet sobre el fondo "canvas".
+// Layout principal del panel: sidebar fijo en escritorio, drawer en móvil, Outlet como contenido.
 export default function LayoutAdmin() {
   const [abierto, setAbierto] = useState(false);
   const { pathname } = useLocation();
 
   return (
     <div className="flex h-screen bg-canvas">
-      {/* Sidebar de escritorio */}
       <div className="hidden lg:block">
         <Sidebar />
       </div>
 
-      {/* Sidebar móvil (drawer) + fondo oscuro */}
+
       {abierto && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <div
@@ -40,7 +37,6 @@ export default function LayoutAdmin() {
       )}
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Barra superior solo en móvil para abrir el menú */}
         <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
           <button
             onClick={() => setAbierto(true)}
@@ -52,7 +48,6 @@ export default function LayoutAdmin() {
           <Logo />
         </header>
 
-        {/* Barra superior de escritorio */}
         <Topbar />
 
         <main className="flex-1 overflow-y-auto bg-canvas">

@@ -1,5 +1,4 @@
-// Ayuda: breve explicación y contacto con coordinación por WhatsApp o llamada.
-// Reemplaza al antiguo bloque "¿Algún problema? / coordinación de pedidos".
+// Pantalla de ayuda: muestra contacto de coordinación para llamar o escribir por WhatsApp.
 import { Linking, ScrollView, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "@/components/Screen";

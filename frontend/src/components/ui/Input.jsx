@@ -1,6 +1,4 @@
-// Campo de formulario con etiqueta asociada (accesibilidad: el label apunta al
-// input por id), foco visible y estado de error. Sirve para <input> y, con
-// "as", para <select>/<textarea>.
+// Campo de formulario con label, error y soporte para input/select/textarea via prop "as".
 import { useId } from "react";
 
 export default function Input({

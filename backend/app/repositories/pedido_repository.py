@@ -1,5 +1,3 @@
-# app/repositories/pedido_repository.py
-# Única capa que consulta/escribe en la tabla 'pedidos'.
 from typing import List, Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -8,30 +6,28 @@ from app.models.pedido import Pedido
 
 
 def obtener_por_codigo(db: Session, codigo: str) -> Optional[Pedido]:
-    """Busca un pedido por su código legible 'PD-001' (tracking / QR / historial)."""
+    """Busca un pedido por su codigo legible (ej. PD-001). Recibe db y codigo."""
     return db.query(Pedido).filter(Pedido.codigo == codigo).first()
 
 
 def obtener_por_referencia_externa(db: Session, referencia: str) -> Optional[Pedido]:
-    """Busca un pedido por la referencia que vino en el Excel (para no duplicar)."""
+    """Busca un pedido por referencia externa del Excel para evitar duplicados."""
     return db.query(Pedido).filter(Pedido.referencia_externa == referencia).first()
 
 
 def crear_pedidos(db: Session, pedidos: List[Pedido]) -> None:
-    """Inserta una lista de pedidos de una sola vez (carga masiva de Excel)."""
+    """Inserta una lista de pedidos en lote. Recibe db y lista de Pedido."""
     db.add_all(pedidos)
     db.commit()
 
 
 def listar(db: Session, skip: int = 0, limit: int = 100) -> List[Pedido]:
-    """Devuelve los pedidos paginados (para el panel web del admin)."""
+    """Devuelve pedidos paginados. Recibe db, offset y limite."""
     return db.query(Pedido).offset(skip).limit(limit).all()
 
 
 def obtener_sin_coordenadas(db: Session) -> List[Pedido]:
-    """Pedidos sin latitud de la vía de entrega (LISTO_PARA_ENVIO o GEOCODIFICACION_FALLIDA)
-    que faltan por geocodificar. Excluye POR_RECOGER: esos se geocodifican al aceptar la
-    solicitud de recojo y se reintentan al validar en almacén, no en el lote de entrega."""
+    """Devuelve pedidos sin latitud en estado LISTO_PARA_ENVIO o GEOCODIFICACION_FALLIDA."""
     return (
         db.query(Pedido)
         .filter(
@@ -43,13 +39,12 @@ def obtener_sin_coordenadas(db: Session) -> List[Pedido]:
 
 
 def obtener_por_id(db: Session, pedido_id: int) -> Optional[Pedido]:
-    """Busca un pedido por su id (para fijarle la ubicación a mano, CUS-17)."""
+    """Busca un pedido por id. Recibe db y pedido_id."""
     return db.query(Pedido).filter(Pedido.id == pedido_id).first()
 
 
 def listar_geocodificacion_fallida(db: Session) -> List[Pedido]:
-    """Pedidos cuya dirección no se pudo ubicar automáticamente (CUS-17), para que el
-    admin los resuelva a mano en el mapa."""
+    """Devuelve pedidos en estado GEOCODIFICACION_FALLIDA para resolucion manual."""
     return (
         db.query(Pedido)
         .filter(Pedido.estado == "GEOCODIFICACION_FALLIDA")
@@ -59,9 +54,7 @@ def listar_geocodificacion_fallida(db: Session) -> List[Pedido]:
 
 
 def listar_sin_ubicacion_resoluble(db: Session) -> List[Pedido]:
-    """Pedidos sin coordenadas en estados que el admin puede resolver desde el mapa:
-    LISTO_PARA_ENVIO, POR_RECOGER o GEOCODIFICACION_FALLIDA. Incluye los de recojo para que
-    el admin pueda ubicarlos antes de validarlos. Devuelve lista ordenada por código."""
+    """Pedidos sin coordenadas en estados resolubles por el admin, ordenados por codigo."""
     estados_resolubles = ("LISTO_PARA_ENVIO", "POR_RECOGER", "GEOCODIFICACION_FALLIDA")
     return (
         db.query(Pedido)
@@ -72,7 +65,7 @@ def listar_sin_ubicacion_resoluble(db: Session) -> List[Pedido]:
 
 
 def obtener_pendientes_por_distrito(db: Session, distrito: str) -> List[Pedido]:
-    """Pedidos LISTO_PARA_ENVIO de un distrito (base para armar una ruta, CUS-18)."""
+    """Devuelve pedidos LISTO_PARA_ENVIO de un distrito. Recibe db y distrito."""
     return (
         db.query(Pedido)
         .filter(Pedido.distrito == distrito, Pedido.estado == "LISTO_PARA_ENVIO")
@@ -81,9 +74,7 @@ def obtener_pendientes_por_distrito(db: Session, distrito: str) -> List[Pedido]:
 
 
 def agrupar_por_zona(db: Session):
-    """Cuenta pedidos entregables (LISTO_PARA_ENVIO + geocodificados) por distrito (CUS-16).
-    Solo incluye LISTO_PARA_ENVIO para que los POR_RECOGER/OBSERVADO no aparezcan en el
-    despacho de entrega antes de ser validados en almacén."""
+    """Cuenta pedidos LISTO_PARA_ENVIO geocodificados agrupados por distrito."""
     return (
         db.query(Pedido.distrito, func.count(Pedido.id).label("total_pedidos"))
         .filter(Pedido.latitud != None, Pedido.estado == "LISTO_PARA_ENVIO")  # noqa: E711
@@ -93,18 +84,17 @@ def agrupar_por_zona(db: Session):
 
 
 def guardar_cambios(db: Session) -> None:
-    """Confirma en la BD los cambios hechos sobre pedidos ya cargados (UPDATE)."""
+    """Confirma en BD los cambios pendientes sobre pedidos."""
     db.commit()
 
 
-# --- Fase 4: trazabilidad (CUS-33 / CUS-35) ---
 def contar_total(db: Session) -> int:
-    """Número total de pedidos en el sistema."""
+    """Retorna el total de pedidos en el sistema."""
     return db.query(func.count(Pedido.id)).scalar() or 0
 
 
 def contar_por_estado(db: Session):
-    """Cuenta los pedidos agrupados por su estado (para los KPIs del dashboard)."""
+    """Cuenta pedidos agrupados por estado para los KPIs del dashboard."""
     return (
         db.query(Pedido.estado, func.count(Pedido.id).label("total"))
         .group_by(Pedido.estado)
@@ -113,11 +103,7 @@ def contar_por_estado(db: Session):
 
 
 def listar_por_cliente(db: Session, cliente: str, desde=None, hasta=None, estados=None) -> List[Pedido]:
-    """Pedidos de UNA empresa (por su nombre snapshot 'cliente_origen'), para armar la
-    liquidación (CUS-36). `desde`/`hasta` (date, opcionales) acotan por fecha_creacion.
-    `estados` (tupla opcional) filtra por estado: la liquidación pasa los terminales
-    (ENTREGADO/FALLIDO) para no facturar pedidos que aún están en proceso.
-    Recibe: nombre del cliente, el rango de fechas y los estados. Devuelve la lista de pedidos."""
+    """Pedidos de un cliente filtrados por rango de fechas y estados. Recibe db, cliente, desde, hasta y estados."""
     from datetime import datetime, time
     consulta = db.query(Pedido).filter(Pedido.cliente_origen == cliente)
     if estados:
@@ -130,10 +116,7 @@ def listar_por_cliente(db: Session, cliente: str, desde=None, hasta=None, estado
 
 
 def agrupar_por_cliente(db: Session):
-    """Cuenta pedidos por empresa (cliente_origen) y estado EFECTIVO, para el
-    seguimiento por cliente. Si el pedido está en una ruta, su estado real es el del
-    detalle (estado_entrega: PENDIENTE/ENTREGADO/FALLIDO); si no, el estado del pedido.
-    Así un pedido entregado SÍ cuenta como entregado. Devuelve (cliente_origen, estado, total)."""
+    """Cuenta pedidos por cliente y estado efectivo (usa estado_entrega del detalle si existe)."""
     from app.models.ruta import RutaDetalle
     estado_efectivo = func.coalesce(RutaDetalle.estado_entrega, Pedido.estado)
     return (

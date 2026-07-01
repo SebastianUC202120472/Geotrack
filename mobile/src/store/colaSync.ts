@@ -1,6 +1,4 @@
-// Cola PERSISTENTE de acciones de entrega hechas sin conexión (CUS-27). Se guarda
-// en AsyncStorage para sobrevivir al cierre de la app; las fotos POD se copian a
-// disco (expo-file-system) para que no se pierdan si el caché del picker se limpia.
+// Cola persistente de acciones de entrega offline; guarda fotos POD en disco.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system";
 
@@ -12,24 +10,21 @@ export interface AccionPendiente {
   pedidoId: number;
   motivo?: string;
   descripcion?: string;
-  fotoUri?: string;   // ruta persistida en disco (documentDirectory) si es ENTREGA con foto
+  fotoUri?: string;   // ruta persistida en disco
   creadoEn: number;
-  // Progreso por sub-paso para que un reintento sea idempotente (CUS-27): no se
-  // re-ejecutan los POST ya hechos (evita evidencia/reporte duplicados).
-  estadoAplicado?: boolean;   // el PATCH de estado ya llegó al servidor
-  evidenciaSubida?: boolean;  // la foto POD (multipart) ya se subió
-  reporteCreado?: boolean;    // el reporte de falla (POST) ya se creó
+  // Progreso por sub-paso para reintentos idempotentes: no se re-ejecutan los POST ya hechos.
+  estadoAplicado?: boolean;
+  evidenciaSubida?: boolean;
+  reporteCreado?: boolean;
 }
 
 const CLAVE = "cola_sync_v1";
-// MINOR 5: guard de null por si documentDirectory no está disponible aún.
 const DIR_FOTOS = (FileSystem.documentDirectory ?? "") + "pod_pendientes/";
 
 let cache: AccionPendiente[] | null = null;
 const suscriptores = new Set<() => void>();
 
-// MINOR 1: serializa las escrituras de la cola para evitar la carrera
-// read-modify-write cuando el sincronizador y el conductor operan a la vez.
+// Serializa escrituras para evitar condiciones de carrera read-modify-write.
 let _cadena: Promise<void> = Promise.resolve();
 function _serializar<T>(op: () => Promise<T>): Promise<T> {
   const resultado = _cadena.then(op);
@@ -37,31 +32,29 @@ function _serializar<T>(op: () => Promise<T>): Promise<T> {
   return resultado;
 }
 
-// Lee la cola (con caché en memoria para no golpear AsyncStorage en cada render).
+// Lee la cola con caché en memoria. Si el JSON está corrupto reinicia la cola.
 async function _leer(): Promise<AccionPendiente[]> {
   if (cache) return cache;
   const raw = await AsyncStorage.getItem(CLAVE);
-  // MINOR 6: si el JSON está corrupto, reiniciamos la cola en vez de propagar.
   try { cache = raw ? (JSON.parse(raw) as AccionPendiente[]) : []; }
   catch { cache = []; }
   return cache;
 }
 
-// Persiste la cola y notifica a los suscriptores (la UI reacciona).
+// Persiste la cola y notifica suscriptores.
 async function _guardar(items: AccionPendiente[]): Promise<void> {
   cache = items;
   await AsyncStorage.setItem(CLAVE, JSON.stringify(items));
   suscriptores.forEach((cb) => cb());
 }
 
-// Asegura que exista la carpeta de fotos pendientes.
+// Crea la carpeta de fotos si no existe.
 async function _asegurarDir(): Promise<void> {
   const info = await FileSystem.getInfoAsync(DIR_FOTOS);
   if (!info.exists) await FileSystem.makeDirectoryAsync(DIR_FOTOS, { intermediates: true });
 }
 
-// Encola una acción. Si trae foto, la copia a disco persistente. Recibe los datos
-// de la acción; devuelve el ítem encolado.
+// Encola una acción; copia la foto a disco si viene adjunta. Devuelve el ítem encolado.
 export function encolar(params: {
   tipo: TipoAccion; pedidoId: number; motivo?: string; descripcion?: string; fotoUri?: string;
 }): Promise<AccionPendiente> {
@@ -76,7 +69,7 @@ export function encolar(params: {
         await FileSystem.copyAsync({ from: fotoUri, to: destino });
         fotoUri = destino;
       } catch {
-        // Si la copia falla, conservamos el uri original (mejor que perder la foto).
+        // conserva el uri original si la copia falla
       }
     }
     const item: AccionPendiente = {
@@ -88,12 +81,12 @@ export function encolar(params: {
   });
 }
 
-// Devuelve una copia de las acciones pendientes (orden FIFO de inserción).
+// Devuelve copia de las acciones pendientes en orden FIFO.
 export async function listar(): Promise<AccionPendiente[]> {
   return [...(await _leer())];
 }
 
-// Quita un ítem (y borra su foto persistida, si la tenía bajo nuestra carpeta).
+// Elimina el ítem y su foto persistida si existe. Recibe el id del ítem.
 export function quitar(id: string): Promise<void> {
   return _serializar(async () => {
     const items = await _leer();
@@ -105,8 +98,7 @@ export function quitar(id: string): Promise<void> {
   });
 }
 
-// Fusiona cambios en el ítem indicado (por id) y persiste. Sirve para guardar el
-// progreso por sub-paso del sincronizador. Recibe: id (string) y cambios parciales.
+// Fusiona cambios parciales en el ítem indicado. Recibe id y los cambios.
 export function actualizar(id: string, cambios: Partial<AccionPendiente>): Promise<void> {
   return _serializar(async () => {
     const items = await _leer();
@@ -119,8 +111,7 @@ export async function contar(): Promise<number> {
   return (await _leer()).length;
 }
 
-// Limpia toda la cola (caché + persistencia + fotos). Se llama al cerrar sesión
-// para que las acciones de un conductor no se reenvíen bajo el token de otro.
+// Limpia cola, persistencia y fotos. Llamar al cerrar sesion.
 export function limpiar(): Promise<void> {
   return _serializar(async () => {
     cache = [];
@@ -130,7 +121,7 @@ export function limpiar(): Promise<void> {
   });
 }
 
-// Suscribe un callback a los cambios de la cola. Devuelve la función para desuscribir.
+// Suscribe un callback a cambios de la cola. Devuelve la funcion para desuscribir.
 export function suscribir(cb: () => void): () => void {
   suscriptores.add(cb);
   return () => { suscriptores.delete(cb); };

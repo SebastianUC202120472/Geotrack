@@ -1,6 +1,4 @@
-// Etiqueta de estado con colores semánticos consistentes en todo el panel.
-// <Badge tono="success">…</Badge> para uso libre, o <EstadoBadge estado="EN_RUTA" />
-// que ya conoce el color de cada estado de pedido / ruta / vehículo.
+// Etiqueta de estado con color semántico. Recibe tono o usa EstadoBadge para mapear estados conocidos.
 import { ETIQUETAS_ESTADO } from "../../utils/estados";
 
 const tonos = {
@@ -22,14 +20,13 @@ export default function Badge({ tono = "neutral", className = "", children }) {
   );
 }
 
-// Estado -> tono. Lo que no esté mapeado cae en "neutral".
 const mapaEstados = {
   SOLICITADO: "warning",
   RECOGIDO: "success",
   INGRESADO: "success",
-  POR_RECOGER: "neutral",          // aún no llegó al almacén
-  OBSERVADO: "danger",             // faltante/discrepancia: necesita aclararse
-  LISTO_PARA_ENVIO: "warning",     // validado en almacén, listo para asignar a ruta
+  POR_RECOGER: "neutral",
+  OBSERVADO: "danger",
+  LISTO_PARA_ENVIO: "warning",
   ASIGNADO: "info",
   EN_RUTA: "info",
   EN_PROGRESO: "info",
@@ -42,7 +39,6 @@ const mapaEstados = {
   CANCELADO: "neutral",
 };
 
-// Color del punto por tono (coincide con los semánticos).
 const puntoPorTono = {
   neutral: "bg-slate-400",
   info: "bg-info",
@@ -52,11 +48,10 @@ const puntoPorTono = {
   danger: "bg-danger",
 };
 
+// Muestra un Badge coloreado segun el estado del pedido/ruta. Recibe estado (string).
 export function EstadoBadge({ estado }) {
   if (!estado) return <Badge>—</Badge>;
   const tono = mapaEstados[estado] || "neutral";
-  // Si hay etiqueta personalizada la usamos tal cual (respeta tildes); si no, el
-  // auto-formato (minúsculas + capitalize del badge).
   const personalizado = ETIQUETAS_ESTADO[estado];
   const texto = personalizado || estado.replaceAll("_", " ").toLowerCase();
   return (

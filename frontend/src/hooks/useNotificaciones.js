@@ -1,13 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { obtenerNotificaciones, marcarNotificacionesVistas } from "../services/api";
 
-// Trae el historial de notificaciones del admin cada 20 s.
-// Devuelve { no_vistas, items, marcarVistas }.
-// Entrada: activo (boolean) — si es false, no hace polling (para roles sin campana).
+// Hook de notificaciones con polling cada 20 s. Recibe activo (boolean).
 export function useNotificaciones(activo) {
   const [data, setData] = useState({ no_vistas: 0, items: [] });
 
-  // Pide el feed y actualiza el estado (setState en .then para evitar el error de lint).
   const traer = useCallback(() => {
     obtenerNotificaciones()
       .then((d) => setData(d))
@@ -17,7 +14,6 @@ export function useNotificaciones(activo) {
   useEffect(() => {
     if (!activo) return;
     let vivo = true;
-    // Solo actualizamos si el componente sigue montado.
     const traerSiVivo = () =>
       obtenerNotificaciones()
         .then((d) => { if (vivo) setData(d); })
@@ -30,7 +26,7 @@ export function useNotificaciones(activo) {
     };
   }, [activo]);
 
-  // Llama al endpoint de marcado y luego refresca el feed para bajar no_vistas a 0.
+  // Marca vistas y refresca el feed.
   const marcarVistas = useCallback(() => {
     marcarNotificacionesVistas()
       .then(() => traer())

@@ -1,5 +1,4 @@
-// Estado de sesión del conductor: carga el token guardado al iniciar, expone
-// iniciar/cerrar sesión y se conecta al cliente HTTP para cerrar ante un 401.
+// Estado de sesion del conductor: token persistido, iniciar/cerrar sesion, cierre ante 401.
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { login as loginRequest } from "@/api/auth";
 import { guardarToken, borrarToken, leerToken } from "@/api/tokenStorage";
@@ -42,9 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(access_token);
   };
 
-  // Cierra sesión: borra el token y limpia el estado. También vacía la cola de
-  // sincronización (fire-and-forget) para no reenviar acciones de un conductor
-  // bajo el token de otro; no bloqueamos el logout si la limpieza falla.
+  // Cierra sesion: borra el token, limpia estado y vacia la cola de sincronizacion.
   const cerrarSesion = async () => {
     limpiarCola().catch(() => {});
     await borrarToken();

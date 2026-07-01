@@ -1,6 +1,3 @@
-# app/services/reporte_service.py
-# Lógica de los reportes de incidencia: el conductor crea uno cuando un pedido
-# falla y el admin lo responde con una solución.
 from datetime import datetime
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -48,7 +45,6 @@ def crear(db: Session, conductor_id: int, datos: ReporteCreate) -> dict:
         motivo=datos.motivo.strip(),
         descripcion=(datos.descripcion or None),
     )
-    # Notifica al admin que llegó un reporte de entrega fallida.
     try:
         notificaciones_service.registrar(
             db, "reportes", "Nuevo reporte de entrega",

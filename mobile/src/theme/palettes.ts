@@ -1,5 +1,4 @@
-// Paleta de color (solo modo claro). Azul de marca sobrio (no chillón), blanco
-// humo en superficies y fondo algo más gris para dar profundidad por capas.
+// Define los colores de marca de la app.
 export interface Palette {
   brand: string;
   brandPressed: string;
@@ -23,14 +22,14 @@ export interface Palette {
 }
 
 const claro: Palette = {
-  brand: "#1D4ED8",        // azul más oscuro/sobrio (antes #2563EB, muy chillón)
+  brand: "#1D4ED8",
   brandPressed: "#1E3A8A",
   brandSoft: "#E7EEFB",
   ink: "#0F172A",
   text: "#334155",
   muted: "#64748B",
-  surface: "#F7F8FA",      // blanco humo (tarjetas)
-  canvas: "#E7ECF2",       // fondo algo más gris (da profundidad bajo las tarjetas)
+  surface: "#F7F8FA",
+  canvas: "#E7ECF2",
   border: "#D8DEE7",
   success: "#16A34A",
   successSoft: "#DCFCE7",
@@ -38,7 +37,7 @@ const claro: Palette = {
   warningSoft: "#FFFBEB",
   danger: "#DC2626",
   dangerSoft: "#FEE2E2",
-  white: "#FFFFFF",        // blanco puro: solo para texto/iconos sobre el degradado
+  white: "#FFFFFF",
   brandInk: "#1E3A8A",
   shadow: "#0F172A",
   overlay: "rgba(255,255,255,0.16)",

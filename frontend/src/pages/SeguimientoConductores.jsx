@@ -10,20 +10,19 @@ import MapaFlota from "../components/MapaFlota";
 import { obtenerUbicacionesFlota } from "../services/api";
 import { haceCuanto } from "../utils/formatoFecha";
 
-const REFRESCO_MS = 15000; // el mapa se actualiza solo cada 15 s (polling)
+const REFRESCO_MS = 15000; // intervalo de polling en ms
 
-// Colores distintos por conductor (el marcador del conductor y sus paradas comparten color).
+// Colores por conductor; se comparten con sus marcadores en el mapa.
 const COLORES = ["#2563EB", "#DC2626", "#059669", "#D97706", "#7C3AED", "#DB2777", "#0891B2", "#65A30D"];
 
-// Seguimiento de conductores en el mapa: posición en vivo de cada conductor con
-// ruta activa y sus pedidos pendientes (Leaflet + OpenStreetMap).
+// Muestra posición en vivo de conductores con ruta activa y sus paradas.
 export default function SeguimientoConductores() {
   const [ubicaciones, setUbicaciones] = useState([]);
   const [cargando, setCargando] = useState(true);
-  const [seleccionado, setSeleccionado] = useState(null); // conductor_id: filtra el mapa a ese conductor
-  const [filtroCapa, setFiltroCapa] = useState("TODO");   // qué dibujar: TODO | CONDUCTORES | PEDIDOS
+  const [seleccionado, setSeleccionado] = useState(null); // conductor_id seleccionado; null = todos
+  const [filtroCapa, setFiltroCapa] = useState("TODO");   // TODO | CONDUCTORES | PEDIDOS
 
-  // Carga manual (botón "Actualizar"), con indicador de carga.
+  // Recarga manualmente los datos del mapa.
   const actualizar = () => {
     setCargando(true);
     obtenerUbicacionesFlota()
@@ -32,8 +31,7 @@ export default function SeguimientoConductores() {
       .finally(() => setCargando(false));
   };
 
-  // Carga inicial + refresco automático cada 15 s (sin parpadeo). Los setState van
-  // dentro de los callbacks de la promesa, no en el cuerpo del efecto.
+  // Carga inicial y polling cada 15 s; setState solo en callbacks para evitar warnings.
   useEffect(() => {
     let activo = true;
     const traer = () =>
@@ -49,32 +47,26 @@ export default function SeguimientoConductores() {
     };
   }, []);
 
-  // Métricas derivadas del estado ya cargado (sin fetch extra).
+  // Métricas derivadas de los datos cargados.
   const totalConductores = ubicaciones.length;
   const enLinea = ubicaciones.filter((c) => c.en_linea).length;
   const sinSenal = totalConductores - enLinea;
-  // El mapa ahora recibe TODAS las paradas (para colorear entregadas/fallidas), pero los
-  // contadores siguen siendo "pendientes" (significado histórico de la métrica del panel).
   const pendientesDe = (c) => c.paradas?.filter((p) => (p.estado || "PENDIENTE") === "PENDIENTE").length ?? 0;
   const totalParadas = ubicaciones.reduce((acc, c) => acc + pendientesDe(c), 0);
-  // Conductores que declararon una incidencia y están en pausa activa.
   const pausados = ubicaciones.filter((u) => u.pausado).length;
 
-  // A cada conductor se le asigna un color (compartido con sus paradas en el mapa).
   const conductores = ubicaciones.map((c, i) => ({ ...c, _color: COLORES[i % COLORES.length] }));
-  // Si hay un conductor seleccionado, el mapa muestra SOLO ese (filtra por sus pedidos);
-  // si no, toda la flota. (La lista lateral y los KPIs siguen mostrando todos.)
+  // Si hay seleccionado, el mapa muestra solo ese conductor.
   const conductoresVisibles = seleccionado != null ? conductores.filter((c) => c.conductor_id === seleccionado) : conductores;
 
   return (
     <div className="space-y-6 p-6 lg:p-8">
-      {/* Cabecera con badge "En vivo" */}
       <div className="animate-fade-up">
         <PageHeader
           titulo="Seguimiento de Conductores"
           subtitulo="Ubicación en vivo de cada conductor con ruta activa y sus pedidos pendientes."
         >
-          {/* Filtro de capa: qué mostrar en el mapa (todo / solo conductores / solo pedidos) */}
+          {/* Selector de capa del mapa */}
           <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-semibold" role="group" aria-label="Filtrar mapa">
             {[["TODO", "Todo"], ["CONDUCTORES", "Conductores"], ["PEDIDOS", "Pedidos"]].map(([valor, etiqueta]) => (
               <button
@@ -96,7 +88,6 @@ export default function SeguimientoConductores() {
         </PageHeader>
       </div>
 
-      {/* Fila de KPIs (solo visible cuando hay datos) */}
       {!cargando && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-5 animate-fade-up">
           <KpiCard
@@ -125,7 +116,6 @@ export default function SeguimientoConductores() {
             icon={MapPin}
             tone="info"
           />
-          {/* Conductores pausados por incidencia activa */}
           <KpiCard
             label="Pausados"
             value={pausados}
@@ -135,7 +125,6 @@ export default function SeguimientoConductores() {
         </div>
       )}
 
-      {/* Cuerpo principal: panel lateral + mapa */}
       {cargando ? (
         <div className="animate-fade-up rounded-xl border border-slate-200 bg-white shadow-card p-10 text-center text-sm text-slate-500">
           Cargando mapa…
@@ -157,7 +146,6 @@ export default function SeguimientoConductores() {
         </div>
       ) : (
         <div className="flex flex-col gap-4 lg:flex-row animate-fade-up">
-          {/* Panel lateral: lista de conductores */}
           <div className="w-full lg:w-72 shrink-0">
             <SectionCard
               title="Conductores"
@@ -187,7 +175,6 @@ export default function SeguimientoConductores() {
                           activo ? "bg-brand-50" : "hover:bg-slate-50"
                         }`}
                       >
-                        {/* Punto del color del conductor (coincide con sus marcadores en el mapa) */}
                         <span
                           className={`mt-1 h-3 w-3 shrink-0 rounded-full border border-white shadow ${c.en_linea ? "live-dot" : ""}`}
                           style={{ backgroundColor: c._color, opacity: c.en_linea ? 1 : 0.5 }}
@@ -197,7 +184,6 @@ export default function SeguimientoConductores() {
                           <p className="truncate text-sm font-semibold text-slate-900">
                             {c.conductor || "Conductor"}
                           </p>
-                          {/* Marca roja cuando el conductor está pausado por una incidencia */}
                           {c.pausado && (
                             <span className="inline-block rounded-full bg-danger-soft px-2 py-0.5 text-[11px] font-semibold text-danger-strong">🛠️ Pausado</span>
                           )}
@@ -206,7 +192,6 @@ export default function SeguimientoConductores() {
                             {pendientesDe(c)} parada{pendientesDe(c) !== 1 ? "s" : ""} pendiente{pendientesDe(c) !== 1 ? "s" : ""} ·{" "}
                             {c.en_linea ? "en línea" : "sin señal"}
                           </p>
-                          {/* Hora de la última señal recibida del conductor. */}
                           {c.actualizado_en && (
                             <p className="text-[11px] text-slate-400">Última señal {haceCuanto(c.actualizado_en)}</p>
                           )}
@@ -219,7 +204,6 @@ export default function SeguimientoConductores() {
             </SectionCard>
           </div>
 
-          {/* Mapa de flota — props idénticas al original */}
           <div className="flex-1 overflow-hidden rounded-xl border border-slate-200">
             <MapaFlota conductores={conductoresVisibles} seleccionado={seleccionado} mostrar={filtroCapa} />
           </div>
