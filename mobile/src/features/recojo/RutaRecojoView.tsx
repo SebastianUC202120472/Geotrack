@@ -18,6 +18,7 @@ import { useManifiestoRecojo, useIniciarRecojo, clavesRecojo } from "@/features/
 import { useReanudarRuta } from "@/features/incidencia/hooks";
 import { useUbicacionActual } from "@/hooks/useUbicacionActual";
 import { useRastreoUbicacion } from "@/hooks/useRastreoUbicacion";
+import { useEnviarUbicacion } from "@/hooks/useEnviarUbicacion";
 import { mensajeDeError } from "@/api/client";
 import { abrirNavegacionRuta } from "@/services/navegacion";
 import { useTheme, spacing } from "@/theme";
@@ -37,8 +38,12 @@ export function RutaRecojoView() {
   const qc = useQueryClient();
   const [refrescando, setRefrescando] = useState(false);
 
-  // Rastrea la posición del conductor en segundo plano mientras tenga ruta activa.
-  useRastreoUbicacion(!!ruta.data && ruta.data.estado !== "FINALIZADA");
+  // Rastrea la posición del conductor mientras tenga ruta activa: segundo plano
+  // (permiso "siempre") + primer plano (app abierta). El de primer plano asegura que
+  // el panel vea la posición aunque no se conceda el permiso de fondo.
+  const rutaEnCurso = !!ruta.data && ruta.data.estado !== "FINALIZADA";
+  useRastreoUbicacion(rutaEnCurso);
+  useEnviarUbicacion(rutaEnCurso);
 
   // Al volver a esta pestaña, invalida las consultas para ver los cambios al instante.
   useFocusEffect(useCallback(() => {

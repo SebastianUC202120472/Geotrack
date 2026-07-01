@@ -3,9 +3,9 @@
 // cada parada coloreado según su estado (pendiente/entregado/fallido) y resalta
 // la siguiente pendiente. Necesita la clave de Google (app.config.js) y NO
 // funciona en Expo Go (requiere dev build).
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import MapView, { Marker, Callout, PROVIDER_GOOGLE, type Region } from "react-native-maps";
+import MapView, { Marker, Callout, Polyline, PROVIDER_GOOGLE, type Region } from "react-native-maps";
 import { useTheme, fontSize, radius } from "@/theme";
 import type { ParadaManifiesto } from "@/types/api";
 
@@ -83,6 +83,17 @@ export function MapaNativo({ paradas, alto = 260 }: Props) {
       });
   }, [paradas]);
 
+  // react-native-maps (Android) necesita `tracksViewChanges=true` un instante para
+  // rasterizar los marcadores custom (el <View> numerado); si no, salen vacíos/rotos.
+  // Lo activamos al montar y cuando cambian las paradas, y lo apagamos luego (ahorra
+  // batería y evita el parpadeo del pin resaltado).
+  const [rastrearVistas, setRastrearVistas] = useState(true);
+  useEffect(() => {
+    setRastrearVistas(true);
+    const t = setTimeout(() => setRastrearVistas(false), 1200);
+    return () => clearTimeout(t);
+  }, [puntos]);
+
   if (puntos.length === 0) {
     return (
       <View style={[estilos.vacio, { height: alto, backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -115,6 +126,14 @@ export function MapaNativo({ paradas, alto = 260 }: Props) {
         showsMyLocationButton
         onMapReady={ajustarEncuadre}
       >
+        {/* Línea de la ruta: conecta las paradas en orden (igual que el mapa OSM). */}
+        {puntos.length > 1 && (
+          <Polyline
+            coordinates={puntos.map((p) => ({ latitude: p.lat, longitude: p.lng }))}
+            strokeColor="#2563eb"
+            strokeWidth={4}
+          />
+        )}
         {puntos.map((p, i) => {
           // Marcador PERSONALIZADO: círculo de color con el NÚMERO del pedido dentro
           // (como en el panel web). La siguiente parada se dibuja más grande para destacarla.
@@ -126,6 +145,7 @@ export function MapaNativo({ paradas, alto = 260 }: Props) {
               coordinate={{ latitude: p.lat, longitude: p.lng }}
               anchor={{ x: 0.5, y: 0.5 }}
               title={`${p.sec}. ${p.dest}`}
+              tracksViewChanges={rastrearVistas}
             >
               <View
                 style={[
