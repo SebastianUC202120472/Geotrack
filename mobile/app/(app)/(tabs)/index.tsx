@@ -8,7 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Screen } from "@/components/Screen";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
-import { MapaNativo } from "@/components/MapaNativo";
+import { Mapa } from "@/components/Mapa";
 import { ParadaItem } from "@/components/ParadaItem";
 import { Cargando, ErrorVista, Vacio } from "@/components/Estados";
 import { GradientHeader } from "@/components/GradientHeader";
@@ -169,7 +169,7 @@ function RutaEntregaView() {
         <BannerSync />
         <Card style={{ marginTop: spacing.md, padding: spacing.sm }}>
           {/* El mapa muestra TODAS las paradas del manifiesto, no solo las próximas. */}
-          <MapaNativo paradas={manifiesto.data?.paradas ?? []} />
+          <Mapa paradas={manifiesto.data?.paradas ?? []} />
         </Card>
 
         <Button titulo="Iniciar ruta desde mi ubicación" onPress={iniciarRuta} cargando={ubicacion.cargando || iniciar.isPending} />
