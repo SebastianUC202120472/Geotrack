@@ -3,11 +3,25 @@
 // cada parada coloreado según su estado (pendiente/entregado/fallido) y resalta
 // la siguiente pendiente. Necesita la clave de Google (app.config.js) y NO
 // funciona en Expo Go (requiere dev build).
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import MapView, { Marker, Callout, PROVIDER_GOOGLE, type Region } from "react-native-maps";
+import MapView, { Marker, Callout, Polyline, PROVIDER_GOOGLE, type Region } from "react-native-maps";
+import { Ionicons } from "@expo/vector-icons";
 import { useTheme, fontSize, radius } from "@/theme";
 import type { ParadaManifiesto } from "@/types/api";
+
+// Rumbo (bearing) en grados de un punto a otro (0=norte, 90=este, sentido horario).
+// Recibe: lat/lng de origen y destino. Devuelve: los grados para orientar la flecha
+// de dirección de la ruta.
+function rumbo(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const rad = Math.PI / 180;
+  const dLon = (lon2 - lon1) * rad;
+  const y = Math.sin(dLon) * Math.cos(lat2 * rad);
+  const x =
+    Math.cos(lat1 * rad) * Math.sin(lat2 * rad) -
+    Math.sin(lat1 * rad) * Math.cos(lat2 * rad) * Math.cos(dLon);
+  return (Math.atan2(y, x) * 180) / Math.PI;
+}
 
 interface Props {
   paradas: ParadaManifiesto[]; // paradas (con lat/lng) de la ruta
@@ -83,6 +97,17 @@ export function MapaNativo({ paradas, alto = 260 }: Props) {
       });
   }, [paradas]);
 
+  // react-native-maps (Android) necesita `tracksViewChanges=true` un instante para
+  // rasterizar los marcadores custom (el <View> numerado); si no, salen vacíos/rotos.
+  // Lo activamos al montar y cuando cambian las paradas, y lo apagamos luego (ahorra
+  // batería y evita el parpadeo del pin resaltado).
+  const [rastrearVistas, setRastrearVistas] = useState(true);
+  useEffect(() => {
+    setRastrearVistas(true);
+    const t = setTimeout(() => setRastrearVistas(false), 1200);
+    return () => clearTimeout(t);
+  }, [puntos]);
+
   if (puntos.length === 0) {
     return (
       <View style={[estilos.vacio, { height: alto, backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -115,6 +140,31 @@ export function MapaNativo({ paradas, alto = 260 }: Props) {
         showsMyLocationButton
         onMapReady={ajustarEncuadre}
       >
+        {/* Línea de la ruta: conecta las paradas en orden (igual que el mapa OSM). */}
+        {puntos.length > 1 && (
+          <Polyline
+            coordinates={puntos.map((p) => ({ latitude: p.lat, longitude: p.lng }))}
+            strokeColor="#2563eb"
+            strokeWidth={4}
+          />
+        )}
+        {/* Flechas de dirección: una entre cada par de paradas, apuntando al siguiente destino. */}
+        {puntos.slice(0, -1).map((p, i) => {
+          const q = puntos[i + 1];
+          const medio = { latitude: (p.lat + q.lat) / 2, longitude: (p.lng + q.lng) / 2 };
+          return (
+            <Marker
+              key={`flecha-${p.sec}-${i}`}
+              coordinate={medio}
+              anchor={{ x: 0.5, y: 0.5 }}
+              flat
+              rotation={rumbo(p.lat, p.lng, q.lat, q.lng)}
+              tracksViewChanges={rastrearVistas}
+            >
+              <Ionicons name="caret-up" size={20} color="#1d4ed8" />
+            </Marker>
+          );
+        })}
         {puntos.map((p, i) => {
           // Marcador PERSONALIZADO: círculo de color con el NÚMERO del pedido dentro
           // (como en el panel web). La siguiente parada se dibuja más grande para destacarla.
@@ -126,6 +176,7 @@ export function MapaNativo({ paradas, alto = 260 }: Props) {
               coordinate={{ latitude: p.lat, longitude: p.lng }}
               anchor={{ x: 0.5, y: 0.5 }}
               title={`${p.sec}. ${p.dest}`}
+              tracksViewChanges={rastrearVistas}
             >
               <View
                 style={[
