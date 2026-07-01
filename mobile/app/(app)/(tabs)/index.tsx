@@ -17,6 +17,7 @@ import { DeslizarPestanas } from "@/components/DeslizarPestanas";
 import { Aparecer, ItemLista, BarraProgreso, Contador, IndicadorEnVivo } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
 import { RutaRecojoView } from "@/features/recojo/RutaRecojoView";
+import { abrirNavegacionRuta } from "@/services/navegacion";
 import { useRutaActiva, useManifiesto, useNavegacion, useIniciarRuta, useFinalizarRuta, claves } from "@/features/ruta/hooks";
 import { useUbicacionActual } from "@/hooks/useUbicacionActual";
 import { useRastreoUbicacion } from "@/hooks/useRastreoUbicacion";
@@ -67,6 +68,11 @@ function RutaEntregaView() {
     .sort((a, b) => a.secuencia - b.secuencia);
   const proximas = paradasPendientes.slice(0, 5);
   const sinRuta = (ruta.error as { response?: { status?: number } } | null)?.response?.status === 404;
+
+  // Paradas pendientes con coordenadas (en orden), para navegar la ruta en Google Maps.
+  const puntosNavegar = paradasPendientes
+    .filter((p) => p.latitud != null && p.longitud != null)
+    .map((p) => ({ lat: p.latitud, lng: p.longitud }));
 
   // Estado del pull-to-refresh manual. Se mantiene aparte de isFetching para que el
   // spinner NO aparezca en cada refresco automático/de foco (eso parecía "recargar").
@@ -173,6 +179,11 @@ function RutaEntregaView() {
         </Card>
 
         <Button titulo="Iniciar ruta desde mi ubicación" onPress={iniciarRuta} cargando={ubicacion.cargando || iniciar.isPending} />
+
+        {/* Navegación real turn-by-turn: abre la ruta completa en Google Maps (origen = tu ubicación). */}
+        {puntosNavegar.length > 0 && (
+          <Button titulo="Navegar en Google Maps" variante="secondary" onPress={() => abrirNavegacionRuta(puntosNavegar)} />
+        )}
 
         {/* CUS-30: banner de pausa activa o botón para reportar auxilio mecánico */}
         {pausada ? (

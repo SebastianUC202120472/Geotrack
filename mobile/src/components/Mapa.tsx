@@ -6,7 +6,11 @@ import { MapaWeb } from "./MapaWeb";
 import { MapaNativo } from "./MapaNativo";
 import type { ParadaManifiesto } from "@/types/api";
 
-const USAR_NATIVO = process.env.EXPO_PUBLIC_MAPA_NATIVO === "1";
+// Usa el mapa nativo de Google SOLO si se pidió por bandera Y hay clave de Google
+// en el build. Sin clave, react-native-maps crashea ("API key not found"), así
+// que en ese caso caemos al mapa OSM (WebView), que no necesita clave.
+const USAR_NATIVO =
+  process.env.EXPO_PUBLIC_MAPA_NATIVO === "1" && !!process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY;
 
 type Props = {
   paradas: ParadaManifiesto[];
