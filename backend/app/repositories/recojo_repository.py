@@ -1,7 +1,7 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
-from app.models.solicitud_recojo import SolicitudRecojo
+from app.models.solicitud_recojo import SolicitudRecojo, ESTADOS_RECOGIDO
 from app.models.evidencia_recojo import EvidenciaRecojo
 from app.core.codigos import asignar_codigo, PREFIJO_RECOJO
 
@@ -57,7 +57,7 @@ def contar_pendientes_por_ruta(db: Session, ruta_id: int) -> int:
     """Cuántas solicitudes de la ruta NO están recogidas todavía. Recibe: id de ruta."""
     return (
         db.query(SolicitudRecojo)
-        .filter(SolicitudRecojo.ruta_id == ruta_id, SolicitudRecojo.estado != "RECOGIDO")
+        .filter(SolicitudRecojo.ruta_id == ruta_id, SolicitudRecojo.estado.notin_(ESTADOS_RECOGIDO))
         .count()
     )
 
