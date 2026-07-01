@@ -1,6 +1,4 @@
-// Perfil del conductor: SUS DATOS PERSONALES (foto, nombre, correo, código, DNI,
-// teléfono, vehículo). Los reportes están en su propia pestaña (reportes.tsx) y
-// los ajustes en la suya (ajustes.tsx). Se abre desde la foto de la cabecera.
+// Pantalla de perfil del conductor: muestra foto, nombre, código y datos personales.
 import { ScrollView, StyleSheet, View } from "react-native";
 import { Image } from "expo-image";
 import { useQuery } from "@tanstack/react-query";
@@ -30,7 +28,6 @@ export default function PerfilScreen() {
     <Screen conPadding={false}>
       <Cabecera titulo="Mi perfil" atras />
       <ScrollView contentContainerStyle={estilos.cuerpo}>
-        {/* Identidad: foto grande + nombre + código */}
         <Aparecer>
           <View style={estilos.identidad}>
             {fotoUri ? (
@@ -45,7 +42,6 @@ export default function PerfilScreen() {
           </View>
         </Aparecer>
 
-        {/* Datos personales */}
         <Aparecer delay={60}>
           <Card>
             <Texto variante="subtitle" color={colors.ink} style={estilos.titulo}>Datos personales</Texto>

@@ -1,6 +1,4 @@
-// Tarjeta de sección: cabecera (título + subtítulo + acción) + cuerpo.
-// Más flexible que Card para secciones de dashboard/reportes.
-// Entrada: title, subtitle, action (nodo a la derecha), className, children.
+// Tarjeta de sección con cabecera opcional. Recibe title, subtitle, action, className, children.
 export default function SectionCard({ title, subtitle, action, className = "", children }) {
   return (
     <section className={`rounded-card border border-slate-200 bg-white shadow-card ${className}`}>

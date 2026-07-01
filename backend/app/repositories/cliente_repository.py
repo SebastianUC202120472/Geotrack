@@ -1,5 +1,3 @@
-# app/repositories/cliente_repository.py
-# Única capa que consulta/escribe en la tabla 'clientes_corporativos'.
 from datetime import datetime
 from typing import List, Optional
 from sqlalchemy import func
@@ -47,8 +45,7 @@ def obtener_por_razon_social(db: Session, razon_social: str) -> Optional[Cliente
 
 
 def buscar_por_razon_social_normalizada(db: Session, razon_social: str) -> Optional[ClienteCorporativo]:
-    """Busca un cliente ACTIVO por razón social comparando normalizado (sin espacios
-    de sobra ni distinguir mayúsculas). Recibe: el texto de la razón social del Excel."""
+    """Busca cliente activo por razón social normalizada (sin distinción de mayúsculas/espacios). Recibe: texto de razón social."""
     objetivo = (razon_social or "").strip().lower()
     if not objetivo:
         return None
@@ -72,8 +69,7 @@ def crear(
     latitud=None,
     longitud=None,
 ) -> ClienteCorporativo:
-    """Crea un cliente y hace flush para obtener su id (sin cerrar la transacción).
-    Recibe: datos del cliente incluidos los campos de ubicación de recojo."""
+    """Crea un cliente con flush para obtener su id. Recibe: datos del cliente incluidos campos de ubicación."""
     cliente = ClienteCorporativo(
         razon_social=razon_social,
         identificador_unico=identificador_unico,
@@ -84,14 +80,12 @@ def crear(
         longitud=longitud,
     )
     db.add(cliente)
-    asignar_codigo(db, cliente, PREFIJO_CLIENTE)  # codigo legible CL-001 (hace flush)
+    asignar_codigo(db, cliente, PREFIJO_CLIENTE)
     return cliente
 
 
 def actualizar(db: Session, cliente: ClienteCorporativo, **campos) -> ClienteCorporativo:
-    """Edita un cliente aplicando SOLO los campos recibidos (las claves presentes en
-    `campos`), incluso si su valor es None (así se puede limpiar RUC/contacto). Recibe:
-    el cliente y los campos a cambiar. Devuelve el cliente actualizado."""
+    """Actualiza solo los campos recibidos en el cliente, incluyendo None. Recibe: cliente y campos a cambiar."""
     for clave, valor in campos.items():
         setattr(cliente, clave, valor)
     db.commit()

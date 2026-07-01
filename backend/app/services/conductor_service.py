@@ -1,5 +1,3 @@
-# app/services/conductor_service.py
-# - Lista los conductores con su ficha (nombre/teléfono/DNI) y el vehículo que tienen asignado.
 import os
 import time
 import glob
@@ -12,9 +10,7 @@ from app.schemas.conductor import ConductorCreate, ConductorUpdate, UbicacionReq
 
 
 def _a_respuesta(db: Session, usuario, ids_pendientes=None) -> dict:
-    """Arma la ficha del conductor cruzando perfil + vehículo asignado.
-    `ids_pendientes` (set opcional) marca si el conductor pidió restablecer su clave;
-    se pasa precalculado al listar para no consultar uno por uno."""
+    """Arma la ficha del conductor cruzando perfil, vehículo y estado de solicitud de clave. Recibe usuario y set opcional de ids pendientes."""
     perfil = conductor_repository.obtener_perfil(db, usuario.id)
     vehiculo = conductor_repository.vehiculo_de(db, usuario.id)
     return {
@@ -22,10 +18,7 @@ def _a_respuesta(db: Session, usuario, ids_pendientes=None) -> dict:
         "codigo": usuario.codigo,
         "correo": usuario.correo,
         "estado": usuario.estado,
-        # En ruta = tiene una ruta sin cerrar (CREADA/EN_PROGRESO). El panel lo muestra
-        # como "En ruta" en vez de "Disponible" hasta que cierre el día.
         "en_ruta": conductor_repository.tiene_ruta_activa(db, usuario.id),
-        # True si el conductor solicitó restablecer su contraseña y sigue pendiente.
         "solicito_restablecimiento": (usuario.id in ids_pendientes) if ids_pendientes is not None else False,
         "nombre": perfil.nombre if perfil else None,
         "telefono": perfil.telefono if perfil else None,
@@ -36,17 +29,18 @@ def _a_respuesta(db: Session, usuario, ids_pendientes=None) -> dict:
 
 
 def listar(db: Session) -> list:
-    # Se calcula UNA vez el conjunto de conductores con solicitud pendiente (evita N+1).
+    """Lista todos los conductores con su ficha. Recibe: sesion de BD."""
     pendientes = solicitud_restablecimiento_repository.ids_pendientes(db)
     return [_a_respuesta(db, u, pendientes) for u in conductor_repository.listar_usuarios_conductores(db)]
 
 
-# Ficha del propio conductor (su perfil). Recibe: el Usuario del token.
 def obtener_uno(db: Session, usuario) -> dict:
+    """Devuelve la ficha del conductor autenticado. Recibe: sesion y usuario del token."""
     return _a_respuesta(db, usuario)
 
 
 def crear(db: Session, datos: ConductorCreate) -> dict:
+    """Crea un nuevo conductor (usuario + perfil). Recibe: sesion y datos del schema."""
     if usuario_repository.obtener_por_correo(db, datos.correo):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El correo ya está registrado")
 
@@ -77,12 +71,9 @@ def actualizar(db: Session, usuario_id: int, datos: ConductorUpdate) -> dict:
 
 
 def restablecer_contrasena(db: Session, usuario_id: int, datos: ConductorResetContrasena) -> dict:
-    """CUS-04: el admin fija una NUEVA contraseña para un conductor activo (p. ej. si
-    la olvidó). Recibe: id del conductor y la nueva clave (ya validada por el schema).
-    La clave se guarda hasheada (Argon2); nunca en texto plano."""
+    """Fija una nueva contrasena hasheada para un conductor activo. Recibe: id y nueva clave."""
     usuario = _conductor_activo(db, usuario_id)
     usuario_repository.actualizar_hash(db, usuario.id, get_password_hash(datos.contrasena))
-    # Si el conductor había solicitado el restablecimiento, su solicitud queda atendida.
     solicitud_restablecimiento_repository.marcar_atendidas(db, usuario.id)
     return {"mensaje": "Contraseña restablecida correctamente"}
 
@@ -94,8 +85,7 @@ def registrar_ubicacion(db: Session, conductor_id: int, datos: UbicacionRequest)
 
 
 def eliminar(db: Session, usuario_id: int) -> dict:
-    """Soft-delete: desactiva al conductor (preserva su historial). Bloquea si
-    tiene una ruta activa y libera su vehículo."""
+    """Soft-delete del conductor: lo desactiva y libera su vehiculo. Bloquea si tiene ruta activa."""
     usuario = _conductor_activo(db, usuario_id)
     if conductor_repository.tiene_ruta_activa(db, usuario_id):
         raise HTTPException(
@@ -108,14 +98,12 @@ def eliminar(db: Session, usuario_id: int) -> dict:
     return {"mensaje": "Conductor eliminado"}
 
 
-# Carpeta de fotos de conductores (servida en /media). Mismos formatos que el POD.
 DIR_FOTOS = os.path.join("uploads", "conductores")
 EXTENSIONES_IMAGEN = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 def guardar_foto(db: Session, usuario_id: int, contenido: bytes, nombre_archivo: str) -> dict:
-    """Guarda/reemplaza la foto de un conductor activo. Recibe: id, bytes y nombre
-    original del archivo. Devuelve: la ficha del conductor con la nueva foto_url."""
+    """Guarda o reemplaza la foto de un conductor activo. Recibe: id, bytes y nombre original del archivo."""
     usuario = _conductor_activo(db, usuario_id)
 
     _, extension = os.path.splitext((nombre_archivo or "").lower())
@@ -126,7 +114,6 @@ def guardar_foto(db: Session, usuario_id: int, contenido: bytes, nombre_archivo:
         )
 
     os.makedirs(DIR_FOTOS, exist_ok=True)
-    # Borra cualquier foto previa del conductor (evita huérfanos al cambiar de formato).
     for viejo in glob.glob(os.path.join(DIR_FOTOS, f"cond_{usuario_id}.*")):
         try:
             os.remove(viejo)
@@ -138,7 +125,7 @@ def guardar_foto(db: Session, usuario_id: int, contenido: bytes, nombre_archivo:
     with open(ruta_fisica, "wb") as f:
         f.write(contenido)
 
-    # Query ?v= para invalidar la caché del navegador/expo-image al reemplazar.
+    # ?v= invalida la cache del navegador al reemplazar la foto.
     url = f"/media/conductores/{nombre_final}?v={int(time.time())}"
     conductor_repository.actualizar_foto(db, usuario_id, url)
     return _a_respuesta(db, usuario)

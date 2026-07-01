@@ -9,7 +9,6 @@ interface Props extends TextInputProps {
   icono?: keyof typeof Ionicons.glyphMap; // icono opcional a la izquierda del input
 }
 
-// Recibe: { label, icono?, ...props de TextInput }.
 export function Field({ label, icono, style, ...props }: Props) {
   const { colors } = useTheme();
   return (

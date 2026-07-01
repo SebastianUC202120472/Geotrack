@@ -1,10 +1,9 @@
-# app/models/conductor.py
-# Guarda los datos personales del conductor (nombre, teléfono, DNI).
 from sqlalchemy import Column, Integer, String, ForeignKey
 from app.db.database import Base
 
 
 class PerfilConductor(Base):
+    """Datos personales del conductor (nombre, teléfono, DNI). Vinculado a un usuario."""
     __tablename__ = "conductor_perfiles"
 
     id = Column(Integer, primary_key=True, index=True)

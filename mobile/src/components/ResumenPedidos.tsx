@@ -1,5 +1,4 @@
-// Resumen cuantitativo de los pedidos de la ruta: totales por estado y avance.
-// Reutilizable en "Pedidos" y en "Ruta". Recibe: { ruta } (resumen de RutaActiva).
+// Muestra totales por estado y avance de la ruta. Recibe: { ruta } (RutaActiva).
 import { StyleSheet, View } from "react-native";
 import { Card } from "@/components/Card";
 import { Contador, BarraProgreso } from "@/components/Animations";

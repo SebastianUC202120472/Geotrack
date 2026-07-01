@@ -6,13 +6,11 @@ import EmptyState from "../ui/EmptyState";
 import Button from "../ui/Button";
 import { obtenerSeguimientoClientes, generarLiquidacion, descargarLiquidacion } from "../../services/api";
 
-// Carga y muestra los repartos agrupados por empresa (CUS-36).
-// Sin props: autocontenido; carga datos con obtenerSeguimientoClientes() al montar.
+// Muestra repartos agrupados por empresa. Sin props; carga datos al montar.
 export default function VistaPorCliente() {
   const [clientes, setClientes] = useState(null);
   const [cargando, setCargando] = useState(true);
 
-  // Solicita los clientes con pedidos activos al montar; setState solo dentro de callbacks.
   useEffect(() => {
     let activo = true;
     obtenerSeguimientoClientes()
@@ -65,8 +63,7 @@ export default function VistaPorCliente() {
 
 const MINI_DOT = { success: "bg-success", info: "bg-info", warning: "bg-warning", danger: "bg-danger", neutral: "bg-slate-400" };
 
-// Conteo de un grupo dentro de la tarjeta del cliente (color + número + etiqueta).
-// Entrada: tono (string clave de MINI_DOT), valor (number), etiqueta (string).
+// Indicador de conteo con punto de color. Recibe tono, valor y etiqueta.
 function Mini({ tono, valor, etiqueta }) {
   return (
     <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 transition-colors hover:bg-brand-50">
@@ -77,14 +74,13 @@ function Mini({ tono, valor, etiqueta }) {
   );
 }
 
-// Tarjeta individual de empresa con barra de progreso y desglose de estados.
-// Entrada: c (objeto cliente con campos total, entregados, en_proceso, pendientes, fallidos).
+// Tarjeta de empresa con barra de progreso y desglose de estados. Recibe objeto cliente c.
 function ClienteCard({ c }) {
   const avance = c.total ? Math.round((c.entregados / c.total) * 100) : 0;
   const [generando, setGenerando] = useState(false);
   const [error, setError] = useState(null);
 
-  // CUS-36: genera la liquidación del cliente y descarga el Excel; setState en callbacks.
+  // Genera la liquidacion del cliente y descarga el Excel.
   const descargar = () => {
     setGenerando(true);
     setError(null);
@@ -110,7 +106,6 @@ function ClienteCard({ c }) {
         </span>
       </div>
 
-      {/* Barra de progreso de entregas */}
       <div className="mb-4">
         <div className="mb-1 flex justify-between text-sm">
           <span className="text-slate-500">Entregado</span>
@@ -124,7 +119,6 @@ function ClienteCard({ c }) {
         </div>
       </div>
 
-      {/* Desglose por estado (CANCELADO se muestra aparte de Fallidos para no confundir) */}
       <div className="grid grid-cols-2 gap-2">
         <Mini tono="success" valor={c.entregados} etiqueta="Entregados" />
         <Mini tono="info" valor={c.en_proceso} etiqueta="En proceso" />
@@ -133,7 +127,6 @@ function ClienteCard({ c }) {
         {c.cancelados > 0 && <Mini tono="neutral" valor={c.cancelados} etiqueta="Cancelados" />}
       </div>
 
-      {/* CUS-36: liquidación del cliente (genera y descarga el Excel) */}
       <Button
         variant="secondary"
         size="sm"

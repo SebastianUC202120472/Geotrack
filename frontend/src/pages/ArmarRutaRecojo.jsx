@@ -10,9 +10,7 @@ import {
   listarVehiculos,
 } from "../services/api";
 
-// Página de armado de ruta de recojo para el rol almacén (CUS-11 adaptado).
-// Carga las solicitudes en estado SOLICITADO, permite selección múltiple
-// y asigna conductor + vehículo para crear la ruta.
+// Página para armar ruta de recojo: selecciona solicitudes y asigna conductor y vehículo.
 export default function ArmarRutaRecojo() {
   const [solicitudes, setSolicitudes] = useState([]);
   const [conductores, setConductores] = useState([]);
@@ -26,7 +24,7 @@ export default function ArmarRutaRecojo() {
   const [aviso, setAviso] = useState(null);
   const [guardando, setGuardando] = useState(false);
 
-  // Carga solicitudes en SOLICITADO y los catálogos de conductor/vehículo.
+  // Recarga solicitudes y catálogos desde el backend.
   const cargar = () => {
     setCargando(true);
     listarSolicitudesAlmacen()
@@ -46,11 +44,11 @@ export default function ArmarRutaRecojo() {
     return () => { activo = false; };
   }, []);
 
-  // Alterna la selección de una solicitud por su id.
+  // Alterna selección de una solicitud por id.
   const alternar = (id) =>
     setSeleccion((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
-  // Envía la asignación de ruta. conductor_id usa usuario_id del conductor.
+  // Valida la selección y envía la asignación de ruta al backend.
   const enviar = async () => {
     if (!seleccion.length) {
       setAviso({ ok: false, texto: "Selecciona al menos una solicitud." });
@@ -94,7 +92,6 @@ export default function ArmarRutaRecojo() {
       />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-        {/* Lista de solicitudes disponibles */}
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-100 px-5 py-4">
             <h2 className="font-semibold text-slate-800">Solicitudes disponibles</h2>
@@ -143,7 +140,6 @@ export default function ArmarRutaRecojo() {
           )}
         </div>
 
-        {/* Panel de asignación */}
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm self-start">
           <div className="border-b border-slate-100 px-5 py-4">
             <h2 className="font-semibold text-slate-800">Asignar ruta</h2>
@@ -155,7 +151,6 @@ export default function ArmarRutaRecojo() {
           </div>
 
           <div className="space-y-4 p-5">
-            {/* Selector de conductor */}
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Conductor
@@ -177,7 +172,6 @@ export default function ArmarRutaRecojo() {
               </select>
             </div>
 
-            {/* Selector de vehículo */}
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 Vehículo

@@ -8,9 +8,7 @@ import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import { asignarBloque, listarZonas, listarVehiculos, listarConductores } from "../services/api";
 
-// Asignación de un bloque de pedidos a un conductor (CUS-18).
-// El backend asigna la ruta al USUARIO conductor (conductor_id), no al vehículo;
-// por eso solo se ofrecen vehículos con conductor vinculado y se envía ese id.
+// Asigna un bloque de pedidos de una zona a un conductor. Envía conductor_id (no vehiculo_id).
 export default function AsignacionBloque() {
   const [zonas, setZonas] = useState([]);
   const [vehiculos, setVehiculos] = useState([]);
@@ -20,7 +18,7 @@ export default function AsignacionBloque() {
   const [cargando, setCargando] = useState(false);
   const [aviso, setAviso] = useState(null);
 
-  // Carga inicial con setState en el callback de la promesa (evita el lint de effect).
+  // Carga zonas, vehículos y conductores al montar.
   useEffect(() => {
     let activo = true;
     Promise.all([listarZonas(), listarVehiculos(), listarConductores()])
@@ -46,7 +44,6 @@ export default function AsignacionBloque() {
     setCargando(true);
     setAviso(null);
     try {
-      // El nombre de la ruta lo genera el backend a partir de la zona.
       const res = await asignarBloque({
         distrito,
         conductor_id: vehiculoSel.conductor_id,
@@ -60,14 +57,12 @@ export default function AsignacionBloque() {
     }
   };
 
-  // Totales derivados del estado ya cargado, sin inventar datos.
   const totalZonas = zonas.length;
   const totalVehiculos = vehiculosConConductor.length;
   const totalPedidos = zonaSel ? zonaSel.total_pedidos : zonas.reduce((acc, z) => acc + (z.total_pedidos || 0), 0);
 
   return (
     <div className="space-y-6 p-6 lg:p-8 bg-canvas min-h-full">
-      {/* Cabecera */}
       <div className="animate-fade-up">
         <PageHeader
           titulo="Asignación de Rutas"
@@ -75,7 +70,6 @@ export default function AsignacionBloque() {
         />
       </div>
 
-      {/* Advertencia: no hay vehículos con conductor */}
       {vehiculosConConductor.length === 0 && (
         <div className="animate-fade-up" style={{ animationDelay: "60ms" }}>
           <SectionCard>
@@ -90,7 +84,6 @@ export default function AsignacionBloque() {
         </div>
       )}
 
-      {/* KPIs de contexto */}
       <div className="grid gap-4 sm:grid-cols-3 animate-fade-up" style={{ animationDelay: "80ms" }}>
         <StatCard
           label="Zonas disponibles"
@@ -115,10 +108,8 @@ export default function AsignacionBloque() {
         />
       </div>
 
-      {/* Cuerpo principal: formulario + resumen */}
       <div className="grid gap-6 lg:grid-cols-2">
 
-        {/* Paso 1: Configurar ruta */}
         <div className="animate-fade-up" style={{ animationDelay: "120ms" }}>
           <SectionCard
             title="Configurar ruta"
@@ -139,7 +130,6 @@ export default function AsignacionBloque() {
                 ))}
               </Input>
 
-              {/* Nombre automático de la ruta */}
               {distrito && (
                 <div className="flex items-center gap-2 rounded-xl bg-brand-50 border border-brand-100 px-4 py-3">
                   <Route size={16} className="text-brand-600 shrink-0" />
@@ -167,7 +157,6 @@ export default function AsignacionBloque() {
                 {cargando ? <Loader2 className="animate-spin" size={20} /> : "Confirmar asignación"}
               </Button>
 
-              {/* Aviso de resultado */}
               {aviso && (
                 <div
                   className={`flex items-start gap-3 rounded-xl px-4 py-3 text-sm ${
@@ -188,7 +177,6 @@ export default function AsignacionBloque() {
           </SectionCard>
         </div>
 
-        {/* Paso 2: Resumen de impacto logístico */}
         <div className="animate-fade-up" style={{ animationDelay: "160ms" }}>
           <SectionCard
             title="Impacto logístico"
@@ -196,13 +184,11 @@ export default function AsignacionBloque() {
           >
             {zonaSel && vehiculoSel ? (
               <div className="space-y-3">
-                {/* Fila zona */}
                 <div className="flex items-center gap-3 rounded-xl bg-slate-50 border border-warm-200 px-4 py-3 text-sm text-slate-700">
                   <MapPin className="text-brand-600 shrink-0" size={18} />
                   <span>Zona:&nbsp;<b>{zonaSel.distrito}</b></span>
                 </div>
 
-                {/* Fila vehículo + conductor */}
                 <div className="flex items-center gap-3 rounded-xl bg-slate-50 border border-warm-200 px-4 py-3 text-sm text-slate-700">
                   <Truck className="text-brand-600 shrink-0" size={18} />
                   <span>Vehículo:&nbsp;<b>{vehiculoSel.placa}</b></span>
@@ -218,7 +204,6 @@ export default function AsignacionBloque() {
                   </div>
                 )}
 
-                {/* Total de pedidos destacado */}
                 <div className="mt-2 rounded-xl border-2 border-dashed border-brand-200 bg-brand-50/50 py-8 text-center">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Pedidos a despachar

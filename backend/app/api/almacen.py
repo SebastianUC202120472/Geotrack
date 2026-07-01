@@ -1,5 +1,3 @@
-# app/api/almacen.py
-# Endpoints del módulo de almacén (CUS-14): escaneo, conciliación, cierre.
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
@@ -45,9 +43,7 @@ def confirmar_ingreso(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_current_almacen),
 ):
-    """Ingreso manual (sin escaneo): marca como OBSERVADO los pedidos que NO llegaron
-    (referencias_faltantes) y deja el resto LISTO_PARA_ENVIO; el recojo pasa a INGRESADO.
-    La geocodificación de los que falten coordenadas se agenda en segundo plano."""
+    """Confirma ingreso manual: marca faltantes como OBSERVADO, resto como LISTO_PARA_ENVIO; geocodifica en segundo plano."""
     resultado = almacen_service.confirmar_ingreso(db, recojo_id, datos.referencias_faltantes, usuario.id)
     background_tasks.add_task(recojo_service.geocodificar_pedidos_recojo, recojo_id)
     return resultado
@@ -59,7 +55,6 @@ def resolver_observado(pedido_id: int, db: Session = Depends(get_db), usuario: U
     return pedido_service.resolver_observado(db, pedido_id, usuario.id)
 
 
-# --- CUS-32: logística inversa (retornos de ruta) ---
 @router.get("/retornos/rutas", response_model=List[RutaRetornoItem])
 def listar_rutas_retorno(db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
     """Rutas de entrega con paquetes FALLIDO pendientes de retorno."""
@@ -78,24 +73,19 @@ def escanear_retorno(ruta_id: int, datos: EscaneoRequest, db: Session = Depends(
     return retorno_service.escanear(db, ruta_id, datos.codigo, usuario.id)
 
 
-# --- CUS-11: armado de ruta de recojo (responsabilidad del almacén) ---
 @router.get("/solicitudes", response_model=List[SolicitudArmarItem])
 def listar_solicitudes_armar(db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
-    """Lista las solicitudes de recojo en SOLICITADO con su número de pedidos,
-    para que el almacén elija cuáles incluir en la ruta de recojo."""
+    """Lista solicitudes de recojo en estado SOLICITADO para armar la ruta."""
     return recojo_service.listar_para_armar(db)
 
 
 @router.post("/solicitudes/asignar-ruta", response_model=AsignarRutaRecojoResponse)
 def asignar_ruta_recojo(datos: AsignarRutaRecojoRequest, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
-    """Arma la ruta de recojo (conductor + vehículo) con las solicitudes seleccionadas.
-    Recibe: recojo_ids, conductor_id, vehiculo_placa y nombre opcional."""
+    """Arma la ruta de recojo asignando conductor y vehículo a las solicitudes seleccionadas."""
     return recojo_service.asignar_ruta_recojo(db, datos, usuario.id)
 
 
-# --- Mapa de recojos en vivo ---
 @router.get("/flota/ubicaciones-recojo", response_model=List[ConductorUbicacion])
 def ubicaciones_recojo(db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
-    """Posiciones en vivo de los conductores en rutas de RECOJO activas.
-    Recibe: sesión de BD y usuario almacén autenticado."""
+    """Posiciones en vivo de los conductores en rutas de RECOJO activas."""
     return dashboard_service.obtener_ubicaciones_flota(db, tipo="RECOJO")

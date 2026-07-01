@@ -1,5 +1,3 @@
-# app/models/historial.py
-# Define la tabla 'historial_pedidos'.
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from app.db.database import Base

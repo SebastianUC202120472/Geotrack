@@ -1,5 +1,3 @@
-# app/repositories/conductor_repository.py
-# Lee/escribe el perfil del conductor y arma la lista de conductores cruzando usuarios (rol conductor) + perfil + vehículo asignado. La USA.
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
@@ -10,7 +8,7 @@ from app.models.ruta import Ruta
 
 
 def listar_usuarios_conductores(db: Session) -> List[Usuario]:
-    # Solo conductores ACTIVOS (los eliminados quedan con estado=False y se ocultan).
+    # Retorna conductores activos. Recibe: sesion de BD.
     return (
         db.query(Usuario)
         .filter(Usuario.rol == "conductor", Usuario.estado.is_(True))
@@ -24,7 +22,7 @@ def obtener_perfil(db: Session, usuario_id: int) -> Optional[PerfilConductor]:
 
 
 def vehiculo_de(db: Session, usuario_id: int) -> Optional[Vehiculo]:
-    """Vehículo asignado a ese conductor (si tiene)."""
+    """Retorna el vehiculo asignado al conductor. Recibe: usuario_id."""
     return db.query(Vehiculo).filter(Vehiculo.conductor_id == usuario_id).first()
 
 
@@ -37,8 +35,7 @@ def crear_perfil(db: Session, usuario_id: int, nombre: str, telefono=None, dni=N
 
 
 def actualizar_perfil(db: Session, usuario_id: int, nombre=None, telefono=None, dni=None) -> Optional[PerfilConductor]:
-    """Actualiza la ficha del conductor. `nombre` se cambia solo si llega; teléfono
-    y DNI se reemplazan por el valor recibido (None los deja vacíos)."""
+    """Actualiza nombre, telefono y DNI del perfil. Recibe: usuario_id y campos opcionales."""
     perfil = obtener_perfil(db, usuario_id)
     if perfil is None:
         return None
@@ -52,7 +49,7 @@ def actualizar_perfil(db: Session, usuario_id: int, nombre=None, telefono=None, 
 
 
 def tiene_ruta_activa(db: Session, usuario_id: int) -> bool:
-    """True si el conductor tiene una ruta sin cerrar (CREADA o EN_PROGRESO)."""
+    """Indica si el conductor tiene ruta activa (CREADA o EN_PROGRESO). Recibe: usuario_id."""
     return (
         db.query(Ruta)
         .filter(Ruta.conductor_id == usuario_id, Ruta.estado.in_(["CREADA", "EN_PROGRESO"]))
@@ -62,7 +59,7 @@ def tiene_ruta_activa(db: Session, usuario_id: int) -> bool:
 
 
 def desasignar_vehiculo(db: Session, usuario_id: int) -> None:
-    """Libera el vehículo que tuviera asignado ese conductor (conductor_id = None)."""
+    """Desvincula el vehiculo del conductor. Recibe: usuario_id."""
     vehiculo = db.query(Vehiculo).filter(Vehiculo.conductor_id == usuario_id).first()
     if vehiculo:
         vehiculo.conductor_id = None
@@ -70,7 +67,7 @@ def desasignar_vehiculo(db: Session, usuario_id: int) -> None:
 
 
 def actualizar_foto(db: Session, usuario_id: int, foto_url: str) -> Optional[PerfilConductor]:
-    """Guarda la URL de la foto del conductor. Recibe: usuario_id y la ruta /media/..."""
+    """Actualiza la foto de perfil del conductor. Recibe: usuario_id y foto_url."""
     perfil = obtener_perfil(db, usuario_id)
     if perfil is None:
         return None

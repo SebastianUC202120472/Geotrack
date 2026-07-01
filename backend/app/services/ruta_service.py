@@ -1,5 +1,3 @@
-# app/services/ruta_service.py
-# Reúne la lógica de RUTAS en dos momentos del MVP.
 import os
 from datetime import datetime
 
@@ -22,7 +20,7 @@ from app.schemas.ruta import (
     OptimizacionRequest,
 )
 
-# Carpeta donde se guardan las fotos POD (CUS-29). Servida en /media.
+# Directorio de fotos POD, servido en /media.
 DIR_EVIDENCIAS = os.path.join("uploads", "evidencias")
 EXTENSIONES_IMAGEN = {".jpg", ".jpeg", ".png", ".webp"}
 
@@ -34,7 +32,6 @@ def _construir_parada(detalle: RutaDetalle, pedido: Pedido) -> ParadaManifiesto:
         pedido_id=pedido.id,
         codigo=pedido.codigo,
         cliente_origen=pedido.cliente_origen,
-        # Datos del destinatario: el conductor necesita saber a QUIÉN entrega.
         nombre_destinatario=pedido.nombre_destinatario,
         telefono_destinatario=pedido.telefono_destinatario,
         direccion_destino=pedido.direccion_destino,
@@ -43,8 +40,6 @@ def _construir_parada(detalle: RutaDetalle, pedido: Pedido) -> ParadaManifiesto:
         longitud=pedido.longitud,
         peso_kg=pedido.peso_kg,
         estado_entrega=detalle.estado_entrega,
-        # Se expone la URL guardada en BD para que la App muestre la foto POD ya subida
-        # (antes la App dependía de un caché en memoria que se perdía al cerrarse).
         url_evidencia=detalle.url_evidencia,
     )
 
@@ -60,13 +55,10 @@ def _obtener_ruta_activa_o_404(db: Session, conductor_id: int) -> Ruta:
 
 
 def obtener_resumen_ruta_activa(db: Session, conductor_id: int) -> RutaActivaResponse:
-    """CUS-21: resumen de la ruta activa con contadores de avance."""
+    """Resumen de la ruta activa con contadores de avance. Recibe: id del conductor."""
     ruta = _obtener_ruta_activa_o_404(db, conductor_id)
-
-    # CUS-30: incidencia abierta (auxilio mecánico) -> ruta pausada.
     abierta = incidencia_repository.obtener_abierta_por_ruta(db, ruta.id)
 
-    # Ruta de recojo (CUS-11/12): los contadores salen de las solicitudes de recojo.
     if ruta.tipo == "RECOJO":
         recojos = recojo_repository.obtener_por_ruta(db, ruta.id)
         total = len(recojos)
@@ -98,7 +90,7 @@ def obtener_resumen_ruta_activa(db: Session, conductor_id: int) -> RutaActivaRes
 
 
 def obtener_manifiesto(db: Session, conductor_id: int) -> ManifiestoResponse:
-    """CUS-24: manifiesto detallado y ordenado por secuencia de entrega."""
+    """Manifiesto detallado ordenado por secuencia. Recibe: id del conductor."""
     ruta = _obtener_ruta_activa_o_404(db, conductor_id)
     detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
 
@@ -115,7 +107,7 @@ def obtener_manifiesto(db: Session, conductor_id: int) -> ManifiestoResponse:
 
 
 def obtener_navegacion(db: Session, conductor_id: int) -> NavegacionResponse:
-    """CUS-25: waypoints (lat/lng) ordenados para alimentar el mapa de la App."""
+    """Waypoints lat/lng ordenados para el mapa de la app. Recibe: id del conductor."""
     ruta = _obtener_ruta_activa_o_404(db, conductor_id)
     detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
 
@@ -138,11 +130,10 @@ def obtener_navegacion(db: Session, conductor_id: int) -> NavegacionResponse:
     )
 
 
-# FASE 3.3: Ejecución y evidencias (CUS-26 / CUS-29)
 def _obtener_detalle_de_mi_ruta(
     db: Session, conductor_id: int, pedido_id: int
 ) -> RutaDetalle:
-    """Recupera el detalle del pedido garantizando que pertenece a la ruta activa del conductor."""
+    """Devuelve el detalle del pedido validando que pertenece a la ruta activa del conductor."""
     ruta = _obtener_ruta_activa_o_404(db, conductor_id)
     detalle = ruta_repository.obtener_detalle_de_ruta(db, ruta.id, pedido_id)
     if not detalle:
@@ -160,7 +151,7 @@ def actualizar_estado_parada(
     estado: str,
     motivo_fallo: str | None,
 ) -> GestionParadaResponse:
-    """CUS-26: marca un pedido como ENTREGADO o FALLIDO."""
+    """Marca un pedido como ENTREGADO o FALLIDO. Recibe: id del conductor, pedido, estado y motivo."""
     if estado == "FALLIDO" and not (motivo_fallo and motivo_fallo.strip()):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -169,13 +160,10 @@ def actualizar_estado_parada(
 
     detalle = _obtener_detalle_de_mi_ruta(db, conductor_id, pedido_id)
 
-    # CUS-30: bloquear si la ruta está pausada por una incidencia de auxilio mecánico.
     if incidencia_repository.tiene_abierta(db, detalle.ruta_id):
         raise HTTPException(status_code=400, detail="La ruta está pausada por una incidencia. Reanúdala antes de continuar.")
 
-    # CUS-26 (prueba de entrega): un ENTREGADO sin foto POD no es prueba de nada. La app sube
-    # la evidencia ANTES de marcar entregado; aquí lo exigimos para que el dato sea consistente
-    # aunque la llamada venga de otro cliente.
+    # Exige foto POD antes de marcar ENTREGADO.
     if estado == "ENTREGADO" and not detalle.url_evidencia:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -190,15 +178,12 @@ def actualizar_estado_parada(
     detalle.fecha_gestion = ahora
     detalle.motivo_fallo = motivo_fallo if estado == "FALLIDO" else None
 
-    # Reflejamos el estado en el Pedido (trazabilidad para CUS-35)
     pedido.estado = estado
     pedido.fecha_entrega = ahora if estado == "ENTREGADO" else None
 
-    # La primera gestión arranca la ruta (CREADA -> EN_PROGRESO)
     if detalle.ruta and detalle.ruta.estado == "CREADA":
         detalle.ruta.estado = "EN_PROGRESO"
 
-    # Registramos el evento en el historial (quién = el conductor).
     historial_repository.registrar(db, pedido.id, estado_anterior, estado, conductor_id)
 
     db.commit()
@@ -222,7 +207,7 @@ def guardar_evidencia(
     contenido: bytes,
     nombre_archivo: str,
 ) -> GestionParadaResponse:
-    """CUS-29: guarda la foto POD y la asocia al detalle de la ruta."""
+    """Guarda la foto POD y la asocia al detalle de ruta. Recibe: id conductor, pedido, bytes e imagen."""
     detalle = _obtener_detalle_de_mi_ruta(db, conductor_id, pedido_id)
 
     _, extension = os.path.splitext(nombre_archivo.lower())
@@ -238,14 +223,11 @@ def guardar_evidencia(
     with open(ruta_fisica, "wb") as f:
         f.write(contenido)
 
-    # URL pública servida por StaticFiles (montado en /media)
     url = f"/media/evidencias/{nombre_final}"
     detalle.url_evidencia = url
     db.commit()
     db.refresh(detalle)
 
-    # Además del detalle, registramos la evidencia como POD propio (tabla del diagrama),
-    # así la prueba de entrega queda persistida en la BD y es consultable por pedido.
     evidencia_repository.registrar_foto(db, pedido_id, url)
 
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
@@ -260,17 +242,14 @@ def guardar_evidencia(
     )
 
 
-# FASE 3.4: Cierre de operación (CUS-28)
 def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
-    """CUS-28: da por finalizada la ruta del día del conductor."""
+    """Da por finalizada la ruta activa del conductor. Recibe: id del conductor."""
     ruta = _obtener_ruta_activa_o_404(db, conductor_id)
 
-    # Ruta de recojo (CUS-12): el cierre lo maneja el servicio de recojos.
     if ruta.tipo == "RECOJO":
         from app.services import recojo_service  # import local: evita ciclo de imports
         return recojo_service.finalizar_ruta_recojo(db, ruta)
 
-    # CUS-30: no se puede cerrar el día con una incidencia (auxilio mecánico) abierta.
     if incidencia_repository.tiene_abierta(db, ruta.id):
         raise HTTPException(status_code=400, detail="La ruta está pausada por una incidencia. Reanúdala antes de cerrar el día.")
 
@@ -280,8 +259,6 @@ def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
     entregadas = sum(1 for d, _ in detalles if d.estado_entrega == "ENTREGADO")
     fallidas = sum(1 for d, _ in detalles if d.estado_entrega == "FALLIDO")
 
-    # No se puede cerrar el día con paradas sin gestionar: cada parada debe estar
-    # entregada (con su evidencia) o reportada como fallida.
     if pendientes:
         raise HTTPException(
             status_code=400,
@@ -291,8 +268,7 @@ def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
     ruta.estado = "FINALIZADA"
     ruta.fecha_fin = datetime.utcnow()
 
-    # CUS-34: si la ruta nunca se optimizó (km_estimado vacío), estima los km de la
-    # secuencia final partiendo de la primera parada (ahorro 0, no hubo optimización).
+    # Estima km si la ruta nunca se optimizó.
     if ruta.km_estimado is None and detalles:
         pedidos_ordenados = [pedido for _, pedido in detalles]
         primero = next((p for p in pedidos_ordenados if p.latitud is not None and p.longitud is not None), None)
@@ -300,8 +276,6 @@ def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
             ruta.km_estimado = round(distancia_total(primero.latitud, primero.longitud, pedidos_ordenados), 2)
             ruta.km_ahorrado = 0.0
 
-    # CUS-28: horas trabajadas = cierre - salida. Si no hubo sello de salida (ruta
-    # antigua), se usa la fecha de creación como referencia para no devolver vacío.
     hora_inicio = ruta.fecha_salida or ruta.fecha_creacion
     duracion_minutos = None
     if hora_inicio:
@@ -328,21 +302,12 @@ def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
     )
 
 
-# FASE 2: Enrutamiento básico (CUS-18)
 def asignar_bloque(db: Session, datos: AsignacionBloqueRequest, usuario_id: int | None = None) -> dict:
-    """
-    CUS-18: el admin crea una ruta para un conductor con TODOS los pedidos
-    LISTO_PARA_ENVIO de un distrito.
-    Pasos: buscar pedidos -> crear la ruta -> colgar cada pedido como detalle
-           (secuencia=0, aún sin optimizar) -> marcar pedidos como 'ASIGNADO'
-           -> registrar el evento en el historial.
-    """
+    """Crea una ruta con todos los pedidos LISTO_PARA_ENVIO de un distrito. Recibe: datos de asignacion e id del admin."""
     pedidos = pedido_repository.obtener_pendientes_por_distrito(db, datos.distrito)
     if not pedidos:
         raise HTTPException(status_code=400, detail="No hay pedidos pendientes para esa zona")
 
-    # Un conductor no puede tener dos rutas activas a la vez (evita duplicados):
-    # debe cerrar la actual antes de que se le asigne otra.
     if datos.conductor_id:
         activa = ruta_repository.obtener_ruta_activa_por_conductor(db, datos.conductor_id)
         if activa:
@@ -351,8 +316,6 @@ def asignar_bloque(db: Session, datos: AsignacionBloqueRequest, usuario_id: int 
                 detail=f"El conductor ya tiene una ruta activa ('{activa.nombre}'). Debe cerrarla antes de asignar otra.",
             )
 
-    # El nombre se deriva de la zona ("Ruta Miraflores"). Si llega un nombre
-    # explícito no vacío se respeta (override opcional); si no, se genera.
     nombre = (datos.nombre_ruta or "").strip() or f"Ruta {datos.distrito or 'sin zona'}"
 
     ruta = ruta_repository.crear_ruta(db, nombre=nombre, conductor_id=datos.conductor_id)
@@ -372,45 +335,33 @@ def asignar_bloque(db: Session, datos: AsignacionBloqueRequest, usuario_id: int 
     }
 
 
-# FASE 2: Optimización VRP (CUS-19)
 def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -> dict:
-    """
-    CUS-19: el conductor optimiza el orden de entrega de SU ruta partiendo de
-    su posición actual. Usa el algoritmo del Vecino Más Cercano (router.py).
-    """
+    """Optimiza el orden de entrega de la ruta del conductor (vecino mas cercano). Recibe: datos de posicion e id del conductor."""
     ruta = ruta_repository.obtener_ruta_por_id(db, datos.ruta_id)
     if not ruta:
         raise HTTPException(status_code=404, detail="Ruta no encontrada")
 
-    # Seguridad: un conductor solo puede optimizar su propia ruta.
     if ruta.conductor_id != conductor_id:
         raise HTTPException(status_code=403, detail="Esta ruta no está asignada a tu usuario")
 
-    # Tomamos los pedidos de la ruta que tienen coordenadas válidas. Guardamos también el
-    # detalle de cada pedido (ya cargado aquí) para NO re-consultarlo uno por uno más abajo.
     detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
     detalle_por_pedido = {pedido.id: detalle for detalle, pedido in detalles}
     pedidos_validos = [pedido for _, pedido in detalles if pedido.latitud is not None]
     if not pedidos_validos:
         raise HTTPException(status_code=400, detail="La ruta no tiene pedidos válidos para optimizar")
 
-    # CEREBRO MATEMÁTICO: ordena los pedidos minimizando distancia (VRP greedy).
     ordenados = optimizar_secuencia_pedidos(
         pedidos_validos,
         datos.latitud_actual_conductor,
         datos.longitud_actual_conductor,
     )
 
-    # CUS-34: km del orden EMPÍRICO (como venían los pedidos) vs km del orden OPTIMIZADO,
-    # ambos desde el mismo origen (GPS del conductor). El ahorro es la diferencia.
     origen = (datos.latitud_actual_conductor, datos.longitud_actual_conductor)
     km_base = distancia_total(origen[0], origen[1], pedidos_validos)
     km_opt = distancia_total(origen[0], origen[1], ordenados)
     ruta.km_estimado = round(km_opt, 2)
     ruta.km_ahorrado = round(max(0.0, km_base - km_opt), 2)
 
-    # Escribimos la secuencia final (1, 2, 3...) en cada detalle, reutilizando los detalles
-    # ya cargados (sin N+1) y registrando el historial en bloque (un flush, no uno por pedido).
     secuencia = 1
     eventos: list[dict] = []
     for pedido in ordenados:
@@ -424,8 +375,7 @@ def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -
         secuencia += 1
     historial_repository.registrar_bulk(db, eventos)
 
-    # CUS-23: iniciar la ruta = salir del almacén. La primera vez sellamos la salida y
-    # pasamos la ruta a EN_PROGRESO; ese sello arranca el conteo de horas (CUS-28).
+    # Sella la salida la primera vez que el conductor optimiza.
     if ruta.fecha_salida is None:
         ruta.fecha_salida = datetime.utcnow()
         ruta.estado = "EN_PROGRESO"
@@ -435,9 +385,8 @@ def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -
     return {"mensaje": "Ruta optimizada matemáticamente", "total_paradas": len(ordenados)}
 
 
-# FASE 5: ajuste manual de la ruta desde el panel (CUS-20)
 def _ruta_o_404(db: Session, ruta_id: int) -> Ruta:
-    """Devuelve la ruta o lanza 404."""
+    """Devuelve la ruta o lanza 404. Recibe: id de ruta."""
     ruta = ruta_repository.obtener_ruta_por_id(db, ruta_id)
     if not ruta:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ruta no encontrada")
@@ -445,9 +394,7 @@ def _ruta_o_404(db: Session, ruta_id: int) -> Ruta:
 
 
 def _ruta_editable_o_400(db: Session, ruta_id: int) -> Ruta:
-    """Como _ruta_o_404 pero además rechaza editar una ruta ya FINALIZADA: una ruta cerrada
-    es un registro histórico y reordenar/quitar paradas ahí corrompe los datos del día
-    (p.ej. revertir una entrega ya hecha). Recibe: id de ruta."""
+    """Devuelve la ruta si es editable; lanza 400 si ya esta FINALIZADA. Recibe: id de ruta."""
     ruta = _ruta_o_404(db, ruta_id)
     if ruta.estado == "FINALIZADA":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
@@ -456,7 +403,7 @@ def _ruta_editable_o_400(db: Session, ruta_id: int) -> Ruta:
 
 
 def obtener_paradas_admin(db: Session, ruta_id: int):
-    """CUS-20: paradas de una ruta (ordenadas) para que el admin las edite en el panel."""
+    """Paradas ordenadas de una ruta para edicion en el panel. Recibe: id de ruta."""
     ruta = _ruta_o_404(db, ruta_id)
     detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
     paradas = [
@@ -479,9 +426,7 @@ def obtener_paradas_admin(db: Session, ruta_id: int):
 
 
 def reordenar_paradas(db: Session, ruta_id: int, orden: list[int]) -> dict:
-    """CUS-20: reescribe la secuencia de las paradas según el orden recibido (lista de
-    pedido_id). Solo afecta a los pedidos que pertenecen a la ruta. Recibe: id de ruta
-    y la lista ordenada de pedido_id."""
+    """Reescribe la secuencia de paradas segun la lista de pedido_id recibida. Recibe: id de ruta y lista ordenada."""
     ruta = _ruta_editable_o_400(db, ruta_id)
     secuencia = 1
     vistos = set()
@@ -491,8 +436,7 @@ def reordenar_paradas(db: Session, ruta_id: int, orden: list[int]) -> dict:
             detalle.secuencia = secuencia
             secuencia += 1
             vistos.add(pedido_id)
-    # Defensa: si el orden recibido no incluía todas las paradas, las que faltan se
-    # numeran al final para que NO queden secuencias duplicadas o solapadas.
+    # Paradas no incluidas en el orden recibido van al final.
     for detalle, pedido in ruta_repository.obtener_detalles_con_pedido(db, ruta.id):
         if pedido.id not in vistos:
             detalle.secuencia = secuencia
@@ -502,14 +446,11 @@ def reordenar_paradas(db: Session, ruta_id: int, orden: list[int]) -> dict:
 
 
 def quitar_parada(db: Session, ruta_id: int, pedido_id: int, usuario_id: int | None = None) -> dict:
-    """CUS-20: quita un pedido de la ruta y lo devuelve a LISTO_PARA_ENVIO para reasignarlo.
-    Recibe: id de ruta, id de pedido y el id del admin."""
+    """Quita un pedido de la ruta y lo devuelve a LISTO_PARA_ENVIO. Recibe: id de ruta, pedido y admin."""
     ruta = _ruta_editable_o_400(db, ruta_id)
     detalle = ruta_repository.obtener_detalle_de_ruta(db, ruta.id, pedido_id)
     if not detalle:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Esa parada no pertenece a la ruta")
-    # No revertir una parada ya gestionada: un ENTREGADO/FALLIDO es un hecho del día y
-    # devolverlo a LISTO_PARA_ENVIO falsearía la trazabilidad y los conteos.
     if detalle.estado_entrega in ("ENTREGADO", "FALLIDO"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="No se puede quitar una parada ya gestionada (entregada o fallida).")
@@ -525,13 +466,11 @@ def quitar_parada(db: Session, ruta_id: int, pedido_id: int, usuario_id: int | N
     return {"mensaje": "Parada quitada de la ruta; el pedido volvió a Listo para envío"}
 
 
-# FASE 5: manifiesto descargable en Excel (CUS-21)
 COLUMNAS_MANIFIESTO = ["Secuencia", "Código", "Cliente", "Destinatario", "Dirección", "Distrito", "Teléfono", "Estado"]
 
 
 def generar_manifiesto_excel(db: Session, ruta_id: int) -> tuple[bytes, str]:
-    """CUS-21: arma el manifiesto de carga de una ruta como archivo Excel (.xlsx) en
-    memoria. Recibe: id de la ruta. Devuelve: (bytes del archivo, nombre sugerido)."""
+    """Genera el manifiesto de carga como Excel en memoria. Recibe: id de ruta. Devuelve: (bytes, nombre)."""
     import io
     from openpyxl import Workbook
     from openpyxl.styles import Font

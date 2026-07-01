@@ -14,31 +14,23 @@ import { listarReportes, responderReporte } from "../services/api";
 // Fecha legible corta (es-PE). Entrada: fecha ISO. Salida: "dd/mm/aa hh:mm" o "—".
 const fmt = (f) => (f ? new Date(f).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—");
 
-// Badge del estado del reporte (ABIERTO/RESUELTO) con tono semántico.
+// Badge de estado del reporte. Recibe: estado ("ABIERTO" | "RESUELTO").
 function BadgeEstado({ estado }) {
   if (estado === "RESUELTO") return <Badge tono="success">Resuelto</Badge>;
   return <Badge tono="warning">Abierto</Badge>;
 }
 
-// Reportes de pedido (trazabilidad): tabla con TODOS los reportes que los
-// conductores levantan sobre los pedidos, con filtros de estado + búsqueda. Al
-// hacer clic en una fila se abre un panel lateral con el detalle y, si el
-// reporte está ABIERTO, el formulario para responder y marcarlo resuelto.
+// Tabla de reportes de conductores con filtros de estado/busqueda y panel de resolucion.
 export default function ReportesPedido() {
   const [params] = useSearchParams();
   const [reportes, setReportes] = useState([]);
   const [cargando, setCargando] = useState(true);
-  // Estado inicial leído de los query params (una sola vez, sin setState en effect):
-  // ?pendientes=1 o ?estado=ABIERTO preseleccionan ABIERTO; ?pedido=<codigo> precarga la búsqueda.
   const [estado, setEstado] = useState(() =>
     params.get("pendientes") === "1" || params.get("estado") === "ABIERTO" ? "ABIERTO" : "TODOS"
   ); // TODOS | ABIERTO | RESUELTO
   const [busqueda, setBusqueda] = useState(() => params.get("pedido") || "");
-  // Reporte seleccionado para mostrar el panel de detalle/resolución.
   const [seleccionado, setSeleccionado] = useState(null);
 
-  // Carga inicial: trae TODOS los reportes (sin filtro de estado). El filtrado es
-  // client-side. setState en callbacks de promesa (evita el lint de effect).
   useEffect(() => {
     let activo = true;
     listarReportes()
@@ -133,7 +125,6 @@ export default function ReportesPedido() {
           empty={{ icon: ClipboardList, title: "Sin reportes", description: "No hay reportes que coincidan con el filtro." }} />
       </SectionCard>
 
-      {/* Panel lateral con el detalle del reporte y la resolución */}
       <Modal open={!!seleccionado} onClose={() => setSeleccionado(null)} variant="right">
         {seleccionado && (
           <DetalleReporte
@@ -147,10 +138,7 @@ export default function ReportesPedido() {
   );
 }
 
-// Panel de detalle de un reporte. Muestra pedido/conductor/motivo/descripción y,
-// si está ABIERTO, un formulario (respuesta obligatoria + acción opcional) para
-// marcarlo resuelto. Si ya está RESUELTO, muestra la respuesta en solo lectura.
-// Entrada: reporte (objeto), onCerrar (fn), onResuelto (fn tras marcar resuelto).
+// Panel lateral de detalle y resolucion de un reporte. Recibe: reporte, onCerrar, onResuelto.
 function DetalleReporte({ reporte: r, onCerrar, onResuelto }) {
   const [respuesta, setRespuesta] = useState("");
   const [accion, setAccion] = useState("");
@@ -192,7 +180,6 @@ function DetalleReporte({ reporte: r, onCerrar, onResuelto }) {
           <p className="rounded-xl bg-danger-soft px-4 py-2.5 text-sm text-danger-strong">{error}</p>
         )}
 
-        {/* Reporte ABIERTO: formulario de resolución */}
         {r.estado === "ABIERTO" && (
           <div className="space-y-3 rounded-xl border border-warning/40 bg-warning-soft p-4">
             <p className="text-sm font-semibold text-warning-strong">Responder y resolver</p>
@@ -214,7 +201,6 @@ function DetalleReporte({ reporte: r, onCerrar, onResuelto }) {
           </div>
         )}
 
-        {/* Reporte RESUELTO: respuesta en solo lectura */}
         {r.estado === "RESUELTO" && (
           <div className="space-y-2 rounded-xl border border-success/30 bg-success-soft p-4">
             <p className="flex items-center gap-1.5 text-sm font-semibold text-success-strong">

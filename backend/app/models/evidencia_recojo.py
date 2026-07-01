@@ -1,13 +1,10 @@
-# app/models/evidencia_recojo.py
-# Define la tabla 'evidencias_recojo': las fotos (boleta/guía/bultos) que el conductor
-# sube al registrar la recepción de un recojo. Relación 1:N con solicitudes_recojo
-# (antes solo se guardaba una foto en solicitud_recojo.url_guia).
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from app.db.database import Base
 
 
 class EvidenciaRecojo(Base):
+    """Fotos subidas por el conductor al registrar un recojo. Relacion N:1 con solicitudes_recojo."""
     __tablename__ = "evidencias_recojo"
 
     id = Column(Integer, primary_key=True, index=True)

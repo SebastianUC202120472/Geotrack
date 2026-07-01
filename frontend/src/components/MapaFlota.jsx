@@ -1,9 +1,7 @@
 import MapaFlotaLeaflet from "./MapaFlotaLeaflet";
 import MapaFlotaGoogle from "./MapaFlotaGoogle";
 
-// Mapa de la flota. Híbrido: si hay clave de Google Maps (VITE_GOOGLE_MAPS_KEY)
-// usa Google Maps; si no, cae a OpenStreetMap/Leaflet (gratis, sin clave).
-// Entrada: `conductores` (ConductorUbicacion[]). "Pega la clave y funciona".
+// Selector de mapa de flota: Google Maps si hay VITE_GOOGLE_MAPS_KEY, si no OSM/Leaflet. Recibe conductores, seleccionado, mostrar.
 const GMAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY;
 
 export default function MapaFlota({ conductores, seleccionado, mostrar = "TODO" }) {

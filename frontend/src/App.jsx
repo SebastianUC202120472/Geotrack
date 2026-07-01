@@ -23,9 +23,7 @@ import ReportesPedido from "./pages/ReportesPedido";
 import AuxilioMecanico from "./pages/AuxilioMecanico";
 import Notificaciones from "./pages/Notificaciones";
 
-// Mapa de rutas del panel de administración.
-// /login va suelto (sin barra lateral). Todo lo demás cuelga del layout del
-// panel y está protegido: sin sesión, ProtectedRoute manda al login.
+// Rutas del panel admin: /login libre, el resto protegido bajo LayoutAdmin.
 export default function App() {
   return (
     <Routes>
@@ -58,7 +56,6 @@ export default function App() {
         <Route path="/almacen/mapa" element={<MapaRecojos />} />
       </Route>
 
-      {/* Cualquier ruta desconocida vuelve al inicio. */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

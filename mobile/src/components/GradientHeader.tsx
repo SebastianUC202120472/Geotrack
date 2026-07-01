@@ -1,5 +1,4 @@
-// Cabecera con degradado de marca, redondeada abajo. Para la parte superior de
-// las pantallas (saludo, título, contenido libre).
+// Cabecera con degradado de marca, redondeada abajo. Recibe ViewProps y children.
 import { StyleSheet, View, type ViewProps } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme, spacing, radius } from "@/theme";

@@ -1,12 +1,11 @@
-# app/models/reporte.py
-# Reporte de incidencia que crea el conductor cuando un pedido falla; el admin lo
-# ve y responde con una solución desde el panel web.
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey
 from app.db.database import Base
 
 
 class Reporte(Base):
+    """Reporte de incidencia creado por el conductor cuando un pedido falla."""
+
     __tablename__ = "reportes"
 
     id = Column(Integer, primary_key=True, index=True)

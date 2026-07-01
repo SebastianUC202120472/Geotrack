@@ -1,7 +1,3 @@
-# app/services/almacen_service.py
-# Lógica del módulo de almacén: ingreso MANUAL de un recojo (sin escaneo). El almacén ve
-# las fotos del conductor, marca los pedidos que NO llegaron (quedan OBSERVADO) y confirma
-# el ingreso: el resto pasa a LISTO_PARA_ENVIO y el recojo a INGRESADO.
 from datetime import datetime
 
 from fastapi import HTTPException
@@ -16,13 +12,11 @@ from app.schemas.almacen import (
     ConfirmarIngresoResponse,
 )
 
-# Un recojo se ingresa cuando ya fue recogido; INGRESADO permite revisarlo de nuevo.
 ESTADOS_INGRESABLES = ("RECOGIDO", "INGRESADO")
 
 
 def _recojo_ingresable(db: Session, recojo_id: int, bloquear: bool = False):
-    """Devuelve el recojo si existe y está en un estado ingresable; si no, 404/400.
-    Con bloquear=True toma un lock de fila (FOR UPDATE) para serializar el ingreso."""
+    """Devuelve el recojo validando que exista y sea ingresable; bloquear=True usa FOR UPDATE."""
     recojo = (
         recojo_repository.obtener_por_id_bloqueado(db, recojo_id)
         if bloquear
@@ -39,7 +33,7 @@ def _recojo_ingresable(db: Session, recojo_id: int, bloquear: bool = False):
 
 
 def _conteo(db: Session, recojo_id: int) -> ConteoConciliacion:
-    """Arma el resumen de conciliación de un recojo a partir de los estados de sus pedidos."""
+    """Devuelve el conteo de pedidos por estado para un recojo. Recibe id del recojo."""
     total, listos, observados, por_recoger = almacen_repository.contar_pedidos(db, recojo_id)
     return ConteoConciliacion(
         esperados=total,
@@ -50,8 +44,7 @@ def _conteo(db: Session, recojo_id: int) -> ConteoConciliacion:
 
 
 def obtener_conciliacion(db: Session, recojo_id: int) -> ConciliacionResponse:
-    """Conciliación de un recojo: lista de pedidos (con estado) + fotos de evidencia + conteo.
-    Recibe: id del recojo. La usa el panel de almacén para el ingreso manual."""
+    """Devuelve pedidos, fotos y conteo de un recojo para el ingreso manual. Recibe id del recojo."""
     recojo = recojo_repository.obtener_por_id(db, recojo_id)
     if not recojo:
         raise HTTPException(status_code=404, detail="Recojo no encontrado")
@@ -79,28 +72,21 @@ def obtener_conciliacion(db: Session, recojo_id: int) -> ConciliacionResponse:
 
 def confirmar_ingreso(db: Session, recojo_id: int, referencias_faltantes: list[str],
                       usuario_id: int | None) -> ConfirmarIngresoResponse:
-    """Ingreso manual del recojo (sin escaneo): los pedidos cuya referencia esté en
-    referencias_faltantes quedan OBSERVADO; el resto (POR_RECOGER) pasa a LISTO_PARA_ENVIO.
-    El recojo pasa a INGRESADO. Geocodifica en segundo plano los que falten coordenadas.
-    Recibe: id del recojo, lista de referencias (tracking) que NO llegaron y el usuario."""
-    # Lock de fila: serializa confirmaciones simultáneas del mismo recojo (evita el historial
-    # duplicado que producían dos llamadas que leían los pedidos como POR_RECOGER a la vez).
+    """Confirma ingreso manual: faltantes -> OBSERVADO, el resto -> LISTO_PARA_ENVIO, recojo -> INGRESADO. Recibe id recojo, referencias faltantes y usuario."""
     recojo = _recojo_ingresable(db, recojo_id, bloquear=True)
     faltantes = {(r or "").strip() for r in (referencias_faltantes or []) if (r or "").strip()}
 
     pedidos = almacen_repository.listar_pedidos_recojo(db, recojo_id)
-    eventos: list[dict] = []  # historial acumulado para insertarlo en bloque (1 flush, no N)
+    eventos: list[dict] = []
     ahora = datetime.utcnow()
     for pedido in pedidos:
         es_faltante = (pedido.referencia_externa or "") in faltantes
         if es_faltante:
-            # Marcar como OBSERVADO (en espera de aclaración) si aún no está resuelto.
             if pedido.estado in ("POR_RECOGER", "LISTO_PARA_ENVIO"):
                 eventos.append({"pedido_id": pedido.id, "estado_anterior": pedido.estado,
                                 "estado_nuevo": "OBSERVADO", "usuario_id": usuario_id})
                 pedido.estado = "OBSERVADO"
         elif pedido.estado == "POR_RECOGER":
-            # Llegó y no estaba observado: queda listo para envío.
             eventos.append({"pedido_id": pedido.id, "estado_anterior": pedido.estado,
                             "estado_nuevo": "LISTO_PARA_ENVIO", "usuario_id": usuario_id})
             pedido.estado = "LISTO_PARA_ENVIO"
@@ -111,8 +97,6 @@ def confirmar_ingreso(db: Session, recojo_id: int, referencias_faltantes: list[s
     recojo.estado = "INGRESADO"
     almacen_repository.guardar_cambios(db)
 
-    # Geocodificar en segundo plano los LISTO_PARA_ENVIO sin coordenadas (no bloquea la respuesta).
-    # La tarea la agenda el endpoint (BackgroundTasks); aquí solo devolvemos el resumen.
     return ConfirmarIngresoResponse(
         recojo_id=recojo_id,
         estado=recojo.estado,
@@ -122,7 +106,7 @@ def confirmar_ingreso(db: Session, recojo_id: int, referencias_faltantes: list[s
 
 
 def listar_recojos(db: Session, estado: str | None = None) -> list:
-    """Lista los recojos del módulo de almacén (RECOGIDO + INGRESADO) con su conteo desde pedidos."""
+    """Lista recojos RECOGIDO/INGRESADO con su conteo de pedidos. Recibe estado opcional para filtrar."""
     estados = [estado] if estado else ["RECOGIDO", "INGRESADO"]
     items = []
     for e in estados:

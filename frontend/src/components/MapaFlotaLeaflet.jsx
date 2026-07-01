@@ -4,16 +4,13 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { haceCuanto } from "../utils/formatoFecha";
 
-// Centro por defecto (Lima) cuando todavía no hay puntos que mostrar.
 const LIMA = [-12.046, -77.043];
 
-// Colores de la gota de parada según su estado de entrega.
 const COLOR_PENDIENTE = "#2563eb";
 const COLOR_ENTREGADO = "#16a34a";
 const COLOR_FALLIDO = "#dc2626";
 
-// Devuelve el color de una parada según su `estado` (estado_entrega).
-// Entrada: `estado` = "PENDIENTE" | "ENTREGADO" | "FALLIDO" (vacío = pendiente).
+// Retorna el color segun el estado de entrega de una parada.
 const colorPorEstado = (estado) => {
   const e = (estado || "PENDIENTE").toUpperCase();
   if (e === "ENTREGADO") return COLOR_ENTREGADO;
@@ -21,8 +18,7 @@ const colorPorEstado = (estado) => {
   return COLOR_PENDIENTE;
 };
 
-// Pin (gota) para una PARADA: color de su estado de entrega + número de orden.
-// Distinto del círculo de la ubicación del conductor.
+// Icono de gota para una parada. Recibe color y numero de orden.
 const iconoParada = (color, n) =>
   L.divIcon({
     className: "",
@@ -31,9 +27,7 @@ const iconoParada = (color, n) =>
     iconAnchor: [12, 24],
   });
 
-// Icono de CLIENTE CORPORATIVO (origen de recojo): cuadrado redondeado del color
-// del conductor con un SVG de edificio/almacén. Distinto de la gota de parada.
-// Entrada: `color` = color del conductor.
+// Icono de edificio para el cliente corporativo. Recibe color del conductor.
 const iconoCliente = (color) =>
   L.divIcon({
     className: "",
@@ -42,7 +36,7 @@ const iconoCliente = (color) =>
     iconAnchor: [14, 28],
   });
 
-// Ajusta el encuadre para que entren todos los puntos. Entrada: `puntos` = [lat,lon][].
+// Ajusta el encuadre del mapa para mostrar todos los puntos. Recibe puntos [lat,lon][].
 function AutoEncuadre({ puntos }) {
   const map = useMap();
   useEffect(() => {
@@ -53,7 +47,7 @@ function AutoEncuadre({ puntos }) {
   return null;
 }
 
-// Centra el mapa en el conductor seleccionado al hacer clic en la lista.
+// Centra el mapa en el conductor seleccionado. Recibe conductor_id y lista de conductores.
 function CentrarEn({ seleccionado, conductores }) {
   const map = useMap();
   useEffect(() => {
@@ -64,8 +58,7 @@ function CentrarEn({ seleccionado, conductores }) {
   return null;
 }
 
-// Leyenda flotante con los tipos de marcador del mapa. Entrada: `hayClientes`
-// (bool) para mostrar u ocultar la fila de cliente corporativo.
+// Leyenda flotante de tipos de marcador. Recibe hayClientes para mostrar u ocultar esa fila.
 function LeyendaMapa({ hayClientes }) {
   return (
     <div className="absolute bottom-3 right-3 z-[1000] rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-xs shadow-card">
@@ -114,24 +107,19 @@ function LeyendaMapa({ hayClientes }) {
   );
 }
 
-// Mapa de la flota con OpenStreetMap (gratis, sin API key). Fallback de Google Maps.
-// Entrada: `conductores` (ConductorUbicacion[] con _color), `seleccionado` (conductor_id),
-// `mostrar` = qué capa dibujar: "TODO" (conductores + pedidos) | "CONDUCTORES" | "PEDIDOS".
+// Mapa de flota con OSM. Recibe conductores (con _color), seleccionado (conductor_id) y mostrar ("TODO"|"CONDUCTORES"|"PEDIDOS").
 export default function MapaFlotaLeaflet({ conductores, seleccionado, mostrar = "TODO" }) {
   const puntos = [];
   conductores.forEach((c) => {
     if (c.latitud != null && c.longitud != null) puntos.push([c.latitud, c.longitud]);
     c.paradas.forEach((p) => puntos.push([p.latitud, p.longitud]));
-    // Los clientes corporativos (orígenes de recojo) también entran en el encuadre.
     (c.clientes || []).forEach((cl) => puntos.push([cl.latitud, cl.longitud]));
   });
 
-  // ¿Hay algún cliente corporativo? Solo entonces se muestra su fila en la leyenda.
   const hayClientes = conductores.some((c) => (c.clientes || []).length > 0);
 
   return (
     <div className="relative overflow-hidden rounded-card border border-slate-200 shadow-card" style={{ height: 520 }}>
-      {/* Leyenda de los tipos de marcador (encima del mapa) */}
       <LeyendaMapa hayClientes={hayClientes} />
       <MapContainer center={LIMA} zoom={12} scrollWheelZoom style={{ height: "100%", width: "100%" }}>
         <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -142,14 +130,12 @@ export default function MapaFlotaLeaflet({ conductores, seleccionado, mostrar = 
           const color = c._color || "#2563EB";
           return (
             <Fragment key={c.conductor_id}>
-              {/* Enrutamiento del conductor seleccionado: línea que une sus paradas en orden. */}
               {seleccionado != null && mostrar !== "CONDUCTORES" && c.paradas.length >= 2 && (
                 <Polyline
                   positions={c.paradas.map((p) => [p.latitud, p.longitud])}
                   pathOptions={{ color, weight: 4, opacity: 0.8 }}
                 />
               )}
-              {/* El color de la gota sale del estado de entrega (no del conductor). */}
               {mostrar !== "CONDUCTORES" && c.paradas.map((p, i) => (
                 <Marker
                   key={`parada-${c.conductor_id}-${i}`}
@@ -164,7 +150,6 @@ export default function MapaFlotaLeaflet({ conductores, seleccionado, mostrar = 
                 </Marker>
               ))}
 
-              {/* Clientes corporativos (orígenes de recojo) — icono de edificio */}
               {mostrar !== "CONDUCTORES" && (c.clientes || []).map((cl, i) => (
                 <Marker
                   key={`cliente-${c.conductor_id}-${i}`}

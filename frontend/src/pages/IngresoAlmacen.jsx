@@ -15,15 +15,13 @@ import {
   urlMedia,
 } from "../services/api";
 
-// CUS-14: ingreso MANUAL (sin escaneo). Lista los recojos RECOGIDO/INGRESADO; al elegir
-// uno se abre el panel con las fotos del conductor, la tabla de pedidos y, si el recojo
-// sigue en RECOGIDO, los checkboxes "No llegó" para confirmar el ingreso a mano.
+// Lista recojos RECOGIDO/INGRESADO y permite abrir el panel de ingreso manual.
 export default function IngresoAlmacen() {
   const [recojos, setRecojos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [seleccion, setSeleccion] = useState(null); // id de recojo en modo ingreso
 
-  // Recarga la lista de recojos. setState dentro del callback de la promesa (lint-safe).
+  // Recarga la lista de recojos.
   const cargar = () => {
     listarRecojosAlmacen()
       .then((d) => setRecojos(d))
@@ -31,7 +29,6 @@ export default function IngresoAlmacen() {
       .finally(() => setCargando(false));
   };
 
-  // Carga inicial. El setState va dentro del callback de la promesa, no en el cuerpo.
   useEffect(() => {
     let activo = true;
     listarRecojosAlmacen()
@@ -97,8 +94,7 @@ export default function IngresoAlmacen() {
   );
 }
 
-// Resumen compacto del conteo de un recojo para la columna de la tabla.
-// Entrada: conteo { esperados, listos, observados, por_recoger }.
+// Muestra resumen del conteo de un recojo. Recibe conteo { esperados, listos, observados, por_recoger }.
 function ResumenConteo({ conteo }) {
   const c = conteo ?? { esperados: 0, listos: 0, observados: 0, por_recoger: 0 };
   return (
@@ -110,10 +106,7 @@ function ResumenConteo({ conteo }) {
   );
 }
 
-// Panel de ingreso manual de un recojo: contadores en vivo, galería de fotos del
-// conductor, tabla de pedidos (con checkboxes "No llegó" mientras está en RECOGIDO),
-// botón de confirmar ingreso y la sección de pedidos OBSERVADOS para resolver.
-// Entrada: recojoId (number) y onVolver (callback para regresar a la lista).
+// Panel de ingreso manual de un recojo. Recibe recojoId y onVolver.
 function PanelIngreso({ recojoId, onVolver }) {
   const [conc, setConc] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -123,13 +116,12 @@ function PanelIngreso({ recojoId, onVolver }) {
   const [fotoAmpliada, setFotoAmpliada] = useState(null); // URL de la foto en el visor
   const [resolviendo, setResolviendo] = useState(null); // pedido_id en proceso de resolver
 
-  // Refresca la conciliación tras una acción. setState dentro del callback (lint-safe).
+  // Refresca la conciliacion tras una accion.
   const refrescar = () =>
     obtenerConciliacion(recojoId)
       .then((d) => setConc(d))
       .catch(() => {});
 
-  // Carga inicial de la conciliación. El setState va dentro del callback de la promesa.
   useEffect(() => {
     let activo = true;
     obtenerConciliacion(recojoId)
@@ -194,7 +186,6 @@ function PanelIngreso({ recojoId, onVolver }) {
         </Button>
       </PageHeader>
 
-      {/* Contadores en vivo derivados del conteo */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 animate-fade-up">
         <Contador etiqueta="Esperados" valor={conteo.esperados} />
         <Contador etiqueta="Listos" valor={conteo.listos} tono="success" />
@@ -283,7 +274,6 @@ function PanelIngreso({ recojoId, onVolver }) {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {pedidos.map((p) => {
-                  // Solo los pedidos POR_RECOGER pueden marcarse como faltantes en RECOGIDO.
                   const marcable = enRecogido && p.estado === "POR_RECOGER";
                   return (
                     <tr key={p.pedido_id} className="hover:bg-slate-50">

@@ -1,6 +1,3 @@
-# app/api/usuarios.py
-# Gestión de las cuentas del PANEL (admin/almacén) — CUS-03. Los conductores
-# se gestionan en su propia sección (con perfil y vehículo). Todo aquí es solo-admin.
 from typing import List
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -16,20 +13,19 @@ router = APIRouter()
 
 @router.get("/yo", response_model=UsuarioResponse)
 def mi_perfil(usuario: Usuario = Depends(get_current_almacen)):
-    """Modo Perfil: devuelve los datos personales del usuario de panel autenticado
-    (admin o almacén). get_current_almacen admite ambos roles."""
+    """Devuelve los datos del usuario de panel autenticado (admin o almacén)."""
     return usuario
 
 
 @router.get("/", response_model=List[UsuarioResponse], dependencies=[Depends(get_current_admin)])
 def listar_personal(db: Session = Depends(get_db)):
-    """CUS-03: lista las cuentas del panel (admin/almacén)."""
+    """Lista las cuentas del panel (admin/almacén)."""
     return usuario_service.listar_personal(db)
 
 
 @router.post("/", response_model=UsuarioResponse, dependencies=[Depends(get_current_admin)])
 def crear_personal(datos: PersonalCreate, db: Session = Depends(get_db)):
-    """CUS-03: crea una cuenta de personal con su rol (admin/almacén)."""
+    """Crea una cuenta de personal con su rol (admin/almacén)."""
     return usuario_service.crear_personal(db, datos)
 
 
@@ -40,11 +36,11 @@ def actualizar_personal(
     db: Session = Depends(get_db),
     admin: Usuario = Depends(get_current_admin),
 ):
-    """CUS-03: cambia el rol y/o el estado (activo) de un usuario del panel."""
+    """Actualiza rol y/o estado de un usuario del panel. Recibe usuario_id y datos."""
     return usuario_service.actualizar_personal(db, usuario_id, datos, admin.id)
 
 
 @router.post("/{usuario_id}/restablecer-contrasena", dependencies=[Depends(get_current_admin)])
 def restablecer_contrasena(usuario_id: int, datos: PersonalResetContrasena, db: Session = Depends(get_db)):
-    """CUS-03: el admin fija una nueva contraseña para un usuario del panel."""
+    """Restablece la contraseña de un usuario del panel. Recibe usuario_id y nueva contraseña."""
     return usuario_service.restablecer_contrasena_personal(db, usuario_id, datos)

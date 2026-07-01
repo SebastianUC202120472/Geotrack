@@ -1,5 +1,3 @@
-# app/repositories/historial_repository.py
-# Única capa que escribe/lee la tabla 'historial_pedidos' (eventos).
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
@@ -14,10 +12,7 @@ def registrar(
     estado_nuevo: str,
     usuario_id: Optional[int] = None,
 ) -> HistorialPedido:
-    """
-    Apunta un nuevo evento en la trazabilidad del pedido. NO hace commit:
-    se guarda junto con el cambio de estado que lo origina (misma transacción).
-    """
+    """Registra un evento de cambio de estado del pedido. Recibe pedido_id, estados y usuario opcional. Sin commit."""
     evento = HistorialPedido(
         pedido_id=pedido_id,
         estado_anterior=estado_anterior,
@@ -25,15 +20,12 @@ def registrar(
         usuario_id=usuario_id,
     )
     db.add(evento)
-    asignar_codigo(db, evento, PREFIJO_HISTORIAL)  # codigo legible HP-001
+    asignar_codigo(db, evento, PREFIJO_HISTORIAL)
     return evento
 
 
 def registrar_bulk(db: Session, eventos: List[dict]) -> List[HistorialPedido]:
-    """Inserta MUCHOS eventos en bloque con un solo flush (en vez de uno por evento).
-    Evita ~N idas y vueltas a la BD remota (Supabase) en operaciones masivas como aceptar
-    un recojo de cientos de pedidos. NO hace commit (misma transacción que el llamador).
-    Recibe: lista de dicts {pedido_id, estado_anterior, estado_nuevo, usuario_id}."""
+    """Inserta varios eventos de historial en un solo flush. Recibe lista de dicts con pedido_id, estados y usuario_id."""
     if not eventos:
         return []
     objetos = [
@@ -46,14 +38,14 @@ def registrar_bulk(db: Session, eventos: List[dict]) -> List[HistorialPedido]:
         for e in eventos
     ]
     db.add_all(objetos)
-    db.flush()  # un solo flush asigna todos los ids
+    db.flush()
     for evento in objetos:
         evento.codigo = generar_codigo(PREFIJO_HISTORIAL, evento.id)
     return objetos
 
 
 def listar_por_pedido(db: Session, pedido_id: int) -> List[HistorialPedido]:
-    """Devuelve TODOS los eventos de un pedido en orden cronológico (CUS-35)."""
+    """Devuelve todos los eventos de un pedido ordenados cronologicamente. Recibe pedido_id."""
     return (
         db.query(HistorialPedido)
         .filter(HistorialPedido.pedido_id == pedido_id)

@@ -1,5 +1,3 @@
-// Hooks de React Query para la ruta de RECOJO del conductor: manifiesto, iniciar
-// (optimizar) y registrar la recepción condicionada (CUS-12).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { obtenerManifiestoRecojo, optimizarRecojo, registrarRecepcion } from "@/api/conductor";
 import { claves as clavesRuta } from "@/features/ruta/hooks";
@@ -31,8 +29,7 @@ export function useIniciarRecojo() {
   });
 }
 
-// Registra la recepción condicionada (cantidad + varias fotos de evidencia) y refresca.
-// Recibe: { recojoId, cantidad, uris } donde `uris` es el array de fotos seleccionadas.
+// Registra la recepción condicionada. Recibe: recojoId, cantidad y array de uris de fotos.
 export function useRegistrarRecepcion() {
   const qc = useQueryClient();
   return useMutation({

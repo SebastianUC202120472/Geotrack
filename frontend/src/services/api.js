@@ -1,5 +1,4 @@
-// Cliente HTTP del panel: URL base, token JWT y manejo de sesión.
-// La URL base viene de VITE_API_URL (en Docker es "/api", servido por Nginx).
+// Cliente HTTP del panel. URL base desde VITE_API_URL.
 
 const API_URL = import.meta.env.VITE_API_URL;
 const TOKEN_KEY = "admin_token";
@@ -8,7 +7,7 @@ export const getToken = () => localStorage.getItem(TOKEN_KEY);
 export const guardarToken = (token) => localStorage.setItem(TOKEN_KEY, token);
 export const borrarToken = () => localStorage.removeItem(TOKEN_KEY);
 
-// Núcleo de las peticiones: adjunta el token y, si caducó (401), cierra sesión.
+// Envia una peticion autenticada. Cierra sesion si recibe 401.
 async function request(ruta, { method = "GET", body, headers = {}, auth = true } = {}) {
   const opciones = { method, headers: { ...headers } };
 
@@ -17,8 +16,6 @@ async function request(ruta, { method = "GET", body, headers = {}, auth = true }
     if (token) opciones.headers.Authorization = `Bearer ${token}`;
   }
 
-  // Si el body es FormData (multipart) dejamos que el navegador ponga el
-  // Content-Type con su boundary; si es objeto, lo mandamos como JSON.
   if (body instanceof FormData) {
     opciones.body = body;
   } else if (body !== undefined) {
@@ -28,17 +25,12 @@ async function request(ruta, { method = "GET", body, headers = {}, auth = true }
 
   const respuesta = await fetch(`${API_URL}${ruta}`, opciones);
 
-  // 401 (token inválido/expirado): cerramos sesión y mandamos a login para no
-  // quedar en un panel "colgado". El 403 NO cierra sesión: un usuario válido del
-  // panel (p.ej. almacén) puede toparse con un endpoint solo-admin; en ese caso
-  // dejamos que el código que llamó maneje el error (abajo) sin echarlo del panel.
   if (respuesta.status === 401) {
     borrarToken();
     if (window.location.pathname !== "/login") window.location.href = "/login";
     throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
   }
 
-  // Intentamos leer el cuerpo (puede venir vacío en algunos POST).
   const texto = await respuesta.text();
   const datos = texto ? JSON.parse(texto) : null;
 
@@ -50,12 +42,7 @@ async function request(ruta, { method = "GET", body, headers = {}, auth = true }
   return datos;
 }
 
-/* ============================================================
-   AUTENTICACIÓN
-============================================================ */
-
-// Decodifica el payload de un JWT (base64url) para leer el rol sin librerías.
-// Entrada: token (string JWT). Salida: objeto payload, o null si no se puede leer.
+// Decodifica el payload de un JWT. Recibe token (string).
 function leerPayload(token) {
   try {
     const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
@@ -65,9 +52,7 @@ function leerPayload(token) {
   }
 }
 
-// Login del panel (CUS-02). El backend usa OAuth2: 'username' y 'password' como
-// formulario. Solo entran al panel los roles 'admin' y 'almacen' (la app móvil es
-// para conductores), así que validamos el rol del JWT antes de guardar el token.
+// Login del panel. Valida rol (admin/almacen) antes de guardar el token. Recibe correo y contrasena.
 export const loginAdmin = async (correo, contrasena) => {
   const formulario = new URLSearchParams();
   formulario.append("username", correo);
@@ -93,31 +78,25 @@ export const loginAdmin = async (correo, contrasena) => {
   return datos;
 };
 
-// Lee el rol del JWT guardado (para que el panel filtre menú/ruteo por rol).
-// Entrada: token (string). Salida: 'admin' | 'almacen' | ... | null.
+// Lee el rol del JWT. Recibe token (string).
 export const leerRol = (token) => leerPayload(token)?.rol ?? null;
 
-// Conductores: listar (con ficha + vehículo asignado) y registrar (cuenta + datos).
 export const listarConductores = () => request("/conductores/");
 
 export const crearConductor = (datos) =>
   request("/conductores/", { method: "POST", body: datos });
 
-// Editar la ficha (nombre/teléfono/DNI) de un conductor.
+// Edita la ficha de un conductor. Recibe id y datos.
 export const actualizarConductor = (id, datos) =>
   request(`/conductores/${id}`, { method: "PATCH", body: datos });
 
-// Eliminar (desactivar) un conductor; el backend preserva su historial.
+// Desactiva un conductor (soft-delete). Recibe id.
 export const eliminarConductor = (id) =>
   request(`/conductores/${id}`, { method: "DELETE" });
 
-// CUS-04: el admin fija una nueva contraseña para un conductor que la olvidó.
+// Restablece la contrasena de un conductor. Recibe id y contrasena.
 export const restablecerContrasenaConductor = (id, contrasena) =>
   request(`/conductores/${id}/restablecer-contrasena`, { method: "POST", body: { contrasena } });
-
-/* ============================================================
-   CLIENTES CORPORATIVOS  (CUS-07 — administración)
-============================================================ */
 
 export const listarClientes = () => request("/clientes/");
 
@@ -130,29 +109,19 @@ export const actualizarCliente = (id, datos) =>
 export const eliminarCliente = (id) =>
   request(`/clientes/${id}`, { method: "DELETE" });
 
-/* ============================================================
-   USUARIOS DEL PANEL  (CUS-03 — admin/almacén)
-============================================================ */
-
 export const listarUsuarios = () => request("/usuarios/");
 
-// Perfil de la cuenta autenticada (admin/almacén). Salida: { id, codigo, correo,
-// rol, estado, nombre, dni, telefono, cargo }.
 export const obtenerMiPerfil = () => request("/usuarios/yo");
 
 export const crearUsuario = (datos) =>
   request("/usuarios/", { method: "POST", body: datos });
 
-// Cambia rol y/o estado (activo) de un usuario del panel.
+// Actualiza rol o estado de un usuario del panel. Recibe id y datos.
 export const actualizarUsuario = (id, datos) =>
   request(`/usuarios/${id}`, { method: "PATCH", body: datos });
 
 export const restablecerContrasenaUsuario = (id, contrasena) =>
   request(`/usuarios/${id}/restablecer-contrasena`, { method: "POST", body: { contrasena } });
-
-/* ============================================================
-   PARÁMETROS — Motivos de rechazo  (CUS-06)
-============================================================ */
 
 export const listarMotivos = () => request("/parametros/motivos");
 
@@ -162,92 +131,65 @@ export const crearMotivo = (texto) =>
 export const eliminarMotivo = (id) =>
   request(`/parametros/motivos/${id}`, { method: "DELETE" });
 
-// Sube/reemplaza la foto de un conductor (multipart). La verá en su app móvil.
+// Sube la foto de un conductor. Recibe usuarioId y file.
 export const subirFotoConductor = (usuarioId, file) => {
   const formData = new FormData();
   formData.append("file", file);
   return request(`/conductores/${usuarioId}/foto`, { method: "POST", body: formData });
 };
 
-// Construye la URL absoluta de un recurso de /media a partir de la ruta del backend.
-// Entrada: ruta (ej. "/media/conductores/cond_1.jpg?v=..."). Salida: URL o null.
+// Construye la URL absoluta de un recurso /media. Recibe ruta relativa.
 export const urlMedia = (ruta) =>
   ruta ? `${API_URL.replace(/\/api\/?$/, "")}${ruta}` : null;
 
-/* ============================================================
-   REPORTES DE INCIDENCIA  (el conductor reporta fallas; el admin responde)
-============================================================ */
-
-// estado opcional: "ABIERTO" | "RESUELTO".
+// Lista reportes de incidencia. Recibe estado opcional ("ABIERTO"|"RESUELTO").
 export const listarReportes = (estado) =>
   request(`/reportes/${estado ? `?estado=${encodeURIComponent(estado)}` : ""}`);
 
 export const responderReporte = (id, datos) =>
   request(`/reportes/${id}/responder`, { method: "POST", body: datos });
 
-/* ============================================================
-   PEDIDOS  (Inbound — CUS-13 / CUS-15 / CUS-16)
-============================================================ */
-
-// El backend limita a 100 por defecto; pedimos un tope alto para poder filtrar
-// y paginar del lado del cliente (suficiente para los volúmenes del MVP).
 export const listarPedidos = (limit = 1000) => request(`/pedidos/?limit=${limit}`);
 
-// Devuelve { zonas_operativas: [{ distrito, total_pedidos }] }
 export const listarZonas = () => request("/pedidos/zonas");
 
-// CUS-17: pedidos con la geocodificación fallida (para resolver a mano).
+// Lista pedidos sin geocodificacion valida (para ubicar a mano).
 export const listarPorUbicar = () => request("/pedidos/por-ubicar");
 
-// CUS-17: geocodifica un texto de búsqueda para ubicar el pin en el mapa.
+// Geocodifica un texto de busqueda. Recibe q (string).
 export const buscarDireccion = (q) => request(`/pedidos/buscar-direccion?q=${encodeURIComponent(q)}`);
 
-// CUS-17: fija a mano la ubicación (lat/lng) de un pedido.
+// Fija la ubicacion (lat/lng) de un pedido. Recibe id y datos.
 export const fijarUbicacionPedido = (id, datos) =>
   request(`/pedidos/${id}/ubicacion`, { method: "PATCH", body: datos });
 
-// Seguimiento de repartos agregado por empresa cliente (no por ruta).
 export const obtenerSeguimientoClientes = () => request("/dashboard/clientes");
 
-// Posición en vivo de cada conductor con ruta activa + sus paradas pendientes.
 export const obtenerUbicacionesFlota = () => request("/dashboard/flota/ubicaciones");
 
-// Posición en vivo de los conductores en rutas de RECOJO activas (módulo almacén).
 export const obtenerUbicacionesRecojo = () => request("/almacen/flota/ubicaciones-recojo");
-
-/* ============================================================
-   VEHÍCULOS Y FLOTA  (gestión del admin)
-============================================================ */
 
 export const listarVehiculos = () => request("/vehiculos/");
 
 export const crearVehiculo = (datos) =>
   request("/vehiculos/", { method: "POST", body: datos });
 
-// CUS-08/09: edita un vehículo (marca/capacidades) o reasigna su conductor.
+// Edita un vehiculo o reasigna su conductor. Recibe id y datos.
 export const actualizarVehiculo = (id, datos) =>
   request(`/vehiculos/${id}`, { method: "PATCH", body: datos });
 
-// CUS-08: da de baja (lógica) un vehículo.
+// Da de baja (logica) un vehiculo. Recibe id.
 export const eliminarVehiculo = (id) =>
   request(`/vehiculos/${id}`, { method: "DELETE" });
 
-/* ============================================================
-   ENRUTAMIENTO  (CUS-18)
-============================================================ */
-
-// conductor_id es el id del USUARIO conductor (no el del vehículo).
+// Asigna un bloque de pedidos a un conductor. Recibe nombre_ruta, distrito y conductor_id.
 export const asignarBloque = ({ nombre_ruta, distrito, conductor_id }) =>
   request("/rutas/asignar-bloque", {
     method: "POST",
     body: { nombre_ruta, distrito, conductor_id },
   });
 
-/* ============================================================
-   MANIFIESTO  (CUS-21)
-============================================================ */
-
-// CUS-21: descarga el manifiesto de carga de una ruta en Excel (autenticado).
+// Descarga el manifiesto de una ruta en Excel. Recibe rutaId y nombre.
 export async function descargarManifiesto(rutaId, nombre) {
   const token = getToken();
   const resp = await fetch(`${API_URL}/rutas/${rutaId}/manifiesto`, {
@@ -265,30 +207,22 @@ export async function descargarManifiesto(rutaId, nombre) {
   URL.revokeObjectURL(url);
 }
 
-/* ============================================================
-   DASHBOARD / TRAZABILIDAD  (CUS-33 / CUS-35)
-============================================================ */
-
 export const obtenerResumen = () => request("/dashboard/resumen");
 
-// Estado y avance de todas las rutas de la flota.
 export const obtenerFlota = () => request("/dashboard/flota");
 
-// Línea de tiempo completa de un paquete por su código (PD-001).
+// Historial de un pedido por su codigo. Recibe codigo (string).
 export const obtenerHistorial = (codigo) =>
   request(`/dashboard/pedidos/${encodeURIComponent(codigo)}/historial`);
 
-// CUS-36: genera la liquidación (.xlsx) de un cliente y la registra en la BD.
-// Devuelve { liquidacion_id, descarga_url, archivo, total_pedidos, ... }.
+// Genera la liquidacion de un cliente. Recibe cliente, periodo_inicio y periodo_fin.
 export const generarLiquidacion = ({ cliente, periodo_inicio, periodo_fin } = {}) =>
   request("/dashboard/clientes/liquidacion", {
     method: "POST",
     body: { cliente, periodo_inicio, periodo_fin },
   });
 
-// Descarga la liquidación por el endpoint AUTENTICADO (lleva el token en el header:
-// el .xlsx tiene datos personales y NO es público). Entrada: descarga_url (relativa a
-// /api) y el nombre del archivo. Dispara la descarga en el navegador.
+// Descarga la liquidacion (autenticado). Recibe descargaUrl y nombre.
 export async function descargarLiquidacion(descargaUrl, nombre) {
   const token = getToken();
   const resp = await fetch(`${API_URL}${descargaUrl}`, {
@@ -306,54 +240,35 @@ export async function descargarLiquidacion(descargaUrl, nombre) {
   URL.revokeObjectURL(url);
 }
 
-/* ============================================================
-   BANDEJA DE CORREOS  (solicitudes de recojo)
-============================================================ */
-
 export const listarConversaciones = () => request("/correos/conversaciones");
 
 export const obtenerConversacion = (id) => request(`/correos/conversaciones/${id}`);
 
-// Lee la bandeja real por IMAP e importa los correos nuevos.
+// Sincroniza la bandeja por IMAP e importa correos nuevos.
 export const sincronizarCorreos = () => request("/correos/sincronizar", { method: "POST" });
 
-// Envía una respuesta por SMTP y la guarda en el hilo.
+// Responde un correo por SMTP. Recibe id y cuerpo.
 export const responderCorreo = (id, cuerpo) =>
   request(`/correos/conversaciones/${id}/responder`, { method: "POST", body: { cuerpo } });
 
 export const marcarConversacion = (id, estado) =>
   request(`/correos/conversaciones/${id}/estado?estado=${encodeURIComponent(estado)}`, { method: "PATCH" });
 
-/* ============================================================
-   EFICIENCIA / COMBUSTIBLE (CUS-34)
-============================================================ */
-
-// CUS-34: eficiencia (km y ahorro de combustible) acumulada por cada conductor.
 export const obtenerEficienciaConductores = () => request("/dashboard/eficiencia-conductores");
 
-// Lee los parámetros de combustible. Salida: { consumo_l_100km, precio_soles_litro }.
 export const obtenerCombustible = () => request("/parametros/combustible");
 
-// Actualiza los parámetros de combustible. Entrada: consumo (L/100km) y precio (S//L).
+// Actualiza parametros de combustible. Recibe consumo_l_100km y precio_soles_litro.
 export const actualizarCombustible = (consumo_l_100km, precio_soles_litro) =>
   request("/parametros/combustible", { method: "PUT", body: { consumo_l_100km, precio_soles_litro } });
 
-/* ============================================================
-   DECISIONES SOBRE PEDIDOS FALLIDOS (CUS-31)
-============================================================ */
-
-// Reprograma un pedido (vuelve a LISTO_PARA_ENVIO). Entrada: id. Salida: { mensaje, codigo }.
+// Reprograma un pedido fallido (vuelve a LISTO_PARA_ENVIO). Recibe id.
 export const reprogramarPedido = (id) => request(`/pedidos/${id}/reprogramar`, { method: "POST" });
 
-// Cancela un pedido (estado CANCELADO). Entrada: id. Salida: { mensaje, codigo }.
+// Cancela un pedido. Recibe id.
 export const cancelarPedido = (id) => request(`/pedidos/${id}/cancelar`, { method: "POST" });
 
-/* ============================================================
-   RECOJOS INBOUND  (CUS-10 / CUS-11)
-============================================================ */
-
-// Acepta una solicitud de recojo: sube el Excel del cliente y crea los pedidos en POR_RECOGER.
-// Entrada: clienteId (number), archivo (File), extras {referencia?, contacto_origen?, conversacion_id?}.
+// Acepta una solicitud de recojo y crea pedidos en POR_RECOGER. Recibe clienteId, archivo y extras.
 export const aceptarSolicitud = (clienteId, archivo, extras = {}) => {
   const fd = new FormData();
   fd.append("cliente_id", clienteId);
@@ -364,31 +279,22 @@ export const aceptarSolicitud = (clienteId, archivo, extras = {}) => {
   return request("/recojos/aceptar", { method: "POST", body: fd });
 };
 
-/* ============================================================
-   INCIDENCIAS — Auxilio mecánico (CUS-30)
-============================================================ */
-
-// Lista las incidencias. Entrada: estado opcional ("ABIERTA"|"RESUELTA"). Salida: array.
+// Lista incidencias de auxilio. Recibe estado opcional ("ABIERTA"|"RESUELTA").
 export const listarIncidencias = (estado) =>
   request(`/incidencias${estado ? `?estado=${encodeURIComponent(estado)}` : ""}`);
 
-// Manda ayuda a una incidencia abierta (el conductor no puede resolverla solo).
-// Entrada: id y datos { tipo, nota? }. Salida: la incidencia actualizada.
+// Manda ayuda a una incidencia. Recibe id y datos { tipo, nota? }.
 export const mandarAyuda = (id, datos) =>
   request(`/incidencias/${id}/mandar-ayuda`, { method: "POST", body: datos });
 
-// Feed de notificaciones del admin: no_vistas e historial cronológico.
-// Entrada: limite opcional (cuántos ítems traer). Salida: { no_vistas: number,
-// items: [{ id, tipo, titulo, mensaje, ruta, creado_en, visto_en }] }.
+// Obtiene notificaciones del admin. Recibe limite opcional.
 export const obtenerNotificaciones = (limite) =>
   request(`/notificaciones${limite ? `?limite=${limite}` : ""}`);
 
-// Marca todas las notificaciones como vistas. Salida: { marcadas: number }.
 export const marcarNotificacionesVistas = () =>
   request("/notificaciones/marcar-vistas", { method: "POST" });
 
-// Descarga un adjunto (ej. el Excel del recojo) y dispara la descarga en el
-// navegador. Va con el token en el header, por eso no se usa un <a href> directo.
+// Descarga un adjunto de correo (autenticado). Recibe id y nombre.
 export async function descargarAdjunto(id, nombre) {
   const token = getToken();
   const resp = await fetch(`${API_URL}/correos/adjuntos/${id}`, {
@@ -406,51 +312,37 @@ export async function descargarAdjunto(id, nombre) {
   URL.revokeObjectURL(url);
 }
 
-/* ============================================================
-   ALMACÉN — Solicitudes y armado de ruta de recojo
-============================================================ */
-
-// Lista las solicitudes de recojo del módulo almacén. Filtro por estado (default SOLICITADO).
+// Lista solicitudes de recojo del almacen. Recibe estado (default SOLICITADO).
 export const listarSolicitudesAlmacen = (estado = "SOLICITADO") =>
   request(`/almacen/solicitudes?estado=${encodeURIComponent(estado)}`);
 
-// Asigna una ruta de recojo a partir de solicitudes seleccionadas.
-// Entrada: { recojo_ids, conductor_id (usuario_id), vehiculo_placa, nombre_ruta? }.
+// Asigna una ruta de recojo desde solicitudes seleccionadas. Recibe datos { recojo_ids, conductor_id, vehiculo_placa, nombre_ruta? }.
 export const asignarRutaRecojoAlmacen = (datos) =>
   request("/almacen/solicitudes/asignar-ruta", { method: "POST", body: datos });
 
-/* ============================================================
-   ALMACÉN — Ingreso manual  (CUS-14)
-============================================================ */
-
-// Recojos del módulo de almacén (RECOGIDO por ingresar + INGRESADO). Filtro opcional;
-// sin filtro el backend trae ambos estados (RECOGIDO + INGRESADO).
+// Lista recojos del almacen. Recibe estado opcional.
 export const listarRecojosAlmacen = (estado) =>
   request(`/almacen/recojos${estado ? `?estado=${encodeURIComponent(estado)}` : ""}`);
 
-// Conciliación detallada de un recojo (pedidos + fotos del conductor + conteo).
+// Detalle de conciliacion de un recojo. Recibe id.
 export const obtenerConciliacion = (id) => request(`/almacen/recojos/${id}/conciliacion`);
 
-// Confirma el ingreso manual de un recojo (pasa a INGRESADO). Entrada: id del recojo y
-// referenciasFaltantes (array de strings con las referencias que no llegaron al almacén).
-// Salida: { recojo_id, estado, conteo, mensaje }.
+// Confirma el ingreso manual de un recojo. Recibe recojoId y referenciasFaltantes (array).
 export const confirmarIngreso = (recojoId, referenciasFaltantes = []) =>
   request(`/almacen/recojos/${recojoId}/confirmar-ingreso`, {
     method: "POST",
     body: { referencias_faltantes: referenciasFaltantes },
   });
 
-// Resuelve un pedido OBSERVADO (lo da por conciliado). Entrada: pedido_id.
-// Salida: { mensaje, codigo }.
+// Resuelve un pedido OBSERVADO. Recibe pedidoId.
 export const resolverObservado = (pedidoId) =>
   request(`/almacen/pedidos/${pedidoId}/resolver-observado`, { method: "POST" });
 
-// CUS-32: rutas de entrega con FALLIDO pendientes de retorno.
 export const listarRutasRetorno = () => request("/almacen/retornos/rutas");
 
-// Detalle del retorno de una ruta (FALLIDO + conteo).
+// Detalle del retorno de una ruta. Recibe id.
 export const obtenerRetornoRuta = (id) => request(`/almacen/retornos/rutas/${id}`);
 
-// Escanea un paquete devuelto. Salida: { resultado, codigo, mensaje, conteo }.
+// Registra el escaneo de un paquete devuelto. Recibe id y codigo.
 export const escanearRetorno = (id, codigo) =>
   request(`/almacen/retornos/rutas/${id}/escanear`, { method: "POST", body: { codigo } });

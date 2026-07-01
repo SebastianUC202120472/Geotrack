@@ -1,5 +1,3 @@
-# app/services/cliente_service.py
-# Lógica del módulo de Clientes Corporativos.
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -9,20 +7,20 @@ from app.services.geocoder import obtener_coordenadas
 
 
 def _distrito_de(direccion: str) -> str:
-    """Deriva el distrito del texto de la dirección: lo que va tras la primera coma."""
+    """Extrae el distrito de la direccion (texto tras la primera coma). Recibe: cadena de direccion."""
     partes = (direccion or "").split(",", 1)
     return partes[1].strip() if len(partes) > 1 else "ZONA_DESCONOCIDA"
 
 
 def _geocodificar_origen(direccion: str):
-    """Geocodifica la dirección de recojo del cliente. Devuelve (lat, lng, distrito)."""
+    """Geocodifica la direccion de recojo. Recibe: string de direccion. Devuelve (lat, lng, distrito)."""
     lat, lng = obtener_coordenadas(direccion)
     distrito = _distrito_de(direccion) if lat is not None else None
     return lat, lng, distrito
 
 
 def _cliente_o_404(db: Session, cliente_id: int):
-    """Devuelve el cliente activo o lanza 404 si no existe / está dado de baja."""
+    """Devuelve el cliente activo o lanza 404. Recibe: sesion db y cliente_id."""
     cliente = cliente_repository.obtener_por_id(db, cliente_id)
     if cliente is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cliente no encontrado")
@@ -30,12 +28,12 @@ def _cliente_o_404(db: Session, cliente_id: int):
 
 
 def listar_clientes(db: Session):
-    """Devuelve los clientes activos."""
+    """Lista los clientes activos. Recibe: sesion db."""
     return cliente_repository.listar(db)
 
 
 def crear_cliente(db: Session, datos: ClienteCreate):
-    """Registra un cliente nuevo; rechaza si el RUC ya existe. Geocodifica la dirección de recojo."""
+    """Crea un cliente nuevo validando RUC unico y geocodificando la direccion. Recibe: sesion db y datos del cliente."""
     if datos.identificador_unico:
         existente = cliente_repository.obtener_por_identificador(db, datos.identificador_unico)
         if existente:
@@ -56,18 +54,17 @@ def crear_cliente(db: Session, datos: ClienteCreate):
         latitud=lat,
         longitud=lng,
     )
-    db.commit()          # crear() solo hizo flush; aquí confirmamos
+    db.commit()
+
     db.refresh(cliente)
     return cliente
 
 
 def actualizar_cliente(db: Session, cliente_id: int, datos: ClienteUpdate):
-    """CUS-07: edita una empresa cliente. Recibe: id y los campos a cambiar. Si cambia
-    el RUC, valida que no choque con otro cliente."""
+    """Edita los datos de un cliente; valida RUC unico y re-geocodifica si cambia la direccion. Recibe: sesion db, cliente_id y campos a actualizar."""
     cliente = _cliente_o_404(db, cliente_id)
-    campos = datos.model_dump(exclude_unset=True)  # solo lo que el cliente envió
+    campos = datos.model_dump(exclude_unset=True)
 
-    # La razón social, si se envía, no puede quedar vacía (es obligatoria).
     if "razon_social" in campos:
         rs = (campos["razon_social"] or "").strip()
         if len(rs) < 3:
@@ -77,7 +74,6 @@ def actualizar_cliente(db: Session, cliente_id: int, datos: ClienteUpdate):
             )
         campos["razon_social"] = rs
 
-    # Si cambia el RUC (a un valor no vacío), validar que no choque con otro cliente.
     nuevo_ruc = campos.get("identificador_unico")
     if nuevo_ruc and nuevo_ruc != cliente.identificador_unico:
         otro = cliente_repository.obtener_por_identificador(db, nuevo_ruc)
@@ -87,20 +83,15 @@ def actualizar_cliente(db: Session, cliente_id: int, datos: ClienteUpdate):
                 detail="Ya existe otro cliente con ese identificador (RUC)",
             )
 
-    # Si la dirección de recojo viene y cambió, sincronizar los campos geo con ella.
-    # Importante: la cadena vacía/espacios NO es "no enviada" (no se ignora como falsy);
-    # significa "limpiar dirección", para que distrito/latitud/longitud nunca queden
-    # desincronizados de direccion_origen.
+    # Si la direccion cambio, sincronizar campos geo; cadena vacia = limpiar coordenadas.
     nueva_dir = campos.get("direccion_origen")
     if nueva_dir is not None and nueva_dir != cliente.direccion_origen:
         if nueva_dir.strip():
-            # Dirección con contenido: re-geocodificar y rellenar los 3 campos derivados.
             lat, lng, distrito = _geocodificar_origen(nueva_dir)
             campos["distrito"] = distrito
             campos["latitud"] = lat
             campos["longitud"] = lng
         else:
-            # Dirección vacía: limpiar también los campos geo para no dejar datos viejos.
             campos["distrito"] = None
             campos["latitud"] = None
             campos["longitud"] = None
@@ -109,7 +100,7 @@ def actualizar_cliente(db: Session, cliente_id: int, datos: ClienteUpdate):
 
 
 def eliminar_cliente(db: Session, cliente_id: int) -> dict:
-    """CUS-07: da de baja (lógica) una empresa cliente. Recibe: id."""
+    """Baja logica de un cliente. Recibe: sesion db y cliente_id."""
     cliente = _cliente_o_404(db, cliente_id)
     cliente_repository.eliminar(db, cliente)
     return {"mensaje": "Cliente eliminado"}

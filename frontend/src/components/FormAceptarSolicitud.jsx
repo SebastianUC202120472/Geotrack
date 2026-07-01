@@ -14,8 +14,7 @@ import Input from "./ui/Input";
 
 import { listarClientes, aceptarSolicitud } from "../services/api";
 
-// Formulario reutilizable para aceptar una solicitud de recojo.
-// Recibe: desdeCorreo? { conversacion_id, nombre, email } — precarga el cliente si viene de la bandeja.
+// Formulario para aceptar una solicitud de recojo. Recibe desdeCorreo? { conversacion_id, nombre, email }.
 export default function FormAceptarSolicitud({ desdeCorreo }) {
   const [clientes, setClientes] = useState([]);
   const [clienteId, setClienteId] = useState("");
@@ -26,13 +25,12 @@ export default function FormAceptarSolicitud({ desdeCorreo }) {
   const [resultado, setResultado] = useState(null);
   const [error, setError] = useState("");
 
-  // Carga la lista de clientes y, si viene de un correo, preselecciona el cliente que coincida.
+  // Carga clientes y preselecciona si viene de un correo.
   useEffect(() => {
     listarClientes()
       .then((data) => {
         setClientes(data);
         if (desdeCorreo) {
-          // Busca por razon_social (normalizado) o por contacto (email).
           const nombreNorm = (desdeCorreo.nombre || "").trim().toLowerCase();
           const emailNorm = (desdeCorreo.email || "").trim().toLowerCase();
           const match = data.find(
@@ -56,8 +54,7 @@ export default function FormAceptarSolicitud({ desdeCorreo }) {
     }
   };
 
-  // Envía el formulario al backend y almacena el resumen o el error.
-  // Si viene de un correo, incluye el conversacion_id para cerrar el hilo al aceptar.
+  // Envía el formulario; si viene de correo incluye conversacion_id para cerrar el hilo.
   const aceptar = () => {
     if (!clienteId || !file) return;
     setCargando(true);
@@ -80,13 +77,11 @@ export default function FormAceptarSolicitud({ desdeCorreo }) {
 
   return (
     <div className="space-y-6">
-      {/* Datos de la solicitud */}
       <SectionCard
         title="Datos de la solicitud"
         subtitle="Completa los campos obligatorios (marcados con *)"
       >
         <div className="space-y-4">
-          {/* Selector de cliente registrado */}
           <Input
             as="select"
             label="Cliente *"
@@ -105,7 +100,6 @@ export default function FormAceptarSolicitud({ desdeCorreo }) {
             ))}
           </Input>
 
-          {/* Campo opcional de referencia interna */}
           <Input
             label="Referencia (opcional)"
             placeholder="Ej. OC-2026-001"
@@ -113,7 +107,6 @@ export default function FormAceptarSolicitud({ desdeCorreo }) {
             onChange={(e) => setReferencia(e.target.value)}
           />
 
-          {/* Campo opcional de contacto en origen */}
           <Input
             label="Contacto en origen (opcional)"
             placeholder="Nombre o teléfono del responsable de carga"
@@ -123,12 +116,10 @@ export default function FormAceptarSolicitud({ desdeCorreo }) {
         </div>
       </SectionCard>
 
-      {/* Zona de carga del Excel */}
       <SectionCard
         title="Archivo de pedidos *"
         subtitle="Formatos permitidos: XLSX"
       >
-        {/* Input oculto para selección de archivo */}
         <input
           id="excel-recojo-form"
           type="file"
@@ -137,7 +128,6 @@ export default function FormAceptarSolicitud({ desdeCorreo }) {
           onChange={elegirArchivo}
         />
 
-        {/* Estado vacío: aún no se eligió archivo */}
         {!file ? (
           <label htmlFor="excel-recojo-form" className="block cursor-pointer">
             <EmptyState
@@ -147,7 +137,6 @@ export default function FormAceptarSolicitud({ desdeCorreo }) {
             />
           </label>
         ) : (
-          /* Archivo seleccionado: preview con nombre */
           <label
             htmlFor="excel-recojo-form"
             className="block cursor-pointer rounded-xl border-2 border-dashed border-brand-300 bg-brand-50 p-8 text-center transition-colors hover:border-brand-400 hover:bg-brand-100/60"
@@ -162,7 +151,6 @@ export default function FormAceptarSolicitud({ desdeCorreo }) {
           </label>
         )}
 
-        {/* Botón de envío */}
         <Button
           onClick={aceptar}
           disabled={!clienteId || !file || cargando}
@@ -182,7 +170,6 @@ export default function FormAceptarSolicitud({ desdeCorreo }) {
         </Button>
       </SectionCard>
 
-      {/* Resumen exitoso */}
       {resultado && (
         <div className="rounded-card border border-emerald-200 bg-emerald-50 p-5 shadow-card">
           <div className="flex items-center gap-4">
@@ -193,8 +180,6 @@ export default function FormAceptarSolicitud({ desdeCorreo }) {
               <h3 className="text-base font-semibold text-slate-900">
                 Recojo registrado — <span className="font-mono">{resultado.codigo}</span>
               </h3>
-              {/* Con geocodificación diferida (carga masiva) los pedidos se ubican en segundo
-                  plano; mostramos eso en vez de "N sin ubicar", que alarmaría sin motivo. */}
               {resultado.geocodificacion_en_segundo_plano ? (
                 <p className="text-sm text-slate-600">
                   {resultado.pedidos_creados} pedidos creados · ubicándose en el mapa en segundo
@@ -212,7 +197,6 @@ export default function FormAceptarSolicitud({ desdeCorreo }) {
             </div>
           </div>
 
-          {/* Lista de filas rechazadas por el backend */}
           {resultado.filas_rechazadas && resultado.filas_rechazadas.length > 0 && (
             <div className="mt-4 rounded-card border border-amber-200 bg-amber-50 p-4">
               <div className="flex items-center gap-2">
@@ -231,7 +215,6 @@ export default function FormAceptarSolicitud({ desdeCorreo }) {
         </div>
       )}
 
-      {/* Error de envío */}
       {error && (
         <div className="rounded-card border border-red-200 bg-red-50 p-5 shadow-card">
           <div className="flex items-start gap-3">

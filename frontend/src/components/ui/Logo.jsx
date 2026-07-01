@@ -1,15 +1,13 @@
 import { useState } from "react";
 import logoUrl from "../../assets/logo.png";
 
-// Clases por tamaño: imagen/monograma y textos. "md" = uso normal (sidebar/header); "lg" = login.
+// Clases Tailwind por tamaño: "md" para sidebar/header, "lg" para login.
 const TAMANOS = {
   md: { gap: "gap-2.5", img: "h-9", chip: "h-9 w-9 rounded-xl text-lg", titulo: "text-lg", sub: "text-[11px]" },
   lg: { gap: "gap-3.5", img: "h-16", chip: "h-16 w-16 rounded-2xl text-3xl", titulo: "text-3xl", sub: "text-sm" },
 };
 
-// Logo de la empresa: ícono (empaquetado con hash por Vite; monograma si falla) + nombre y
-// subtítulo. Importar el asset evita problemas de caché del navegador (URL versionada por build).
-// "light" = true sobre fondo oscuro (sidebar). "size" = "md" (defecto) | "lg" (login).
+// Muestra el logo con nombre y subtítulo; usa monograma si la imagen falla. Recibe light, wordmark, size, className.
 export default function Logo({ light = false, wordmark = true, size = "md", className = "" }) {
   const [falla, setFalla] = useState(false);
   const t = TAMANOS[size] || TAMANOS.md;
