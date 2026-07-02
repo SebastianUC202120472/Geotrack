@@ -359,31 +359,3 @@ def resolver_observado(db: Session, pedido_id: int, usuario_id: int | None = Non
     pedido.validado_por = usuario_id
     db.commit()
     return {"mensaje": "Pedido resuelto: Listo para envío.", "codigo": pedido.codigo}
-
-
-def regeocodificar_pedidos() -> None:
-    """Tarea en segundo plano: re-geocodifica todos los pedidos no terminales ignorando el caché."""
-    from app.db.database import SessionLocal
-
-    estados = ("POR_RECOGER", "OBSERVADO", "LISTO_PARA_ENVIO", "ASIGNADO", "EN_RUTA", "GEOCODIFICACION_FALLIDA")
-    db = SessionLocal()
-    try:
-        pedidos = db.query(Pedido).filter(Pedido.estado.in_(estados)).all()
-        pendientes_commit = 0
-        for pedido in pedidos:
-            lat, lng = obtener_coordenadas(pedido.direccion_destino, db, forzar=True)
-            if lat and lng:
-                pedido.latitud = lat
-                pedido.longitud = lng
-                partes = (pedido.direccion_destino or "").split(",")
-                pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
-                pendientes_commit += 1
-                if pendientes_commit >= 20:   # commit por lotes
-                    db.commit()
-                    pendientes_commit = 0
-        if pendientes_commit:
-            db.commit()
-    except Exception:
-        db.rollback()
-    finally:
-        db.close()
