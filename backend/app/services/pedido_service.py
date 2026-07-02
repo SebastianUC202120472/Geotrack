@@ -8,7 +8,7 @@ from app.models.pedido import Pedido
 from app.models.conductor import PerfilConductor
 from app.repositories import (
     pedido_repository, cliente_repository, historial_repository, ruta_repository, usuario_repository,
-    reporte_repository,
+    reporte_repository, geocoding_cache_repository,
 )
 from app.services.geocoder import obtener_coordenadas
 from app.core.codigos import asignar_codigo, generar_codigo, PREFIJO_PEDIDO
@@ -181,16 +181,29 @@ def _str_o_none(valor):
 
 
 def procesar_geocodificacion(db: Session, usuario_id: int | None = None) -> dict:
-    """Geocodifica los pedidos sin coordenadas; marca como GEOCODIFICACION_FALLIDA si no se encuentra la dirección."""
+    """Geocodifica los pedidos sin coordenadas usando el caché de direcciones (una sola
+    consulta trae las ya cacheadas, para no repetir llamadas al proveedor); marca
+    GEOCODIFICACION_FALLIDA si no se encuentra la dirección."""
     pendientes = pedido_repository.obtener_sin_coordenadas(db)
     if not pendientes:
         return {"mensaje": "Todos los pedidos ya están geocodificados"}
+
+    # Una sola consulta: coordenadas ya cacheadas de todas las direcciones del lote.
+    cacheadas = geocoding_cache_repository.obtener_muchas(db, [p.direccion_destino for p in pendientes])
 
     exitosos = 0
     fallidos = 0
 
     for pedido in pendientes:
-        lat, lng = obtener_coordenadas(pedido.direccion_destino)
+        norm = geocoding_cache_repository.normalizar(pedido.direccion_destino)
+        hit = cacheadas.get(norm)
+        if hit:
+            lat, lng = hit
+        else:
+            # No estaba en caché: geocodifica (Google/Nominatim) y lo guarda para la próxima.
+            lat, lng = obtener_coordenadas(pedido.direccion_destino, db)
+            if lat and lng:
+                cacheadas[norm] = (lat, lng)  # reutiliza si el mismo lote repite la dirección
 
         if lat and lng:
             pedido.latitud = lat
