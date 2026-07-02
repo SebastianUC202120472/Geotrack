@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -63,10 +63,3 @@ def reprogramar_pedido(pedido_id: int, db: Session = Depends(get_db), admin: Usu
 def cancelar_pedido(pedido_id: int, db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
     """Cancela definitivamente un pedido FALLIDO. Recibe pedido_id."""
     return pedido_service.cancelar(db, pedido_id, usuario_id=admin.id)
-
-
-@router.post("/regeocodificar")
-def regeocodificar(background_tasks: BackgroundTasks, admin: Usuario = Depends(get_current_admin)):
-    """Re-geocodifica en segundo plano los pedidos activos para refrescar sus coordenadas."""
-    background_tasks.add_task(pedido_service.regeocodificar_pedidos)
-    return {"mensaje": "Re-geocodificación iniciada en segundo plano"}
