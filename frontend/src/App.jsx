@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 
 import LayoutAdmin from "./components/LayoutAdmin";
@@ -23,10 +24,22 @@ import ReportesPedido from "./pages/ReportesPedido";
 import AuxilioMecanico from "./pages/AuxilioMecanico";
 import Notificaciones from "./pages/Notificaciones";
 
-// Rutas: /login redirige al login del panel; el panel completo vive bajo /panel.
+// Landing público (carga diferida: no forma parte del bundle del panel admin).
+const Landing = lazy(() => import("./pages/landing/Landing"));
+
+// Rutas: "/" es el landing público de SAVA; /login redirige al login del panel;
+// el panel completo vive bajo /panel; cualquier ruta desconocida vuelve a "/".
 export default function App() {
   return (
     <Routes>
+      <Route
+        path="/"
+        element={
+          <Suspense fallback={null}>
+            <Landing />
+          </Suspense>
+        }
+      />
       <Route path="/login" element={<Navigate to="/panel/login" replace />} />
       <Route path="/panel/login" element={<Login />} />
 
@@ -58,7 +71,7 @@ export default function App() {
         <Route path="almacen/mapa" element={<MapaRecojos />} />
       </Route>
 
-      <Route path="*" element={<Navigate to="/panel" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
