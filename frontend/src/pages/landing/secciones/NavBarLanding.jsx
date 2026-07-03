@@ -45,7 +45,7 @@ export default function NavBarLanding({ lang, setLang, tx }) {
             <img src={logo} alt="SAVA" style={{ width: 36, height: 38, objectFit: "contain" }} />
             <span style={{ fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 19, letterSpacing: ".02em" }}>
               SAVA{" "}
-              <span style={{ fontWeight: 500, color: "#4f6580", fontSize: 12, letterSpacing: ".08em" }}>S.A.C.</span>
+              <span data-sac="1" style={{ fontWeight: 500, color: "#4f6580", fontSize: 12, letterSpacing: ".08em" }}>S.A.C.</span>
             </span>
           </a>
 
