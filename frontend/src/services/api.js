@@ -27,7 +27,7 @@ async function request(ruta, { method = "GET", body, headers = {}, auth = true }
 
   if (respuesta.status === 401) {
     borrarToken();
-    if (window.location.pathname !== "/login") window.location.href = "/login";
+    if (window.location.pathname !== "/panel/login") window.location.href = "/panel/login";
     throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
   }
 

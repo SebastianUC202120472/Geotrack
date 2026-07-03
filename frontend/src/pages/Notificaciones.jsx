@@ -6,6 +6,7 @@ import KpiCard from "../components/ui/KpiCard";
 import SectionCard from "../components/ui/SectionCard";
 import EmptyState from "../components/ui/EmptyState";
 import { obtenerNotificaciones } from "../services/api";
+import { haciaPanel } from "../utils/rutasPanel";
 
 // Devuelve tiempo relativo legible desde una fecha ISO. Recibe fechaIso.
 function tiempoRelativo(fechaIso) {
@@ -48,7 +49,7 @@ export default function Notificaciones() {
     [items, filtro],
   );
 
-  const irA = (ruta) => { if (ruta) navigate(ruta); };
+  const irA = (ruta) => { if (ruta) navigate(haciaPanel(ruta)); };
 
   const botonFiltro = (valor, etiqueta) => (
     <button

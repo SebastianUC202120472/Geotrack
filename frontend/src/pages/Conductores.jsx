@@ -171,7 +171,7 @@ export default function Conductores() {
           <button
             className="parpadeo-alerta inline-flex items-center gap-1.5 rounded-xl bg-danger px-3 py-1.5 text-xs font-semibold text-white"
             title={`Incidencia abierta: ${inc.codigo ?? `IN-${inc.id}`}`}
-            onClick={(e) => { e.stopPropagation(); navigate(`/auxilio?conductor=${c.usuario_id}&estado=ABIERTA`); }}
+            onClick={(e) => { e.stopPropagation(); navigate(`/panel/auxilio?conductor=${c.usuario_id}&estado=ABIERTA`); }}
           >
             <Wrench size={13} /> Auxilio
           </button>

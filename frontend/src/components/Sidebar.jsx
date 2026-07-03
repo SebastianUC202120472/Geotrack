@@ -27,47 +27,47 @@ const secciones = [
     titulo: "Operación",
     roles: ["admin"],
     items: [
-      { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-      { icon: Package, label: "Pedidos", path: "/pedidos" },
-      { icon: Layers3, label: "Agrupación por Zonas", path: "/agrupacion" },
-      { icon: RouteIcon, label: "Asignación de Rutas", path: "/asignacion-bloque" },
-      { icon: Mail, label: "Bandeja de Solicitudes", path: "/bandeja" },
+      { icon: LayoutDashboard, label: "Dashboard", path: "/panel" },
+      { icon: Package, label: "Pedidos", path: "/panel/pedidos" },
+      { icon: Layers3, label: "Agrupación por Zonas", path: "/panel/agrupacion" },
+      { icon: RouteIcon, label: "Asignación de Rutas", path: "/panel/asignacion-bloque" },
+      { icon: Mail, label: "Bandeja de Solicitudes", path: "/panel/bandeja" },
     ],
   },
   {
     titulo: "Flota",
     roles: ["admin"],
     items: [
-      { icon: Truck, label: "Flota de Vehículos", path: "/flota" },
-      { icon: Users, label: "Conductores", path: "/conductores" },
-      { icon: Building2, label: "Clientes", path: "/clientes" },
-      { icon: MapPin, label: "Seguimiento de Conductores", path: "/seguimiento-conductores" },
+      { icon: Truck, label: "Flota de Vehículos", path: "/panel/flota" },
+      { icon: Users, label: "Conductores", path: "/panel/conductores" },
+      { icon: Building2, label: "Clientes", path: "/panel/clientes" },
+      { icon: MapPin, label: "Seguimiento de Conductores", path: "/panel/seguimiento-conductores" },
     ],
   },
   {
     titulo: "Trazabilidad",
     roles: ["admin"],
     items: [
-      { icon: ClipboardList, label: "Reportes de pedido", path: "/reportes" },
-      { icon: Wrench, label: "Auxilio mecánico", path: "/auxilio" },
+      { icon: ClipboardList, label: "Reportes de pedido", path: "/panel/reportes" },
+      { icon: Wrench, label: "Auxilio mecánico", path: "/panel/auxilio" },
     ],
   },
   {
     titulo: "Administración",
     roles: ["admin"],
     items: [
-      { icon: UserCog, label: "Usuarios", path: "/usuarios" },
-      { icon: SlidersHorizontal, label: "Parámetros", path: "/parametros" },
+      { icon: UserCog, label: "Usuarios", path: "/panel/usuarios" },
+      { icon: SlidersHorizontal, label: "Parámetros", path: "/panel/parametros" },
     ],
   },
   {
     titulo: "Almacén",
     roles: ["almacen"],
     items: [
-      { icon: RouteIcon, label: "Armar ruta de recojo", path: "/almacen/recojos" },
-      { icon: PackageCheck, label: "Ingreso a Almacén", path: "/almacen" },
-      { icon: Undo2, label: "Retornos de Ruta", path: "/almacen/retornos" },
-      { icon: MapPin, label: "Mapa de recojos", path: "/almacen/mapa" },
+      { icon: RouteIcon, label: "Armar ruta de recojo", path: "/panel/almacen/recojos" },
+      { icon: PackageCheck, label: "Ingreso a Almacén", path: "/panel/almacen" },
+      { icon: Undo2, label: "Retornos de Ruta", path: "/panel/almacen/retornos" },
+      { icon: MapPin, label: "Mapa de recojos", path: "/panel/almacen/mapa" },
     ],
   },
 ];
@@ -81,7 +81,7 @@ export default function Sidebar({ onNavigate }) {
 
   const salir = () => {
     cerrarSesion();
-    navigate("/login", { replace: true });
+    navigate("/panel/login", { replace: true });
   };
 
   return (

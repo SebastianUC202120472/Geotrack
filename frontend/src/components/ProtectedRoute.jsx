@@ -7,10 +7,10 @@ export default function ProtectedRoute({ children }) {
   const location = useLocation();
 
   if (!autenticado) {
-    return <Navigate to="/login" replace state={{ from: location }} />;
+    return <Navigate to="/panel/login" replace state={{ from: location }} />;
   }
-  if (rol === "almacen" && !location.pathname.startsWith("/almacen")) {
-    return <Navigate to="/almacen" replace />;
+  if (rol === "almacen" && !location.pathname.startsWith("/panel/almacen")) {
+    return <Navigate to="/panel/almacen" replace />;
   }
   return children;
 }
