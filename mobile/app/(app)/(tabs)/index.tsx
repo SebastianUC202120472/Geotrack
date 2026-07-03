@@ -142,7 +142,7 @@ function RutaEntregaView() {
           </View>
           <Texto variante="display" color={colors.white}>{ruta.data.nombre}</Texto>
           <Texto variante="body" color={colors.white} style={{ opacity: 0.9, textTransform: "lowercase" }}>
-            {(ruta.data.codigo ?? "—")} · {ruta.data.estado.replace("_", " ").toLowerCase()}
+            {(ruta.data.codigo ?? "—")} · {(ruta.data.estado ?? "").replace("_", " ").toLowerCase()}
           </Texto>
           {horaLocal(ruta.data.fecha_salida) && (
             <Texto variante="caption" color={colors.white} style={{ opacity: 0.9, marginTop: 2 }}>
