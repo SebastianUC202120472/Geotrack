@@ -30,6 +30,26 @@
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: none; }
 }
+/* Keyframes compartidos con el landing, redeclarados aquí a propósito: el portal es
+   un chunk lazy independiente y debe animar aunque el usuario entre directo a /portal
+   sin haber cargado landing.css. Definiciones idénticas (no chocan si cargan ambas). */
+@keyframes dashflow {
+  to { stroke-dashoffset: -28; }
+}
+@keyframes pulso {
+  0% { transform: scale(.55); opacity: .85; }
+  75% { transform: scale(1.9); opacity: 0; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+@keyframes latido {
+  0%, 100% { opacity: .3; }
+  50% { opacity: 1; }
+}
+@keyframes sacudir {
+  0%, 100% { transform: none; }
+  20%, 60% { transform: translateX(-5px); }
+  40%, 80% { transform: translateX(5px); }
+}
 @keyframes toastIn {
   from { opacity: 0; transform: translate(-50%, 16px); }
   to { opacity: 1; transform: translate(-50%, 0); }

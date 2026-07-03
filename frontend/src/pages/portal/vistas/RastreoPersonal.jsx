@@ -583,7 +583,7 @@ function Evidencia({ ped }) {
         <p style={{ margin: "6px 0 0", fontSize: 12.5, color: "#8ba0b6" }}>El conductor registró la evidencia en GeoTrack al momento de entregar. Solo el destinatario verificado puede verla.</p>
       </div>
       {/* Placeholder de la foto de entrega (POD) — sin imagen real en la demo */}
-      <div className="ptl-pod" style={{ width: "100%", height: 180, borderRadius: 14, background: "#eef4fa", border: "1px dashed rgba(15,43,74,.16)", display: "grid", placeItems: "center", color: "#8ba0b6", fontSize: 12.5, fontWeight: 600 }}>
+      <div style={{ width: "100%", height: 180, borderRadius: 14, background: "#eef4fa", border: "1px dashed rgba(15,43,74,.16)", display: "grid", placeItems: "center", color: "#8ba0b6", fontSize: 12.5, fontWeight: 600 }}>
         Foto de entrega (POD)
       </div>
     </div>
