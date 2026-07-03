@@ -76,6 +76,21 @@
 .ptl-btn-cerrar:hover { border-color: #2679d8; color: #2679d8; }
 .ptl-btn-confirmar-reprog:hover { background: #1b5fb3; }
 
+/* Vista empresa / retail (Tarea 11) — hover/focus del mockup (style-hover/style-focus) */
+.ptl-input-emp:focus { border-color: #2679d8; background: #fff; }
+.ptl-btn-creds:hover { background: #1b5fb3; }
+.ptl-chip-emp:hover { background: #eaf3fc; border-color: #2679d8; }
+.ptl-input-otp:focus { border-color: #2679d8; background: #fff; }
+.ptl-btn-otp:hover { background: #1b5fb3; }
+.ptl-link-reenviar:hover { color: #1b5fb3; }
+.ptl-link-volver-creds:hover { color: #3d5570; }
+.ptl-btn-salir-emp:hover { border-color: #c8362b; color: #c8362b; }
+.ptl-kpi-emp:hover { border-color: #2679d8; }
+.ptl-buscar-emp:focus { border-color: #2679d8; }
+.ptl-select-emp:focus { border-color: #2679d8; }
+.ptl-limpiar-emp:hover { text-decoration: underline; }
+.ptl-fila-emp:hover { background: #f4f8fc; }
+
 /* Media queries (2, del mockup del portal) */
 @media (max-width: 680px) {
   #pTop { padding: 0 14px !important; gap: 10px !important; }

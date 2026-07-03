@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useEfectosScroll } from "../../hooks/useEfectosScroll";
 import RastreoPersonal from "./vistas/RastreoPersonal";
+import PanelEmpresa from "./vistas/PanelEmpresa";
 import logo from "../../assets/logo.png";
 import "./portal.css";
 
@@ -183,7 +184,7 @@ export default function Portal() {
 
       {/* Vista según el perfil elegido */}
       {modo === "personal" && <RastreoPersonal avisar={avisar} />}
-      {/* Tarea 11: {modo === "empresa" && <PanelEmpresa avisar={avisar} />} */}
+      {modo === "empresa" && <PanelEmpresa avisar={avisar} />}
 
       {/* CTA EQUIPO */}
       <div data-psec="1" style={{ maxWidth: 1140, margin: "56px auto 0", padding: "0 24px", width: "100%", boxSizing: "border-box" }}>
