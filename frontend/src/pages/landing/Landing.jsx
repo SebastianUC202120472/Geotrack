@@ -5,8 +5,10 @@ import { crearTx } from "./i18n";
 import NavBarLanding from "./secciones/NavBarLanding";
 import Hero from "./secciones/Hero";
 import Marcas from "./secciones/Marcas";
+import ComoFunciona from "./secciones/ComoFunciona";
 import Contadores from "./secciones/Contadores";
 import Cobertura from "./secciones/Cobertura";
+import SeccionGeoTrack from "./secciones/SeccionGeoTrack";
 import Nosotros from "./secciones/Nosotros";
 import FooterLanding from "./secciones/FooterLanding";
 import "./landing.css";
@@ -30,10 +32,10 @@ export default function Landing() {
       <NavBarLanding lang={lang} setLang={setLang} tx={tx} />
       <Hero tx={tx} lang={lang} />
       <Marcas tx={tx} />
-      {/* Tarea 7 añade aquí: ComoFunciona (#como-funciona) */}
+      <ComoFunciona tx={tx} />
       <Contadores tx={tx} />
       <Cobertura tx={tx} />
-      {/* Tarea 7 añade aquí: SeccionGeoTrack (#geotrack) */}
+      <SeccionGeoTrack tx={tx} />
       <Nosotros tx={tx} />
       {/* Tarea 8 añade aquí: Reclamos, Contacto */}
       <FooterLanding tx={tx} />
