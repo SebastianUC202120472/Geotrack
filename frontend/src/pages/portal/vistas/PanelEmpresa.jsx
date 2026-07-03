@@ -224,6 +224,7 @@ export default function PanelEmpresa({ avisar }) {
       setPaso(2);
       setEmpresa(pendiente);
       setSesionFin(Date.now() + 600000);
+      setAhora(Date.now()); // sincroniza el reloj: evita mostrar un countdown viejo el primer segundo
       setOtpError(false);
       setAbierta(null);
       setFiltro("TODOS");
