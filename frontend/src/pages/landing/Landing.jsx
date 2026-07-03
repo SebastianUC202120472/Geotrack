@@ -10,6 +10,8 @@ import Contadores from "./secciones/Contadores";
 import Cobertura from "./secciones/Cobertura";
 import SeccionGeoTrack from "./secciones/SeccionGeoTrack";
 import Nosotros from "./secciones/Nosotros";
+import Reclamos from "./secciones/Reclamos";
+import Contacto from "./secciones/Contacto";
 import FooterLanding from "./secciones/FooterLanding";
 import "./landing.css";
 
@@ -37,7 +39,8 @@ export default function Landing() {
       <Cobertura tx={tx} />
       <SeccionGeoTrack tx={tx} />
       <Nosotros tx={tx} />
-      {/* Tarea 8 añade aquí: Reclamos, Contacto */}
+      <Reclamos tx={tx} />
+      <Contacto tx={tx} />
       <FooterLanding tx={tx} />
     </div>
   );

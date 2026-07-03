@@ -76,6 +76,36 @@
 .ldg-zona-card:hover { border-color: #2679d8; }
 .ldg-paso-card:hover { box-shadow: 0 18px 40px rgba(15, 43, 74, .13); }
 
+/* Campos de formulario (Reclamos/Contacto) y botón de envío — estilo base común
+   del mockup (antes solo existían los selectores :focus/:hover). */
+.ldg-input,
+.ldg-textarea {
+  font-family: Inter, sans-serif;
+  font-size: 14.5px;
+  padding: 13px 14px;
+  border: 1.5px solid rgba(15, 43, 74, .14);
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #0f2b4a;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color .2s ease, background .2s ease;
+}
+.ldg-textarea { resize: vertical; }
+.ldg-btn-enviar {
+  border: 0;
+  cursor: pointer;
+  background: #2679d8;
+  color: #fff;
+  font-family: Inter, sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  padding: 15px 30px;
+  border-radius: 99px;
+  transition: background .2s ease, transform .2s ease;
+}
+
 /* Foto de Nosotros (reemplaza el <image-slot> del mockup) */
 .ldg-nosotros-foto {
   width: 100%;
