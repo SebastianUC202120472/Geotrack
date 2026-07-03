@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import MapaHeroIso from "../../../components/publico/MapaHeroIso";
-import heroFondo from "../../../assets/landing/hero-fondo.png";
+import heroFondo from "../../../assets/landing/hero-fondo.jpg";
 
 // Hero (#inicio): eyebrow + titular + subtítulo + 2 CTAs a la izquierda, mapa 3D
 // animado a la derecha. Fondo con parallax al hacer scroll (useEffect local, sin
