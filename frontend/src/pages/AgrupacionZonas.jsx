@@ -152,7 +152,7 @@ export default function AgrupacionZonas() {
     const params = new URLSearchParams();
     if (distrito) params.set("distrito", distrito);
     if (estado) params.set("estado", estado);
-    navigate(`/pedidos?${params.toString()}`);
+    navigate(`/panel/pedidos?${params.toString()}`);
   };
 
   return (

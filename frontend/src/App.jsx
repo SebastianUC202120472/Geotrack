@@ -23,40 +23,42 @@ import ReportesPedido from "./pages/ReportesPedido";
 import AuxilioMecanico from "./pages/AuxilioMecanico";
 import Notificaciones from "./pages/Notificaciones";
 
-// Rutas del panel admin: /login libre, el resto protegido bajo LayoutAdmin.
+// Rutas: /login redirige al login del panel; el panel completo vive bajo /panel.
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      <Route path="/login" element={<Navigate to="/panel/login" replace />} />
+      <Route path="/panel/login" element={<Login />} />
 
       <Route
+        path="/panel"
         element={
           <ProtectedRoute>
             <LayoutAdmin />
           </ProtectedRoute>
         }
       >
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/pedidos" element={<Pedidos />} />
-        <Route path="/agrupacion" element={<AgrupacionZonas />} />
-        <Route path="/asignacion-bloque" element={<AsignacionBloque />} />
-        <Route path="/bandeja" element={<Bandeja />} />
-        <Route path="/flota" element={<Flota />} />
-        <Route path="/conductores" element={<Conductores />} />
-        <Route path="/clientes" element={<Clientes />} />
-        <Route path="/usuarios" element={<Usuarios />} />
-        <Route path="/parametros" element={<Parametros />} />
-        <Route path="/seguimiento-conductores" element={<SeguimientoConductores />} />
-        <Route path="/reportes" element={<ReportesPedido />} />
-        <Route path="/auxilio" element={<AuxilioMecanico />} />
-        <Route path="/notificaciones" element={<Notificaciones />} />
-        <Route path="/almacen" element={<IngresoAlmacen />} />
-        <Route path="/almacen/retornos" element={<RetornosAlmacen />} />
-        <Route path="/almacen/recojos" element={<ArmarRutaRecojo />} />
-        <Route path="/almacen/mapa" element={<MapaRecojos />} />
+        <Route index element={<Dashboard />} />
+        <Route path="pedidos" element={<Pedidos />} />
+        <Route path="agrupacion" element={<AgrupacionZonas />} />
+        <Route path="asignacion-bloque" element={<AsignacionBloque />} />
+        <Route path="bandeja" element={<Bandeja />} />
+        <Route path="flota" element={<Flota />} />
+        <Route path="conductores" element={<Conductores />} />
+        <Route path="clientes" element={<Clientes />} />
+        <Route path="usuarios" element={<Usuarios />} />
+        <Route path="parametros" element={<Parametros />} />
+        <Route path="seguimiento-conductores" element={<SeguimientoConductores />} />
+        <Route path="reportes" element={<ReportesPedido />} />
+        <Route path="auxilio" element={<AuxilioMecanico />} />
+        <Route path="notificaciones" element={<Notificaciones />} />
+        <Route path="almacen" element={<IngresoAlmacen />} />
+        <Route path="almacen/retornos" element={<RetornosAlmacen />} />
+        <Route path="almacen/recojos" element={<ArmarRutaRecojo />} />
+        <Route path="almacen/mapa" element={<MapaRecojos />} />
       </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<Navigate to="/panel" replace />} />
     </Routes>
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import Sidebar from "./Sidebar";
@@ -9,6 +9,11 @@ import Topbar from "./Topbar";
 export default function LayoutAdmin() {
   const [abierto, setAbierto] = useState(false);
   const { pathname } = useLocation();
+
+  // Fija el título de la pestaña mientras se navega dentro del panel.
+  useEffect(() => {
+    document.title = "GeoTrack — Panel de Administración";
+  }, []);
 
   return (
     <div className="flex h-screen bg-canvas">

@@ -327,7 +327,7 @@ export default function Pedidos() {
             onCerrar={() => setSeleccionado(null)}
             onAccion={() => { setSeleccionado(null); cargarTodo(); }}
             onDireccionResuelta={() => { setSeleccionado(null); cargar(); }}
-            onVerReporte={(codigo) => navigate(`/reportes?pedido=${encodeURIComponent(codigo)}`)}
+            onVerReporte={(codigo) => navigate(`/panel/reportes?pedido=${encodeURIComponent(codigo)}`)}
           />
         )}
       </Modal>

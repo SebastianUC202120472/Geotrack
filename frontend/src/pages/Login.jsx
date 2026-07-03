@@ -20,7 +20,7 @@ export default function Login() {
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
 
-  const destino = location.state?.from?.pathname || "/";
+  const destino = location.state?.from?.pathname || "/panel";
 
   // Envia credenciales al backend. Recibe el evento del formulario.
   const handleSubmit = async (e) => {
