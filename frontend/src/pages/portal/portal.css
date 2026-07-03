@@ -34,6 +34,10 @@
   from { opacity: 0; transform: translate(-50%, 16px); }
   to { opacity: 1; transform: translate(-50%, 0); }
 }
+/* Spinner de "Buscando su paquete en GeoTrack…" (fuente <style> línea 423) */
+@keyframes girar {
+  to { transform: rotate(360deg); }
+}
 
 /* Hover (sustituyen a style-hover del mockup) */
 .ptl-link-volver:hover { color: #2679d8; }
@@ -41,6 +45,16 @@
 .ptl-card-modo:hover { transform: translateY(-2px); }
 .ptl-ft-link:hover { color: #2679d8; }
 .ptl-ft-volver:hover { color: #1b5fb3; }
+
+/* Vista persona natural (Tarea 10) — hover/focus del mockup (style-hover/style-focus) */
+.ptl-input-buscar:focus { border-color: #2679d8; background: #fff; }
+.ptl-btn-rastrear:hover { background: #1b5fb3; }
+.ptl-chip-demo:hover { background: #eaf3fc; border-color: #2679d8; }
+.ptl-input-ver:focus { border-color: #2679d8; }
+.ptl-btn-verificar:hover { background: #1b5fb3; }
+.ptl-link-sms:hover { color: #1b5fb3; }
+.ptl-btn-cerrar:hover { border-color: #2679d8; color: #2679d8; }
+.ptl-btn-confirmar-reprog:hover { background: #1b5fb3; }
 
 /* Media queries (2, del mockup del portal) */
 @media (max-width: 680px) {

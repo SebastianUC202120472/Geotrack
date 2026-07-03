@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useEfectosScroll } from "../../hooks/useEfectosScroll";
+import RastreoPersonal from "./vistas/RastreoPersonal";
 import logo from "../../assets/logo.png";
 import "./portal.css";
 
@@ -25,10 +26,8 @@ export default function Portal() {
   }, []);
 
   // Muestra un aviso flotante `ms` milisegundos (por defecto 3600, igual que el
-  // mockup) y lo oculta solo; reinicia el timer si ya había uno en curso.
-  // Aún sin consumidores: las Tareas 10 y 11 la reciben por props (RastreoPersonal /
-  // PanelEmpresa) en los huecos comentados de abajo.
-  // eslint-disable-next-line no-unused-vars
+  // mockup) y lo oculta solo; reinicia el timer si ya había uno en curso. La consume
+  // RastreoPersonal (Tarea 10) por props; la Tarea 11 (PanelEmpresa) la usará también.
   const avisar = (texto, ms) => {
     setToast(texto);
     clearTimeout(timerToast.current);
@@ -182,8 +181,9 @@ export default function Portal() {
         </div>
       </div>
 
-      {/* Tarea 10: <RastreoPersonal avisar={avisar} /> */}
-      {/* Tarea 11: <PanelEmpresa avisar={avisar} /> */}
+      {/* Vista según el perfil elegido */}
+      {modo === "personal" && <RastreoPersonal avisar={avisar} />}
+      {/* Tarea 11: {modo === "empresa" && <PanelEmpresa avisar={avisar} />} */}
 
       {/* CTA EQUIPO */}
       <div data-psec="1" style={{ maxWidth: 1140, margin: "56px auto 0", padding: "0 24px", width: "100%", boxSizing: "border-box" }}>
