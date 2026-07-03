@@ -3,6 +3,11 @@ import { useLocation } from "react-router-dom";
 import { useEfectosScroll } from "../../hooks/useEfectosScroll";
 import { crearTx } from "./i18n";
 import NavBarLanding from "./secciones/NavBarLanding";
+import Hero from "./secciones/Hero";
+import Marcas from "./secciones/Marcas";
+import Contadores from "./secciones/Contadores";
+import Cobertura from "./secciones/Cobertura";
+import Nosotros from "./secciones/Nosotros";
 import FooterLanding from "./secciones/FooterLanding";
 import "./landing.css";
 
@@ -23,8 +28,14 @@ export default function Landing() {
   return (
     <div ref={contRef} className="ldg-pagina">
       <NavBarLanding lang={lang} setLang={setLang} tx={tx} />
-      {/* Tareas 6-8 añaden aquí: Hero, Marcas, ComoFunciona, Contadores, Cobertura,
-          SeccionGeoTrack, Nosotros, Reclamos, Contacto */}
+      <Hero tx={tx} lang={lang} />
+      <Marcas tx={tx} />
+      {/* Tarea 7 añade aquí: ComoFunciona (#como-funciona) */}
+      <Contadores tx={tx} />
+      <Cobertura tx={tx} />
+      {/* Tarea 7 añade aquí: SeccionGeoTrack (#geotrack) */}
+      <Nosotros tx={tx} />
+      {/* Tarea 8 añade aquí: Reclamos, Contacto */}
       <FooterLanding tx={tx} />
     </div>
   );

@@ -1,15 +1,21 @@
 import { useEffect, useRef } from 'react';
 import { armarEscena, pintarEscena } from './escenaIso';
 
-// Textos por defecto del HUD (español). enRuta(n, total) → string mostrado mientras
-// la camioneta va camino a la siguiente entrega. Task 5 inyecta el i18n vía prop.
+// Textos por defecto del HUD (español), uno por cada estado del recorrido.
+// enRuta(n,total) camino a la siguiente entrega; cercaDe(n,total,nombre) al
+// acercarse a una parada; completada(total) al terminar la ruta.
 const TEXTOS_DEFECTO = {
   enRuta: (n, total) => 'En ruta a la entrega ' + n + ' de ' + total,
+  cercaDe: (n, total, nombre) => 'Entregando pedido ' + n + ' de ' + total + ' · ' + nombre,
+  completada: (total) => 'Ruta completada · ' + total + ' pedidos entregados ✓',
+  vivo: 'EN VIVO',
+  hint: 'Gire el mapa arrastrándolo · lleve la camioneta para adelantar la ruta',
 };
 
 // MapaHeroIso: mapa isométrico del hero. La camioneta recorre la ruta sola (rAF),
 // se puede arrastrar el mapa para girar la cámara y arrastrar la camioneta para
-// adelantar/retroceder. Prop opcional `textos` con { enRuta } para el HUD.
+// adelantar/retroceder. Prop opcional `textos` con { enRuta, cercaDe, completada,
+// vivo, hint } para el HUD bilingüe (Landing/Hero inyecta el i18n).
 export default function MapaHeroIso({ textos }) {
   const svgRef = useRef(null);
 
@@ -24,6 +30,8 @@ export default function MapaHeroIso({ textos }) {
     const hud = svg.querySelector('#hudMapa');
     if (!ruta || !prog || !van) return;
     const enRuta = (textos && textos.enRuta) || TEXTOS_DEFECTO.enRuta;
+    const cercaDe = (textos && textos.cercaDe) || TEXTOS_DEFECTO.cercaDe;
+    const completada = (textos && textos.completada) || TEXTOS_DEFECTO.completada;
 
     const L = ruta.getTotalLength();
     prog.setAttribute('stroke-dasharray', String(L));
@@ -99,8 +107,8 @@ export default function MapaHeroIso({ textos }) {
       });
       if (hud) {
         const total = paradas.length;
-        if (l >= L - 4) hud.textContent = 'Ruta completada · ' + total + ' pedidos entregados ✓';
-        else if (cerca) hud.textContent = 'Entregando pedido ' + cercaN + ' de ' + total + ' · ' + cerca.nombre;
+        if (l >= L - 4) hud.textContent = completada(total);
+        else if (cerca) hud.textContent = cercaDe(cercaN, total, cerca.nombre);
         else {
           const sig = Math.min(total, idx + 1);
           hud.textContent = enRuta(sig, total);
@@ -120,6 +128,9 @@ export default function MapaHeroIso({ textos }) {
       escena.limpiar();
     };
   }, [textos]);
+
+  // Texto inicial del HUD (antes del primer frame del rAF); 7 = total de paradas fijas del SVG.
+  const enRutaInicial = ((textos && textos.enRuta) || TEXTOS_DEFECTO.enRuta)(1, 7);
 
   return (
     <div style={{ position: 'relative' }}>
@@ -164,14 +175,14 @@ export default function MapaHeroIso({ textos }) {
             <rect x="6" y="-9" width="9" height="18" rx="2.5" fill="#5db1f0" />
           </g>
         </g>
-        <text data-world="52,130,-32" x="392" y="122" textAnchor="middle" style={{ fontFamily: 'Inter,sans-serif', fontSize: '16px', fontWeight: 700, fill: '#0f2b4a', paintOrder: 'stroke', stroke: '#eef4fa', strokeWidth: '5px' }}>Centro SAVA</text>
+        <text data-i18n="mapSava" data-world="52,130,-32" x="392" y="122" textAnchor="middle" style={{ fontFamily: 'Inter,sans-serif', fontSize: '16px', fontWeight: 700, fill: '#0f2b4a', paintOrder: 'stroke', stroke: '#eef4fa', strokeWidth: '5px' }}>{(textos && textos.mapSava) || 'Centro SAVA'}</text>
       </svg>
       <div style={{ position: 'absolute', top: '10px', left: '6%', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,.93)', backdropFilter: 'blur(8px)', border: '1px solid rgba(15,43,74,.08)', borderRadius: '99px', padding: '9px 16px', boxShadow: '0 10px 26px rgba(3,15,30,.28)', pointerEvents: 'none' }}>
         <span style={{ width: '9px', height: '9px', borderRadius: '99px', background: '#22a35e', animation: 'latido 1.8s ease-in-out infinite' }}></span>
-        <span id="hudMapa" style={{ fontSize: '13px', fontWeight: 600, color: '#0f2b4a', whiteSpace: 'nowrap' }}>En ruta a la entrega 1 de 7</span>
-        <span style={{ background: '#e3f2e8', color: '#1e7a43', fontSize: '10.5px', fontWeight: 700, letterSpacing: '.06em', padding: '3px 9px', borderRadius: '99px' }}>EN VIVO</span>
+        <span id="hudMapa" style={{ fontSize: '13px', fontWeight: 600, color: '#0f2b4a', whiteSpace: 'nowrap' }}>{enRutaInicial}</span>
+        <span data-i18n="mapVivo" style={{ background: '#e3f2e8', color: '#1e7a43', fontSize: '10.5px', fontWeight: 700, letterSpacing: '.06em', padding: '3px 9px', borderRadius: '99px' }}>{(textos && textos.vivo) || TEXTOS_DEFECTO.vivo}</span>
       </div>
-      <p style={{ position: 'absolute', bottom: '6px', left: '50%', transform: 'translateX(-50%)', margin: 0, whiteSpace: 'nowrap', fontSize: '12px', color: '#dbe9f8', background: 'rgba(10,30,54,.62)', backdropFilter: 'blur(6px)', borderRadius: '99px', padding: '8px 16px', pointerEvents: 'none' }}>Gire el mapa arrastrándolo · lleve la camioneta para adelantar la ruta</p>
+      <p data-i18n="mapHint" style={{ position: 'absolute', bottom: '6px', left: '50%', transform: 'translateX(-50%)', margin: 0, whiteSpace: 'nowrap', fontSize: '12px', color: '#dbe9f8', background: 'rgba(10,30,54,.62)', backdropFilter: 'blur(6px)', borderRadius: '99px', padding: '8px 16px', pointerEvents: 'none' }}>{(textos && textos.hint) || TEXTOS_DEFECTO.hint}</p>
     </div>
   );
 }
