@@ -26,9 +26,12 @@ import Notificaciones from "./pages/Notificaciones";
 
 // Landing público (carga diferida: no forma parte del bundle del panel admin).
 const Landing = lazy(() => import("./pages/landing/Landing"));
+// Portal de clientes (carga diferida, igual que el Landing).
+const Portal = lazy(() => import("./pages/portal/Portal"));
 
-// Rutas: "/" es el landing público de SAVA; /login redirige al login del panel;
-// el panel completo vive bajo /panel; cualquier ruta desconocida vuelve a "/".
+// Rutas: "/" es el landing público de SAVA; "/portal" es el portal de clientes;
+// /login redirige al login del panel; el panel completo vive bajo /panel;
+// cualquier ruta desconocida vuelve a "/".
 export default function App() {
   return (
     <Routes>
@@ -37,6 +40,14 @@ export default function App() {
         element={
           <Suspense fallback={null}>
             <Landing />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/portal"
+        element={
+          <Suspense fallback={null}>
+            <Portal />
           </Suspense>
         }
       />
