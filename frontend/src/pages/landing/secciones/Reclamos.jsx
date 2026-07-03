@@ -7,9 +7,11 @@ export default function Reclamos({ tx }) {
   const [estado, setEstado] = useState({ tipo: "reclamo", enviado: false, numero: "" });
 
   // Registra el reclamo en modo demo: genera un código LR local y muestra confirmación.
+  // Si ya se envió, ignora reenvíos para que el código quede fijo (igual que el mockup).
   // Input: evento submit del formulario.
   const onReclamo = (e) => {
     e.preventDefault();
+    if (estado.enviado) return;
     setEstado((prev) => ({ ...prev, enviado: true, numero: `LR-2026-${Math.floor(1000 + Math.random() * 9000)}` }));
   };
 
