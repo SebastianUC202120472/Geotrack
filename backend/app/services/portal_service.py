@@ -121,6 +121,29 @@ def _texto_recibido(p) -> str:
     return f"Recibido por {nombre}."
 
 
+def tabla_empresa(db: Session, cliente_nombre: str) -> dict:
+    """Filas + contadores de los pedidos de hoy de un cliente. Recibe el nombre del cliente."""
+    filas = []
+    contadores = {}
+    for p, det in repo.pedidos_de_cliente_hoy(db, cliente_nombre):
+        est = estado_portal.mapear_estado(det.estado_entrega if det and det.estado_entrega else p.estado)
+        hora = p.fecha_entrega.strftime("%H:%M") if (est == "ENTREGADO" and p.fecha_entrega) else "—"
+        extra = ""
+        if est == "EN_RUTA" and det:
+            extra = f"Parada {det.secuencia}"
+        elif est == "POR_SALIR":
+            extra = "Sale en el proximo bloque"
+        elif est == "OBSERVADO":
+            extra = "En gestion"
+        filas.append({
+            "cod": p.codigo, "cliente": p.nombre_destinatario or "—",
+            "dir": p.direccion_destino or "", "dist": p.distrito or "—",
+            "estado": est, "h": hora, "extra": extra,
+        })
+        contadores[est] = contadores.get(est, 0) + 1
+    return {"filas": filas, "contadores": contadores}
+
+
 def registrar_reprogramacion(db: Session, codigo: str, franja: str) -> dict:
     """Registra la franja pedida por el cliente + notifica al admin. Recibe codigo y franja.
     No cambia el pipeline (la reprogramacion real la decide el admin)."""

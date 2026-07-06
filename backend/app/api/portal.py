@@ -7,9 +7,11 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.core.rate_limit import limite_publico
 from app.core import portal_token
+from app.core.security import verify_password
 from app.services import portal_service, verificacion_portal_service as verif
+from app.services import correo_service, enmascarado
 from app.repositories import portal_repository as repo
-from app.schemas.portal import VerificarDni, Reprogramar
+from app.schemas.portal import VerificarDni, Reprogramar, EmpresaLogin, EmpresaVerificar
 
 router = APIRouter()
 
@@ -62,3 +64,39 @@ def pod(codigo: str, _=Depends(portal_token.requiere_token_persona), db: Session
     if not (ruta == base or ruta.startswith(base + os.sep)) or not os.path.isfile(ruta):
         raise HTTPException(status_code=404, detail="Archivo no encontrado")
     return FileResponse(ruta)
+
+
+@router.post("/empresa/login", dependencies=[Depends(limite_publico(10, 60))])
+def empresa_login(datos: EmpresaLogin, db: Session = Depends(get_db)):
+    """Valida credenciales de empresa y envia OTP por correo. Recibe {codigoAcceso, clave}."""
+    cod = datos.codigoAcceso.strip().upper()
+    cliente = repo.cliente_por_codigo_acceso(db, cod)
+    if not cliente or not cliente.acceso_activo or not cliente.clave_hash or not verify_password(datos.clave, cliente.clave_hash):
+        raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+    otp = verif.emitir_otp(db, "EMPRESA", cod)
+    correo_service.enviar_simple(cliente.correo_portal, "Codigo de acceso al portal SAVA",
+                                  f"Su codigo de verificacion es: {otp}\n\nExpira en 10 minutos.")
+    return {"enviado": True, "correoMask": enmascarado.mask_correo(cliente.correo_portal)}
+
+
+@router.post("/empresa/verificar", dependencies=[Depends(limite_publico(10, 60))])
+def empresa_verificar(datos: EmpresaVerificar, db: Session = Depends(get_db)):
+    """Valida el OTP de empresa y devuelve token + datos. Recibe {codigoAcceso, otp}."""
+    cod = datos.codigoAcceso.strip().upper()
+    cliente = repo.cliente_por_codigo_acceso(db, cod)
+    if not cliente:
+        raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+    verif.verificar_otp(db, "EMPRESA", cod, datos.otp, bloqueo_seg=45)
+    token = portal_token.crear_token_empresa(cod)
+    nombre = cliente.razon_social
+    ini = (nombre or "?")[0].upper()
+    return {"token": token, "empresa": {"nombre": nombre, "ini": ini}}
+
+
+@router.get("/empresa/pedidos")
+def empresa_pedidos(cod: str = Depends(portal_token.requiere_token_empresa), db: Session = Depends(get_db)):
+    """Filas + contadores de los pedidos de hoy del cliente (requiere token). Sin input extra."""
+    cliente = repo.cliente_por_codigo_acceso(db, cod)
+    if not cliente:
+        raise HTTPException(status_code=401, detail="Sesion invalida")
+    return portal_service.tabla_empresa(db, cliente.razon_social)

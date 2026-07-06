@@ -300,6 +300,29 @@ def enviar_confirmacion_recojo(db, conversacion, num_pedidos, admin_id=None):
         db.rollback()
 
 
+def enviar_simple(destino: str, asunto: str, cuerpo: str) -> bool:
+    """Envia un correo de texto plano puntual. Recibe destino, asunto y cuerpo. Devuelve True si se envio."""
+    if not _configurado() or not destino:
+        return False
+    msg = MIMEText(cuerpo, "plain", "utf-8")
+    msg["From"] = formataddr((settings.MAIL_FROM_NAME, settings.MAIL_ADDRESS))
+    msg["To"] = destino
+    msg["Subject"] = asunto
+    msg["Message-ID"] = make_msgid()
+    try:
+        if settings.SMTP_PORT == 465:
+            servidor = smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=20)
+        else:
+            servidor = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=20)
+            servidor.starttls()
+        servidor.login(settings.MAIL_ADDRESS, settings.MAIL_PASSWORD)
+        servidor.send_message(msg)
+        servidor.quit()
+        return True
+    except Exception:
+        return False
+
+
 def listar(db: Session):
     return correo_repository.listar_conversaciones(db)
 

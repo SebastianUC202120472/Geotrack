@@ -27,6 +27,14 @@ def mask_direccion_corta(direccion: str) -> str:
     return direccion.split(" ")[0] + " ••• •••"
 
 
+def mask_correo(email: str) -> str:
+    """Enmascara un correo: 'ab***@dominio'. Recibe el email."""
+    if not email or "@" not in email:
+        return ""
+    u, d = email.split("@", 1)
+    return (u[:2] + "***@" + d)
+
+
 def mask_direccion(direccion: str) -> str:
     """Enmascara una direccion conservando el distrito tras la coma. Recibe la direccion completa.
     'Av. Larco 812, Miraflores' -> 'Av. L•••• 8••, Miraflores'."""
