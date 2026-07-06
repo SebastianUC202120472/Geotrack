@@ -1,4 +1,5 @@
 from app.services.estado_portal import mapear_estado, progreso
+from app.services.enmascarado import mask_telefono, mask_nombre, mask_direccion_corta
 
 
 def test_mapeo_estados_pipeline_a_portal():
@@ -30,3 +31,17 @@ def test_progreso_entregado_full():
     p = progreso("ENTREGADO", secuencia=None, total=None)
     assert p["paso"] == 3
     assert p["pct"] == "100%"
+
+
+def test_mask_telefono():
+    assert mask_telefono("+51 999 000 321") == "+51 9** *** *21"
+    assert mask_telefono("") == ""
+
+
+def test_mask_nombre():
+    assert mask_nombre("Roberto Paredes") == "Robe•••"
+    assert mask_nombre("Ana") == "Ana•••"
+
+
+def test_mask_direccion_corta():
+    assert mask_direccion_corta("Av. Brasil 1120") == "Av. ••• •••"
