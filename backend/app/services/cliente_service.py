@@ -10,10 +10,12 @@ from app.schemas.cliente import ClienteCreate, ClienteUpdate
 from app.services.geocoder import obtener_coordenadas
 
 
-def _slug_codigo(razon_social: str) -> str:
-    """Deriva un codigo de acceso base desde la razon social. Recibe la razon social."""
+def _slug_codigo(razon_social: str, cliente_id: int) -> str:
+    """Deriva un codigo de acceso UNICO desde la razon social. Recibe la razon social y el id.
+    El sufijo con el id del cliente garantiza unicidad (evita colisiones del indice unico
+    cuando dos razones sociales truncan al mismo prefijo)."""
     base = re.sub(r"[^A-Za-z0-9]", "", (razon_social or "EMP").upper())[:8] or "EMP"
-    return f"{base}-24"
+    return f"{base}-{cliente_id}"
 
 
 def _distrito_de(direccion: str) -> str:
@@ -120,7 +122,7 @@ def generar_acceso_portal(db: Session, cliente_id: int, correo_portal: str) -> d
     """Genera/reinicia el acceso al portal de un cliente. Recibe id y correo del portal.
     Devuelve {codigoAcceso, clave} con la clave en claro UNA sola vez."""
     cliente = _cliente_o_404(db, cliente_id)
-    codigo = cliente.codigo_acceso or _slug_codigo(cliente.razon_social)
+    codigo = cliente.codigo_acceso or _slug_codigo(cliente.razon_social, cliente.id)
     clave = secrets.token_urlsafe(9)
     cliente.codigo_acceso = codigo
     cliente.clave_hash = get_password_hash(clave)
