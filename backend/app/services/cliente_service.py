@@ -1,9 +1,19 @@
+import re
+import secrets
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.security import get_password_hash
 from app.repositories import cliente_repository
 from app.schemas.cliente import ClienteCreate, ClienteUpdate
 from app.services.geocoder import obtener_coordenadas
+
+
+def _slug_codigo(razon_social: str) -> str:
+    """Deriva un codigo de acceso base desde la razon social. Recibe la razon social."""
+    base = re.sub(r"[^A-Za-z0-9]", "", (razon_social or "EMP").upper())[:8] or "EMP"
+    return f"{base}-24"
 
 
 def _distrito_de(direccion: str) -> str:
@@ -104,3 +114,25 @@ def eliminar_cliente(db: Session, cliente_id: int) -> dict:
     cliente = _cliente_o_404(db, cliente_id)
     cliente_repository.eliminar(db, cliente)
     return {"mensaje": "Cliente eliminado"}
+
+
+def generar_acceso_portal(db: Session, cliente_id: int, correo_portal: str) -> dict:
+    """Genera/reinicia el acceso al portal de un cliente. Recibe id y correo del portal.
+    Devuelve {codigoAcceso, clave} con la clave en claro UNA sola vez."""
+    cliente = _cliente_o_404(db, cliente_id)
+    codigo = cliente.codigo_acceso or _slug_codigo(cliente.razon_social)
+    clave = secrets.token_urlsafe(9)
+    cliente.codigo_acceso = codigo
+    cliente.clave_hash = get_password_hash(clave)
+    cliente.correo_portal = correo_portal
+    cliente.acceso_activo = True
+    db.commit()
+    return {"codigoAcceso": codigo, "clave": clave}
+
+
+def revocar_acceso_portal(db: Session, cliente_id: int) -> dict:
+    """Revoca el acceso al portal de un cliente (no borra credenciales). Recibe el id."""
+    cliente = _cliente_o_404(db, cliente_id)
+    cliente.acceso_activo = False
+    db.commit()
+    return {"ok": True}

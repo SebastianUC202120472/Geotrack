@@ -18,6 +18,11 @@ class ClienteUpdate(BaseModel):
     direccion_origen: Optional[str] = None
 
 
+class AccesoPortalIn(BaseModel):
+    """Datos para generar/reiniciar el acceso al portal de un cliente."""
+    correoPortal: str
+
+
 class ClienteResponse(BaseModel):
     """Datos de salida de una empresa cliente."""
     id: int
