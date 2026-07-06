@@ -17,7 +17,7 @@ class ClienteCorporativo(Base):
     longitud = Column(Float, nullable=True)
     creado_en = Column(DateTime, default=datetime.utcnow)
     eliminado_en = Column(DateTime, nullable=True)                # soft delete
-    codigo_acceso = Column(String(30), unique=True, index=True, nullable=True)  # login del portal
+    codigo_acceso = Column(String(30), nullable=True)        # login del portal (indice unico via migracion en main.py)
     clave_hash = Column(String(255), nullable=True)          # Argon2 de la clave del portal
     correo_portal = Column(String(150), nullable=True)       # destino del OTP
     acceso_activo = Column(Boolean, default=False)           # habilita el acceso al portal
