@@ -68,14 +68,15 @@ def cliente_por_codigo_acceso(db: Session, codigo_acceso: str) -> Optional[Clien
     )
 
 
-def pedidos_de_cliente_hoy(db: Session, cliente: str):
-    """Devuelve (pedido, detalle de ruta) del cliente creados hoy. Recibe el nombre del cliente."""
+def pedidos_de_cliente_hoy(db: Session, cliente_id: int):
+    """Devuelve (pedido, detalle de ruta) del cliente creados hoy. Recibe el id del cliente.
+    Filtra por cliente_id (FK) y NO por razon_social, que no es unica (evita fuga cross-empresa)."""
     hoy = datetime.utcnow().date()
     inicio = datetime.combine(hoy, time.min)
     fin = datetime.combine(hoy, time.max)
     pedidos = (
         db.query(Pedido)
-        .filter(Pedido.cliente_origen == cliente, Pedido.fecha_creacion >= inicio, Pedido.fecha_creacion <= fin)
+        .filter(Pedido.cliente_id == cliente_id, Pedido.fecha_creacion >= inicio, Pedido.fecha_creacion <= fin)
         .order_by(Pedido.codigo.asc())
         .all()
     )

@@ -121,11 +121,11 @@ def _texto_recibido(p) -> str:
     return f"Recibido por {nombre}."
 
 
-def tabla_empresa(db: Session, cliente_nombre: str) -> dict:
-    """Filas + contadores de los pedidos de hoy de un cliente. Recibe el nombre del cliente."""
+def tabla_empresa(db: Session, cliente_id: int) -> dict:
+    """Filas + contadores de los pedidos de hoy de un cliente. Recibe el id del cliente."""
     filas = []
     contadores = {}
-    for p, det in repo.pedidos_de_cliente_hoy(db, cliente_nombre):
+    for p, det in repo.pedidos_de_cliente_hoy(db, cliente_id):
         est = estado_portal.mapear_estado(det.estado_entrega if det and det.estado_entrega else p.estado)
         hora = p.fecha_entrega.strftime("%H:%M") if (est == "ENTREGADO" and p.fecha_entrega) else "—"
         extra = ""

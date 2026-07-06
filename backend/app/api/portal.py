@@ -99,4 +99,4 @@ def empresa_pedidos(cod: str = Depends(portal_token.requiere_token_empresa), db:
     cliente = repo.cliente_por_codigo_acceso(db, cod)
     if not cliente:
         raise HTTPException(status_code=401, detail="Sesion invalida")
-    return portal_service.tabla_empresa(db, cliente.razon_social)
+    return portal_service.tabla_empresa(db, cliente.id)
