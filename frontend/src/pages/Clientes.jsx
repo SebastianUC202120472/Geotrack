@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Building2, Plus, CheckCircle2, AlertCircle, X, Pencil, Trash2, Check, IdCard, Mail, MapPin } from "lucide-react";
+import { Building2, Plus, CheckCircle2, AlertCircle, X, Pencil, Trash2, Check, IdCard, Mail, MapPin, KeyRound, Copy, ShieldOff } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -7,7 +7,7 @@ import SectionCard from "../components/ui/SectionCard";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import Modal from "../components/ui/Modal";
-import { listarClientes, crearCliente, actualizarCliente, eliminarCliente } from "../services/api";
+import { listarClientes, crearCliente, actualizarCliente, eliminarCliente, generarAccesoPortal, revocarAccesoPortal } from "../services/api";
 
 // Pagina de administracion de clientes corporativos: alta, edicion y baja.
 export default function Clientes() {
@@ -82,6 +82,8 @@ export default function Clientes() {
       header: "",
       render: (c) => (
         <div className="flex justify-end gap-1">
+          <Button variant="ghost" size="sm" icon={KeyRound}
+            onClick={(e) => { e.stopPropagation(); setModoInicial("portal"); setSeleccionado(c); }}>Portal</Button>
           <Button variant="ghost" size="sm" icon={Pencil}
             onClick={(e) => { e.stopPropagation(); setModoInicial("editar"); setSeleccionado(c); }}>Editar</Button>
           <Button variant="ghost" size="sm" icon={Trash2}
@@ -151,6 +153,10 @@ function DetalleCliente({ cliente: c, onCerrar, onCambios, modoInicial = "ver" }
   const [aviso, setAviso] = useState(null);
   const [trabajando, setTrabajando] = useState(false);
 
+  const [correoPortal, setCorreoPortal] = useState(c.contacto || "");
+  const [credenciales, setCredenciales] = useState(null);
+  const [errorPortal, setErrorPortal] = useState("");
+
   const guardar = async () => {
     if (form.razon_social.trim().length < 3) { setAviso({ texto: "La razón social debe tener al menos 3 caracteres." }); return; }
     setTrabajando(true); setAviso(null);
@@ -169,6 +175,29 @@ function DetalleCliente({ cliente: c, onCerrar, onCambios, modoInicial = "ver" }
     setTrabajando(true); setAviso(null);
     try { await eliminarCliente(c.id); onCambios(); }
     catch (err) { setAviso({ texto: err.message }); setTrabajando(false); setModo("ver"); }
+  };
+
+  // Genera un nuevo acceso al portal para el correo indicado. La clave solo se muestra esta vez.
+  const generarAcceso = async () => {
+    if (!correoPortal.trim()) { setErrorPortal("Ingresa el correo del portal."); return; }
+    setTrabajando(true); setErrorPortal("");
+    try {
+      const datos = await generarAccesoPortal(c.id, correoPortal.trim());
+      setCredenciales(datos);
+    } catch (err) { setErrorPortal(err.message); }
+    finally { setTrabajando(false); }
+  };
+
+  // Revoca el acceso al portal del cliente (no borra sus credenciales).
+  const revocarAcceso = async () => {
+    setTrabajando(true); setErrorPortal("");
+    try { await revocarAccesoPortal(c.id); onCerrar(); }
+    catch (err) { setErrorPortal(err.message); setTrabajando(false); }
+  };
+
+  // Copia la clave generada al portapapeles.
+  const copiarClave = () => {
+    if (credenciales) navigator.clipboard?.writeText(credenciales.clave);
   };
 
   return (
@@ -201,6 +230,9 @@ function DetalleCliente({ cliente: c, onCerrar, onCambios, modoInicial = "ver" }
             <Button variant="secondary" icon={Pencil} block onClick={() => { setAviso(null); setModo("editar"); }}>Editar</Button>
             <Button variant="danger" icon={Trash2} block onClick={() => { setAviso(null); setModo("confirmar"); }}>Eliminar</Button>
           </div>
+          <Button variant="secondary" icon={KeyRound} block className="mt-2" onClick={() => { setAviso(null); setModo("portal"); }}>
+            Acceso al portal
+          </Button>
         </>
       )}
 
@@ -230,6 +262,54 @@ function DetalleCliente({ cliente: c, onCerrar, onCambios, modoInicial = "ver" }
             <Button variant="secondary" block onClick={() => setModo("ver")} disabled={trabajando}>Cancelar</Button>
             <Button variant="danger" icon={Trash2} block onClick={eliminar} disabled={trabajando}>{trabajando ? "Eliminando…" : "Sí, eliminar"}</Button>
           </div>
+        </div>
+      )}
+
+      {modo === "portal" && (
+        <div className="mt-6 space-y-4">
+          {errorPortal && (
+            <div className="flex items-center gap-2 rounded-xl bg-danger-soft px-3.5 py-3 text-sm text-danger-strong">
+              <AlertCircle size={18} /> <span>{errorPortal}</span>
+            </div>
+          )}
+
+          {credenciales ? (
+            <div className="space-y-3 rounded-xl border border-success/30 bg-success-soft p-4">
+              <p className="flex items-center gap-1.5 text-sm font-semibold text-success-strong">
+                <CheckCircle2 size={16} /> Acceso generado
+              </p>
+              <p className="text-xs text-slate-600">Cópiala ahora: la clave no volverá a mostrarse.</p>
+              <Dato icono={IdCard} etiqueta="Código de acceso" valor={credenciales.codigoAcceso} />
+              <div className="flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm">
+                <KeyRound size={18} className="text-slate-400" />
+                <div className="flex-1">
+                  <p className="text-xs text-slate-400">Clave</p>
+                  <p className="font-mono font-medium text-slate-800">{credenciales.clave}</p>
+                </div>
+                <Button variant="ghost" size="sm" icon={Copy} onClick={copiarClave}>Copiar</Button>
+              </div>
+              <Button block onClick={() => { setCredenciales(null); setModo("ver"); }}>Listo</Button>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-slate-600">
+                Genera o renueva las credenciales que el cliente usará para entrar al panel corporativo del portal.
+              </p>
+              <Input label="Correo del portal" type="email" value={correoPortal}
+                onChange={(e) => setCorreoPortal(e.target.value)}
+                placeholder="contacto@empresa.com" />
+              <Button icon={KeyRound} block onClick={generarAcceso} disabled={trabajando}>
+                {trabajando ? "Generando…" : "Generar acceso"}
+              </Button>
+              <Button variant="danger" icon={ShieldOff} block onClick={revocarAcceso} disabled={trabajando}>
+                {trabajando ? "Revocando…" : "Revocar acceso"}
+              </Button>
+            </>
+          )}
+
+          {!credenciales && (
+            <Button variant="secondary" block onClick={() => setModo("ver")} disabled={trabajando}>Volver</Button>
+          )}
         </div>
       )}
     </>
