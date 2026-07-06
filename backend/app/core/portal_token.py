@@ -47,7 +47,7 @@ def _decodificar(cred: HTTPAuthorizationCredentials | None, scope: str) -> dict:
     return payload
 
 
-def requiere_token_persona(codigo: str, cred: HTTPAuthorizationCredentials = Depends(_bearer)) -> str:
+def requiere_token_persona(codigo: str, cred: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> str:
     """Dependencia: exige token de persona valido para ESE codigo de pedido. Recibe codigo (path)."""
     payload = _decodificar(cred, "portal_persona")
     if payload.get("sub") != codigo:
@@ -55,7 +55,7 @@ def requiere_token_persona(codigo: str, cred: HTTPAuthorizationCredentials = Dep
     return codigo
 
 
-def requiere_token_empresa(cred: HTTPAuthorizationCredentials = Depends(_bearer)) -> str:
+def requiere_token_empresa(cred: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> str:
     """Dependencia: exige token de empresa valido; devuelve el codigo de acceso. Sin input extra."""
     payload = _decodificar(cred, "portal_empresa")
     return payload["sub"]

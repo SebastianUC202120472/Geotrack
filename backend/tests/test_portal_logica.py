@@ -74,3 +74,48 @@ def test_token_empresa_lleva_scope():
     p = _jwt.decode(tok, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
     assert p["scope"] == "portal_empresa"
     assert p["sub"] == "RIPLEY-24"
+
+
+# --- Gates de autorizacion (frontera de seguridad): se llaman las dependencias
+#     directamente pasando una credencial Bearer simulada. ---
+import pytest
+from fastapi import HTTPException
+from fastapi.security import HTTPAuthorizationCredentials
+from app.core.portal_token import requiere_token_persona, requiere_token_empresa
+
+
+def _cred(token):
+    """Arma una credencial Bearer simulada. Recibe el token (o None)."""
+    if token is None:
+        return None
+    return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+
+
+def test_token_persona_no_sirve_para_otro_pedido():
+    tok = crear_token_persona("PD-1")
+    with pytest.raises(HTTPException) as e:
+        requiere_token_persona("PD-2", _cred(tok))
+    assert e.value.status_code == 403
+
+
+def test_token_persona_valido_devuelve_codigo():
+    tok = crear_token_persona("PD-1")
+    assert requiere_token_persona("PD-1", _cred(tok)) == "PD-1"
+
+
+def test_token_persona_no_pasa_como_empresa():
+    tok = crear_token_persona("PD-1")
+    with pytest.raises(HTTPException) as e:
+        requiere_token_empresa(_cred(tok))
+    assert e.value.status_code == 401
+
+
+def test_token_empresa_valido_devuelve_codigo_acceso():
+    tok = crear_token_empresa("RIPLEY-24")
+    assert requiere_token_empresa(_cred(tok)) == "RIPLEY-24"
+
+
+def test_sin_bearer_da_401():
+    with pytest.raises(HTTPException) as e:
+        requiere_token_empresa(_cred(None))
+    assert e.value.status_code == 401
