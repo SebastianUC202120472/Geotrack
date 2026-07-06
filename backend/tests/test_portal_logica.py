@@ -179,3 +179,12 @@ def test_traducir_eventos_fallido_es_alerta():
         _H("FALLIDO", datetime(2026, 7, 5, 16, 30)),
     ])
     assert evs[-1].get("alerta") is True
+
+
+# --- Tests del repositorio de reclamos ---
+from app.repositories.reclamo_repository import formato_codigo
+
+
+def test_formato_codigo_lr():
+    assert formato_codigo(2026, 7) == "LR-2026-0007"
+    assert formato_codigo(2026, 1234) == "LR-2026-1234"
