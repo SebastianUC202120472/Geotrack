@@ -138,3 +138,23 @@ def test_evaluar_intento_bloquea_al_tercero():
     assert r2["bloquear"] is True and r2["bloqueo_seg"] == 30
     r3 = evaluar_intento(1, exito=True, limite=3, bloqueo_seg=30)
     assert r3["ok"] is True
+
+
+# --- Tests del servicio de portal (traducir eventos, resumen, detalle) ---
+from datetime import datetime
+from app.services.portal_service import traducir_eventos
+
+
+class _H:
+    def __init__(self, estado, fecha):
+        self.estado_nuevo, self.fecha_utc = estado, fecha
+
+
+def test_traducir_eventos_marca_entregado_ok():
+    evs = traducir_eventos([
+        _H("LISTO_PARA_ENVIO", datetime(2026, 7, 5, 9, 0)),
+        _H("EN_RUTA", datetime(2026, 7, 5, 13, 0)),
+        _H("ENTREGADO", datetime(2026, 7, 5, 14, 30)),
+    ])
+    assert evs[-1]["ok"] is True
+    assert all("h" in e and "t" in e for e in evs)
