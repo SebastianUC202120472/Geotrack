@@ -7,8 +7,8 @@ import logo from "../../assets/logo.png";
 import "./portal.css";
 
 // Página del portal de clientes: header sticky + hero + selector de perfil
-// (persona natural / empresa) + hueco de la vista elegida (Tareas 10 y 11) +
-// CTA de equipo + footer. Sin i18n (el mockup del portal es solo español).
+// (persona natural / empresa) + hueco de la vista elegida +
+// footer. Sin i18n (el mockup del portal es solo español).
 export default function Portal() {
   const [modo, setModo] = useState(null); // null | "personal" | "empresa"
   const [toast, setToast] = useState("");
@@ -185,43 +185,6 @@ export default function Portal() {
       {/* Vista según el perfil elegido */}
       {modo === "personal" && <RastreoPersonal avisar={avisar} />}
       {modo === "empresa" && <PanelEmpresa avisar={avisar} />}
-
-      {/* CTA EQUIPO */}
-      <div data-psec="1" style={{ maxWidth: 1140, margin: "56px auto 0", padding: "0 24px", width: "100%", boxSizing: "border-box" }}>
-        <div
-          style={{
-            background: "#eaf3fc",
-            borderRadius: 20,
-            padding: "26px 28px",
-            display: "flex",
-            alignItems: "center",
-            gap: 18,
-            flexWrap: "wrap",
-          }}
-        >
-          <span style={{ flex: 1, minWidth: 220 }}>
-            <span style={{ display: "block", fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 16, color: "#0f2b4a" }}>¿Es parte del equipo SAVA?</span>
-            <span style={{ display: "block", marginTop: 4, fontSize: 13.5, color: "#4f6580" }}>Ingrese a GeoTrack para gestionar rutas, pedidos y flota.</span>
-          </span>
-          <Link
-            to="/panel/login"
-            className="ptl-btn-trabajador"
-            style={{
-              textDecoration: "none",
-              background: "#0f2b4a",
-              color: "#fff",
-              fontSize: 13.5,
-              fontWeight: 600,
-              padding: "11px 20px",
-              borderRadius: 99,
-              whiteSpace: "nowrap",
-              transition: "background .2s ease",
-            }}
-          >
-            Entrar a GeoTrack ↗
-          </Link>
-        </div>
-      </div>
 
       {/* FOOTER */}
       <footer style={{ borderTop: "1px solid rgba(15,43,74,.08)", background: "#fff", marginTop: "auto" }}>

@@ -82,7 +82,8 @@ export default function Cobertura({ tx }) {
           </div>
         </div>
 
-        <div style={{ margin: "16px 0 0", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(218px, 1fr))", gap: 14 }}>
+        {/* Las 5 zonas en UNA sola fila en desktop (la clase ldg-zonas-grid baja a 2/1 columnas en pantallas angostas). */}
+        <div className="ldg-zonas-grid" style={{ margin: "16px 0 0", display: "grid", gap: 14 }}>
           {ZONAS.map((z) => (
             <div
               key={z.clave}

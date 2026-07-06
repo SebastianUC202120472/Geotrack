@@ -146,3 +146,8 @@
 @media (max-width: 380px) {
   [data-sac] { display: none; }
 }
+
+/* Grid de zonas de cobertura: 5 en una sola fila en desktop; 2 columnas en tablet y 1 en movil. */
+.ldg-zonas-grid { grid-template-columns: repeat(5, 1fr); }
+@media (max-width: 1230px) { .ldg-zonas-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { .ldg-zonas-grid { grid-template-columns: 1fr; } }
