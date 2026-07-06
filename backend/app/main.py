@@ -59,6 +59,16 @@ async def lifespan(app: FastAPI):
     print("Creando tablas en la base de datos...")
     Base.metadata.create_all(bind=engine)
 
+    # Migracion idempotente: columnas de acceso al portal en clientes existentes
+    # (create_all no altera tablas ya creadas en Postgres/Supabase).
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE clientes_corporativos ADD COLUMN IF NOT EXISTS codigo_acceso VARCHAR(30)"))
+        conn.execute(text("ALTER TABLE clientes_corporativos ADD COLUMN IF NOT EXISTS clave_hash VARCHAR(255)"))
+        conn.execute(text("ALTER TABLE clientes_corporativos ADD COLUMN IF NOT EXISTS correo_portal VARCHAR(150)"))
+        conn.execute(text("ALTER TABLE clientes_corporativos ADD COLUMN IF NOT EXISTS acceso_activo BOOLEAN DEFAULT FALSE"))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_clientes_codigo_acceso ON clientes_corporativos (codigo_acceso)"))
+
     db = SessionLocal()
     try:
         usuario_service.crear_admin_inicial(db, settings.ADMIN_EMAIL, settings.ADMIN_PASSWORD)

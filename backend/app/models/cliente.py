@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Float
+from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean
 from app.db.database import Base
 
 
@@ -17,3 +17,7 @@ class ClienteCorporativo(Base):
     longitud = Column(Float, nullable=True)
     creado_en = Column(DateTime, default=datetime.utcnow)
     eliminado_en = Column(DateTime, nullable=True)                # soft delete
+    codigo_acceso = Column(String(30), unique=True, index=True, nullable=True)  # login del portal
+    clave_hash = Column(String(255), nullable=True)          # Argon2 de la clave del portal
+    correo_portal = Column(String(150), nullable=True)       # destino del OTP
+    acceso_activo = Column(Boolean, default=False)           # habilita el acceso al portal
