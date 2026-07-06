@@ -1,19 +1,59 @@
 import { useState } from "react";
+import { enviarContacto } from "../../portal/servicios/portal.js";
 
 // Contacto (#contacto): panel oscuro con datos de contacto a la izquierda y
-// formulario demo con slider de volumen diario a la derecha. Input: tx (traducción).
+// formulario real con slider de volumen diario a la derecha. Input: tx (traducción).
 export default function Contacto({ tx }) {
-  // Estado local: volumen diario (slider) y si ya se envió el formulario demo.
-  const [estado, setEstado] = useState({ vol: 300, enviado: false });
+  // Estado local: campos del formulario, volumen diario (slider), honeypot y resultado del envío.
+  const [estado, setEstado] = useState({
+    vol: 300,
+    nombre: "",
+    empresa: "",
+    email: "",
+    telefono: "",
+    mensaje: "",
+    hp: "",
+    enviando: false,
+    enviado: false,
+    error: false,
+  });
 
   // Actualiza el volumen diario según el slider. Input: evento change del range.
   const onVol = (e) => setEstado((prev) => ({ ...prev, vol: Number(e.target.value) }));
+  // Actualiza el nombre. Input: evento change del input.
+  const onNombre = (e) => setEstado((prev) => ({ ...prev, nombre: e.target.value }));
+  // Actualiza la empresa. Input: evento change del input.
+  const onEmpresa = (e) => setEstado((prev) => ({ ...prev, empresa: e.target.value }));
+  // Actualiza el correo. Input: evento change del input.
+  const onEmail = (e) => setEstado((prev) => ({ ...prev, email: e.target.value }));
+  // Actualiza el teléfono. Input: evento change del input.
+  const onTelefono = (e) => setEstado((prev) => ({ ...prev, telefono: e.target.value }));
+  // Actualiza el mensaje. Input: evento change del textarea.
+  const onMensaje = (e) => setEstado((prev) => ({ ...prev, mensaje: e.target.value }));
+  // Actualiza el campo honeypot (oculto para personas, visible para bots). Input: evento change.
+  const onHp = (e) => setEstado((prev) => ({ ...prev, hp: e.target.value }));
 
-  // Envía el formulario en modo demo: solo cambia el botón a "enviado".
-  // Input: evento submit del formulario.
+  // Envía el formulario al backend: registra el lead de contacto del landing.
+  // Marca "enviado" dentro del .then y "error" dentro del .catch. Input: evento submit del formulario.
   const onEnviar = (e) => {
     e.preventDefault();
-    setEstado((prev) => ({ ...prev, enviado: true }));
+    if (estado.enviando) return;
+    setEstado((prev) => ({ ...prev, enviando: true, error: false }));
+    enviarContacto({
+      nombre: estado.nombre,
+      empresa: estado.empresa || null,
+      email: estado.email,
+      telefono: estado.telefono || null,
+      volumen: estado.vol,
+      mensaje: estado.mensaje || null,
+      hp: estado.hp,
+    })
+      .then(() => {
+        setEstado((prev) => ({ ...prev, enviando: false, enviado: true }));
+      })
+      .catch(() => {
+        setEstado((prev) => ({ ...prev, enviando: false, error: true }));
+      });
   };
 
   const rutas = Math.max(1, Math.ceil(estado.vol / 45));
@@ -92,33 +132,51 @@ export default function Contacto({ tx }) {
           <div data-cols2="1" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <label style={{ display: "grid", gap: 6 }}>
               <span data-i18n="fN" style={{ fontSize: 13, fontWeight: 600, color: "#3d5570" }}>{tx("fN", "Nombre")}</span>
-              <input required placeholder={tx("fNph", "Su nombre")} className="ldg-input" />
+              <input required value={estado.nombre} onChange={onNombre} placeholder={tx("fNph", "Su nombre")} className="ldg-input" />
             </label>
             <label style={{ display: "grid", gap: 6 }}>
               <span data-i18n="fE" style={{ fontSize: 13, fontWeight: 600, color: "#3d5570" }}>{tx("fE", "Empresa / retail")}</span>
-              <input placeholder={tx("fEph", "Nombre de su empresa")} className="ldg-input" />
+              <input value={estado.empresa} onChange={onEmpresa} placeholder={tx("fEph", "Nombre de su empresa")} className="ldg-input" />
             </label>
           </div>
 
           <div data-cols2="1" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <label style={{ display: "grid", gap: 6 }}>
               <span data-i18n="fC" style={{ fontSize: 13, fontWeight: 600, color: "#3d5570" }}>{tx("fC", "Correo")}</span>
-              <input type="email" required placeholder="nombre@empresa.com" className="ldg-input" />
+              <input type="email" required value={estado.email} onChange={onEmail} placeholder="nombre@empresa.com" className="ldg-input" />
             </label>
             <label style={{ display: "grid", gap: 6 }}>
               <span data-i18n="fT" style={{ fontSize: 13, fontWeight: 600, color: "#3d5570" }}>{tx("fT", "Teléfono")}</span>
-              <input placeholder="+51 …" className="ldg-input" />
+              <input value={estado.telefono} onChange={onTelefono} placeholder="+51 …" className="ldg-input" />
             </label>
           </div>
 
           <label style={{ display: "grid", gap: 6 }}>
             <span data-i18n="fM" style={{ fontSize: 13, fontWeight: 600, color: "#3d5570" }}>{tx("fM", "¿Qué necesita distribuir?")}</span>
-            <textarea rows={5} placeholder={tx("fMph", "Ej.: 120 pedidos diarios desde nuestro CD en Ate, con reparto en Lima Centro y Sur…")} className="ldg-textarea" />
+            <textarea rows={5} value={estado.mensaje} onChange={onMensaje} placeholder={tx("fMph", "Ej.: 120 pedidos diarios desde nuestro CD en Ate, con reparto en Lima Centro y Sur…")} className="ldg-textarea" />
           </label>
 
-          <button type="submit" className="ldg-btn-enviar" style={{ justifySelf: "start" }}>
+          {/* Honeypot: campo invisible para personas; si un bot lo llena, el backend rechaza el envío. */}
+          <input
+            type="text"
+            name="sitio_web"
+            value={estado.hp}
+            onChange={onHp}
+            style={{ display: "none" }}
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+          />
+
+          <button type="submit" disabled={estado.enviando} className="ldg-btn-enviar" style={{ justifySelf: "start" }}>
             {estado.enviado ? tx("btnEnviadoOk", "¡Enviado, gracias!") : tx("btnEnviar", "Enviar mensaje")}
           </button>
+
+          {estado.error && (
+            <p role="alert" style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: "#c8362b" }}>
+              {tx("conErr", "No pudimos enviar su mensaje. Intente nuevamente en unos minutos.")}
+            </p>
+          )}
         </form>
       </div>
     </section>

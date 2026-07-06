@@ -15,6 +15,7 @@ import {
   Undo2,
   ClipboardList,
   Wrench,
+  BookText,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -50,6 +51,7 @@ const secciones = [
     items: [
       { icon: ClipboardList, label: "Reportes de pedido", path: "/panel/reportes" },
       { icon: Wrench, label: "Auxilio mecánico", path: "/panel/auxilio" },
+      { icon: BookText, label: "Libro de Reclamaciones", path: "/panel/reclamos" },
     ],
   },
   {
