@@ -163,3 +163,36 @@ def registrar_reprogramacion(db: Session, codigo: str, franja: str) -> dict:
         pass
     db.commit()
     return {"ok": True}
+
+
+def estadisticas_publicas(db: Session) -> dict:
+    """Estadisticas agregadas + ultimo pedido ENMASCARADO para el landing (endpoint publico).
+    Sin datos personales: solo conteos por estado, codigo enmascarado, retail corporativo
+    y eventos genericos del historial (etiquetas + horas). Sin input extra."""
+    # Reporte del dia con actividad mas reciente (normalmente hoy).
+    conteos = {}
+    for estado_pipeline, total in repo.conteos_del_dia_reciente(db):
+        est = estado_portal.mapear_estado(estado_pipeline)
+        conteos[est] = conteos.get(est, 0) + total
+    total = sum(conteos.values())
+    entregados = conteos.get("ENTREGADO", 0)
+    reporte = {
+        "entregados": entregados,
+        "enRuta": conteos.get("EN_RUTA", 0),
+        "porSalir": conteos.get("POR_SALIR", 0),
+        "incidencias": conteos.get("OBSERVADO", 0) + conteos.get("REPROGRAMADO", 0),
+        "total": total,
+        "pct": round(entregados / total * 100) if total else 0,
+    }
+
+    # Tarjeta del pedido: el mas reciente, con codigo enmascarado y eventos genericos.
+    p = repo.ultimo_pedido(db)
+    pedido = None
+    if p:
+        pedido = {
+            "codigo": enmascarado.mask_codigo(p.codigo or ""),
+            "retail": p.cliente_origen,
+            "estado": estado_portal.mapear_estado(p.estado),
+            "eventos": traducir_eventos(repo.historial_de(db, p.id)),
+        }
+    return {"reporte": reporte, "pedido": pedido}

@@ -16,6 +16,12 @@ from app.schemas.portal import VerificarDni, Reprogramar, EmpresaLogin, EmpresaV
 router = APIRouter()
 
 
+@router.get("/estadisticas", dependencies=[Depends(limite_publico(30, 60))])
+def estadisticas(db: Session = Depends(get_db)):
+    """Estadisticas agregadas para el landing (publico, sin datos personales)."""
+    return portal_service.estadisticas_publicas(db)
+
+
 @router.post("/pedidos/{codigo}/buscar", dependencies=[Depends(limite_publico(30, 60))])
 def buscar_pedido(codigo: str, db: Session = Depends(get_db)):
     """Resumen enmascarado de un pedido (pre-verificacion). Recibe el codigo en la ruta."""

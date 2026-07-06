@@ -56,6 +56,9 @@ export const empresaPedidos = (token) =>
     headers: { Authorization: `Bearer ${token}` },
   });
 
+// --- Landing (estadísticas públicas agregadas, sin datos personales) ---
+export const estadisticasPublicas = () => pedir(`${BASE}/estadisticas`);
+
 // --- Formularios landing ---
 export const enviarContacto = (datos) =>
   pedir(`${BASE}/contacto`, { method: "POST", body: JSON.stringify(datos) });

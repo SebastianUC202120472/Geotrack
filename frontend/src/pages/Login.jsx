@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { LogIn } from "lucide-react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { LogIn, ArrowLeft } from "lucide-react";
 import { loginAdmin } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import Logo from "../components/ui/Logo";
@@ -104,6 +104,17 @@ export default function Login() {
               Uso restringido a personal autorizado.
             </p>
           </div>
+
+          {/* Volver al sitio publico de SAVA */}
+          <p className="mt-6 text-center">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-slate-700"
+            >
+              <ArrowLeft size={15} />
+              Volver a sava.pe
+            </Link>
+          </p>
         </div>
       </div>
     </div>

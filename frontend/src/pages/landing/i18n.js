@@ -34,8 +34,6 @@ export const EN = {
   repT: "Today's report, live", repD: '276 delivered · 16 on route · 8 to dispatch — updates live',
   gtIAt: 'Artificial intelligence on every route', gtIAd: 'We use AI to group orders by zone, anticipate Lima traffic and cut distribution time: it learns from every run so the next one arrives sooner.',
   nav5: 'Client portal ↗', menuPortal: 'Client portal · track my order ↗', menuGt: 'Employees · Open GeoTrack ↗',
-  accT: 'Expecting an order, or already working with SAVA?', accD: 'Track your deliveries in the client portal — no calls, no emails. SAVA staff go straight to GeoTrack.',
-  accB1: 'Client portal ↗', accB2: "I'm an employee · GeoTrack",
   navEmp: "I'm an employee ↗", navRec: 'Claims & complaints',
   recE: 'Customer care', recT: 'Something went wrong? Tell us.',
   recD: 'File your complaint or claim in our virtual Complaints Book. It goes straight to the SAVA operations team, with a tracking code and a guaranteed response.',

@@ -1,6 +1,8 @@
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
 import geotrackLogo from "../../../assets/logo.png";
 import MapaFlotaIso from "../../../components/publico/MapaFlotaIso";
+import { estadisticasPublicas } from "../../portal/servicios/portal.js";
+import { ESTADOS } from "../../portal/datos/portalUi.js";
 
 // Chips de features de GeoTrack: clave i18n + texto en español.
 const FEATURES = [
@@ -10,8 +12,8 @@ const FEATURES = [
   { clave: "gtc4", texto: "Rutas con IA" },
 ];
 
-// Los 4 hitos del timeline demo del pedido PD-2481 · Ripley: clave de título,
-// clave de detalle (u opcional detD para la última fila sin hora), y si ya ocurrió.
+// Hitos DEMO del timeline (fallback cuando el backend no responde: el landing
+// funciona sin backend). Con datos reales se usan los eventos del historial.
 const HITOS = [
   { claveT: "gtw1", detalle: "09:12 · CD Villa El Salvador", hecho: true, enCurso: false },
   { claveT: "gtw2", detalle: "11:40 · Independencia", hecho: true, enCurso: false },
@@ -19,10 +21,54 @@ const HITOS = [
   { claveT: "gtw4", claveD: "gtw4b", detalle: "Con foto y confirmación", hecho: false, enCurso: false },
 ];
 
+// Textos en español de los 4 hitos demo (usados como fallback de tx).
+const TEXTOS_HITOS = {
+  gtw1: "Recogido en tienda",
+  gtw2: "Verificado en centro SAVA",
+  gtw3: "En ruta de reparto",
+  gtw4: "Entregado al cliente",
+};
+
 // SeccionGeoTrack (#geotrack): presenta la plataforma propia — descripción + chips,
-// panel "Reporte de hoy" con barra animada, timeline demo de un pedido, tarjeta de
-// IA y el mapa de flota en vivo (MapaFlotaIso). Input: tx (traducción).
+// panel "Reporte de hoy" y tarjeta del pedido conectados a datos REALES del backend
+// (agregados y enmascarados, sin datos personales; con fallback demo si no hay
+// backend), tarjeta de IA debajo del estado del pedido, y el mapa de flota SIMULADO
+// (a propósito: no se expone la ubicación real de los conductores). Input: tx.
 export default function SeccionGeoTrack({ tx }) {
+  // Estadísticas públicas reales (null = modo demo). Se cargan al montar y se
+  // refrescan cada 15 s; el setState va dentro del callback de la promesa.
+  const [datos, setDatos] = useState(null);
+  useEffect(() => {
+    let activo = true;
+    const cargar = () => {
+      estadisticasPublicas()
+        .then((d) => {
+          if (activo && d && d.reporte) setDatos(d);
+        })
+        .catch(() => {}); // sin backend: el landing sigue con la demo
+    };
+    cargar();
+    const id = setInterval(cargar, 15000);
+    return () => {
+      activo = false;
+      clearInterval(id);
+    };
+  }, []);
+
+  // Derivados del reporte (reales u demo).
+  const rep = datos ? datos.reporte : null;
+  const pct = rep ? rep.pct : 92;
+  const resumen = rep
+    ? `${rep.entregados} entregados · ${rep.enRuta} en ruta · ${rep.porSalir} por salir` +
+      (rep.incidencias ? ` · ${rep.incidencias} con incidencia` : "") +
+      " — se actualiza en vivo"
+    : tx("repD", "276 entregados · 16 en ruta · 8 por salir — se actualiza en vivo");
+
+  // Derivados de la tarjeta del pedido (real enmascarado u demo).
+  const ped = datos && datos.pedido ? datos.pedido : null;
+  const badge = ped ? ESTADOS[ped.estado] || ESTADOS.POR_SALIR : null;
+  const eventos = ped && ped.eventos && ped.eventos.length ? ped.eventos : null;
+
   return (
     <section id="geotrack" data-sec="p" style={{ maxWidth: 1200, margin: "0 auto", padding: "110px 28px 0" }}>
       <div
@@ -112,113 +158,151 @@ export default function SeccionGeoTrack({ tx }) {
                 {tx("repT", "Reporte de hoy, en vivo")}
               </span>
               <span style={{ fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 19, color: "#22a35e" }}>
-                <span data-count="92" data-suffix="%">0%</span>
+                <span data-count={pct} data-suffix="%">{rep ? `${pct}%` : "0%"}</span>
               </span>
             </div>
             <div style={{ margin: "10px 0 0", height: 8, borderRadius: 99, background: "#e8f0f8", overflow: "hidden" }}>
-              <div data-barra="92" style={{ height: "100%", width: "0%", borderRadius: 99, background: "linear-gradient(90deg, #2679d8, #22a35e)", transition: "width 1.4s ease .2s" }} />
+              <div
+                data-barra={pct}
+                style={{
+                  height: "100%",
+                  width: rep ? `${pct}%` : "0%",
+                  borderRadius: 99,
+                  background: "linear-gradient(90deg, #2679d8, #22a35e)",
+                  transition: "width 1.4s ease .2s",
+                }}
+              />
             </div>
-            <p data-i18n="repD" style={{ margin: "8px 0 0", fontSize: 12.5, color: "#7288a0" }}>
-              {tx("repD", "276 entregados · 16 en ruta · 8 por salir — se actualiza en vivo")}
+            <p data-i18n={rep ? undefined : "repD"} style={{ margin: "8px 0 0", fontSize: 12.5, color: "#7288a0" }}>
+              {resumen}
             </p>
           </div>
         </div>
 
-        <div data-tilt="1" style={{ background: "#fff", border: "1px solid rgba(15,43,74,.1)", borderRadius: 22, boxShadow: "0 24px 60px rgba(15,43,74,.14)", padding: 22, maxWidth: 420, margin: "0 auto" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "0 0 16px" }}>
-            <span data-i18n="gtwT" style={{ fontFamily: "Archivo, sans-serif", fontWeight: 700, fontSize: 14, color: "#0f2b4a" }}>
-              {tx("gtwT", "Pedido PD-2481 · Ripley")}
-            </span>
-            <span
-              data-i18n="gtwE"
-              style={{
-                background: "#e3f2e8",
-                color: "#1e7a43",
-                fontSize: 11.5,
-                fontWeight: 700,
-                padding: "4px 10px",
-                borderRadius: 99,
-                animation: "latido 2.2s ease-in-out infinite",
-              }}
-            >
-              {tx("gtwE", "EN RUTA")}
-            </span>
+        {/* Columna derecha: estado del pedido y, DEBAJO, la tarjeta de IA. */}
+        <div>
+          <div data-tilt="1" style={{ background: "#fff", border: "1px solid rgba(15,43,74,.1)", borderRadius: 22, boxShadow: "0 24px 60px rgba(15,43,74,.14)", padding: 22, maxWidth: 420, margin: "0 auto" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "0 0 16px" }}>
+              <span data-i18n={ped ? undefined : "gtwT"} style={{ fontFamily: "Archivo, sans-serif", fontWeight: 700, fontSize: 14, color: "#0f2b4a" }}>
+                {ped ? `Pedido ${ped.codigo} · ${ped.retail}` : tx("gtwT", "Pedido PD-2481 · Ripley")}
+              </span>
+              <span
+                data-i18n={ped ? undefined : "gtwE"}
+                style={{
+                  background: badge ? badge.bg : "#e3f2e8",
+                  color: badge ? badge.fg : "#1e7a43",
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  padding: "4px 10px",
+                  borderRadius: 99,
+                  whiteSpace: "nowrap",
+                  animation: "latido 2.2s ease-in-out infinite",
+                }}
+              >
+                {ped ? (badge ? badge.tx : ped.estado) : tx("gtwE", "EN RUTA")}
+              </span>
+            </div>
+            <div style={{ display: "grid", gap: 0 }}>
+              {eventos
+                ? eventos.map((ev, i) => (
+                    <div key={i} style={{ display: "flex", gap: 14 }}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                        <span
+                          style={{
+                            width: 11,
+                            height: 11,
+                            borderRadius: 99,
+                            background: ev.alerta ? "#d97a1f" : "#2679d8",
+                            flex: "none",
+                            boxShadow: ev.vivo ? "0 0 0 5px rgba(38,121,216,.18)" : "none",
+                          }}
+                        />
+                        {i < eventos.length - 1 && <span style={{ width: 2, flex: 1, background: "#2679d8" }} />}
+                      </div>
+                      <div style={{ padding: i < eventos.length - 1 ? "0 0 18px" : 0 }}>
+                        <p style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: "#0f2b4a" }}>{ev.t}</p>
+                        <p style={{ margin: "2px 0 0", fontSize: 12, color: "#8ba0b6" }}>
+                          {ev.h}
+                          {ev.d ? ` · ${ev.d}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                : HITOS.map((h, i) => (
+                    <div key={h.claveT} style={{ display: "flex", gap: 14 }}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                        <span
+                          style={{
+                            width: 11,
+                            height: 11,
+                            borderRadius: 99,
+                            background: h.hecho || h.enCurso ? "#2679d8" : "#dce8f4",
+                            flex: "none",
+                            boxShadow: h.enCurso ? "0 0 0 5px rgba(38,121,216,.18)" : "none",
+                          }}
+                        />
+                        {i < HITOS.length - 1 && (
+                          <span style={{ width: 2, flex: 1, background: h.hecho ? "#2679d8" : "#dce8f4" }} />
+                        )}
+                      </div>
+                      <div style={{ padding: i < HITOS.length - 1 ? "0 0 18px" : 0 }}>
+                        <p data-i18n={h.claveT} style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: h.hecho || h.enCurso ? "#0f2b4a" : "#8ba0b6" }}>
+                          {tx(h.claveT, TEXTOS_HITOS[h.claveT])}
+                        </p>
+                        <p
+                          data-i18n={h.claveD || undefined}
+                          style={{ margin: "2px 0 0", fontSize: 12, color: h.hecho || h.enCurso ? "#8ba0b6" : "#b7c6d6" }}
+                        >
+                          {h.claveD ? tx(h.claveD, h.detalle) : h.detalle}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+            </div>
           </div>
-          <div style={{ display: "grid", gap: 0 }}>
-            {HITOS.map((h, i) => (
-              <div key={h.claveT} style={{ display: "flex", gap: 14 }}>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                  <span
-                    style={{
-                      width: 11,
-                      height: 11,
-                      borderRadius: 99,
-                      background: h.hecho || h.enCurso ? "#2679d8" : "#dce8f4",
-                      flex: "none",
-                      boxShadow: h.enCurso ? "0 0 0 5px rgba(38,121,216,.18)" : "none",
-                    }}
-                  />
-                  {i < HITOS.length - 1 && (
-                    <span style={{ width: 2, flex: 1, background: h.hecho ? "#2679d8" : "#dce8f4" }} />
-                  )}
-                </div>
-                <div style={{ padding: i < HITOS.length - 1 ? "0 0 18px" : 0 }}>
-                  <p data-i18n={h.claveT} style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: h.hecho || h.enCurso ? "#0f2b4a" : "#8ba0b6" }}>
-                    {tx(h.claveT, TEXTOS_HITOS[h.claveT])}
-                  </p>
-                  <p
-                    data-i18n={h.claveD || undefined}
-                    style={{ margin: "2px 0 0", fontSize: 12, color: h.hecho || h.enCurso ? "#8ba0b6" : "#b7c6d6" }}
-                  >
-                    {h.claveD ? tx(h.claveD, h.detalle) : h.detalle}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
 
-        <div data-reveal="140" style={{ opacity: 0, transform: "translateY(26px)", transition: "opacity .7s ease, transform .7s ease" }}>
-          <div
-            style={{
-              margin: "18px auto 0",
-              maxWidth: 420,
-              background: "#fff",
-              border: "1px solid rgba(38,121,216,.25)",
-              borderRadius: 16,
-              padding: "18px 20px",
-              display: "flex",
-              gap: 14,
-              alignItems: "flex-start",
-              boxSizing: "border-box",
-            }}
-          >
-            <span
+          <div data-reveal="140" style={{ opacity: 0, transform: "translateY(26px)", transition: "opacity .7s ease, transform .7s ease" }}>
+            <div
               style={{
-                flex: "none",
-                background: "#0f2b4a",
-                color: "#5db1f0",
-                fontFamily: "Archivo, sans-serif",
-                fontWeight: 800,
-                fontSize: 13,
-                letterSpacing: ".08em",
-                padding: "6px 10px",
-                borderRadius: 8,
-                animation: "latido 2.6s ease-in-out infinite",
+                margin: "18px auto 0",
+                maxWidth: 420,
+                background: "#fff",
+                border: "1px solid rgba(38,121,216,.25)",
+                borderRadius: 16,
+                padding: "18px 20px",
+                display: "flex",
+                gap: 14,
+                alignItems: "flex-start",
+                boxSizing: "border-box",
               }}
             >
-              IA
-            </span>
-            <div>
-              <h3 data-i18n="gtIAt" style={{ margin: "0 0 6px", fontFamily: "Archivo, sans-serif", fontWeight: 700, fontSize: 16, color: "#0f2b4a" }}>
-                {tx("gtIAt", "Inteligencia artificial en cada ruta")}
-              </h3>
-              <p data-i18n="gtIAd" style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: "#4f6580" }}>
-                {tx(
-                  "gtIAd",
-                  "Usamos IA para agrupar pedidos por zona, anticipar el tráfico de Lima y recortar el tiempo de distribución: aprende de cada reparto para que el siguiente llegue antes.",
-                )}
-              </p>
+              <span
+                style={{
+                  flex: "none",
+                  background: "#0f2b4a",
+                  color: "#5db1f0",
+                  fontFamily: "Archivo, sans-serif",
+                  fontWeight: 800,
+                  fontSize: 13,
+                  letterSpacing: ".08em",
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  animation: "latido 2.6s ease-in-out infinite",
+                }}
+              >
+                IA
+              </span>
+              <div>
+                <h3 data-i18n="gtIAt" style={{ margin: "0 0 6px", fontFamily: "Archivo, sans-serif", fontWeight: 700, fontSize: 16, color: "#0f2b4a" }}>
+                  {tx("gtIAt", "Inteligencia artificial en cada ruta")}
+                </h3>
+                <p data-i18n="gtIAd" style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: "#4f6580" }}>
+                  {tx(
+                    "gtIAd",
+                    "Usamos IA para agrupar pedidos por zona, anticipar el tráfico de Lima y recortar el tiempo de distribución: aprende de cada reparto para que el siguiente llegue antes.",
+                  )}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -253,60 +337,7 @@ export default function SeccionGeoTrack({ tx }) {
             {tx("gtMapa", "Cada conductor registra la evidencia en la app GeoTrack y sigue al siguiente cliente — SAVA visualiza todo en tiempo real")}
           </p>
         </div>
-
-        <div
-          data-reveal="80"
-          style={{
-            gridColumn: "1/-1",
-            margin: "8px 0 0",
-            background: "#0f2b4a",
-            borderRadius: 18,
-            padding: "24px 28px",
-            display: "flex",
-            alignItems: "center",
-            gap: 18,
-            flexWrap: "wrap",
-            opacity: 0,
-            transform: "translateY(26px)",
-            transition: "opacity .7s ease, transform .7s ease",
-          }}
-        >
-          <div style={{ flex: 1, minWidth: 240 }}>
-            <h3 data-i18n="accT" style={{ margin: 0, fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 19, color: "#fff" }}>
-              {tx("accT", "¿Espera un pedido o ya trabaja con SAVA?")}
-            </h3>
-            <p data-i18n="accD" style={{ margin: "6px 0 0", fontSize: 14, lineHeight: 1.55, color: "#9fc0e2" }}>
-              {tx("accD", "Siga sus entregas en el portal de clientes, sin llamadas ni correos. El personal de SAVA entra directo a GeoTrack.")}
-            </p>
-          </div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <Link
-              data-i18n="accB1"
-              to="/portal"
-              className="ldg-btn-cta"
-              style={{ textDecoration: "none", background: "#2679d8", color: "#fff", fontSize: 14, fontWeight: 600, padding: "13px 22px", borderRadius: 99 }}
-            >
-              {tx("accB1", "Portal de clientes ↗")}
-            </Link>
-            <Link
-              data-i18n="accB2"
-              to="/panel/login"
-              className="ldg-btn-cta-outline"
-              style={{ textDecoration: "none", color: "#dbe9f8", fontSize: 14, fontWeight: 600, padding: "13px 22px", borderRadius: 99, border: "1.5px solid rgba(255,255,255,.35)" }}
-            >
-              {tx("accB2", "Soy empleado · GeoTrack")}
-            </Link>
-          </div>
-        </div>
       </div>
     </section>
   );
 }
-
-// Textos en español de los 4 hitos del timeline (usados como fallback de tx).
-const TEXTOS_HITOS = {
-  gtw1: "Recogido en tienda",
-  gtw2: "Verificado en centro SAVA",
-  gtw3: "En ruta de reparto",
-  gtw4: "Entregado al cliente",
-};

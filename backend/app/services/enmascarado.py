@@ -35,6 +35,24 @@ def mask_correo(email: str) -> str:
     return (u[:2] + "***@" + d)
 
 
+def mask_codigo(codigo: str) -> str:
+    """Enmascara un codigo de pedido dejando prefijo, primer y ultimo caracter del numero.
+    'PD-2481' -> 'PD-2••1'. Recibe el codigo. Evita que un codigo publicado (landing)
+    sirva para iniciar un rastreo ajeno."""
+    if not codigo:
+        return ""
+    if "-" in codigo:
+        pre, num = codigo.split("-", 1)
+        pre += "-"
+    else:
+        pre, num = "", codigo
+    if len(num) <= 2:
+        oculto = (num[0] + "•") if len(num) == 2 else "•"
+    else:
+        oculto = num[0] + "•" * (len(num) - 2) + num[-1]
+    return pre + oculto
+
+
 def mask_direccion(direccion: str) -> str:
     """Enmascara una direccion conservando el distrito tras la coma. Recibe la direccion completa.
     'Av. Larco 812, Miraflores' -> 'Av. L•••• 8••, Miraflores'."""

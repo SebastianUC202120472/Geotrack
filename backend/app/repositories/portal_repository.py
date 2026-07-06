@@ -91,3 +91,23 @@ def pedidos_de_cliente_hoy(db: Session, cliente_id: int):
         )
         salida.append((p, det))
     return salida
+
+
+def conteos_del_dia_reciente(db: Session):
+    """Conteos de pedidos por estado del dia MAS RECIENTE con pedidos (normalmente hoy).
+    Sin datos personales: solo agregados. Devuelve lista de (estado, total)."""
+    from sqlalchemy import func
+    ultimo_dia = db.query(func.date(Pedido.fecha_creacion)).order_by(Pedido.fecha_creacion.desc()).limit(1).scalar()
+    if ultimo_dia is None:
+        return []
+    return (
+        db.query(Pedido.estado, func.count(Pedido.id))
+        .filter(func.date(Pedido.fecha_creacion) == ultimo_dia)
+        .group_by(Pedido.estado)
+        .all()
+    )
+
+
+def ultimo_pedido(db: Session) -> Optional[Pedido]:
+    """Devuelve el pedido mas reciente del sistema (para la tarjeta del landing)."""
+    return db.query(Pedido).order_by(Pedido.id.desc()).first()

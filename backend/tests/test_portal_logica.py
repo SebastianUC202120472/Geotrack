@@ -207,3 +207,14 @@ from app.repositories.reclamo_repository import formato_codigo
 def test_formato_codigo_lr():
     assert formato_codigo(2026, 7) == "LR-2026-0007"
     assert formato_codigo(2026, 1234) == "LR-2026-1234"
+
+
+# --- Test del enmascarado de codigo (landing publico) ---
+from app.services.enmascarado import mask_codigo
+
+
+def test_mask_codigo():
+    assert mask_codigo("PD-2481") == "PD-2••1"
+    assert mask_codigo("PD-150") == "PD-1•0"
+    assert mask_codigo("PD-15") == "PD-1•"
+    assert mask_codigo("") == ""
