@@ -14,7 +14,12 @@ _ETIQUETAS = {
     "FALLIDO": ("Intento de entrega sin exito", "se dejo constancia de visita"),
     "OBSERVADO": ("Incidencia registrada", "en gestion por el equipo SAVA"),
     "CANCELADO": ("Pedido cancelado", ""),
+    "GEOCODIFICACION_FALLIDA": ("Verificando direccion de entrega", ""),
 }
+
+# Etiqueta para estados no catalogados: NUNCA se expone el estado interno crudo
+# (estos textos salen por endpoints publicos).
+_ETIQUETA_GENERICA = ("Actualizacion del envio", "")
 
 
 def traducir_eventos(historial) -> list:
@@ -23,7 +28,7 @@ def traducir_eventos(historial) -> list:
     eventos = []
     ultimo = len(historial) - 1
     for i, h in enumerate(historial):
-        t, d = _ETIQUETAS.get((h.estado_nuevo or "").upper(), (h.estado_nuevo or "Actualizacion", ""))
+        t, d = _ETIQUETAS.get((h.estado_nuevo or "").upper(), _ETIQUETA_GENERICA)
         ev = {"t": t, "d": d, "h": h.fecha_utc.strftime("%H:%M") if h.fecha_utc else ""}
         est = (h.estado_nuevo or "").upper()
         if est == "ENTREGADO":
@@ -165,10 +170,31 @@ def registrar_reprogramacion(db: Session, codigo: str, franja: str) -> dict:
     return {"ok": True}
 
 
-def estadisticas_publicas(db: Session) -> dict:
+# Cache en memoria de las estadisticas publicas (TTL corto): el landing hace polling
+# cada 15 s por visitante, y sin cache cada visita escanearia la tabla de pedidos.
+# Con el cache, la BD recibe como maximo unas pocas consultas por minuto sin importar
+# cuantos visitantes tenga el landing.
+_CACHE_ESTATS = {"hasta": 0.0, "datos": None}
+_CACHE_ESTATS_TTL_SEG = 15
+
+
+def estadisticas_publicas(db: Session, _reloj=None) -> dict:
     """Estadisticas agregadas + ultimo pedido ENMASCARADO para el landing (endpoint publico).
     Sin datos personales: solo conteos por estado, codigo enmascarado, retail corporativo
-    y eventos genericos del historial (etiquetas + horas). Sin input extra."""
+    y eventos genericos del historial (etiquetas + horas). Cachea el resultado unos
+    segundos (anti-DoS del polling). Recibe db y un reloj opcional (tests)."""
+    import time
+    ahora = (_reloj or time.time)()
+    if _CACHE_ESTATS["datos"] is not None and ahora < _CACHE_ESTATS["hasta"]:
+        return _CACHE_ESTATS["datos"]
+    datos = _calcular_estadisticas(db)
+    _CACHE_ESTATS["datos"] = datos
+    _CACHE_ESTATS["hasta"] = ahora + _CACHE_ESTATS_TTL_SEG
+    return datos
+
+
+def _calcular_estadisticas(db: Session) -> dict:
+    """Calcula las estadisticas publicas contra la BD (sin cache). Recibe db."""
     # Reporte del dia con actividad mas reciente (normalmente hoy).
     conteos = {}
     for estado_pipeline, total in repo.conteos_del_dia_reciente(db):

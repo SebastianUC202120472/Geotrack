@@ -97,12 +97,20 @@ def conteos_del_dia_reciente(db: Session):
     """Conteos de pedidos por estado del dia MAS RECIENTE con pedidos (normalmente hoy).
     Sin datos personales: solo agregados. Devuelve lista de (estado, total)."""
     from sqlalchemy import func
-    ultimo_dia = db.query(func.date(Pedido.fecha_creacion)).order_by(Pedido.fecha_creacion.desc()).limit(1).scalar()
+    # isnot(None): un pedido sin fecha (insercion manual) no debe volcar el reporte a
+    # vacio (en Postgres los NULL van primero en un ORDER BY DESC).
+    ultimo_dia = (
+        db.query(func.date(Pedido.fecha_creacion))
+        .filter(Pedido.fecha_creacion.isnot(None))
+        .order_by(Pedido.fecha_creacion.desc())
+        .limit(1)
+        .scalar()
+    )
     if ultimo_dia is None:
         return []
     return (
         db.query(Pedido.estado, func.count(Pedido.id))
-        .filter(func.date(Pedido.fecha_creacion) == ultimo_dia)
+        .filter(Pedido.fecha_creacion.isnot(None), func.date(Pedido.fecha_creacion) == ultimo_dia)
         .group_by(Pedido.estado)
         .all()
     )

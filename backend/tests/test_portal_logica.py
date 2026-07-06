@@ -218,3 +218,11 @@ def test_mask_codigo():
     assert mask_codigo("PD-150") == "PD-1•0"
     assert mask_codigo("PD-15") == "PD-1•"
     assert mask_codigo("") == ""
+
+
+def test_traducir_eventos_no_expone_estado_interno_crudo():
+    # Un estado no catalogado NO debe salir crudo por el endpoint publico.
+    evs = traducir_eventos([_H("ESTADO_INTERNO_RARO", datetime(2026, 7, 6, 10, 0))])
+    assert evs[0]["t"] == "Actualizacion del envio"
+    evs2 = traducir_eventos([_H("GEOCODIFICACION_FALLIDA", datetime(2026, 7, 6, 10, 0))])
+    assert evs2[0]["t"] == "Verificando direccion de entrega"

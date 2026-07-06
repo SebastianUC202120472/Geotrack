@@ -7,8 +7,8 @@ import logo from "../../assets/logo.png";
 import "./portal.css";
 
 // Página del portal de clientes: header sticky + hero + selector de perfil
-// (persona natural / empresa) + hueco de la vista elegida (Tareas 10 y 11) +
-// CTA de equipo + footer. Sin i18n (el mockup del portal es solo español).
+// (persona natural / empresa) + hueco de la vista elegida +
+// footer. Sin i18n (el mockup del portal es solo español).
 export default function Portal() {
   const [modo, setModo] = useState(null); // null | "personal" | "empresa"
   const [toast, setToast] = useState("");

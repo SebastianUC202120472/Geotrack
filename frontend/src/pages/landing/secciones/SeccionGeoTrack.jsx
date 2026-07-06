@@ -43,7 +43,9 @@ export default function SeccionGeoTrack({ tx }) {
     const cargar = () => {
       estadisticasPublicas()
         .then((d) => {
-          if (activo && d && d.reporte) setDatos(d);
+          // Solo se usa el dato real si HAY actividad (total > 0): una BD vacia no
+          // debe volcar el landing a "0 entregados · 0%" — en ese caso queda la demo.
+          if (activo && d && d.reporte && d.reporte.total > 0) setDatos(d);
         })
         .catch(() => {}); // sin backend: el landing sigue con la demo
     };
