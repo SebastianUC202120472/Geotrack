@@ -8,6 +8,8 @@ from app.core.security import get_password_hash, verify_password
 from app.repositories import verificacion_repository as repo
 
 LIMITE_INTENTOS = 3
+BLOQUEO_DNI_SEG = 30       # bloqueo tras 3 intentos fallidos de DNI (persona)
+BLOQUEO_OTP_SEG = 45       # bloqueo tras 3 intentos fallidos de OTP (empresa)
 
 
 def gen_otp() -> str:
@@ -46,7 +48,7 @@ def _aplicar_fallo(db, reg, tipo, referencia, bloqueo_seg):
     raise HTTPException(status_code=401, detail={"intentosRestantes": r["intentos_restantes"]})
 
 
-def verificar_dni(db: Session, codigo: str, dni_ingresado: str, dni_real: str | None) -> None:
+def verificar_dni(db: Session, codigo: str, dni_ingresado: str | None, dni_real: str | None) -> None:
     """Valida los ultimos 4 del DNI contra el pedido. Recibe codigo, dni ingresado y dni real (o None).
     Exito: sella verificado. Fallo: 401/429 con intentos/bloqueo."""
     tipo, referencia = "PERSONA", codigo
@@ -54,14 +56,17 @@ def verificar_dni(db: Session, codigo: str, dni_ingresado: str, dni_real: str | 
     _exigir_no_bloqueado(reg)
     ok = bool(dni_real) and (dni_ingresado or "").strip() == dni_real.strip()[-4:]
     if not ok:
-        _aplicar_fallo(db, reg, tipo, referencia, bloqueo_seg=30)
+        _aplicar_fallo(db, reg, tipo, referencia, bloqueo_seg=BLOQUEO_DNI_SEG)
     repo.upsert(db, tipo, referencia, intentos=0, bloqueado_hasta=None, canal="DNI", verificado_en=datetime.utcnow())
     repo.guardar(db)
 
 
 def emitir_otp(db: Session, tipo: str, referencia: str) -> str:
     """Genera y persiste (hasheado) un OTP con 10 min de vigencia; devuelve el OTP en claro.
-    Recibe tipo (PERSONA|EMPRESA) y referencia."""
+    Recibe tipo (PERSONA|EMPRESA) y referencia. Un reenvio durante un bloqueo activo
+    NO lo levanta (evita que reenviar el codigo burle el bloqueo por intentos)."""
+    reg = repo.obtener(db, tipo, referencia)
+    _exigir_no_bloqueado(reg)
     otp = gen_otp()
     repo.upsert(
         db, tipo, referencia,
@@ -75,7 +80,7 @@ def emitir_otp(db: Session, tipo: str, referencia: str) -> str:
     return otp
 
 
-def verificar_otp(db: Session, tipo: str, referencia: str, otp_ingresado: str, bloqueo_seg: int = 45) -> None:
+def verificar_otp(db: Session, tipo: str, referencia: str, otp_ingresado: str | None, bloqueo_seg: int = BLOQUEO_OTP_SEG) -> None:
     """Valida el OTP contra el hash vigente + expiracion + intentos. Recibe tipo, referencia y OTP.
     Exito: sella verificado. Fallo: 401/429."""
     reg = repo.obtener(db, tipo, referencia)
