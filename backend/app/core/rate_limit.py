@@ -35,12 +35,21 @@ def limitar(clave: str, maximo: int, ventana_seg: int) -> bool:
     return _singleton.permitir(clave, maximo, ventana_seg)
 
 
+def _ip_cliente(request: Request) -> str:
+    """Obtiene la IP real del cliente. Recibe la request.
+    Detras de Nginx todas las peticiones llegan de la IP del contenedor, asi que se
+    usa el primer salto de X-Forwarded-For (que Nginx setea) y se cae a la IP directa."""
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "?"
+
+
 def limite_publico(maximo: int = 30, ventana_seg: int = 60):
     """Devuelve una dependencia FastAPI que limita por IP+ruta. Recibe maximo y ventana."""
 
     def _dep(request: Request):
-        ip = request.client.host if request.client else "?"
-        clave = f"{ip}:{request.scope.get('path', '')}"
+        clave = f"{_ip_cliente(request)}:{request.scope.get('path', '')}"
         if not _singleton.permitir(clave, maximo, ventana_seg):
             raise HTTPException(status_code=429, detail="Demasiadas solicitudes. Intente en un momento.")
 

@@ -126,7 +126,11 @@ def tabla_empresa(db: Session, cliente_id: int) -> dict:
     filas = []
     contadores = {}
     for p, det in repo.pedidos_de_cliente_hoy(db, cliente_id):
-        est = estado_portal.mapear_estado(det.estado_entrega if det and det.estado_entrega else p.estado)
+        # estado_entrega del detalle solo es terminal (ENTREGADO/FALLIDO) o PENDIENTE;
+        # para el estado en curso (EN_RUTA, etc.) se usa el estado del pedido. Si se usara
+        # el detalle en curso, un EN_RUTA se mostraria como POR_SALIR (bug corregido).
+        base = det.estado_entrega if (det and det.estado_entrega in ("ENTREGADO", "FALLIDO")) else p.estado
+        est = estado_portal.mapear_estado(base)
         hora = p.fecha_entrega.strftime("%H:%M") if (est == "ENTREGADO" and p.fecha_entrega) else "—"
         extra = ""
         if est == "EN_RUTA" and det:
