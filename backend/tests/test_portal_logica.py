@@ -158,3 +158,19 @@ def test_traducir_eventos_marca_entregado_ok():
     ])
     assert evs[-1]["ok"] is True
     assert all("h" in e and "t" in e for e in evs)
+
+
+def test_traducir_eventos_ultimo_en_ruta_es_vivo():
+    evs = traducir_eventos([
+        _H("LISTO_PARA_ENVIO", datetime(2026, 7, 5, 9, 0)),
+        _H("EN_RUTA", datetime(2026, 7, 5, 13, 0)),
+    ])
+    assert evs[-1].get("vivo") is True
+
+
+def test_traducir_eventos_fallido_es_alerta():
+    evs = traducir_eventos([
+        _H("EN_RUTA", datetime(2026, 7, 5, 13, 0)),
+        _H("FALLIDO", datetime(2026, 7, 5, 16, 30)),
+    ])
+    assert evs[-1].get("alerta") is True

@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
@@ -67,9 +65,9 @@ def detalle_pedido(db: Session, codigo: str) -> dict:
     if est == "EN_RUTA" and ruta:
         cond = repo.conductor_de_ruta(db, ruta.conductor_id)
         # Obtiene el nombre del conductor, fallando a correo si no hay nombre.
-        conductor_nombre = getattr(cond, "nombre", None) or getattr(cond, "correo", None) if cond else None
+        conductor_nombre = (getattr(cond, "nombre", None) or getattr(cond, "correo", None)) if cond else None
         placa = ruta.vehiculo_placa
-        if secuencia and total:
+        if secuencia is not None and total:
             parada = f"va en la parada {secuencia} de {total}"
 
     eventos = traducir_eventos(repo.historial_de(db, p.id))
