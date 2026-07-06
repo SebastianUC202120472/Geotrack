@@ -9,9 +9,9 @@ from app.core.rate_limit import limite_publico
 from app.core import portal_token
 from app.core.security import verify_password
 from app.services import portal_service, verificacion_portal_service as verif
-from app.services import correo_service, enmascarado
+from app.services import correo_service, enmascarado, publico_forms_service
 from app.repositories import portal_repository as repo
-from app.schemas.portal import VerificarDni, Reprogramar, EmpresaLogin, EmpresaVerificar
+from app.schemas.portal import VerificarDni, Reprogramar, EmpresaLogin, EmpresaVerificar, ContactoIn, ReclamoIn
 
 router = APIRouter()
 
@@ -100,3 +100,15 @@ def empresa_pedidos(cod: str = Depends(portal_token.requiere_token_empresa), db:
     if not cliente:
         raise HTTPException(status_code=401, detail="Sesion invalida")
     return portal_service.tabla_empresa(db, cliente.id)
+
+
+@router.post("/contacto", dependencies=[Depends(limite_publico(5, 60))])
+def contacto(datos: ContactoIn, db: Session = Depends(get_db)):
+    """Registra un lead de contacto del landing. Recibe ContactoIn."""
+    return publico_forms_service.registrar_contacto(db, datos)
+
+
+@router.post("/reclamos", dependencies=[Depends(limite_publico(5, 60))])
+def reclamos(datos: ReclamoIn, db: Session = Depends(get_db)):
+    """Registra un reclamo/queja del Libro de Reclamaciones. Recibe ReclamoIn. Devuelve {codigo}."""
+    return publico_forms_service.registrar_reclamo(db, datos)
