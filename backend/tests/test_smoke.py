@@ -37,6 +37,7 @@ def test_rutas_clave_registradas():
     assert "/api/pedidos/zonas" in paths
     assert "/api/conductor/ruta-activa" in paths             # Fase 3
     assert "/api/dashboard/flota" in paths                   # Fase 4
+    assert "/api/portal/pedidos/{codigo}/buscar" in paths      # Fase 2 portal
 
 
 def test_hash_de_contrasena():

@@ -1,0 +1,61 @@
+import os
+
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
+
+from app.db.database import get_db
+from app.core.rate_limit import limite_publico
+from app.core import portal_token
+from app.services import portal_service, verificacion_portal_service as verif
+from app.repositories import portal_repository as repo
+from app.schemas.portal import VerificarDni, Reprogramar
+
+router = APIRouter()
+
+
+@router.post("/pedidos/{codigo}/buscar", dependencies=[Depends(limite_publico(30, 60))])
+def buscar_pedido(codigo: str, db: Session = Depends(get_db)):
+    """Resumen enmascarado de un pedido (pre-verificacion). Recibe el codigo en la ruta."""
+    return portal_service.buscar_resumen(db, codigo.upper())
+
+
+@router.post("/pedidos/{codigo}/verificar", dependencies=[Depends(limite_publico(10, 60))])
+def verificar_pedido(codigo: str, datos: VerificarDni, db: Session = Depends(get_db)):
+    """Verifica identidad por DNI y, si ok, devuelve token + detalle. Recibe codigo y {dni}."""
+    codigo = codigo.upper()
+    p = repo.pedido_por_codigo(db, codigo)
+    if not p:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    verif.verificar_dni(db, codigo, datos.dni, p.dni_destinatario)
+    token = portal_token.crear_token_persona(codigo)
+    return {"token": token, "pedido": portal_service.detalle_pedido(db, codigo)}
+
+
+@router.get("/pedidos/{codigo}")
+def detalle(codigo: str, _=Depends(portal_token.requiere_token_persona), db: Session = Depends(get_db)):
+    """Detalle completo del pedido (requiere token de persona). Recibe el codigo en la ruta."""
+    return portal_service.detalle_pedido(db, codigo.upper())
+
+
+@router.post("/pedidos/{codigo}/reprogramar")
+def reprogramar(codigo: str, datos: Reprogramar, _=Depends(portal_token.requiere_token_persona), db: Session = Depends(get_db)):
+    """Registra una solicitud de reprogramacion (nota + notificacion al admin). Recibe codigo y {franja}."""
+    return portal_service.registrar_reprogramacion(db, codigo.upper(), datos.franja)
+
+
+@router.get("/pedidos/{codigo}/pod")
+def pod(codigo: str, _=Depends(portal_token.requiere_token_persona), db: Session = Depends(get_db)):
+    """Sirve la foto POD SOLO con token de persona. Recibe el codigo en la ruta."""
+    p = repo.pedido_por_codigo(db, codigo.upper())
+    if not p:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    ev = repo.evidencia_de(db, p.id)
+    if not ev or not ev.url_foto:
+        raise HTTPException(status_code=404, detail="Sin evidencia disponible")
+    # url_foto suele ser '/media/evidencias/archivo.jpg' -> mapear a uploads/
+    rel = ev.url_foto.replace("/media/", "", 1).lstrip("/")
+    ruta = os.path.join("uploads", rel)
+    if not os.path.isfile(ruta):
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+    return FileResponse(ruta)

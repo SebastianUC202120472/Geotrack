@@ -119,3 +119,20 @@ def _texto_recibido(p) -> str:
     """Texto de 'recibido por' para entregas. Recibe el pedido."""
     nombre = p.nombre_destinatario or "el destinatario"
     return f"Recibido por {nombre}."
+
+
+def registrar_reprogramacion(db: Session, codigo: str, franja: str) -> dict:
+    """Registra la franja pedida por el cliente + notifica al admin. Recibe codigo y franja.
+    No cambia el pipeline (la reprogramacion real la decide el admin)."""
+    from app.services import notificaciones_service
+    p = repo.pedido_por_codigo(db, codigo)
+    if not p:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    try:
+        notificaciones_service.registrar(
+            db, "reportes", "Reprogramacion solicitada por el cliente",
+            f"Pedido {codigo}: el cliente pide la franja «{franja}»", "/reportes?pendientes=1", p.id)
+    except Exception:
+        pass
+    db.commit()
+    return {"ok": True}
