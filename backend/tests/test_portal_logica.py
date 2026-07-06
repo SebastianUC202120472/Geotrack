@@ -1,6 +1,9 @@
+from jose import jwt as _jwt
 from app.services.estado_portal import mapear_estado, progreso
 from app.services.enmascarado import mask_telefono, mask_nombre, mask_direccion_corta
 from app.core.rate_limit import _Limitador
+from app.core.portal_token import crear_token_persona, crear_token_empresa
+from app.core.config import settings
 
 
 def test_mapeo_estados_pipeline_a_portal():
@@ -57,3 +60,17 @@ def test_limitador_permite_hasta_maximo_y_bloquea():
     # tras la ventana, se vuelve a permitir
     reloj["t"] += 61
     assert lim.permitir("ip:/x", maximo=3, ventana_seg=60) is True
+
+
+def test_token_persona_lleva_scope_y_sub():
+    tok = crear_token_persona("PD-2481")
+    p = _jwt.decode(tok, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    assert p["scope"] == "portal_persona"
+    assert p["sub"] == "PD-2481"
+
+
+def test_token_empresa_lleva_scope():
+    tok = crear_token_empresa("RIPLEY-24")
+    p = _jwt.decode(tok, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    assert p["scope"] == "portal_empresa"
+    assert p["sub"] == "RIPLEY-24"
