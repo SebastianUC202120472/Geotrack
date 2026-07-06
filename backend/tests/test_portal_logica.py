@@ -16,8 +16,14 @@ def test_mapeo_estados_pipeline_a_portal():
 def test_progreso_en_ruta_usa_secuencia():
     p = progreso("EN_RUTA", secuencia=12, total=28)
     assert p["paso"] == 2
-    assert p["pct"].endswith("%")
-    assert p["van"].endswith("%")
+    assert p["pct"] == "43%"   # round(12/28*100) = 43
+    assert p["van"] == "43%"
+
+
+def test_progreso_en_ruta_sin_secuencia_usa_fallback():
+    p = progreso("EN_RUTA", secuencia=None, total=None)
+    assert p["paso"] == 2
+    assert p["pct"] == "50%"
 
 
 def test_progreso_entregado_full():

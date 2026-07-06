@@ -21,14 +21,15 @@ def mapear_estado(estado_pipeline: str) -> str:
     return _MAPA.get((estado_pipeline or "").upper(), "POR_SALIR")
 
 
-def progreso(estado_portal: str, secuencia, total) -> dict:
+def progreso(estado_portal: str, secuencia: int | None, total: int | None) -> dict:
     """Calcula pct/van (0-100%) y el paso 0-3 de la barra segun estado y posicion en ruta.
     Recibe el estado del portal, la secuencia de parada y el total de paradas (ambos opcionales)."""
     if estado_portal == "ENTREGADO":
         return {"pct": "100%", "van": "100%", "paso": 3}
     if estado_portal == "EN_RUTA":
         # avance real por posicion en la ruta si se conoce; si no, 50% de referencia.
-        if secuencia and total:
+        # (is not None: secuencia 0 es un valor valido, no debe caer al fallback)
+        if secuencia is not None and total:
             frac = max(0, min(1, secuencia / total))
             v = str(round(frac * 100)) + "%"
             return {"pct": v, "van": v, "paso": 2}
