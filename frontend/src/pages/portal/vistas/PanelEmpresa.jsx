@@ -1,21 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
-import { CLAVE, EMPRESAS, FILAS, ESTADOS } from "../datos/demo.js";
+import { ESTADOS } from "../datos/portalUi.js";
+import { empresaLogin, empresaVerificar, empresaPedidos } from "../servicios/portal.js";
 
 // ============================================================================
-// Vista EMPRESA / RETAIL del portal de clientes (Tarea 11). Port fiel del mockup
-// aprobado (portal pagina.html, JSX 729-905 · lógica 1056-1079, 1250-1340, 1389-1411).
-// Flujo completo en 3 pasos: credenciales (código de empresa + clave, con chips demo,
-// error con sacudir y bloqueo temporal de 45 s) → verificación en dos pasos (OTP de
-// 6 dígitos con reenvío y bloqueo a los 3 intentos) → panel corporativo (KPIs
-// clicables, avance del día, filtros por estado/distrito/franja/búsqueda/orden,
-// toggle de privacidad, tabla con filas expandibles y mini-línea de tiempo, más el
-// countdown de sesión que expira sola a los 10 minutos). Demo puro: sin fetch, los
-// datos salen de ../datos/demo.js (FILAS es el ROWS de la fuente).
+// Vista EMPRESA / RETAIL del portal de clientes (Tarea 11 · re-cableada a datos
+// reales en la Fase 2). Port fiel del mockup aprobado (portal pagina.html, JSX
+// 729-905 · lógica 1056-1079, 1250-1340, 1389-1411). Flujo completo en 3 pasos:
+// credenciales (código de empresa + clave, error con sacudir y bloqueo temporal
+// de 45 s) → verificación en dos pasos (OTP de 6 dígitos enviado por correo por
+// el backend, con reenvío y bloqueo server-side a los 3 intentos) → panel
+// corporativo (KPIs clicables, avance del día, filtros por estado/distrito/
+// franja/búsqueda/orden, toggle de privacidad, tabla con filas expandibles y
+// mini-línea de tiempo, más el countdown de sesión que expira sola a los 10
+// minutos). Los datos salen de ../servicios/portal.js (fetch al backend
+// /api/portal); los catálogos de presentación siguen en ../datos/portalUi.js.
 // ============================================================================
-
-// gen6: genera un código OTP de 6 dígitos aleatorio (string "100000".."999999").
-// No recibe input. Port de Component.gen6 (fuente línea 1038).
-const gen6 = () => String(Math.floor(100000 + Math.random() * 900000));
 
 // horaNum: convierte una hora "HH:MM" a número decimal para comparar/ordenar; "—"
 // (aún sin salir) pasa a 99 para caer en la franja "por salir". Input: string de hora.
@@ -74,11 +73,11 @@ export default function PanelEmpresa({ avisar }) {
   const [intentos, setIntentos] = useState(0); // intentos fallidos de credenciales
   const [bloqueoHasta, setBloqueoHasta] = useState(0); // timestamp fin del bloqueo (45 s)
   const [pendiente, setPendiente] = useState(null); // código validado, a la espera del OTP
-  const [otpCode, setOtpCode] = useState(null); // OTP generado (el "enviado" por correo)
+  const [correoMask, setCorreoMask] = useState(""); // correo enmascarado donde llegó el OTP (lo informa el backend)
   const [otpInput, setOtpInput] = useState(""); // input del OTP (solo dígitos)
   const [otpError, setOtpError] = useState(false); // OTP incorrecto (aviso + sacudir)
-  const [otpIntentos, setOtpIntentos] = useState(0); // intentos fallidos de OTP
-  const [empresa, setEmpresa] = useState(null); // empresa con sesión iniciada (o null)
+  const [empresa, setEmpresa] = useState(null); // { nombre, ini } de la sesión iniciada (o null)
+  const [filas, setFilas] = useState([]); // pedidos de hoy del cliente (llegan del backend tras verificar)
   const [sesionFin, setSesionFin] = useState(0); // timestamp de expiración de la sesión
   const [filtro, setFiltro] = useState("TODOS"); // filtro de estado activo
   const [q, setQ] = useState(""); // búsqueda libre
@@ -105,10 +104,11 @@ export default function PanelEmpresa({ avisar }) {
     setPaso(0);
     setEmpresa(null);
     setPendiente(null);
+    setCorreoMask("");
+    setFilas([]);
     setSesionFin(0);
     setClaveEmp("");
     setOtpInput("");
-    setOtpCode(null);
     setAbierta(null);
     setFiltro("TODOS");
     setQ("");
@@ -155,11 +155,12 @@ export default function PanelEmpresa({ avisar }) {
     setError(false);
   };
 
-  // onCreds: valida credenciales tras un pequeño retardo (simula ida al servidor). Si
-  // EMPRESAS[c] existe y la clave coincide → genera OTP, pasa al paso 1 y "envía" el
-  // código por toast (11 s). Si no, suma un intento; a los 3 bloquea 45 s. No actúa si
-  // hay bloqueo vigente o ya está cargando. Input: evento submit.
-  // Port de onCreds (fuente 1263-1286).
+  // onCreds: valida credenciales contra el backend (empresaLogin), que si son correctas
+  // envía el OTP por correo al administrador de la cuenta. Si acierta → pasa al paso 1
+  // y guarda el correo enmascarado que informó el backend. Si falla (401) suma un
+  // intento local; a los 3 bloquea 45 s (el backend no cuenta intentos de login, solo
+  // limita por IP con 429). No actúa si hay bloqueo vigente o ya está cargando.
+  // Input: evento submit.
   const onCreds = (e) => {
     e.preventDefault();
     const t = Date.now();
@@ -167,44 +168,43 @@ export default function PanelEmpresa({ avisar }) {
     const c = codEmp.trim().toUpperCase();
     setCargando(true);
     setError(false);
-    setTimeout(() => {
-      const ok = EMPRESAS[c] && claveEmp === CLAVE;
-      if (ok) {
-        const otp = gen6();
+    empresaLogin(c, claveEmp)
+      .then((res) => {
         setCargando(false);
         setPendiente(c);
+        setCorreoMask(res.correoMask || "");
         setPaso(1);
-        setOtpCode(otp);
         setOtpInput("");
         setOtpError(false);
-        setOtpIntentos(0);
         setIntentos(0);
         setCodEmp(c);
-        avisar("Correo al administrador de " + EMPRESAS[c].nombre + " — código de verificación: " + otp, 11000);
-      } else {
+        avisar(
+          "Código enviado al correo del administrador" + (res.correoMask ? " (" + res.correoMask + ")" : ""),
+          6000
+        );
+      })
+      .catch((err) => {
+        setCargando(false);
+        if (err.status === 429) {
+          setIntentos(0);
+          setError(false);
+          setBloqueoHasta(Date.now() + 45000);
+          setClaveEmp("");
+          avisar("Demasiadas solicitudes — acceso pausado un momento", 5000);
+          return;
+        }
         const n = intentos + 1;
         if (n >= 3) {
-          setCargando(false);
           setIntentos(0);
           setError(false);
           setBloqueoHasta(Date.now() + 45000);
           setClaveEmp("");
           avisar("Demasiados intentos — acceso pausado 45 segundos", 5000);
         } else {
-          setCargando(false);
           setError(true);
           setIntentos(n);
         }
-      }
-    }, 700);
-  };
-
-  // usarChip: autocompleta código + clave demo desde un chip y limpia el error.
-  // Input: código de empresa `c`. Port de chipsEmp[].usar (fuente 1287-1289).
-  const usarChip = (c) => {
-    setCodEmp(c);
-    setClaveEmp(CLAVE);
-    setError(false);
+      });
   };
 
   // onOtpInput: solo admite dígitos y limpia el error del OTP. Input: evento del <input>.
@@ -214,62 +214,69 @@ export default function PanelEmpresa({ avisar }) {
     setOtpError(false);
   };
 
-  // onOtp: valida el OTP ingresado contra el generado. Si acierta → inicia sesión
-  // (paso 2), fija la expiración en 10 min, resetea filtros y avisa. Si falla suma un
-  // intento; a los 3 vuelve a credenciales y bloquea 45 s. Input: evento submit.
-  // Port de onOtp (fuente 1294-1309).
+  // onOtp: valida el OTP contra el backend (empresaVerificar). Si acierta → guarda la
+  // empresa ({nombre, ini}), inicia sesión (paso 2), fija la expiración en 10 min,
+  // resetea filtros/avisa y encadena (con el token recibido) la carga de los pedidos de
+  // hoy. El propio backend cuenta los intentos y aplica el bloqueo de 45 s (401 con
+  // intentosRestantes, 429 con bloqueadoSegundos); aquí solo se refleja lo que informa.
+  // Input: evento submit.
   const onOtp = (e) => {
     e.preventDefault();
-    if (otpInput && otpInput === otpCode) {
-      setPaso(2);
-      setEmpresa(pendiente);
-      setSesionFin(Date.now() + 600000);
-      setAhora(Date.now()); // sincroniza el reloj: evita mostrar un countdown viejo el primer segundo
-      setOtpError(false);
-      setAbierta(null);
-      setFiltro("TODOS");
-      setQ("");
-      setFDist("TODOS");
-      setFFranja("TODAS");
-      setFOrden("hora");
-      setPrivado(false);
-      avisar("Sesión segura iniciada — expira automáticamente en 10 minutos", 5000);
-    } else {
-      const n = otpIntentos + 1;
-      if (n >= 3) {
-        setPaso(0);
-        setPendiente(null);
-        setOtpCode(null);
-        setOtpInput("");
-        setOtpIntentos(0);
+    if (!pendiente) return;
+    empresaVerificar(pendiente, otpInput)
+      .then(({ token: tk, empresa: emp }) => {
+        setEmpresa(emp);
+        setPaso(2);
+        setSesionFin(Date.now() + 600000);
+        setAhora(Date.now()); // sincroniza el reloj: evita mostrar un countdown viejo el primer segundo
         setOtpError(false);
-        setBloqueoHasta(Date.now() + 45000);
-        setClaveEmp("");
-        avisar("Verificación fallida — vuelva a ingresar sus credenciales", 5000);
-      } else {
-        setOtpError(true);
-        setOtpIntentos(n);
-      }
-    }
+        setAbierta(null);
+        setFiltro("TODOS");
+        setQ("");
+        setFDist("TODOS");
+        setFFranja("TODAS");
+        setFOrden("hora");
+        setPrivado(false);
+        avisar("Sesión segura iniciada — expira automáticamente en 10 minutos", 5000);
+        empresaPedidos(tk)
+          .then((res) => setFilas(res.filas))
+          .catch(() => avisar("No se pudieron cargar los pedidos — intente recargar la página", 4500));
+      })
+      .catch((err) => {
+        if (err.status === 429) {
+          const seg = err.data?.detail?.bloqueadoSegundos ?? 45;
+          setPaso(0);
+          setPendiente(null);
+          setOtpInput("");
+          setOtpError(false);
+          setBloqueoHasta(Date.now() + seg * 1000);
+          setClaveEmp("");
+          avisar("Verificación fallida — vuelva a ingresar sus credenciales", 5000);
+        } else {
+          setOtpError(true);
+        }
+      });
   };
 
-  // reenviarOtp: genera y "envía" un OTP nuevo por toast (11 s). No actúa fuera del
-  // paso 1 o sin empresa pendiente. Port de reenviarOtp (fuente 1310-1316).
+  // reenviarOtp: reutiliza empresaLogin (el backend regenera y reenvía el OTP por
+  // correo). No actúa fuera del paso 1 o sin empresa pendiente.
   const reenviarOtp = () => {
     if (paso !== 1 || !pendiente) return;
-    const otp = gen6();
-    setOtpCode(otp);
-    setOtpInput("");
-    setOtpError(false);
-    avisar("Nuevo código para " + EMPRESAS[pendiente].nombre + ": " + otp, 11000);
+    empresaLogin(pendiente, claveEmp)
+      .then((res) => {
+        setOtpInput("");
+        setOtpError(false);
+        setCorreoMask(res.correoMask || correoMask);
+        avisar("Nuevo código enviado" + (res.correoMask ? " a " + res.correoMask : ""), 6000);
+      })
+      .catch(() => avisar("No se pudo reenviar el código — intente de nuevo", 4000));
   };
 
   // volverCreds: regresa del OTP a credenciales, descartando el código pendiente.
-  // Port de volverCreds (fuente 1317).
   const volverCreds = () => {
     setPaso(0);
     setPendiente(null);
-    setOtpCode(null);
+    setCorreoMask("");
     setOtpInput("");
     setOtpError(false);
   };
@@ -294,18 +301,12 @@ export default function PanelEmpresa({ avisar }) {
   };
 
   // --- Derivados de filtrado (equivalente a la rama empresa de renderVals) ---
-  const empMeta = empresa ? EMPRESAS[empresa] : null; // meta (nombre/inicial) de la sesión
+  const empMeta = empresa; // { nombre, ini } de la sesión (ya viene armado del backend)
   const empBloq = bloqueoHasta > ahora; // ¿acceso bloqueado ahora mismo? (usa el reloj)
 
-  // todos: filas de la empresa normalizadas a objetos. useMemo para no rehacerlas en
-  // cada render/tic. Port del map de ROWS (fuente 1118-1120).
-  const todos = useMemo(
-    () =>
-      (empresa ? FILAS[empresa] : []).map((t) => ({
-        cod: t[0], cliente: t[1], dir: t[2], dist: t[3], estado: t[4], h: t[5], extra: t[6] || "",
-      })),
-    [empresa]
-  );
+  // todos: pedidos de hoy del cliente. Vienen del backend (empresaPedidos) ya
+  // normalizados a objetos {cod, cliente, dir, dist, estado, h, extra}.
+  const todos = filas;
 
   // contadores: nº de pedidos por estado + incidencias (OBSERVADO ∪ REPROGRAMADO).
   // useMemo dependiente solo de `todos`. Port de nDe/inc (fuente 1121-1122).
@@ -352,9 +353,6 @@ export default function PanelEmpresa({ avisar }) {
   // reloj `ahora` (nunca Date.now() en render). Port de segRest/sesionTxt (1145, 1319).
   const segRest = sesionFin ? Math.max(0, Math.floor((sesionFin - ahora) / 1000)) : 0;
   const sesionTxt = Math.floor(segRest / 60) + ":" + String(segRest % 60).padStart(2, "0");
-
-  // Chips demo de la fuente (fuente 1287).
-  const chipsEmp = ["RIPLEY-24", "FALABELLA-24", "ZARA-24"];
 
   // KPIs clicables: cada uno filtra la tabla por su estado al pulsarse. Port de kpis
   // (fuente 1327-1332).
@@ -403,15 +401,13 @@ export default function PanelEmpresa({ avisar }) {
           ahora={ahora}
           error={error}
           intentos={intentos}
-          chipsEmp={chipsEmp}
-          usarChip={usarChip}
         />
       )}
 
       {/* Paso 1: verificación en dos pasos (OTP) */}
       {paso === 1 && (
         <VerificacionOtp
-          empPendNombre={pendiente && EMPRESAS[pendiente] ? EMPRESAS[pendiente].nombre : ""}
+          correoMask={correoMask}
           otpInput={otpInput}
           onOtpInput={onOtpInput}
           onOtp={onOtp}
@@ -640,11 +636,11 @@ const SELECT_ESTILO = {
 // ----------------------------------------------------------------------------
 // Credenciales: paso 0 del flujo corporativo. Panel con el título, el aviso de bloqueo
 // temporal (si aplica), el formulario código+clave, el error de credenciales (con
-// sacudir), los chips demo que autocompletan y el aviso de conexión cifrada.
-// Input: valores/handlers de los inputs, estado de carga/bloqueo/error/intentos, el
-// reloj `ahora` (para el countdown del bloqueo) y los chips demo.
+// sacudir) y el aviso de conexión cifrada.
+// Input: valores/handlers de los inputs, estado de carga/bloqueo/error/intentos y el
+// reloj `ahora` (para el countdown del bloqueo).
 // ----------------------------------------------------------------------------
-function Credenciales({ codEmp, claveEmp, onCodEmp, onClaveEmp, onCreds, cargando, empBloq, bloqueoHasta, ahora, error, intentos, chipsEmp, usarChip }) {
+function Credenciales({ codEmp, claveEmp, onCodEmp, onClaveEmp, onCreds, cargando, empBloq, bloqueoHasta, ahora, error, intentos }) {
   const bloqueoTxt = "Demasiados intentos fallidos. Por seguridad, el acceso está pausado " + Math.ceil(Math.max(0, bloqueoHasta - ahora) / 1000) + " s.";
   const intentosTxt = String(Math.max(0, 3 - intentos));
 
@@ -676,7 +672,7 @@ function Credenciales({ codEmp, claveEmp, onCodEmp, onClaveEmp, onCreds, cargand
               value={codEmp}
               onChange={onCodEmp}
               aria-label="Código de empresa"
-              placeholder="Código de empresa · ej. RIPLEY-24"
+              placeholder="Código de empresa"
               className="ptl-input-emp"
               style={{ boxSizing: "border-box", fontFamily: "Inter, sans-serif", fontSize: 14.5, padding: "13px 15px", border: "1.5px solid rgba(15,43,74,.16)", borderRadius: 12, background: "#f8fafc", color: "#0f2b4a", outline: "none" }}
             />
@@ -705,42 +701,27 @@ function Credenciales({ codEmp, claveEmp, onCodEmp, onClaveEmp, onCreds, cargand
         </>
       )}
 
-      <div style={{ margin: "16px 0 0", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <span style={{ fontSize: 12, color: "#7288a0" }}>Demostración:</span>
-        {chipsEmp.map((c) => (
-          <button
-            key={c}
-            type="button"
-            onClick={() => usarChip(c)}
-            className="ptl-chip-emp"
-            style={{ border: "1px solid rgba(38,121,216,.3)", background: "#f2f7fc", color: "#1b5fb3", fontFamily: "Inter, sans-serif", fontSize: 12.5, fontWeight: 600, padding: "7px 13px", borderRadius: 99, cursor: "pointer", transition: "background .2s ease, border-color .2s ease" }}
-          >
-            {c}
-          </button>
-        ))}
-        <span style={{ fontSize: 11.5, color: "#8ba0b6" }}>clave demo: DEMO-2026</span>
-      </div>
-
       <p style={{ margin: "18px 0 0", fontSize: 12, lineHeight: 1.6, color: "#8ba0b6", display: "flex", gap: 8, alignItems: "flex-start" }}>
         <span style={{ flex: "none", width: 7, height: 7, borderRadius: 99, background: "#22a35e", marginTop: 5, animation: "latido 2.2s ease-in-out infinite" }} />
-        Conexión cifrada. Cada acceso queda registrado y auditado. Las credenciales las entrega su ejecutivo SAVA.
+        Conexión cifrada. Cada acceso queda registrado y auditado. Credenciales entregadas por su ejecutivo SAVA.
       </p>
     </div>
   );
 }
 
 // ----------------------------------------------------------------------------
-// VerificacionOtp: paso 1 del flujo. Panel con el mensaje (con el nombre de la empresa
-// pendiente), el input de OTP de 6 dígitos, el botón de validar, el error (con sacudir)
-// y las acciones de reenviar código / volver. Input: nombre de la empresa pendiente,
-// valor/handlers del OTP, bandera de error y los handlers de reenviar/volver.
+// VerificacionOtp: paso 1 del flujo. Panel con el mensaje (con el correo enmascarado
+// donde el backend envió el código), el input de OTP de 6 dígitos, el botón de validar,
+// el error (con sacudir) y las acciones de reenviar código / volver. Input: correo
+// enmascarado, valor/handlers del OTP, bandera de error y los handlers de reenviar/volver.
 // ----------------------------------------------------------------------------
-function VerificacionOtp({ empPendNombre, otpInput, onOtpInput, onOtp, otpError, reenviarOtp, volverCreds }) {
+function VerificacionOtp({ correoMask, otpInput, onOtpInput, onOtp, otpError, reenviarOtp, volverCreds }) {
   return (
     <div data-ppanel="1" style={{ maxWidth: 560, margin: "0 auto", background: "#fff", border: "1.5px solid rgba(38,121,216,.3)", borderRadius: 22, padding: "30px 28px", boxShadow: "0 16px 40px rgba(15,43,74,.08)", animation: "aparecer .4s ease both" }}>
       <p style={{ margin: 0, fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 21 }}>Verificación en dos pasos</p>
       <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.6, color: "#4f6580" }}>
-        Enviamos un código de 6 dígitos al correo del administrador de <strong>{empPendNombre}</strong>. En esta demo, el código llega como notificación aquí mismo.
+        Código enviado al correo del administrador{correoMask ? " " : ""}
+        {correoMask && <strong>{correoMask}</strong>}. Revise su bandeja de entrada (y spam) e ingréselo aquí.
       </p>
       <form onSubmit={onOtp} style={{ margin: "18px 0 0", display: "flex", gap: 10, flexWrap: "wrap" }}>
         <input
@@ -763,7 +744,7 @@ function VerificacionOtp({ empPendNombre, otpInput, onOtpInput, onOtp, otpError,
       </form>
       {otpError && (
         <p style={{ margin: "12px 0 0", fontSize: 13, fontWeight: 600, color: "#c8362b", animation: "sacudir .4s ease both" }}>
-          Código incorrecto · verifique la notificación y vuelva a intentar
+          Código incorrecto · verifique el correo y vuelva a intentar
         </p>
       )}
       <div style={{ margin: "16px 0 0", display: "flex", gap: "8px 18px", flexWrap: "wrap", alignItems: "center" }}>
