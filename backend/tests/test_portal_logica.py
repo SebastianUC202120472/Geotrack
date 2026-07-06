@@ -103,6 +103,11 @@ def test_token_persona_valido_devuelve_codigo():
     assert requiere_token_persona("PD-1", _cred(tok)) == "PD-1"
 
 
+def test_token_persona_acepta_codigo_en_minusculas():
+    tok = crear_token_persona("PD-1")   # sub siempre en mayusculas
+    assert requiere_token_persona("pd-1", _cred(tok)) == "PD-1"
+
+
 def test_token_persona_no_pasa_como_empresa():
     tok = crear_token_persona("PD-1")
     with pytest.raises(HTTPException) as e:

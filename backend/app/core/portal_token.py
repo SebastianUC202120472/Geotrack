@@ -48,11 +48,14 @@ def _decodificar(cred: HTTPAuthorizationCredentials | None, scope: str) -> dict:
 
 
 def requiere_token_persona(codigo: str, cred: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> str:
-    """Dependencia: exige token de persona valido para ESE codigo de pedido. Recibe codigo (path)."""
+    """Dependencia: exige token de persona valido para ESE codigo de pedido. Recibe codigo (path).
+    Normaliza a mayusculas en ambos lados (el sub se emite en mayusculas) para no rechazar un
+    token valido por diferencia de casing. Devuelve el codigo normalizado ligado al token."""
     payload = _decodificar(cred, "portal_persona")
-    if payload.get("sub") != codigo:
+    codigo_norm = (codigo or "").upper()
+    if payload.get("sub") != codigo_norm:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="El token no corresponde a este pedido")
-    return codigo
+    return codigo_norm
 
 
 def requiere_token_empresa(cred: HTTPAuthorizationCredentials | None = Depends(_bearer)) -> str:

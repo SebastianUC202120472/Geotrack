@@ -53,9 +53,12 @@ def pod(codigo: str, _=Depends(portal_token.requiere_token_persona), db: Session
     ev = repo.evidencia_de(db, p.id)
     if not ev or not ev.url_foto:
         raise HTTPException(status_code=404, detail="Sin evidencia disponible")
-    # url_foto suele ser '/media/evidencias/archivo.jpg' -> mapear a uploads/
+    # url_foto suele ser '/media/evidencias/archivo.jpg' -> mapear a uploads/.
+    # Se resuelve a ruta canonica y se exige que quede DENTRO de uploads/ (defensa
+    # contra path traversal si url_foto trajera '..' o una ruta absoluta).
+    base = os.path.realpath("uploads")
     rel = ev.url_foto.replace("/media/", "", 1).lstrip("/")
-    ruta = os.path.join("uploads", rel)
-    if not os.path.isfile(ruta):
+    ruta = os.path.realpath(os.path.join(base, rel))
+    if not (ruta == base or ruta.startswith(base + os.sep)) or not os.path.isfile(ruta):
         raise HTTPException(status_code=404, detail="Archivo no encontrado")
     return FileResponse(ruta)
