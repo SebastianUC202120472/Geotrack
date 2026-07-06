@@ -62,6 +62,25 @@ def test_limitador_permite_hasta_maximo_y_bloquea():
     assert lim.permitir("ip:/x", maximo=3, ventana_seg=60) is True
 
 
+def test_limitador_no_crece_por_clave_al_reusarla():
+    # Una clave reusada tras expirar su ventana no acumula marcas viejas (se purgan).
+    reloj = {"t": 1000.0}
+    lim = _Limitador(lambda: reloj["t"])
+    assert lim.permitir("ip1:/x", maximo=1, ventana_seg=10) is True
+    reloj["t"] += 11          # expira la ventana
+    assert lim.permitir("ip1:/x", maximo=1, ventana_seg=10) is True
+    assert len(lim._eventos["ip1:/x"]) == 1   # solo la marca nueva, sin basura acumulada
+
+
+def test_limitador_topa_numero_de_claves():
+    reloj = {"t": 0.0}
+    lim = _Limitador(lambda: reloj["t"], max_claves=5)
+    for i in range(50):
+        reloj["t"] += 0.001
+        lim.permitir(f"ip{i}:/x", maximo=10, ventana_seg=3600)
+    assert len(lim._eventos) <= 5
+
+
 def test_token_persona_lleva_scope_y_sub():
     tok = crear_token_persona("PD-2481")
     p = _jwt.decode(tok, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
