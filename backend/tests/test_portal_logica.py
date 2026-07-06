@@ -119,3 +119,22 @@ def test_sin_bearer_da_401():
     with pytest.raises(HTTPException) as e:
         requiere_token_empresa(_cred(None))
     assert e.value.status_code == 401
+
+
+# --- Tests de verificacion (OTP + DNI + bloqueos) ---
+from app.services.verificacion_portal_service import gen_otp, evaluar_intento
+
+
+def test_gen_otp_seis_digitos():
+    o = gen_otp()
+    assert len(o) == 6 and o.isdigit()
+
+
+def test_evaluar_intento_bloquea_al_tercero():
+    # (intentos_previos, exito, limite, bloqueo_seg) -> dict de resultado
+    r1 = evaluar_intento(0, exito=False, limite=3, bloqueo_seg=30)
+    assert r1["bloquear"] is False and r1["intentos_restantes"] == 2
+    r2 = evaluar_intento(2, exito=False, limite=3, bloqueo_seg=30)
+    assert r2["bloquear"] is True and r2["bloqueo_seg"] == 30
+    r3 = evaluar_intento(1, exito=True, limite=3, bloqueo_seg=30)
+    assert r3["ok"] is True
