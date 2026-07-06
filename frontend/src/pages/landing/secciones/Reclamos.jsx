@@ -1,24 +1,67 @@
 import { useState } from "react";
+import { enviarReclamo } from "../../portal/servicios/portal.js";
 
 // Reclamos (#reclamos): texto + puntos de valor a la izquierda y Libro de
-// Reclamaciones Virtual (formulario demo) a la derecha. Input: tx (traducción).
+// Reclamaciones Virtual (formulario real) a la derecha. Input: tx (traducción).
 export default function Reclamos({ tx }) {
-  // Estado local: tipo de solicitud (reclamo/queja) y resultado del envío demo.
-  const [estado, setEstado] = useState({ tipo: "reclamo", enviado: false, numero: "" });
-
-  // Registra el reclamo en modo demo: genera un código LR local y muestra confirmación.
-  // Si ya se envió, ignora reenvíos para que el código quede fijo (igual que el mockup).
-  // Input: evento submit del formulario.
-  const onReclamo = (e) => {
-    e.preventDefault();
-    if (estado.enviado) return;
-    setEstado((prev) => ({ ...prev, enviado: true, numero: `LR-2026-${Math.floor(1000 + Math.random() * 9000)}` }));
-  };
+  // Estado local: tipo de solicitud, campos del formulario, honeypot y resultado del envío.
+  const [estado, setEstado] = useState({
+    tipo: "reclamo",
+    nombre: "",
+    dni: "",
+    email: "",
+    pedido: "",
+    detalle: "",
+    hp: "",
+    enviando: false,
+    enviado: false,
+    error: false,
+    numero: "",
+  });
 
   // Cambia el tipo de solicitud a "reclamo". Input: click del botón izquierdo.
   const elegirReclamo = () => setEstado((prev) => ({ ...prev, tipo: "reclamo" }));
   // Cambia el tipo de solicitud a "queja". Input: click del botón derecho.
   const elegirQueja = () => setEstado((prev) => ({ ...prev, tipo: "queja" }));
+
+  // Actualiza el nombre del consumidor. Input: evento change del input.
+  const onNombre = (e) => setEstado((prev) => ({ ...prev, nombre: e.target.value }));
+  // Actualiza el DNI/CE. Input: evento change del input.
+  const onDni = (e) => setEstado((prev) => ({ ...prev, dni: e.target.value }));
+  // Actualiza el correo. Input: evento change del input.
+  const onEmail = (e) => setEstado((prev) => ({ ...prev, email: e.target.value }));
+  // Actualiza el código de pedido (opcional). Input: evento change del input.
+  const onPedido = (e) => setEstado((prev) => ({ ...prev, pedido: e.target.value }));
+  // Actualiza el detalle de lo ocurrido. Input: evento change del textarea.
+  const onDetalle = (e) => setEstado((prev) => ({ ...prev, detalle: e.target.value }));
+  // Actualiza el campo honeypot (oculto para personas, visible para bots). Input: evento change.
+  const onHp = (e) => setEstado((prev) => ({ ...prev, hp: e.target.value }));
+
+  // Registra el reclamo en el backend: arma el ReclamoIn con los campos que el
+  // formulario recolecta y muestra el código LR real devuelto por el servidor.
+  // Si ya se envió, ignora reenvíos para que el código quede fijo. Input: evento submit.
+  const onReclamo = (e) => {
+    e.preventDefault();
+    if (estado.enviando || estado.enviado) return;
+    setEstado((prev) => ({ ...prev, enviando: true, error: false }));
+    enviarReclamo({
+      tipo: estado.tipo === "reclamo" ? "RECLAMO" : "QUEJA",
+      consumidor: {
+        nombre: estado.nombre,
+        dni: estado.dni || null,
+        email: estado.email || null,
+      },
+      detalle: estado.detalle,
+      pedido: estado.pedido || null,
+      hp: estado.hp,
+    })
+      .then((resp) => {
+        setEstado((prev) => ({ ...prev, enviando: false, enviado: true, numero: resp.codigo }));
+      })
+      .catch(() => {
+        setEstado((prev) => ({ ...prev, enviando: false, error: true }));
+      });
+  };
 
   const esReclamo = estado.tipo === "reclamo";
 
@@ -117,33 +160,51 @@ export default function Reclamos({ tx }) {
           <div data-cols2="1" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <label style={{ display: "grid", gap: 6 }}>
               <span data-i18n="fN" style={{ fontSize: 13, fontWeight: 600, color: "#3d5570" }}>{tx("fN", "Nombre")}</span>
-              <input required placeholder={tx("fNph", "Su nombre")} className="ldg-input" />
+              <input required value={estado.nombre} onChange={onNombre} placeholder={tx("fNph", "Su nombre")} className="ldg-input" />
             </label>
             <label style={{ display: "grid", gap: 6 }}>
               <span data-i18n="recDoc" style={{ fontSize: 13, fontWeight: 600, color: "#3d5570" }}>{tx("recDoc", "DNI / CE")}</span>
-              <input required placeholder="00000000" className="ldg-input" />
+              <input required value={estado.dni} onChange={onDni} placeholder="00000000" className="ldg-input" />
             </label>
           </div>
 
           <div data-cols2="1" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <label style={{ display: "grid", gap: 6 }}>
               <span data-i18n="fC" style={{ fontSize: 13, fontWeight: 600, color: "#3d5570" }}>{tx("fC", "Correo")}</span>
-              <input type="email" required placeholder="nombre@correo.com" className="ldg-input" />
+              <input type="email" required value={estado.email} onChange={onEmail} placeholder="nombre@correo.com" className="ldg-input" />
             </label>
             <label style={{ display: "grid", gap: 6 }}>
               <span data-i18n="recPed" style={{ fontSize: 13, fontWeight: 600, color: "#3d5570" }}>{tx("recPed", "Código de pedido (opcional)")}</span>
-              <input placeholder="Ej. PD-2481" className="ldg-input" />
+              <input value={estado.pedido} onChange={onPedido} placeholder="Ej. PD-2481" className="ldg-input" />
             </label>
           </div>
 
           <label style={{ display: "grid", gap: 6 }}>
             <span data-i18n="recDet" style={{ fontSize: 13, fontWeight: 600, color: "#3d5570" }}>{tx("recDet", "Cuéntenos qué pasó")}</span>
-            <textarea required rows={4} placeholder={tx("recDetPh", "Describa lo ocurrido con su pedido o con nuestro servicio…")} className="ldg-textarea" />
+            <textarea required rows={4} value={estado.detalle} onChange={onDetalle} placeholder={tx("recDetPh", "Describa lo ocurrido con su pedido o con nuestro servicio…")} className="ldg-textarea" />
           </label>
 
-          <button type="submit" className="ldg-btn-enviar" style={{ justifySelf: "start" }}>
+          {/* Honeypot: campo invisible para personas; si un bot lo llena, el backend rechaza el envío. */}
+          <input
+            type="text"
+            name="sitio_web"
+            value={estado.hp}
+            onChange={onHp}
+            style={{ display: "none" }}
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+          />
+
+          <button type="submit" disabled={estado.enviando} className="ldg-btn-enviar" style={{ justifySelf: "start" }}>
             {estado.enviado ? tx("btnReclamoOk", "Registrado en el libro ✓") : tx("btnReclamo", "Enviar al Libro de Reclamaciones")}
           </button>
+
+          {estado.error && (
+            <p role="alert" style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: "#c8362b" }}>
+              {tx("recErr", "No pudimos registrar su reclamo. Intente nuevamente en unos minutos.")}
+            </p>
+          )}
 
           {estado.enviado && (
             <div style={{ background: "#e3f2e8", border: "1px solid rgba(34,163,94,.35)", borderRadius: 14, padding: "16px 20px", animation: "aparecerRec .45s ease both" }}>
