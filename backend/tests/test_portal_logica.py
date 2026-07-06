@@ -1,5 +1,6 @@
 from app.services.estado_portal import mapear_estado, progreso
 from app.services.enmascarado import mask_telefono, mask_nombre, mask_direccion_corta
+from app.core.rate_limit import _Limitador
 
 
 def test_mapeo_estados_pipeline_a_portal():
@@ -45,3 +46,14 @@ def test_mask_nombre():
 
 def test_mask_direccion_corta():
     assert mask_direccion_corta("Av. Brasil 1120") == "Av. ••• •••"
+
+
+def test_limitador_permite_hasta_maximo_y_bloquea():
+    reloj = {"t": 1000.0}
+    lim = _Limitador(lambda: reloj["t"])
+    for _ in range(3):
+        assert lim.permitir("ip:/x", maximo=3, ventana_seg=60) is True
+    assert lim.permitir("ip:/x", maximo=3, ventana_seg=60) is False
+    # tras la ventana, se vuelve a permitir
+    reloj["t"] += 61
+    assert lim.permitir("ip:/x", maximo=3, ventana_seg=60) is True
