@@ -1,17 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { PEDIDOS, ESTADOS, OPCIONES } from "../datos/demo.js";
+import { ESTADOS, OPCIONES } from "../datos/portalUi.js";
+import { buscarPedido, verificarPedido, reprogramar, urlPod } from "../servicios/portal.js";
 
 // ============================================================================
-// Vista PERSONA NATURAL del portal de clientes (Tarea 10). Port fiel del mockup
-// aprobado (portal pagina.html, JSX 506-728 · lógica 1040-1249). Flujo completo:
-// búsqueda por código → verificación de identidad (DNI/SMS con bloqueo) → detalle
-// del pedido (estado + mapa del recorrido + línea de tiempo + reprogramación).
-// Demo puro: sin fetch, los datos salen de ../datos/demo.js.
+// Vista PERSONA NATURAL del portal de clientes (Tarea 10 · re-cableada a datos
+// reales en la Fase 2). Port fiel del mockup aprobado (portal pagina.html, JSX
+// 506-728 · lógica 1040-1249). Flujo completo: búsqueda por código → verificación
+// de identidad (DNI, con bloqueo temporal server-side) → detalle del pedido
+// (estado + mapa del recorrido + línea de tiempo + reprogramación). Los datos
+// salen de ../servicios/portal.js (fetch al backend /api/portal); los catálogos
+// de presentación (colores/franjas) siguen en ../datos/portalUi.js.
 // ============================================================================
-
-// gen6: genera un código SMS de 6 dígitos aleatorio (string "100000".."999999").
-// No recibe input. Port de Component.gen6 (fuente línea 1038).
-const gen6 = () => String(Math.floor(100000 + Math.random() * 900000));
 
 // RastreoPersonal: vista de rastreo para el destinatario final.
 // Input: prop `avisar(texto, ms)` para mostrar el toast del portal.
@@ -20,13 +19,15 @@ export default function RastreoPersonal({ avisar }) {
   const [codigo, setCodigo] = useState(""); // texto del input de código
   const [buscando, setBuscando] = useState(false); // spinner "Buscando…"
   const [encontrado, setEncontrado] = useState(null); // código del pedido hallado (o null)
+  const [resumen, setResumen] = useState(null); // resumen enmascarado del pedido (respuesta de buscar, pre-verif.)
   const [errorCod, setErrorCod] = useState(""); // código que NO existe (para el aviso de error)
   const [verificado, setVerificado] = useState(false); // identidad confirmada → muestra detalle
-  const [verInput, setVerInput] = useState(""); // input de DNI/SMS (solo numérico)
+  const [detalle, setDetalle] = useState(null); // detalle completo del pedido (post-verificación)
+  const [token, setToken] = useState(null); // token de portal (persona), solo en memoria del componente
+  const [verInput, setVerInput] = useState(""); // input de DNI (solo numérico)
   const [verError, setVerError] = useState(false); // marca el último intento como fallido
-  const [intentos, setIntentos] = useState(0); // intentos fallidos acumulados (bloqueo a los 3)
+  const [intentos, setIntentos] = useState(0); // intentos restantes antes del bloqueo (los informa el backend)
   const [bloqueoHasta, setBloqueoHasta] = useState(0); // timestamp fin del bloqueo temporal
-  const [smsCode, setSmsCode] = useState(null); // código SMS generado (alternativa al DNI)
   const [reprog, setReprog] = useState(-1); // índice de franja elegida al reprogramar (-1 = ninguna)
   const [reprogOk, setReprogOk] = useState(false); // reprogramación ya confirmada
   const [ahora, setAhora] = useState(() => Date.now()); // reloj para el countdown del bloqueo
@@ -51,30 +52,35 @@ export default function RastreoPersonal({ avisar }) {
   useEffect(() => () => clearTimeout(timerBuscar.current), []);
 
   // buscarCodigo: dispara la búsqueda de un pedido por su código `c` (ya en mayúsculas).
-  // Resetea el flujo de verificación y, tras 900 ms, marca encontrado o error según
-  // exista en PEDIDOS. El setState final va dentro del callback (regla de lint OK).
-  // Port de Component.buscarCodigo (fuente 1040-1047).
+  // Resetea el flujo de verificación y, tras 900 ms, llama al backend: si existe marca
+  // encontrado+resumen, si no (404) marca error. El setState va dentro del .then/.catch
+  // (regla de lint). Port de Component.buscarCodigo (fuente 1040-1047).
   const buscarCodigo = (c) => {
     setBuscando(true);
     setErrorCod("");
     setEncontrado(null);
+    setResumen(null);
     setVerificado(false);
+    setDetalle(null);
+    setToken(null);
     setVerInput("");
     setVerError(false);
     setIntentos(0);
-    setSmsCode(null);
     setReprog(-1);
     setReprogOk(false);
     setCodigo(c);
     clearTimeout(timerBuscar.current);
     timerBuscar.current = setTimeout(() => {
-      if (PEDIDOS[c]) {
-        setBuscando(false);
-        setEncontrado(c);
-      } else {
-        setBuscando(false);
-        setErrorCod(c);
-      }
+      buscarPedido(c)
+        .then((res) => {
+          setBuscando(false);
+          setResumen(res);
+          setEncontrado(c);
+        })
+        .catch(() => {
+          setBuscando(false);
+          setErrorCod(c);
+        });
     }, 900);
   };
 
@@ -96,85 +102,82 @@ export default function RastreoPersonal({ avisar }) {
     setVerError(false);
   };
 
-  // onVerificar: valida DNI (últimos 4) o código SMS del pedido encontrado. A los 3
-  // intentos fallidos bloquea 30 s y avisa. Port de onVerificar (fuente 1185-1202).
+  // onVerificar: valida los últimos 4 del DNI contra el backend. El propio backend
+  // cuenta los intentos y aplica el bloqueo de 30 s (401 con intentosRestantes,
+  // 429 con bloqueadoSegundos); aquí solo se refleja lo que informa. Port de
+  // onVerificar (fuente 1185-1202), ahora contra /api/portal.
   const onVerificar = (e) => {
     e.preventDefault();
     const t = Date.now();
     if (bloqueoHasta > t || !encontrado) return;
     const v = verInput.trim();
-    const p = PEDIDOS[encontrado];
-    if (v && (v === p.dni || (smsCode && v === smsCode))) {
-      setVerificado(true);
-      setVerError(false);
-      setIntentos(0);
-      avisar("Identidad verificada — datos desbloqueados", 3500);
-    } else {
-      const n = intentos + 1;
-      if (n >= 3) {
-        setIntentos(0);
+    if (!v) return;
+    verificarPedido(encontrado, v)
+      .then(({ token: tk, pedido }) => {
+        setToken(tk);
+        setDetalle(pedido);
+        setVerificado(true);
         setVerError(false);
-        setBloqueoHasta(t + 30000);
-        setVerInput("");
-        avisar("Demasiados intentos — acceso pausado 30 segundos", 4500);
-      } else {
-        setIntentos(n);
-        setVerError(true);
-      }
-    }
+        setIntentos(0);
+        avisar("Identidad verificada — datos desbloqueados", 3500);
+      })
+      .catch((err) => {
+        if (err.status === 429) {
+          const seg = err.data?.detail?.bloqueadoSegundos ?? 30;
+          setIntentos(0);
+          setVerError(false);
+          setVerInput("");
+          setBloqueoHasta(Date.now() + seg * 1000);
+          avisar("Demasiados intentos — acceso pausado " + seg + " segundos", 4500);
+        } else {
+          const restantes = err.data?.detail?.intentosRestantes;
+          setIntentos(typeof restantes === "number" ? restantes : 0);
+          setVerError(true);
+        }
+      });
   };
 
-  // enviarSms: genera un código de 6 dígitos y lo "envía" por toast (demo). No actúa
-  // si no hay pedido o si el acceso está bloqueado. Port de enviarSms (fuente 1204-1210).
-  const enviarSms = () => {
-    if (!encontrado || bloqueoHasta > Date.now()) return;
-    const code = gen6();
-    setSmsCode(code);
-    avisar(
-      "SMS enviado al " + PEDIDOS[encontrado].telMask + " — su código es " + code,
-      10000
-    );
-  };
-
-  // cerrarPedido: cierra el detalle y limpia los datos sensibles, volviendo a la
-  // búsqueda vacía ("Cerrar y proteger datos"). Port de cerrarPedido (fuente 1211).
+  // cerrarPedido: cierra el detalle y limpia los datos sensibles (incluido el token),
+  // volviendo a la búsqueda vacía ("Cerrar y proteger datos"). Port de cerrarPedido
+  // (fuente 1211).
   const cerrarPedido = () => {
     setEncontrado(null);
+    setResumen(null);
     setVerificado(false);
+    setDetalle(null);
+    setToken(null);
     setVerInput("");
     setCodigo("");
-    setSmsCode(null);
     setReprog(-1);
     setReprogOk(false);
   };
 
-  // confirmarReprog: confirma la franja elegida y avisa por toast. Port de
-  // confirmarReprog (fuente 1245-1248).
+  // confirmarReprog: registra la franja elegida en el backend y avisa por toast.
+  // Port de confirmarReprog (fuente 1245-1248), ahora contra /api/portal.
   const confirmarReprog = () => {
-    setReprogOk(true);
-    avisar("Reprogramación confirmada — le avisaremos cuando salga en ruta");
+    reprogramar(encontrado, OPCIONES[reprog], token)
+      .then(() => {
+        setReprogOk(true);
+        avisar("Reprogramación confirmada — le avisaremos cuando salga en ruta");
+      })
+      .catch(() => {
+        avisar("No se pudo registrar la reprogramación — intente de nuevo", 4000);
+      });
   };
 
   // --- valores derivados (equivalente a renderVals, rama personal) ---
   const now = ahora; // el reloj ya arranca en Date.now(); el countdown usa `ahora`
-  const enc = encontrado ? PEDIDOS[encontrado] : null; // pedido hallado (sin verificar)
-  const ped = enc && verificado ? enc : null; // pedido visible solo si verificado
+  const enc = encontrado ? resumen : null; // resumen enmascarado del pedido hallado (sin verificar)
+  const ped = verificado && detalle ? detalle : null; // detalle completo, solo si ya verificó
   const em = enc ? ESTADOS[enc.estado] : ESTADOS.EN_RUTA; // meta de estado (colores/texto)
   const verBloq = bloqueoHasta > now; // ¿acceso bloqueado ahora mismo? (usa el reloj `ahora`)
-
-  // Chips demo: código + etiqueta; al pulsar lanzan la búsqueda (fuente 1164-1166).
-  const demoChips = [
-    ["PD-2481", "en ruta"],
-    ["PD-1073", "entregado"],
-    ["PD-3316", "reprogramado"],
-  ];
 
   const sinBusqueda = !enc && !buscando && !errorCod; // estado inicial (aún sin buscar)
   const porVerificar = !!enc && !verificado; // hay pedido pero falta verificar identidad
 
   return (
     <>
-      {/* Formulario de búsqueda + chips demo */}
+      {/* Formulario de búsqueda */}
       <section
         data-psec="1"
         style={{ maxWidth: 920, margin: "0 auto", padding: "26px 24px 8px", width: "100%", boxSizing: "border-box", animation: "aparecer .45s ease both" }}
@@ -199,20 +202,6 @@ export default function RastreoPersonal({ avisar }) {
           >
             {buscando ? "Buscando…" : "Rastrear"}
           </button>
-          <div style={{ width: "100%", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: "#7288a0" }}>Pruebe con:</span>
-            {demoChips.map(([cod, tag]) => (
-              <button
-                key={cod}
-                type="button"
-                onClick={() => buscarCodigo(cod)}
-                className="ptl-chip-demo"
-                style={{ border: "1px solid rgba(38,121,216,.3)", background: "#f2f7fc", color: "#1b5fb3", fontFamily: "Inter, sans-serif", fontSize: 12.5, fontWeight: 600, padding: "7px 13px", borderRadius: 99, cursor: "pointer", transition: "background .2s ease, border-color .2s ease" }}
-              >
-                {cod} · {tag}
-              </button>
-            ))}
-          </div>
         </form>
       </section>
 
@@ -263,7 +252,6 @@ export default function RastreoPersonal({ avisar }) {
           intentos={intentos}
           bloqueoHasta={bloqueoHasta}
           now={now}
-          enviarSms={enviarSms}
         />
       )}
 
@@ -274,7 +262,7 @@ export default function RastreoPersonal({ avisar }) {
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", margin: "0 0 12px", animation: "aparecer .4s ease both" }}>
             <span style={{ display: "inline-flex", gap: 9, alignItems: "center", background: "#e3f2e8", color: "#1e7a43", fontSize: 12.5, fontWeight: 700, padding: "8px 15px", borderRadius: 99 }}>
               <span style={{ flex: "none", width: 16, height: 16, borderRadius: 99, background: "#22a35e", color: "#fff", display: "grid", placeItems: "center", fontSize: 10 }}>✓</span>
-              <span>Identidad verificada · DNI ***{enc.dni}</span>
+              <span>Identidad verificada</span>
             </span>
             <button
               type="button"
@@ -298,7 +286,7 @@ export default function RastreoPersonal({ avisar }) {
           {ped.estado === "EN_RUTA" && <Repartidor ped={ped} />}
 
           {/* Evidencia (entregado) */}
-          {ped.estado === "ENTREGADO" && <Evidencia ped={ped} />}
+          {ped.estado === "ENTREGADO" && <Evidencia ped={ped} codigo={encontrado} token={token} />}
 
           {/* Reprogramación (reprogramado) */}
           {ped.estado === "REPROGRAMADO" && (
@@ -317,17 +305,17 @@ export default function RastreoPersonal({ avisar }) {
 }
 
 // ----------------------------------------------------------------------------
-// Verificacion: tarjeta con el resumen enmascarado del pedido + el form de DNI/SMS,
-// el aviso de bloqueo con countdown y el hint de demo. Input: pedido `enc`, meta de
-// estado `em`, código, valor/handlers del input, estado de error/bloqueo/intentos,
-// el reloj `now` y el disparador de SMS.
+// Verificacion: tarjeta con el resumen enmascarado del pedido + el form de DNI,
+// el aviso de bloqueo con countdown (server-side) y el hint de DNI. Input: pedido
+// `enc` (resumen), meta de estado `em`, código, valor/handlers del input, estado
+// de error/bloqueo/intentos y el reloj `now`.
 // ----------------------------------------------------------------------------
-function Verificacion({ enc, em, encCod, verInput, onVerInput, onVerificar, verError, verBloq, intentos, bloqueoHasta, now, enviarSms }) {
+function Verificacion({ enc, em, encCod, verInput, onVerInput, onVerificar, verError, verBloq, intentos, bloqueoHasta, now }) {
   const bloqueoTxt =
     "Demasiados intentos fallidos. Por su seguridad, espere " +
     Math.ceil(Math.max(0, bloqueoHasta - now) / 1000) +
     " s para volver a intentar.";
-  const intentosTxt = String(Math.max(0, 3 - intentos));
+  const intentosTxt = String(Math.max(0, intentos));
 
   return (
     <section data-psec="1" style={{ maxWidth: 920, margin: "0 auto", padding: "10px 24px 20px", width: "100%", boxSizing: "border-box" }}>
@@ -351,7 +339,7 @@ function Verificacion({ enc, em, encCod, verInput, onVerInput, onVerificar, verE
         <div style={{ margin: "18px 0 0", background: "#f2f7fc", borderRadius: 14, padding: "18px 20px" }}>
           <p style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: "#0f2b4a" }}>Verifique que el pedido es suyo para ver el detalle</p>
           <p style={{ margin: "6px 0 0", fontSize: 13, lineHeight: 1.6, color: "#4f6580" }}>
-            Por su seguridad, la dirección y los datos completos solo se muestran al destinatario. Ingrese los <strong>últimos 4 dígitos del DNI</strong> del destinatario, o pida un <strong>código SMS</strong> al celular que termina en {enc.telMask}.
+            Por su seguridad, la dirección y los datos completos solo se muestran al destinatario. Ingrese los <strong>últimos 4 dígitos del DNI</strong> del destinatario registrado en el pedido.
           </p>
 
           {verBloq && (
@@ -367,9 +355,9 @@ function Verificacion({ enc, em, encCod, verInput, onVerInput, onVerificar, verE
                   value={verInput}
                   onChange={onVerInput}
                   inputMode="numeric"
-                  maxLength={6}
-                  aria-label="DNI o código SMS"
-                  placeholder="DNI (4 dígitos) o código SMS (6)"
+                  maxLength={4}
+                  aria-label="Últimos 4 dígitos del DNI"
+                  placeholder="Últimos 4 dígitos del DNI"
                   className="ptl-input-ver"
                   style={{ flex: 1, minWidth: 200, boxSizing: "border-box", fontFamily: "Inter, sans-serif", fontSize: 14.5, letterSpacing: ".06em", padding: "13px 15px", border: "1.5px solid rgba(15,43,74,.16)", borderRadius: 12, background: "#fff", color: "#0f2b4a", outline: "none" }}
                 />
@@ -389,13 +377,13 @@ function Verificacion({ enc, em, encCod, verInput, onVerInput, onVerificar, verE
               <div style={{ margin: "12px 0 0", display: "flex", gap: "8px 18px", flexWrap: "wrap", alignItems: "center" }}>
                 <button
                   type="button"
-                  onClick={enviarSms}
+                  disabled
                   className="ptl-link-sms"
-                  style={{ border: 0, background: "none", cursor: "pointer", padding: 0, fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 600, color: "#2679d8", textDecoration: "underline" }}
+                  style={{ border: 0, background: "none", cursor: "not-allowed", padding: 0, fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 600, color: "#8ba0b6", textDecoration: "underline" }}
                 >
-                  Enviarme un código por SMS
+                  Código por SMS (disponible próximamente)
                 </button>
-                <span style={{ fontSize: 11.5, color: "#8ba0b6" }}>Para esta demo: DNI que termina en {enc.dni}</span>
+                <span style={{ fontSize: 11.5, color: "#8ba0b6" }}>Ingrese el DNI del destinatario que figura en el pedido</span>
               </div>
             </>
           )}
@@ -571,10 +559,28 @@ function Repartidor({ ped }) {
 }
 
 // ----------------------------------------------------------------------------
-// Evidencia: confirmación de entrega con "Recibido por" y placeholder de la foto POD.
-// Solo se muestra cuando el pedido está ENTREGADO. Input: `ped`.
+// Evidencia: confirmación de entrega con "Recibido por" y la foto POD. Solo se
+// muestra cuando el pedido está ENTREGADO. Input: `ped`, el `codigo` del pedido
+// y el `token` de persona (el <img> no puede llevar el header Authorization,
+// así que la foto se trae por fetch a blob y se muestra como objectURL).
 // ----------------------------------------------------------------------------
-function Evidencia({ ped }) {
+function Evidencia({ ped, codigo, token }) {
+  const [src, setSrc] = useState(""); // URL de blob del POD ("" = aún sin cargar o sin evidencia)
+
+  // Carga el POD autenticado por Bearer y libera el objectURL al desmontar o si
+  // cambia el código/token. El setState va dentro del .then/.catch (regla de lint).
+  useEffect(() => {
+    let url;
+    fetch(urlPod(codigo), { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.blob() : Promise.reject()))
+      .then((b) => {
+        url = URL.createObjectURL(b);
+        setSrc(url);
+      })
+      .catch(() => {});
+    return () => url && URL.revokeObjectURL(url);
+  }, [codigo, token]);
+
   return (
     <div data-ppanel="1" style={{ margin: "16px 0 0", background: "#fff", border: "1px solid rgba(34,163,94,.3)", borderRadius: 20, padding: 22, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 20, alignItems: "center", animation: "aparecer .5s ease .26s both" }}>
       <div>
@@ -582,10 +588,17 @@ function Evidencia({ ped }) {
         <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.6, color: "#4f6580" }}>{ped.recibido}</p>
         <p style={{ margin: "6px 0 0", fontSize: 12.5, color: "#8ba0b6" }}>El conductor registró la evidencia en GeoTrack al momento de entregar. Solo el destinatario verificado puede verla.</p>
       </div>
-      {/* Placeholder de la foto de entrega (POD) — sin imagen real en la demo */}
-      <div style={{ width: "100%", height: 180, borderRadius: 14, background: "#eef4fa", border: "1px dashed rgba(15,43,74,.16)", display: "grid", placeItems: "center", color: "#8ba0b6", fontSize: 12.5, fontWeight: 600 }}>
-        Foto de entrega (POD)
-      </div>
+      {src ? (
+        <img
+          src={src}
+          alt="Foto de entrega (POD)"
+          style={{ width: "100%", height: 180, objectFit: "cover", borderRadius: 14, border: "1px solid rgba(15,43,74,.08)", display: "block" }}
+        />
+      ) : (
+        <div style={{ width: "100%", height: 180, borderRadius: 14, background: "#eef4fa", border: "1px dashed rgba(15,43,74,.16)", display: "grid", placeItems: "center", color: "#8ba0b6", fontSize: 12.5, fontWeight: 600 }}>
+          Foto de entrega (POD)
+        </div>
+      )}
     </div>
   );
 }
