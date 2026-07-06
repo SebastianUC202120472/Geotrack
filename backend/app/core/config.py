@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "dev-inseguro-cambiar-en-produccion"  # nosec B105
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
+    PORTAL_TOKEN_EXPIRE_MIN: int = 15    # expiracion del token de portal (persona)
 
     DATABASE_URL: str = "postgresql://sava_admin:sava_password123@db:5432/siol_sava_db"  # nosec B105
 
@@ -19,6 +20,8 @@ class Settings(BaseSettings):
     MAIL_ENABLED: bool = False
     MAIL_ADDRESS: str = ""
     MAIL_PASSWORD: str = ""  # nosec B105
+    VENTAS_EMAIL: str = ""               # destino de leads de contacto (fallback: MAIL_ADDRESS)
+    RECLAMOS_EMAIL: str = ""             # destino del Libro de Reclamaciones (fallback: MAIL_ADDRESS)
     IMAP_HOST: str = "imap.gmail.com"
     IMAP_PORT: int = 993
     SMTP_HOST: str = "smtp.gmail.com"
@@ -27,6 +30,16 @@ class Settings(BaseSettings):
 
     MAIL_FROM_NAME: str = "SAVA S.A.C."
     MAIL_SIGNATURE: str = "Atentamente,\nEquipo de Logística\nSAVA S.A.C."
+
+    @property
+    def correo_ventas(self) -> str:
+        """Correo destino de leads; cae a MAIL_ADDRESS si VENTAS_EMAIL esta vacio."""
+        return self.VENTAS_EMAIL.strip() or self.MAIL_ADDRESS
+
+    @property
+    def correo_reclamos(self) -> str:
+        """Correo destino de reclamos; cae a MAIL_ADDRESS si RECLAMOS_EMAIL esta vacio."""
+        return self.RECLAMOS_EMAIL.strip() or self.MAIL_ADDRESS
 
     @property
     def firma(self) -> str:

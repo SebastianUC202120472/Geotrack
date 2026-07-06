@@ -5,6 +5,7 @@
 # --- Secretos / entorno (NUNCA subir) ---
 .env
 .env.*
+!.env.example
 
 # --- Backend (Python) ---
 __pycache__/
