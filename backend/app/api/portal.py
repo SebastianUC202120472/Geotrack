@@ -80,8 +80,16 @@ def empresa_login(datos: EmpresaLogin, db: Session = Depends(get_db)):
     if not cliente or not cliente.acceso_activo or not cliente.clave_hash or not verify_password(datos.clave, cliente.clave_hash):
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
     otp = verif.emitir_otp(db, "EMPRESA", cod)
-    correo_service.enviar_simple(cliente.correo_portal, "Codigo de acceso al portal SAVA",
-                                  f"Su codigo de verificacion es: {otp}\n\nExpira en 10 minutos.")
+    enviado = correo_service.enviar_simple(
+        cliente.correo_portal, "Codigo de acceso al portal SAVA",
+        f"Su codigo de verificacion es: {otp}\n\nExpira en 10 minutos.")
+    # Sin correo saliente el OTP no llega a nadie: se avisa en lugar de responder
+    # "enviado" y dejar al usuario esperando un codigo que nunca va a recibir.
+    if not enviado:
+        raise HTTPException(
+            status_code=503,
+            detail="No se pudo enviar el codigo de verificacion. Contacte a SAVA para acceder al portal.",
+        )
     return {"enviado": True, "correoMask": enmascarado.mask_correo(cliente.correo_portal)}
 
 
