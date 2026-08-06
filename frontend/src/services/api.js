@@ -27,7 +27,7 @@ async function request(ruta, { method = "GET", body, headers = {}, auth = true }
 
   if (respuesta.status === 401) {
     borrarToken();
-    if (window.location.pathname !== "/login") window.location.href = "/login";
+    if (window.location.pathname !== "/panel/login") window.location.href = "/panel/login";
     throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
   }
 
@@ -108,6 +108,18 @@ export const actualizarCliente = (id, datos) =>
 
 export const eliminarCliente = (id) =>
   request(`/clientes/${id}`, { method: "DELETE" });
+
+// Genera/reinicia el acceso al portal de un cliente. Recibe id y correoPortal.
+// Devuelve {codigoAcceso, clave} con la clave en claro UNA sola vez.
+export const generarAccesoPortal = (id, correoPortal) =>
+  request(`/clientes/${id}/acceso-portal`, { method: "POST", body: { correoPortal } });
+
+// Revoca el acceso al portal de un cliente. Recibe id.
+export const revocarAccesoPortal = (id) =>
+  request(`/clientes/${id}/acceso-portal`, { method: "DELETE" });
+
+// Lista los reclamos del Libro de Reclamaciones. Sin parametros.
+export const listarReclamos = () => request("/reclamos/");
 
 export const listarUsuarios = () => request("/usuarios/");
 

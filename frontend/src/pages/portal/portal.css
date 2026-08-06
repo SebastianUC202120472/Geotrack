@@ -1,0 +1,111 @@
+@import "../../assets/fuentes/fuentes.css";
+
+/* Portal de clientes de SAVA — port fiel del mockup aprobado (portal pagina.html,
+   <style> 417-443). Las CLASES usan prefijo `.ptl-`. Los KEYFRAMES compartidos con
+   landing.css (dashflow, pulso, latido, sacudir) NO se redeclaran aquí: tienen la
+   misma definición exacta en landing.css y ambas hojas cargan juntas en la SPA — ver
+   comentario en landing.css línea 3-5. Solo se declaran aquí los que el landing no
+   tiene: aparecer (entrada de bloques) y toastIn (aviso flotante). */
+
+.ptl-pagina {
+  font-family: Inter, sans-serif;
+  color: #0f2b4a;
+  background: #f5f8fb;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.ptl-pagina input::placeholder {
+  color: #8ba0b6;
+}
+
+.ptl-pagina select {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+/* Keyframes exclusivos del portal (no existen en landing.css) */
+@keyframes aparecer {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+/* Keyframes compartidos con el landing, redeclarados aquí a propósito: el portal es
+   un chunk lazy independiente y debe animar aunque el usuario entre directo a /portal
+   sin haber cargado landing.css. Definiciones idénticas (no chocan si cargan ambas). */
+@keyframes dashflow {
+  to { stroke-dashoffset: -28; }
+}
+@keyframes pulso {
+  0% { transform: scale(.55); opacity: .85; }
+  75% { transform: scale(1.9); opacity: 0; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+@keyframes latido {
+  0%, 100% { opacity: .3; }
+  50% { opacity: 1; }
+}
+@keyframes sacudir {
+  0%, 100% { transform: none; }
+  20%, 60% { transform: translateX(-5px); }
+  40%, 80% { transform: translateX(5px); }
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translate(-50%, 16px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+/* Spinner de "Buscando su paquete en GeoTrack…" (fuente <style> línea 423) */
+@keyframes girar {
+  to { transform: rotate(360deg); }
+}
+
+/* Hover (sustituyen a style-hover del mockup) */
+.ptl-link-volver:hover { color: #2679d8; }
+.ptl-btn-trabajador:hover { background: #1b5fb3; }
+.ptl-card-modo:hover { transform: translateY(-2px); }
+.ptl-ft-link:hover { color: #2679d8; }
+.ptl-ft-volver:hover { color: #1b5fb3; }
+
+/* Vista persona natural (Tarea 10) — hover/focus del mockup (style-hover/style-focus) */
+.ptl-input-buscar:focus { border-color: #2679d8; background: #fff; }
+.ptl-btn-rastrear:hover { background: #1b5fb3; }
+.ptl-chip-demo:hover { background: #eaf3fc; border-color: #2679d8; }
+.ptl-input-ver:focus { border-color: #2679d8; }
+.ptl-btn-verificar:hover { background: #1b5fb3; }
+.ptl-link-sms:hover { color: #1b5fb3; }
+.ptl-btn-cerrar:hover { border-color: #2679d8; color: #2679d8; }
+.ptl-btn-confirmar-reprog:hover { background: #1b5fb3; }
+
+/* Vista empresa / retail (Tarea 11) — hover/focus del mockup (style-hover/style-focus) */
+.ptl-input-emp:focus { border-color: #2679d8; background: #fff; }
+.ptl-btn-creds:hover { background: #1b5fb3; }
+.ptl-chip-emp:hover { background: #eaf3fc; border-color: #2679d8; }
+.ptl-input-otp:focus { border-color: #2679d8; background: #fff; }
+.ptl-btn-otp:hover { background: #1b5fb3; }
+.ptl-link-reenviar:hover { color: #1b5fb3; }
+.ptl-link-volver-creds:hover { color: #3d5570; }
+.ptl-btn-salir-emp:hover { border-color: #c8362b; color: #c8362b; }
+.ptl-kpi-emp:hover { border-color: #2679d8; }
+.ptl-buscar-emp:focus { border-color: #2679d8; }
+.ptl-select-emp:focus { border-color: #2679d8; }
+.ptl-limpiar-emp:hover { text-decoration: underline; }
+.ptl-fila-emp:hover { background: #f4f8fc; }
+
+/* Media queries (2, del mockup del portal) */
+@media (max-width: 680px) {
+  #pTop { padding: 0 14px !important; gap: 10px !important; }
+  [data-hide-m] { display: none !important; }
+  [data-ppanel] { padding: 20px 16px !important; }
+  [data-psec] { padding-left: 14px !important; padding-right: 14px !important; }
+  #pHero { padding: 44px 14px 92px !important; }
+  #selModo { grid-template-columns: 1fr !important; }
+  #rowHead { display: none !important; }
+  [data-row] { display: flex !important; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 14px 16px !important; }
+  [data-row] [data-cd] { display: none !important; }
+  [data-row] [data-badge] { order: 2; margin-left: auto; }
+  [data-row] [data-c1] { order: 1; }
+  [data-row] [data-c2] { order: 3; width: 100%; }
+}
+@media (max-width: 420px) {
+  [data-prg] { grid-template-columns: 1fr !important; }
+}

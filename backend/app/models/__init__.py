@@ -18,3 +18,6 @@ from .solicitud_recojo import SolicitudRecojo
 from .notificacion import Notificacion
 from .evidencia_recojo import EvidenciaRecojo
 from .geocoding_cache import GeocodificacionCache
+from .verificacion_portal import VerificacionPortal
+from .contacto import ContactoComercial
+from .reclamo import Reclamo

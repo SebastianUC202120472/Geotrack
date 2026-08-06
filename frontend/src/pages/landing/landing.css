@@ -1,0 +1,153 @@
+@import "../../assets/fuentes/fuentes.css";
+
+/* Landing público de SAVA — port fiel del mockup aprobado (pagina.html, <style> 447-474).
+   Los KEYFRAMES no llevan prefijo: los componentes de mapas (Tarea 4) los referencian
+   tal cual vía `animation:` inline (pulso, latido, dashflow). Las CLASES sí usan `.ldg-`. */
+
+.ldg-pagina {
+  scroll-behavior: smooth;
+  font-family: Inter, sans-serif;
+  color: #0f2b4a;
+  background: #f5f8fb;
+  min-height: 100vh;
+}
+
+.ldg-pagina input::placeholder,
+.ldg-pagina textarea::placeholder {
+  color: #8ba0b6;
+}
+
+/* Keyframes exactos de la fuente (timings sin modificar) */
+@keyframes dashflow {
+  to { stroke-dashoffset: -28; }
+}
+@keyframes pulso {
+  0% { transform: scale(.55); opacity: .85; }
+  75% { transform: scale(1.9); opacity: 0; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+@keyframes marquesina {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes flotar {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+@keyframes latido {
+  0%, 100% { opacity: .3; }
+  50% { opacity: 1; }
+}
+@keyframes kenburns {
+  from { transform: scale(1.01) translate(0, 0); }
+  to { transform: scale(1.06) translate(-1%, -1%); }
+}
+@keyframes menuIn {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes sacudir {
+  0%, 100% { transform: none; }
+  20%, 60% { transform: translateX(-5px); }
+  40%, 80% { transform: translateX(5px); }
+}
+@keyframes aparecerRec {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Hover/focus (sustituyen a style-hover/style-focus del mockup) */
+.ldg-link-nav:hover { color: #2679d8; }
+.ldg-link-nav-cta:hover { color: #1b5fb3; }
+.ldg-btn-emp:hover { border-color: #2679d8; color: #2679d8; }
+.ldg-btn-cta:hover { background: #1b5fb3; }
+.ldg-btn-cta-outline:hover { border-color: #5db1f0; color: #5db1f0; }
+.ldg-menu-item:hover { background: #eef5fc; }
+.ldg-input:focus,
+.ldg-textarea:focus { border-color: #2679d8; background: #fff; }
+.ldg-btn-enviar:hover { background: #1b5fb3; transform: translateY(-2px); }
+.ldg-social:hover { background: #2679d8; border-color: #2679d8; transform: translateY(-3px); }
+.ldg-social-wa:hover { background: #22a35e; border-color: #22a35e; transform: translateY(-3px); }
+.ldg-ft-link:hover { color: #5db1f0; transform: translateX(4px); }
+.ldg-ft-tel:hover { color: #5db1f0; }
+.ldg-ft-legal:hover { color: #5db1f0; }
+.ldg-logo-marca { transition: transform .25s ease; }
+.ldg-logo-marca:hover { transform: scale(1.1); }
+.ldg-zona-card:hover { border-color: #2679d8; }
+.ldg-paso-card:hover { box-shadow: 0 18px 40px rgba(15, 43, 74, .13); }
+
+/* Campos de formulario (Reclamos/Contacto) y botón de envío — estilo base común
+   del mockup (antes solo existían los selectores :focus/:hover). */
+.ldg-input,
+.ldg-textarea {
+  font-family: Inter, sans-serif;
+  font-size: 14.5px;
+  padding: 13px 14px;
+  border: 1.5px solid rgba(15, 43, 74, .14);
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #0f2b4a;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color .2s ease, background .2s ease;
+}
+.ldg-textarea { resize: vertical; }
+.ldg-btn-enviar {
+  border: 0;
+  cursor: pointer;
+  background: #2679d8;
+  color: #fff;
+  font-family: Inter, sans-serif;
+  font-weight: 600;
+  font-size: 15px;
+  padding: 15px 30px;
+  border-radius: 99px;
+  transition: background .2s ease, transform .2s ease;
+}
+
+/* Foto de Nosotros (reemplaza el <image-slot> del mockup) */
+.ldg-nosotros-foto {
+  width: 100%;
+  height: 380px;
+  display: block;
+  object-fit: cover;
+  border-radius: 22px;
+}
+
+/* Media queries (6, timings/breakpoints exactos de la fuente).
+   Selectores por id conservados tal cual (navBar/heroInner/navLinks/navCta/navEmp/
+   btnBurger/flujo/hudWrap) porque el JSX usa esos mismos ids; los selectores por
+   atributo ([data-cols2], [data-rg], [data-sac], etc.) se mantienen intactos. */
+@media (max-width: 1230px) {
+  #navLinks, #navCta, #navEmp { display: none !important; }
+  #btnBurger { display: grid !important; }
+}
+@media (max-width: 640px) {
+  #navBar { padding: 0 16px !important; gap: 14px !important; }
+  #heroInner { padding: 104px 18px 48px !important; gap: 38px !important; }
+  [data-sec="p"] { padding: 64px 18px 0 !important; }
+  [data-sec="m"] { margin: 64px auto 0 !important; padding: 0 18px !important; }
+  [data-sec="f"] { margin: 64px auto 0 !important; padding: 0 18px 56px !important; }
+  [data-panel] { padding: 30px 20px !important; }
+  #hudWrap { left: 8px !important; right: 8px; justify-content: center; }
+  [data-i18n="mapHint"] { white-space: normal !important; left: 10px !important; right: 10px !important; transform: none !important; text-align: center; }
+}
+@media (max-width: 600px) {
+  [data-cols2] { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 700px) {
+  #flujo > svg, #flujo [data-flecha], #flujoTip { display: none !important; }
+  #flujo [data-tilt] { width: 100% !important; margin: 0 0 18px !important; }
+}
+@media (max-width: 420px) {
+  [data-rg], #heroInner { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 380px) {
+  [data-sac] { display: none; }
+}
+
+/* Grid de zonas de cobertura: 5 en una sola fila en desktop; 2 columnas en tablet y 1 en movil. */
+.ldg-zonas-grid { grid-template-columns: repeat(5, 1fr); }
+@media (max-width: 1230px) { .ldg-zonas-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 640px) { .ldg-zonas-grid { grid-template-columns: 1fr; } }

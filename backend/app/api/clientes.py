@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.api.deps import get_current_admin
 from app.services import cliente_service
-from app.schemas.cliente import ClienteCreate, ClienteResponse, ClienteUpdate
+from app.schemas.cliente import AccesoPortalIn, ClienteCreate, ClienteResponse, ClienteUpdate
 
 router = APIRouter()
 
@@ -32,3 +32,15 @@ def actualizar_cliente(cliente_id: int, datos: ClienteUpdate, db: Session = Depe
 def eliminar_cliente(cliente_id: int, db: Session = Depends(get_db)):
     """Da de baja una empresa cliente (borrado logico). Recibe cliente_id."""
     return cliente_service.eliminar_cliente(db, cliente_id)
+
+
+@router.post("/{cliente_id}/acceso-portal", dependencies=[Depends(get_current_admin)])
+def generar_acceso(cliente_id: int, datos: AccesoPortalIn, db: Session = Depends(get_db)):
+    """Genera/reinicia el acceso al portal de un cliente. Recibe id y {correoPortal}."""
+    return cliente_service.generar_acceso_portal(db, cliente_id, datos.correoPortal)
+
+
+@router.delete("/{cliente_id}/acceso-portal", dependencies=[Depends(get_current_admin)])
+def revocar_acceso(cliente_id: int, db: Session = Depends(get_db)):
+    """Revoca el acceso al portal de un cliente. Recibe el id."""
+    return cliente_service.revocar_acceso_portal(db, cliente_id)

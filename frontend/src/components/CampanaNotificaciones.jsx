@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from "react";
 import { Bell } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useNotificaciones } from "../hooks/useNotificaciones";
+import { haciaPanel } from "../utils/rutasPanel";
 
 // Convierte una fecha ISO en texto relativo ("hace X min/h/días"). Recibe fechaIso string.
 function tiempoRelativo(fechaIso) {
@@ -52,7 +53,7 @@ export default function CampanaNotificaciones() {
 
   const irA = (ruta) => {
     setAbierto(false);
-    navigate(ruta);
+    navigate(haciaPanel(ruta));
   };
 
   return (

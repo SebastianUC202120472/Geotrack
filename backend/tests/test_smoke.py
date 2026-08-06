@@ -11,9 +11,12 @@
 #             NO arrancan el servidor (que sí pediría PostgreSQL). Importar la
 #             app no abre conexión (el engine de SQLAlchemy es "perezoso").
 # ============================================================================
+from types import SimpleNamespace
+
 from app.main import app
 from app.core.security import get_password_hash, verify_password, create_access_token, decode_access_token
 from app.services.router import optimizar_secuencia_pedidos
+from app.services.ruta_service import separar_paradas_a_optimizar
 from app.schemas.ruta import ActualizarEstadoRequest
 
 
@@ -37,6 +40,8 @@ def test_rutas_clave_registradas():
     assert "/api/pedidos/zonas" in paths
     assert "/api/conductor/ruta-activa" in paths             # Fase 3
     assert "/api/dashboard/flota" in paths                   # Fase 4
+    assert "/api/portal/pedidos/{codigo}/buscar" in paths      # Fase 2 portal
+    assert "/api/reclamos/" in paths                         # Libro de Reclamaciones
 
 
 def test_hash_de_contrasena():
@@ -64,6 +69,42 @@ def test_vrp_ordena_por_cercania():
     pedidos = [P(1, -12.10, -77.05), P(2, -12.00, -77.00), P(3, -12.05, -77.02)]
     orden = [p.id for p in optimizar_secuencia_pedidos(pedidos, -12.00, -77.00)]
     assert orden[0] == 2  # el más cercano al punto de partida
+
+
+def _parada(estado_entrega, pedido_id, lat=-12.05):
+    """Arma una tupla (detalle, pedido) de prueba. Recibe estado de la parada, id y latitud."""
+    return (
+        SimpleNamespace(estado_entrega=estado_entrega),
+        SimpleNamespace(id=pedido_id, latitud=lat, longitud=-77.03),
+    )
+
+
+def test_reoptimizar_no_toca_las_paradas_ya_gestionadas():
+    """Reoptimizar a mitad de ruta no debe devolver a 'en camino' lo ya entregado."""
+    detalles = [
+        _parada("ENTREGADO", 1),
+        _parada("FALLIDO", 2),
+        _parada("PENDIENTE", 3),
+        _parada("PENDIENTE", 4),
+    ]
+    hechas, pendientes = separar_paradas_a_optimizar(detalles)
+    assert hechas == 2
+    assert [p.id for p in pendientes] == [3, 4]
+
+
+def test_optimizar_descarta_paradas_sin_coordenadas():
+    """Un pedido sin geocodificar no entra en el calculo de la secuencia."""
+    detalles = [_parada("PENDIENTE", 1, lat=None), _parada("PENDIENTE", 2)]
+    hechas, pendientes = separar_paradas_a_optimizar(detalles)
+    assert hechas == 0
+    assert [p.id for p in pendientes] == [2]
+
+
+def test_optimizar_sin_pendientes_no_devuelve_nada():
+    """Con toda la ruta cerrada no queda nada que reordenar."""
+    hechas, pendientes = separar_paradas_a_optimizar([_parada("ENTREGADO", 1)])
+    assert hechas == 1
+    assert pendientes == []
 
 
 def test_validador_de_estado_de_entrega():

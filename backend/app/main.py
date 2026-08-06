@@ -28,6 +28,8 @@ from app.api.incidencias import router as incidencias_router
 from app.api.recojos import router as recojos_router
 from app.api.almacen import router as almacen_router
 from app.api.notificaciones import router as notificaciones_router
+from app.api.portal import router as portal_router
+from app.api.reclamos import router as reclamos_router
 
 
 async def tarea_limpieza_usuarios():
@@ -58,6 +60,16 @@ async def lifespan(app: FastAPI):
 
     print("Creando tablas en la base de datos...")
     Base.metadata.create_all(bind=engine)
+
+    # Migracion idempotente: columnas de acceso al portal en clientes existentes
+    # (create_all no altera tablas ya creadas en Postgres/Supabase).
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE clientes_corporativos ADD COLUMN IF NOT EXISTS codigo_acceso VARCHAR(30)"))
+        conn.execute(text("ALTER TABLE clientes_corporativos ADD COLUMN IF NOT EXISTS clave_hash VARCHAR(255)"))
+        conn.execute(text("ALTER TABLE clientes_corporativos ADD COLUMN IF NOT EXISTS correo_portal VARCHAR(150)"))
+        conn.execute(text("ALTER TABLE clientes_corporativos ADD COLUMN IF NOT EXISTS acceso_activo BOOLEAN DEFAULT FALSE"))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_clientes_codigo_acceso ON clientes_corporativos (codigo_acceso)"))
 
     db = SessionLocal()
     try:
@@ -129,6 +141,8 @@ app.include_router(incidencias_router, prefix="/api/incidencias", tags=["Inciden
 app.include_router(recojos_router, prefix="/api/recojos", tags=["Recojos Inbound"])
 app.include_router(almacen_router, prefix="/api/almacen", tags=["Almacén (Ingreso)"])
 app.include_router(notificaciones_router, prefix="/api/notificaciones", tags=["Notificaciones"])
+app.include_router(portal_router, prefix="/api/portal", tags=["Portal Público"])
+app.include_router(reclamos_router, prefix="/api/reclamos", tags=["Libro de Reclamaciones"])
 
 
 @app.get("/")

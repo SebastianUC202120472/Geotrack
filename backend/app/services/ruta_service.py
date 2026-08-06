@@ -1,4 +1,5 @@
 import os
+import secrets
 from datetime import datetime
 
 from fastapi import HTTPException, status
@@ -7,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.ruta import Ruta, RutaDetalle
 from app.models.pedido import Pedido
 from app.models.solicitud_recojo import ESTADOS_RECOGIDO
-from app.repositories import ruta_repository, pedido_repository, historial_repository, evidencia_repository, incidencia_repository, recojo_repository
+from app.repositories import ruta_repository, pedido_repository, historial_repository, evidencia_repository, incidencia_repository, recojo_repository, vehiculo_repository
 from app.services.router import optimizar_secuencia_pedidos, distancia_total
 from app.schemas.ruta import (
     RutaActivaResponse,
@@ -219,7 +220,10 @@ def guardar_evidencia(
         )
 
     os.makedirs(DIR_EVIDENCIAS, exist_ok=True)
-    nombre_final = f"pod_{detalle.ruta_id}_{pedido_id}{extension}"
+    # El sufijo aleatorio evita que la foto sea adivinable: /media se sirve como
+    # estatico y un nombre secuencial (pod_1_1.jpg) permitiria descargar evidencias
+    # ajenas iterando enteros, saltandose la verificacion por DNI del portal.
+    nombre_final = f"pod_{detalle.ruta_id}_{pedido_id}_{secrets.token_hex(8)}{extension}"
     ruta_fisica = os.path.join(DIR_EVIDENCIAS, nombre_final)
     with open(ruta_fisica, "wb") as f:
         f.write(contenido)
@@ -320,6 +324,11 @@ def asignar_bloque(db: Session, datos: AsignacionBloqueRequest, usuario_id: int 
     nombre = (datos.nombre_ruta or "").strip() or f"Ruta {datos.distrito or 'sin zona'}"
 
     ruta = ruta_repository.crear_ruta(db, nombre=nombre, conductor_id=datos.conductor_id)
+    # La ruta hereda el vehiculo asignado al conductor: sin esto la placa queda vacia
+    # en el seguimiento del panel, en el portal del cliente y en los reportes de auxilio.
+    vehiculo = vehiculo_repository.obtener_por_conductor(db, datos.conductor_id)
+    if vehiculo:
+        ruta.vehiculo_placa = vehiculo.placa
 
     for pedido in pedidos:
         ruta_repository.agregar_detalle(db, ruta_id=ruta.id, pedido_id=pedido.id, secuencia=0)
@@ -336,6 +345,20 @@ def asignar_bloque(db: Session, datos: AsignacionBloqueRequest, usuario_id: int 
     }
 
 
+def separar_paradas_a_optimizar(detalles):
+    """Separa las paradas de una ruta en (cerradas, pedidos pendientes a optimizar).
+    Recibe la lista de tuplas (detalle, pedido). Una parada ya gestionada (ENTREGADO o
+    FALLIDO) NO se reordena ni se vuelve a marcar en camino: si se reoptimiza a mitad de
+    ruta, un pedido ya entregado no puede volver a aparecer como 'en camino' al cliente.
+    Se descartan tambien las que no tienen coordenadas."""
+    hechas = sum(1 for detalle, _ in detalles if detalle.estado_entrega != "PENDIENTE")
+    pendientes = [
+        pedido for detalle, pedido in detalles
+        if pedido.latitud is not None and detalle.estado_entrega == "PENDIENTE"
+    ]
+    return hechas, pendientes
+
+
 def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -> dict:
     """Optimiza el orden de entrega de la ruta del conductor (vecino mas cercano). Recibe: datos de posicion e id del conductor."""
     ruta = ruta_repository.obtener_ruta_por_id(db, datos.ruta_id)
@@ -347,9 +370,9 @@ def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -
 
     detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
     detalle_por_pedido = {pedido.id: detalle for detalle, pedido in detalles}
-    pedidos_validos = [pedido for _, pedido in detalles if pedido.latitud is not None]
+    hechas, pedidos_validos = separar_paradas_a_optimizar(detalles)
     if not pedidos_validos:
-        raise HTTPException(status_code=400, detail="La ruta no tiene pedidos válidos para optimizar")
+        raise HTTPException(status_code=400, detail="No quedan paradas pendientes por optimizar en esta ruta")
 
     ordenados = optimizar_secuencia_pedidos(
         pedidos_validos,
@@ -363,7 +386,9 @@ def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -
     ruta.km_estimado = round(km_opt, 2)
     ruta.km_ahorrado = round(max(0.0, km_base - km_opt), 2)
 
-    secuencia = 1
+    # Las paradas ya cerradas conservan su lugar al inicio; las pendientes se
+    # renumeran a continuacion, para que "parada X de Y" siga siendo coherente.
+    secuencia = hechas + 1
     eventos: list[dict] = []
     for pedido in ordenados:
         detalle = detalle_por_pedido.get(pedido.id)

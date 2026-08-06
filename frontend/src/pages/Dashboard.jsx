@@ -38,7 +38,7 @@ export default function Dashboard() {
   const [conductoresEnLinea, setConductoresEnLinea] = useState(0);
 
   // Lleva a la lista de Pedidos ya filtrada por estado (clic en gráfica).
-  const irAEstado = (estadoRaw) => estadoRaw && navigate(`/pedidos?estado=${encodeURIComponent(estadoRaw)}`);
+  const irAEstado = (estadoRaw) => estadoRaw && navigate(`/panel/pedidos?estado=${encodeURIComponent(estadoRaw)}`);
 
   useEffect(() => {
     const actualizarClientes = (data) => {
@@ -209,7 +209,7 @@ export default function Dashboard() {
               {pendientesPorCliente.map((c) => (
                 <button
                   key={c.cliente}
-                  onClick={() => navigate("/pedidos")}
+                  onClick={() => navigate("/panel/pedidos")}
                   className="flex w-full items-center gap-3 text-left transition-colors hover:opacity-90"
                 >
                   <span className="w-36 truncate text-sm font-medium text-slate-700">{c.cliente}</span>
