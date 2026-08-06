@@ -1,6 +1,7 @@
 import os
 import time
 import glob
+import secrets
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -114,13 +115,17 @@ def guardar_foto(db: Session, usuario_id: int, contenido: bytes, nombre_archivo:
         )
 
     os.makedirs(DIR_FOTOS, exist_ok=True)
-    for viejo in glob.glob(os.path.join(DIR_FOTOS, f"cond_{usuario_id}.*")):
-        try:
-            os.remove(viejo)
-        except OSError:
-            pass
+    # Borra la foto anterior: el patron viejo (cond_ID.ext, sin sufijo) y el nuevo
+    # (cond_ID_<aleatorio>.ext), para no dejar huerfanos al cambiar de esquema.
+    for patron in (f"cond_{usuario_id}.*", f"cond_{usuario_id}_*"):
+        for viejo in glob.glob(os.path.join(DIR_FOTOS, patron)):
+            try:
+                os.remove(viejo)
+            except OSError:
+                pass
 
-    nombre_final = f"cond_{usuario_id}{extension}"
+    # Sufijo aleatorio: /media es estatico y la foto personal no debe ser adivinable.
+    nombre_final = f"cond_{usuario_id}_{secrets.token_hex(8)}{extension}"
     ruta_fisica = os.path.join(DIR_FOTOS, nombre_final)
     with open(ruta_fisica, "wb") as f:
         f.write(contenido)

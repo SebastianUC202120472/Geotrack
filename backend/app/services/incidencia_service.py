@@ -1,4 +1,5 @@
 import os
+import secrets
 from datetime import datetime
 
 from fastapi import HTTPException, status
@@ -90,7 +91,8 @@ def guardar_evidencia(db: Session, incidencia_id: int, conductor_id: int, conten
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Formato no permitido. Usa: {', '.join(sorted(EXTENSIONES_IMAGEN))}")
 
     os.makedirs(DIR_INCIDENCIAS, exist_ok=True)
-    nombre_final = f"inc_{inc.id}{extension}"
+    # Sufijo aleatorio: /media es estatico y el nombre no debe ser adivinable.
+    nombre_final = f"inc_{inc.id}_{secrets.token_hex(8)}{extension}"
     with open(os.path.join(DIR_INCIDENCIAS, nombre_final), "wb") as f:
         f.write(contenido)
     inc.url_evidencia = f"/media/incidencias/{nombre_final}"

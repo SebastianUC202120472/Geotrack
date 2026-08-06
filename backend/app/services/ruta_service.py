@@ -1,4 +1,5 @@
 import os
+import secrets
 from datetime import datetime
 
 from fastapi import HTTPException, status
@@ -219,7 +220,10 @@ def guardar_evidencia(
         )
 
     os.makedirs(DIR_EVIDENCIAS, exist_ok=True)
-    nombre_final = f"pod_{detalle.ruta_id}_{pedido_id}{extension}"
+    # El sufijo aleatorio evita que la foto sea adivinable: /media se sirve como
+    # estatico y un nombre secuencial (pod_1_1.jpg) permitiria descargar evidencias
+    # ajenas iterando enteros, saltandose la verificacion por DNI del portal.
+    nombre_final = f"pod_{detalle.ruta_id}_{pedido_id}_{secrets.token_hex(8)}{extension}"
     ruta_fisica = os.path.join(DIR_EVIDENCIAS, nombre_final)
     with open(ruta_fisica, "wb") as f:
         f.write(contenido)
