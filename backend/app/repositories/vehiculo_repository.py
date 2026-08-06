@@ -21,6 +21,17 @@ def obtener_por_placa(db: Session, placa: str) -> Optional[Vehiculo]:
     return db.query(Vehiculo).filter(Vehiculo.placa == placa).first()
 
 
+def obtener_por_conductor(db: Session, conductor_id) -> Optional[Vehiculo]:
+    """Busca el vehiculo activo asignado a un conductor. Recibe: conductor_id (puede ser None)."""
+    if not conductor_id:
+        return None
+    return (
+        db.query(Vehiculo)
+        .filter(Vehiculo.conductor_id == conductor_id, Vehiculo.eliminado_en == None)  # noqa: E711
+        .first()
+    )
+
+
 def obtener_por_id(db: Session, vehiculo_id: int) -> Optional[Vehiculo]:
     """Busca un vehiculo activo por id. Recibe: vehiculo_id."""
     return (

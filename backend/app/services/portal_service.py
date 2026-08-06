@@ -68,9 +68,13 @@ def detalle_pedido(db: Session, codigo: str) -> dict:
 
     conductor_nombre, placa, parada = None, None, None
     if est == "EN_RUTA" and ruta:
-        cond = repo.conductor_de_ruta(db, ruta.conductor_id)
-        # Obtiene el nombre del conductor, fallando a correo si no hay nombre.
-        conductor_nombre = (getattr(cond, "nombre", None) or getattr(cond, "correo", None)) if cond else None
+        # Nombre publico del conductor: primero el del perfil (dato real de RR.HH.),
+        # luego el del usuario. NUNCA se cae al correo: es un dato interno y este
+        # texto se le muestra al cliente final en el portal.
+        conductor_nombre = _nombre_publico_conductor(
+            repo.perfil_conductor(db, ruta.conductor_id),
+            repo.conductor_de_ruta(db, ruta.conductor_id),
+        )
         placa = ruta.vehiculo_placa
         if secuencia is not None and total:
             parada = f"va en la parada {secuencia} de {total}"
@@ -98,6 +102,17 @@ def detalle_pedido(db: Session, codigo: str) -> dict:
     if est == "REPROGRAMADO":
         data["motivo"] = detalle.motivo_fallo if detalle and detalle.motivo_fallo else "No se pudo entregar en el intento anterior"
     return data
+
+
+def _nombre_publico_conductor(perfil, usuario) -> str:
+    """Nombre del conductor apto para mostrar al cliente. Recibe el perfil y el usuario (ambos opcionales).
+    Prefiere el nombre del perfil; si no hay ninguno devuelve una etiqueta generica. El correo
+    es un dato interno y no debe salir nunca por un endpoint del portal."""
+    for origen in (perfil, usuario):
+        nombre = (getattr(origen, "nombre", None) or "").strip() if origen else ""
+        if nombre:
+            return nombre
+    return "Conductor SAVA"
 
 
 def _eta_titulo(est: str) -> str:

@@ -1,4 +1,5 @@
 import os
+import secrets
 from datetime import datetime
 
 from fastapi import HTTPException
@@ -399,7 +400,9 @@ def registrar_recepcion(db: Session, conductor_id: int, recojo_id: int, cantidad
     urls: list[str] = []
     for i, (contenido, nombre_archivo) in enumerate(archivos, start=1):
         _, extension = os.path.splitext((nombre_archivo or "").lower())
-        nombre_final = f"guia_{ruta.id}_{recojo_id}_{i}{extension}"
+        # Sufijo aleatorio: /media es estatico, un nombre secuencial dejaria las
+        # fotos de recojo al alcance de cualquiera que itere enteros.
+        nombre_final = f"guia_{ruta.id}_{recojo_id}_{i}_{secrets.token_hex(8)}{extension}"
         with open(os.path.join(DIR_GUIAS, nombre_final), "wb") as f:
             f.write(contenido)
         url = f"/media/guias/{nombre_final}"

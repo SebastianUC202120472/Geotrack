@@ -12,17 +12,18 @@ const FEATURES = [
   { clave: "gtc4", texto: "Rutas con IA" },
 ];
 
-// Hitos DEMO del timeline (fallback cuando el backend no responde: el landing
-// funciona sin backend). Con datos reales se usan los eventos del historial.
-const HITOS = [
-  { claveT: "gtw1", detalle: "09:12 · CD Villa El Salvador", hecho: true, enCurso: false },
-  { claveT: "gtw2", detalle: "11:40 · Independencia", hecho: true, enCurso: false },
-  { claveT: "gtw3", detalle: "14:05 · Parada 12 de 28 · Miraflores", hecho: false, enCurso: true },
-  { claveT: "gtw4", claveD: "gtw4b", detalle: "Con foto y confirmación", hecho: false, enCurso: false },
+// Etapas del seguimiento. Se muestran cuando NO hay datos en vivo (backend caído o
+// sin operación del día): describen el proceso, sin horas ni lugares inventados.
+// Con datos reales se usan los eventos del historial del pedido.
+const ETAPAS = [
+  { claveT: "gtw1", claveD: "gtw1b", detalle: "El conductor retira el paquete" },
+  { claveT: "gtw2", claveD: "gtw2b", detalle: "Control de empaque y destino" },
+  { claveT: "gtw3", claveD: "gtw3b", detalle: "Camino a la dirección del cliente" },
+  { claveT: "gtw4", claveD: "gtw4b", detalle: "Con foto y confirmación" },
 ];
 
-// Textos en español de los 4 hitos demo (usados como fallback de tx).
-const TEXTOS_HITOS = {
+// Textos en español de las 4 etapas (usados como fallback de tx).
+const TEXTOS_ETAPAS = {
   gtw1: "Recogido en tienda",
   gtw2: "Verificado en centro SAVA",
   gtw3: "En ruta de reparto",
@@ -57,14 +58,15 @@ export default function SeccionGeoTrack({ tx }) {
     };
   }, []);
 
-  // Derivados del reporte (reales u demo).
+  // Derivados del reporte. Sin datos en vivo NO se inventan cifras: se informa
+  // que el reporte no está disponible y la barra queda en cero.
   const rep = datos ? datos.reporte : null;
-  const pct = rep ? rep.pct : 92;
+  const pct = rep ? rep.pct : 0;
   const resumen = rep
     ? `${rep.entregados} entregados · ${rep.enRuta} en ruta · ${rep.porSalir} por salir` +
       (rep.incidencias ? ` · ${rep.incidencias} con incidencia` : "") +
       " — se actualiza en vivo"
-    : tx("repD", "276 entregados · 16 en ruta · 8 por salir — se actualiza en vivo");
+    : tx("repD", "Reporte en vivo no disponible en este momento.");
 
   // Derivados de la tarjeta del pedido (real enmascarado u demo).
   const ped = datos && datos.pedido ? datos.pedido : null;
@@ -159,8 +161,8 @@ export default function SeccionGeoTrack({ tx }) {
               <span data-i18n="repT" style={{ fontSize: 13, fontWeight: 700, color: "#0f2b4a" }}>
                 {tx("repT", "Reporte de hoy, en vivo")}
               </span>
-              <span style={{ fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 19, color: "#22a35e" }}>
-                <span data-count={pct} data-suffix="%">{rep ? `${pct}%` : "0%"}</span>
+              <span style={{ fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 19, color: rep ? "#22a35e" : "#9db3c9" }}>
+                {rep ? <span data-count={pct} data-suffix="%">{`${pct}%`}</span> : <span>—</span>}
               </span>
             </div>
             <div style={{ margin: "10px 0 0", height: 8, borderRadius: 99, background: "#e8f0f8", overflow: "hidden" }}>
@@ -186,13 +188,13 @@ export default function SeccionGeoTrack({ tx }) {
           <div data-tilt="1" style={{ background: "#fff", border: "1px solid rgba(15,43,74,.1)", borderRadius: 22, boxShadow: "0 24px 60px rgba(15,43,74,.14)", padding: 22, maxWidth: 420, margin: "0 auto" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "0 0 16px" }}>
               <span data-i18n={ped ? undefined : "gtwT"} style={{ fontFamily: "Archivo, sans-serif", fontWeight: 700, fontSize: 14, color: "#0f2b4a" }}>
-                {ped ? `Pedido ${ped.codigo} · ${ped.retail}` : tx("gtwT", "Pedido PD-2481 · Ripley")}
+                {ped ? `Pedido ${ped.codigo} · ${ped.retail}` : tx("gtwT", "Seguimiento de un envío")}
               </span>
               <span
                 data-i18n={ped ? undefined : "gtwE"}
                 style={{
-                  background: badge ? badge.bg : "#e3f2e8",
-                  color: badge ? badge.fg : "#1e7a43",
+                  background: badge ? badge.bg : "#eef2f6",
+                  color: badge ? badge.fg : "#52708e",
                   fontSize: 11.5,
                   fontWeight: 700,
                   padding: "4px 10px",
@@ -201,7 +203,7 @@ export default function SeccionGeoTrack({ tx }) {
                   animation: "latido 2.2s ease-in-out infinite",
                 }}
               >
-                {ped ? (badge ? badge.tx : ped.estado) : tx("gtwE", "EN RUTA")}
+                {ped ? (badge ? badge.tx : ped.estado) : tx("gtwE", "ETAPAS")}
               </span>
             </div>
             <div style={{ display: "grid", gap: 0 }}>
@@ -230,32 +232,18 @@ export default function SeccionGeoTrack({ tx }) {
                       </div>
                     </div>
                   ))
-                : HITOS.map((h, i) => (
-                    <div key={h.claveT} style={{ display: "flex", gap: 14 }}>
+                : ETAPAS.map((e, i) => (
+                    <div key={e.claveT} style={{ display: "flex", gap: 14 }}>
                       <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                        <span
-                          style={{
-                            width: 11,
-                            height: 11,
-                            borderRadius: 99,
-                            background: h.hecho || h.enCurso ? "#2679d8" : "#dce8f4",
-                            flex: "none",
-                            boxShadow: h.enCurso ? "0 0 0 5px rgba(38,121,216,.18)" : "none",
-                          }}
-                        />
-                        {i < HITOS.length - 1 && (
-                          <span style={{ width: 2, flex: 1, background: h.hecho ? "#2679d8" : "#dce8f4" }} />
-                        )}
+                        <span style={{ width: 11, height: 11, borderRadius: 99, background: "#9db3c9", flex: "none" }} />
+                        {i < ETAPAS.length - 1 && <span style={{ width: 2, flex: 1, background: "#dce8f4" }} />}
                       </div>
-                      <div style={{ padding: i < HITOS.length - 1 ? "0 0 18px" : 0 }}>
-                        <p data-i18n={h.claveT} style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: h.hecho || h.enCurso ? "#0f2b4a" : "#8ba0b6" }}>
-                          {tx(h.claveT, TEXTOS_HITOS[h.claveT])}
+                      <div style={{ padding: i < ETAPAS.length - 1 ? "0 0 18px" : 0 }}>
+                        <p data-i18n={e.claveT} style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: "#4f6580" }}>
+                          {tx(e.claveT, TEXTOS_ETAPAS[e.claveT])}
                         </p>
-                        <p
-                          data-i18n={h.claveD || undefined}
-                          style={{ margin: "2px 0 0", fontSize: 12, color: h.hecho || h.enCurso ? "#8ba0b6" : "#b7c6d6" }}
-                        >
-                          {h.claveD ? tx(h.claveD, h.detalle) : h.detalle}
+                        <p data-i18n={e.claveD} style={{ margin: "2px 0 0", fontSize: 12, color: "#8ba0b6" }}>
+                          {tx(e.claveD, e.detalle)}
                         </p>
                       </div>
                     </div>
@@ -331,7 +319,7 @@ export default function SeccionGeoTrack({ tx }) {
             >
               <span style={{ width: 8, height: 8, borderRadius: 99, background: "#22a35e", animation: "latido 1.8s ease-in-out infinite" }} />
               <span data-i18n="flotaPill" style={{ fontSize: 12.5, fontWeight: 600, color: "#0f2b4a" }}>
-                {tx("flotaPill", "Flota SAVA en vivo · 3 conductores en ruta")}
+                {tx("flotaPill", "Así se ve la flota en GeoTrack")}
               </span>
             </div>
           </div>

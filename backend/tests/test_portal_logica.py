@@ -1,6 +1,9 @@
+from types import SimpleNamespace
+
 from jose import jwt as _jwt
 from app.services.estado_portal import mapear_estado, progreso
 from app.services.enmascarado import mask_telefono, mask_nombre, mask_direccion_corta
+from app.services.portal_service import _nombre_publico_conductor
 from app.core.rate_limit import _Limitador
 from app.core.portal_token import crear_token_persona, crear_token_empresa
 from app.core.config import settings
@@ -16,6 +19,25 @@ def test_mapeo_estados_pipeline_a_portal():
         assert mapear_estado(e) == "POR_SALIR"
     # desconocido -> POR_SALIR (nunca expone un estado interno raro)
     assert mapear_estado("LO_QUE_SEA") == "POR_SALIR"
+
+
+def test_nombre_conductor_prefiere_el_perfil():
+    perfil = SimpleNamespace(nombre="Juan Perez")
+    usuario = SimpleNamespace(nombre="jperez", correo="juan@prueba.com")
+    assert _nombre_publico_conductor(perfil, usuario) == "Juan Perez"
+
+
+def test_nombre_conductor_cae_al_usuario_si_no_hay_perfil():
+    usuario = SimpleNamespace(nombre="Juan Perez", correo="juan@prueba.com")
+    assert _nombre_publico_conductor(None, usuario) == "Juan Perez"
+
+
+def test_nombre_conductor_nunca_expone_el_correo():
+    # Sin nombre en ningun lado: etiqueta generica, JAMAS el correo interno.
+    usuario = SimpleNamespace(nombre=None, correo="juan@prueba.com")
+    assert _nombre_publico_conductor(None, usuario) == "Conductor SAVA"
+    assert _nombre_publico_conductor(SimpleNamespace(nombre="  "), usuario) == "Conductor SAVA"
+    assert _nombre_publico_conductor(None, None) == "Conductor SAVA"
 
 
 def test_progreso_en_ruta_usa_secuencia():
