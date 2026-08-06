@@ -345,6 +345,20 @@ def asignar_bloque(db: Session, datos: AsignacionBloqueRequest, usuario_id: int 
     }
 
 
+def separar_paradas_a_optimizar(detalles):
+    """Separa las paradas de una ruta en (cerradas, pedidos pendientes a optimizar).
+    Recibe la lista de tuplas (detalle, pedido). Una parada ya gestionada (ENTREGADO o
+    FALLIDO) NO se reordena ni se vuelve a marcar en camino: si se reoptimiza a mitad de
+    ruta, un pedido ya entregado no puede volver a aparecer como 'en camino' al cliente.
+    Se descartan tambien las que no tienen coordenadas."""
+    hechas = sum(1 for detalle, _ in detalles if detalle.estado_entrega != "PENDIENTE")
+    pendientes = [
+        pedido for detalle, pedido in detalles
+        if pedido.latitud is not None and detalle.estado_entrega == "PENDIENTE"
+    ]
+    return hechas, pendientes
+
+
 def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -> dict:
     """Optimiza el orden de entrega de la ruta del conductor (vecino mas cercano). Recibe: datos de posicion e id del conductor."""
     ruta = ruta_repository.obtener_ruta_por_id(db, datos.ruta_id)
@@ -356,9 +370,9 @@ def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -
 
     detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
     detalle_por_pedido = {pedido.id: detalle for detalle, pedido in detalles}
-    pedidos_validos = [pedido for _, pedido in detalles if pedido.latitud is not None]
+    hechas, pedidos_validos = separar_paradas_a_optimizar(detalles)
     if not pedidos_validos:
-        raise HTTPException(status_code=400, detail="La ruta no tiene pedidos válidos para optimizar")
+        raise HTTPException(status_code=400, detail="No quedan paradas pendientes por optimizar en esta ruta")
 
     ordenados = optimizar_secuencia_pedidos(
         pedidos_validos,
@@ -372,7 +386,9 @@ def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -
     ruta.km_estimado = round(km_opt, 2)
     ruta.km_ahorrado = round(max(0.0, km_base - km_opt), 2)
 
-    secuencia = 1
+    # Las paradas ya cerradas conservan su lugar al inicio; las pendientes se
+    # renumeran a continuacion, para que "parada X de Y" siga siendo coherente.
+    secuencia = hechas + 1
     eventos: list[dict] = []
     for pedido in ordenados:
         detalle = detalle_por_pedido.get(pedido.id)
