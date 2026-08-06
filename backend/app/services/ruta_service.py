@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.ruta import Ruta, RutaDetalle
 from app.models.pedido import Pedido
 from app.models.solicitud_recojo import ESTADOS_RECOGIDO
-from app.repositories import ruta_repository, pedido_repository, historial_repository, evidencia_repository, incidencia_repository, recojo_repository
+from app.repositories import ruta_repository, pedido_repository, historial_repository, evidencia_repository, incidencia_repository, recojo_repository, vehiculo_repository
 from app.services.router import optimizar_secuencia_pedidos, distancia_total
 from app.schemas.ruta import (
     RutaActivaResponse,
@@ -324,6 +324,11 @@ def asignar_bloque(db: Session, datos: AsignacionBloqueRequest, usuario_id: int 
     nombre = (datos.nombre_ruta or "").strip() or f"Ruta {datos.distrito or 'sin zona'}"
 
     ruta = ruta_repository.crear_ruta(db, nombre=nombre, conductor_id=datos.conductor_id)
+    # La ruta hereda el vehiculo asignado al conductor: sin esto la placa queda vacia
+    # en el seguimiento del panel, en el portal del cliente y en los reportes de auxilio.
+    vehiculo = vehiculo_repository.obtener_por_conductor(db, datos.conductor_id)
+    if vehiculo:
+        ruta.vehiculo_placa = vehiculo.placa
 
     for pedido in pedidos:
         ruta_repository.agregar_detalle(db, ruta_id=ruta.id, pedido_id=pedido.id, secuencia=0)
