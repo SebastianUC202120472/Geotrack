@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.models.pedido import Pedido
 from app.models.ruta import Ruta, RutaDetalle
 from app.models.usuario import Usuario
+from app.models.conductor import PerfilConductor
 from app.models.historial import HistorialPedido
 from app.models.evidencia import EvidenciaEntrega
 from app.models.cliente import ClienteCorporativo
@@ -37,6 +38,13 @@ def conductor_de_ruta(db: Session, conductor_id) -> Optional[Usuario]:
     if not conductor_id:
         return None
     return db.query(Usuario).filter(Usuario.id == conductor_id).first()
+
+
+def perfil_conductor(db: Session, usuario_id) -> Optional[PerfilConductor]:
+    """Devuelve el perfil (datos personales) de un conductor. Recibe el usuario_id (puede ser None)."""
+    if not usuario_id:
+        return None
+    return db.query(PerfilConductor).filter(PerfilConductor.usuario_id == usuario_id).first()
 
 
 def historial_de(db: Session, pedido_id: int) -> List[HistorialPedido]:
