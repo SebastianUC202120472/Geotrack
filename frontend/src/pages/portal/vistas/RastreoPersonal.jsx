@@ -173,7 +173,11 @@ export default function RastreoPersonal({ avisar }) {
   const verBloq = bloqueoHasta > now; // ¿acceso bloqueado ahora mismo? (usa el reloj `ahora`)
 
   const sinBusqueda = !enc && !buscando && !errorCod; // estado inicial (aún sin buscar)
-  const porVerificar = !!enc && !verificado; // hay pedido pero falta verificar identidad
+  // Si el pedido llegó sin DNI del destinatario no hay contra qué verificar: pedir el
+  // documento solo llevaría a 3 fallos y un bloqueo de 30 s sin explicación. En ese
+  // caso se informa y se deriva a la tienda, en vez de mostrar el formulario.
+  const sinDni = !!enc && !verificado && enc.tieneDni === false;
+  const porVerificar = !!enc && !verificado && !sinDni; // hay pedido y sí se puede verificar
 
   return (
     <>
@@ -233,6 +237,26 @@ export default function RastreoPersonal({ avisar }) {
             <p style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.6, color: "#4f6580", maxWidth: 540, display: "inline-block" }}>
               Cuando Ripley, Falabella u otra tienda confirma su envío con SAVA, le llega un código como{" "}
               <span style={{ fontWeight: 700, color: "#1b5fb3" }}>PD-2481</span>. Por su seguridad, además del código le pediremos verificar su identidad.
+            </p>
+          </div>
+        </section>
+      )}
+
+      {/* Pedido sin DNI registrado: no se puede verificar identidad en línea */}
+      {sinDni && (
+        <section data-psec="1" style={{ maxWidth: 920, margin: "0 auto", padding: "10px 24px 20px", width: "100%", boxSizing: "border-box" }}>
+          <div data-ppanel="1" style={{ background: "#fff", border: "1.5px solid rgba(217,122,31,.35)", borderRadius: 18, padding: "22px 24px", animation: "aparecer .4s ease both" }}>
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#0f2b4a" }}>
+              Encontramos el pedido «{encontrado}», pero no podemos verificar su identidad en línea
+            </p>
+            <p style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.6, color: "#4f6580" }}>
+              Su tienda no registró un documento para este envío, así que por seguridad no podemos
+              mostrar el detalle aquí. Escríbanos a{" "}
+              <a href="mailto:contacto@sava.pe" style={{ color: "#1b5fb3", fontWeight: 600 }}>contacto@sava.pe</a>{" "}
+              con su código y le damos el estado.
+            </p>
+            <p style={{ margin: "14px 0 0", fontSize: 13.5, color: "#4f6580" }}>
+              Estado actual: <strong style={{ color: em.trazo }}>{em.tx}</strong> · destino {enc.destinoMask}
             </p>
           </div>
         </section>
