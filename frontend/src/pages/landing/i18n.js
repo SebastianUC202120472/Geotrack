@@ -31,7 +31,7 @@ export const EN = {
   gtMapa: 'Each driver logs proof of delivery in the GeoTrack app and moves on to the next customer — the retailer sees it all in real time.',
   mapHint: 'Spin the map by dragging it · drag the van to fast-forward the route',
   marcasNota: 'Drop the official logos of your retail partners here',
-  repT: "Today's report, live", repD: 'Live report unavailable right now.',
+  repT: "Today's report, live", repTUlt: 'Latest operating day', repD: 'Live report unavailable right now.',
   gtIAt: 'Artificial intelligence on every route', gtIAd: 'We use AI to group orders by zone, anticipate Lima traffic and cut distribution time: it learns from every run so the next one arrives sooner.',
   nav5: 'Client portal ↗', menuPortal: 'Client portal · track my order ↗', menuGt: 'Employees · Open GeoTrack ↗',
   navEmp: "I'm an employee ↗", navRec: 'Claims & complaints',

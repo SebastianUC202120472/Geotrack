@@ -162,12 +162,17 @@ def obtener_flota(db: Session) -> FlotaResponse:
     rutas = [r for r in ruta_repository.listar_rutas(db) if (r.tipo or "ENTREGA") != "RECOJO"]
 
     cache_conductores: dict[int, str | None] = {}
+    # Una sola consulta agregada para todas las rutas: antes se pedian los detalles
+    # (con join a pedidos) una vez por ruta, y el tablero rozaba los 3 s con 23 rutas.
+    conteos = ruta_repository.contar_estados_por_ruta(db, [r.id for r in rutas])
 
     items: list[RutaFlota] = []
     for ruta in rutas:
-        detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
-        total = len(detalles)
-        entregadas, fallidas, pendientes = _contar_estados(detalles)
+        por_estado = conteos.get(ruta.id, {})
+        entregadas = por_estado.get("ENTREGADO", 0)
+        fallidas = por_estado.get("FALLIDO", 0)
+        pendientes = por_estado.get("PENDIENTE", 0)
+        total = sum(por_estado.values())
 
         gestionadas = entregadas + fallidas
         avance = round((gestionadas / total) * 100, 1) if total else 0.0
