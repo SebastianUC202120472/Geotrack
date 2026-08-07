@@ -21,6 +21,25 @@ def obtener_ruta_activa_por_conductor(db: Session, conductor_id: int) -> Optiona
     )
 
 
+def contar_estados_por_ruta(db: Session, ruta_ids: List[int]) -> dict:
+    """Cuenta las paradas por estado de varias rutas en UNA consulta. Recibe los ids.
+    Devuelve {ruta_id: {estado_entrega: total}}. Evita el N+1 del tablero de flota, que
+    antes pedia los detalles (con join a pedidos) ruta por ruta."""
+    if not ruta_ids:
+        return {}
+    from sqlalchemy import func
+    filas = (
+        db.query(RutaDetalle.ruta_id, RutaDetalle.estado_entrega, func.count(RutaDetalle.id))
+        .filter(RutaDetalle.ruta_id.in_(ruta_ids))
+        .group_by(RutaDetalle.ruta_id, RutaDetalle.estado_entrega)
+        .all()
+    )
+    salida: dict = {}
+    for ruta_id, estado, total in filas:
+        salida.setdefault(ruta_id, {})[estado] = total
+    return salida
+
+
 def obtener_detalles_con_pedido(
     db: Session, ruta_id: int
 ) -> List[Tuple[RutaDetalle, Pedido]]:
