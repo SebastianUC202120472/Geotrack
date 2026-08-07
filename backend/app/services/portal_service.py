@@ -1,6 +1,7 @@
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.core import fechas
 from app.repositories import portal_repository as repo
 from app.services import estado_portal, enmascarado
 
@@ -210,9 +211,11 @@ def estadisticas_publicas(db: Session, _reloj=None) -> dict:
 
 def _calcular_estadisticas(db: Session) -> dict:
     """Calcula las estadisticas publicas contra la BD (sin cache). Recibe db."""
-    # Reporte del dia con actividad mas reciente (normalmente hoy).
+    # Reporte del dia operativo con actividad mas reciente. Se informa la fecha y si
+    # corresponde a hoy: el landing no debe rotular como "de hoy" un dia anterior.
+    dia, filas = repo.conteos_del_dia_reciente(db)
     conteos = {}
-    for estado_pipeline, total in repo.conteos_del_dia_reciente(db):
+    for estado_pipeline, total in filas:
         est = estado_portal.mapear_estado(estado_pipeline)
         conteos[est] = conteos.get(est, 0) + total
     total = sum(conteos.values())
@@ -224,6 +227,8 @@ def _calcular_estadisticas(db: Session) -> dict:
         "incidencias": conteos.get("OBSERVADO", 0) + conteos.get("REPROGRAMADO", 0),
         "total": total,
         "pct": round(entregados / total * 100) if total else 0,
+        "fecha": dia.isoformat() if dia else None,
+        "esHoy": bool(dia and dia == fechas.hoy_local()),
     }
 
     # Tarjeta del pedido: el mas reciente, con codigo enmascarado y eventos genericos.

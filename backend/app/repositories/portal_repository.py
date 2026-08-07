@@ -1,8 +1,8 @@
-from datetime import datetime, time
 from typing import Optional, List, Tuple
 
 from sqlalchemy.orm import Session
 
+from app.core import fechas
 from app.models.pedido import Pedido
 from app.models.ruta import Ruta, RutaDetalle
 from app.models.usuario import Usuario
@@ -78,10 +78,10 @@ def cliente_por_codigo_acceso(db: Session, codigo_acceso: str) -> Optional[Clien
 
 def pedidos_de_cliente_hoy(db: Session, cliente_id: int):
     """Devuelve (pedido, detalle de ruta) del cliente creados hoy. Recibe el id del cliente.
-    Filtra por cliente_id (FK) y NO por razon_social, que no es unica (evita fuga cross-empresa)."""
-    hoy = datetime.utcnow().date()
-    inicio = datetime.combine(hoy, time.min)
-    fin = datetime.combine(hoy, time.max)
+    Filtra por cliente_id (FK) y NO por razon_social, que no es unica (evita fuga cross-empresa).
+    "Hoy" es el dia de la zona horaria de la operacion, no el dia UTC: con UTC el dia del
+    cliente cambiaria a las 7 p.m. hora de Lima."""
+    inicio, fin = fechas.rango_utc_del_dia()
     pedidos = (
         db.query(Pedido)
         .filter(Pedido.cliente_id == cliente_id, Pedido.fecha_creacion >= inicio, Pedido.fecha_creacion <= fin)
@@ -102,26 +102,30 @@ def pedidos_de_cliente_hoy(db: Session, cliente_id: int):
 
 
 def conteos_del_dia_reciente(db: Session):
-    """Conteos de pedidos por estado del dia MAS RECIENTE con pedidos (normalmente hoy).
-    Sin datos personales: solo agregados. Devuelve lista de (estado, total)."""
+    """Conteos por estado del dia operativo MAS RECIENTE con pedidos. Recibe la sesion.
+    Devuelve (fecha local del dia, [(estado, total)]). El dia se calcula en la zona de la
+    operacion, no en UTC, y se devuelve para que el landing pueda decir si es hoy o no."""
     from sqlalchemy import func
     # isnot(None): un pedido sin fecha (insercion manual) no debe volcar el reporte a
     # vacio (en Postgres los NULL van primero en un ORDER BY DESC).
-    ultimo_dia = (
-        db.query(func.date(Pedido.fecha_creacion))
+    ultimo = (
+        db.query(Pedido.fecha_creacion)
         .filter(Pedido.fecha_creacion.isnot(None))
         .order_by(Pedido.fecha_creacion.desc())
         .limit(1)
         .scalar()
     )
-    if ultimo_dia is None:
-        return []
-    return (
+    if ultimo is None:
+        return None, []
+    dia = fechas.fecha_local_de(ultimo)
+    inicio, fin = fechas.rango_utc_del_dia(dia)
+    conteos = (
         db.query(Pedido.estado, func.count(Pedido.id))
-        .filter(Pedido.fecha_creacion.isnot(None), func.date(Pedido.fecha_creacion) == ultimo_dia)
+        .filter(Pedido.fecha_creacion >= inicio, Pedido.fecha_creacion <= fin)
         .group_by(Pedido.estado)
         .all()
     )
+    return dia, conteos
 
 
 def ultimo_pedido(db: Session) -> Optional[Pedido]:

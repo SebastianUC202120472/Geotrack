@@ -22,6 +22,15 @@ const ETAPAS = [
   { claveT: "gtw4", claveD: "gtw4b", detalle: "Con foto y confirmación" },
 ];
 
+// formatoDia: pasa una fecha ISO (AAAA-MM-DD) a "12 de agosto". Input: la cadena ISO.
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+function formatoDia(iso) {
+  if (!iso) return "";
+  const [, m, d] = iso.split("-");
+  return `${Number(d)} de ${MESES[Number(m) - 1] || ""}`;
+}
+
 // Textos en español de las 4 etapas (usados como fallback de tx).
 const TEXTOS_ETAPAS = {
   gtw1: "Recogido en tienda",
@@ -62,10 +71,16 @@ export default function SeccionGeoTrack({ tx }) {
   // que el reporte no está disponible y la barra queda en cero.
   const rep = datos ? datos.reporte : null;
   const pct = rep ? rep.pct : 0;
+  // El backend informa de qué día operativo son las cifras. Si no es hoy, se dice:
+  // rotular como "de hoy" un día anterior sería tan falso como inventar el número.
+  const esHoy = rep ? rep.esHoy !== false : true;
+  const tituloReporte = esHoy
+    ? tx("repT", "Reporte de hoy, en vivo")
+    : tx("repTUlt", "Último día operativo");
   const resumen = rep
     ? `${rep.entregados} entregados · ${rep.enRuta} en ruta · ${rep.porSalir} por salir` +
       (rep.incidencias ? ` · ${rep.incidencias} con incidencia` : "") +
-      " — se actualiza en vivo"
+      (esHoy ? " — se actualiza en vivo" : ` — cierre del ${formatoDia(rep.fecha)}`)
     : tx("repD", "Reporte en vivo no disponible en este momento.");
 
   // Derivados de la tarjeta del pedido (real enmascarado u demo).
@@ -158,8 +173,8 @@ export default function SeccionGeoTrack({ tx }) {
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-              <span data-i18n="repT" style={{ fontSize: 13, fontWeight: 700, color: "#0f2b4a" }}>
-                {tx("repT", "Reporte de hoy, en vivo")}
+              <span data-i18n={esHoy ? "repT" : "repTUlt"} style={{ fontSize: 13, fontWeight: 700, color: "#0f2b4a" }}>
+                {tituloReporte}
               </span>
               <span style={{ fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 19, color: rep ? "#22a35e" : "#9db3c9" }}>
                 {rep ? <span data-count={pct} data-suffix="%">{`${pct}%`}</span> : <span>—</span>}

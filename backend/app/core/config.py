@@ -14,6 +14,11 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: str = "*"
 
+    # Zona horaria de la operacion. Define donde empieza y termina "el dia" en las
+    # vistas diarias (panel corporativo, reporte del landing). Con UTC, el dia de una
+    # operacion peruana cambiaria a las 7 p.m. hora de Lima.
+    ZONA_HORARIA: str = "America/Lima"
+
     ADMIN_EMAIL: str = "admin@siol.com"
     ADMIN_PASSWORD: str = "admin123"  # nosec B105
 
