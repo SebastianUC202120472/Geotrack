@@ -21,6 +21,25 @@ def test_mapeo_estados_pipeline_a_portal():
     assert mapear_estado("LO_QUE_SEA") == "POR_SALIR"
 
 
+def test_dia_local_no_es_el_dia_utc_en_la_noche_de_lima():
+    """Un pedido de las 8 p.m. de Lima es del MISMO dia local, aunque en UTC ya sea el siguiente."""
+    from datetime import datetime
+    from app.core import fechas
+    # 2026-08-06 20:00 en Lima = 2026-08-07 01:00 UTC (asi se guarda en la BD).
+    guardado_utc = datetime(2026, 8, 7, 1, 0, 0)
+    assert fechas.fecha_local_de(guardado_utc).isoformat() == "2026-08-06"
+
+
+def test_rango_del_dia_local_cubre_24_horas_desplazadas():
+    """El rango UTC de un dia local arranca a las 05:00 UTC (Lima es UTC-5)."""
+    from datetime import date
+    from app.core import fechas
+    inicio, fin = fechas.rango_utc_del_dia(date(2026, 8, 6))
+    assert inicio.isoformat().startswith("2026-08-06T05:00")
+    assert fin.isoformat().startswith("2026-08-07T04:59")
+    assert inicio.tzinfo is None and fin.tzinfo is None   # comparables con utcnow()
+
+
 def test_nombre_conductor_prefiere_el_perfil():
     perfil = SimpleNamespace(nombre="Juan Perez")
     usuario = SimpleNamespace(nombre="jperez", correo="juan@prueba.com")
