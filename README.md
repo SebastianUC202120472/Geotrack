@@ -1,236 +1,300 @@
-# GeoTrack — SIOL · SAVA
+# GeoTrack — Last-Mile Logistics Platform
 
-**Sistema logístico de última milla** para una operadora de transporte y reparto (SAVA S.A.C.).
-Cubre el ciclo completo de un envío: el **cliente** solicita el recojo por correo, el **administrador**
-lo acepta e importa los pedidos, el **almacén** valida la mercadería que llega, y el **conductor**
-recoge, reparte y cierra su ruta — todo trazado, estado por estado, desde un panel web y una app móvil.
+A last-mile delivery system for a transport and distribution operator. It covers the full lifecycle of a shipment: the **client** requests a pickup by email, the **administrator** accepts it and imports the orders, the **warehouse** validates the goods on arrival, and the **driver** picks up, delivers, and closes their route — every state traced, from a web panel and a mobile app.
 
----
+I designed and built the entire system as its only engineer — backend, web panel, mobile app, infrastructure — and then acted as my own security engineer: threat modeling, control design, vulnerability scanning, remediation, and re-testing.
 
-## 1. ¿Qué es?
-
-GeoTrack coordina a tres roles alrededor de un mismo pedido:
-
-| Rol | Dónde trabaja | Qué hace |
-|-----|---------------|----------|
-| **Administrador** | Panel web | Acepta solicitudes (Excel), agrupa por zonas, asigna rutas, resuelve reportes, manda auxilio, ve KPIs y liquidaciones. |
-| **Almacén** | Panel web | Arma rutas de recojo, hace el **ingreso manual** de lo recogido (marca faltantes), gestiona retornos. |
-| **Conductor** | App móvil | Recibe su ruta, optimiza el orden desde su ubicación, recoge con fotos, entrega con evidencia (POD), reporta fallas y avisa averías. |
-
-### El pipeline de un pedido
-
-```
-  Solicitud (correo + Excel)
-        │  el admin la ACEPTA
-        ▼
-  POR_RECOGER ──────────────► almacén arma ruta de recojo
-        │                         │  el conductor recoge (fotos)
-        │                         ▼
-        │                     RECOGIDO ──► almacén hace INGRESO MANUAL
-        │                                     │  faltante → OBSERVADO
-        ▼                                     ▼  llegó    → LISTO_PARA_ENVIO
-  (geocodificación en 2.º plano)                 │  el admin agrupa por ZONA y despacha
-                                                 ▼
-                                            ASIGNADO ──► el conductor optimiza ──► EN_RUTA
-                                                                                      │
-                                                                          entrega ◄───┤
-                                                                  ENTREGADO / FALLIDO │
-                                                                                      ▼
-                                                                            cierre del día
-```
-
-**Estados del pedido:** `POR_RECOGER → OBSERVADO | LISTO_PARA_ENVIO → ASIGNADO → EN_RUTA → ENTREGADO | FALLIDO`
-(un `FALLIDO` puede **reprogramarse** → vuelve a `LISTO_PARA_ENVIO`, o **cancelarse** → `CANCELADO`).
-
-### Detalles que vale la pena saber
-- **Enrutamiento propio:** el orden de las paradas se calcula con un algoritmo de *vecino más cercano*
-  (distancia Haversine) **desde la ubicación actual del conductor**. No usa Google Directions.
-- **Geocodificación:** convierte cada dirección en coordenadas con **Google Geocoding** (si hay clave)
-  o **Nominatim/OSM** (gratis) como respaldo, con un **caché de direcciones** para no repetir llamadas.
-- **Auxilio mecánico:** el conductor reporta una avería (puede marcar "puedo solucionarlo solo"); su
-  ruta queda **pausada**. El admin solo **manda ayuda**; **únicamente el conductor reanuda**.
-- **Mapas:** el panel usa Google Maps si hay clave, o OpenStreetMap si no. La navegación real se delega
-  por *deep link* a Google Maps / Waze, parada por parada.
+**Stack:** Python · FastAPI · PostgreSQL · React 19 + TypeScript · React Native (Expo) · Docker · Nginx · GitHub Actions
 
 ---
 
-## 2. Arquitectura
+## 1. What it does
+
+GeoTrack coordinates three roles around a single order:
+
+| Role | Works in | Responsibilities |
+| --- | --- | --- |
+| **Administrator** | Web panel | Accepts requests (Excel), groups by zone, assigns routes, resolves incident reports, dispatches roadside assistance, reviews KPIs and settlements. |
+| **Warehouse** | Web panel | Builds pickup routes, performs manual intake of collected goods (flagging shortages), manages returns. |
+| **Driver** | Mobile app | Receives the assigned route, optimizes stop order from current location, collects with photos, delivers with proof of delivery, reports failures and breakdowns. |
+
+### Order pipeline
+
+```
+Request (email + Excel)
+      │  admin ACCEPTS
+      ▼
+TO_PICK_UP ──────────────► warehouse builds pickup route
+      │                        │  driver collects (photos)
+      │                        ▼
+      │                    PICKED_UP ──► warehouse performs MANUAL INTAKE
+      │                                     │  shortage → FLAGGED
+      ▼                                     ▼  complete → READY_TO_SHIP
+(background geocoding)                         │  admin groups by ZONE and dispatches
+                                               ▼
+                                          ASSIGNED ──► driver optimizes ──► EN_ROUTE
+                                                                              │
+                                                                  delivery ◄──┤
+                                                          DELIVERED / FAILED  │
+                                                                              ▼
+                                                                        end-of-day close
+```
+
+A `FAILED` order can be **rescheduled** (back to `READY_TO_SHIP`) or **cancelled**.
+
+### Design decisions worth calling out
+
+- **Custom routing, not a paid API.** Stop order is computed with a nearest-neighbour algorithm over Haversine distance, calculated **from the driver's live position**. No dependency on Google Directions — lower cost, no rate limits, and full control over the heuristic.
+- **Geocoding with graceful degradation.** Google Geocoding when an API key is present, Nominatim/OSM as a free fallback, backed by an address cache so the same address is never billed twice.
+- **Roadside assistance with a deliberate authority split.** A driver reporting a breakdown pauses their own route. The admin can *dispatch help* but **cannot resume the route** — only the driver can. This is a separation-of-duties decision, not a UI limitation: the person with ground truth about vehicle safety is the only one who can declare it safe to continue.
+- **Navigation is delegated.** Turn-by-turn is deep-linked out to Google Maps or Waze per stop rather than reimplemented.
+
+---
+
+## 2. Architecture
 
 ```
 geotrack/
-├── backend/    API REST — FastAPI + PostgreSQL + SQLAlchemy/Alembic   (dockerizado)
-├── frontend/   Panel web del admin/almacén — React 19 + Vite + Tailwind (Nginx, dockerizado)
-├── mobile/     App del conductor — Expo (SDK 52) + React Native + TypeScript (NO se dockeriza)
-└── docker-compose.yml   Levanta db + backend + frontend con un comando
+├── backend/    REST API — FastAPI + PostgreSQL + SQLAlchemy/Alembic   (dockerized)
+├── frontend/   Admin & warehouse web panel — React 19 + Vite + Tailwind (Nginx, dockerized)
+├── mobile/     Driver app — Expo SDK 52 + React Native + TypeScript    (not dockerized)
+└── docker-compose.yml
 ```
 
-| Capa | Tecnologías |
-|------|-------------|
-| **Backend** | FastAPI · SQLAlchemy · Alembic · PostgreSQL · JWT (Argon2) · geopy (Google/Nominatim) |
-| **Frontend** | React 19 · Vite · Tailwind CSS 4 · React Router · Recharts · `@react-google-maps/api` / Leaflet |
-| **Móvil** | Expo SDK 52 · React Native · TypeScript · expo-router · React Query · react-native-maps · expo-location |
-| **Infra** | Docker Compose · Nginx (reverse proxy: sirve la SPA y redirige `/api`, `/media`, `/socket.io` al backend) |
+| Layer | Technologies |
+| --- | --- |
+| **Backend** | FastAPI · SQLAlchemy · Alembic · PostgreSQL · JWT (Argon2) · geopy |
+| **Frontend** | React 19 · Vite · Tailwind CSS 4 · React Router · Recharts · Google Maps / Leaflet |
+| **Mobile** | Expo SDK 52 · React Native · TypeScript · expo-router · React Query · react-native-maps |
+| **Infra** | Docker Compose · Nginx reverse proxy · GitHub Actions CI |
 
-> El navegador del panel **no** llama al backend en `:8000` directamente: Nginx (puerto `8080`) hace de
-> *reverse proxy*, así que todo es el mismo origen (sin CORS ni `localhost` hardcodeado en el bundle).
+**The browser never talks to the API directly.** Nginx (port `8080`) serves the SPA and proxies `/api`, `/media` and `/socket.io` to the backend. Everything is same-origin: no CORS configuration to get wrong, and no hardcoded `localhost` baked into the production bundle.
 
----
+### Design system
 
-## 3. ¿Qué se necesita? (Requisitos)
-
-| Para… | Necesitas |
-|-------|-----------|
-| Backend + Panel web | **Docker Desktop** (Compose v2). Nada más: Python y Node corren dentro de los contenedores. |
-| Base de datos | Incluida (contenedor `db`, PostgreSQL 15) **o** una propia (p. ej. **Supabase**) vía `DATABASE_URL`. |
-| App móvil (desarrollo) | **Node 18+**, la app **Expo Go** en el teléfono y la PC en la **misma red WiFi**. |
-| App móvil (mapa nativo y ubicación en 2.º plano) | Un **dev build** de Expo (`eas build`); Expo Go no soporta mapas nativos. |
-| Mapas/geocoding de Google (opcional) | Proyecto en **Google Cloud** con facturación + claves de API (ver §4.4). |
-| Bandeja de correos (opcional) | Una cuenta de correo con IMAP/SMTP (en Gmail, una *contraseña de aplicación*). |
+The web panel is built on **frontend-geotrack**, an in-house component library (12 components: `Button`, `Card`, `StatCard`, `EstadoBadge`, `Modal`, `PageHeader`, `Input`, `PasswordInput`, `Badge`, `Logo`, `Skeleton`, `SkeletonStat`) with 120 design tokens. Components are configured through props rather than loose utility classes, so visual language stays consistent as the panel grows. `EstadoBadge` in particular takes an order state code and derives its own colour, which keeps status rendering identical everywhere it appears.
 
 ---
 
-## 4. Instalación detallada
+## 3. Security
 
-### 4.1 Clonar y preparar el `.env`
+Security was designed in from the start rather than bolted on. This section documents the threat model, the controls, and the vulnerability work I ran against my own code.
+
+### Threat model
+
+| Threat | Why it matters here | Control |
+| --- | --- | --- |
+| Unauthorized access to shipment data | Routes, client addresses and settlement figures are commercially sensitive | JWT authentication + RBAC across three roles |
+| Credential compromise | Drivers use the app on personal devices in the field | Argon2 password hashing; tokens stored via `expo-secure-store`, never in plain storage |
+| Privilege escalation between roles | A driver reaching admin endpoints could reassign or cancel deliveries | Role checks enforced server-side on every protected endpoint |
+| Injection through user-supplied input | Endpoints accept free-text search, addresses, and imported Excel data | Parameterized queries throughout; schema validation at the API boundary |
+| Insider misuse by legitimate users | An authenticated user can reassign, reschedule or cancel orders | Audit logging over every state transition |
+| API key abuse | Google Maps/Geocoding keys are billable | Keys restricted by referrer and by API, with quota caps |
+
+### Access control
+
+- **JWT bearer authentication** with role-based access control across `admin`, `warehouse` and `driver`.
+- **Separation of duties** enforced in the domain logic, not just the UI — the breakdown/resume split described above is the clearest example.
+- **Least privilege**: each role's endpoints expose only the operations that role needs.
+
+### Cryptography
+
+- **Passwords:** Argon2 — chosen over bcrypt for its memory-hardness against GPU-accelerated cracking.
+- **In transit:** TLS terminated at the reverse proxy.
+- **Mobile token storage:** `expo-secure-store` (Keychain / Keystore), not `AsyncStorage`.
+- **Secrets:** injected through environment variables, never committed. `.env` is gitignored.
+
+### Audit logging
+
+Every state transition on an order writes an audit record capturing actor, action, target and timestamp. This makes it possible to reconstruct who changed what and when, and to surface patterns — such as a single account cancelling an unusual number of deliveries — that no single request would reveal.
+
+### Vulnerability management
+
+Testing was **manual** — no automated scanners. I reviewed endpoints, application flows and code by hand against the OWASP Top 10, classified what I found, fixed it, and re-tested to confirm the fix held. Automating this in CI is on the roadmap (see Known gaps).
+
+**Finding — real-time fleet positions exposed on the public landing page**
+
+| | |
+| --- | --- |
+| **Severity** | High |
+| **Category** | Broken Access Control · Insecure Design (OWASP 1 and 6) |
+| **Where** | Public landing page, no authentication required |
+
+The landing page fronts several portals, and it carried a live map of vehicles moving along their routes. It was there as an engagement feature — the product showing off what it does — and it worked exactly as intended.
+
+That was the problem. The map served **real positions of loaded delivery vehicles to anyone on the internet**, with no login. A continuously updating feed of where cargo is, refreshed as it moves, is reconnaissance for targeted theft. No authorization check was missing in the technical sense: the feature was designed to be public, and the design itself was the vulnerability.
+
+**Remediation:** the public map now runs on **simulated data**. It still demonstrates what the platform does, so the marketing value is intact, but real vehicle positions are served only inside the authenticated portals, to the roles that operate them.
+
+**Verified:** ✅ Re-tested — the public endpoint no longer returns live fleet data.
+
+> This one did not come from reading code or running a tool. It came from asking who benefits from this data being visible, and noticing that the answer included people the operator would not want looking. A scanner cannot flag "this feature works as designed and that is the issue."
+
+### OWASP Top 10 coverage (2025)
+
+Tested and addressed **8 of 10** categories:
+
+| # | Category | Status |
+| --- | --- | --- |
+| 1 | Broken Access Control | ✅ Tested — both findings above fall here |
+| 2 | Security Misconfiguration | ✅ Tested |
+| 3 | Software Supply Chain Failures | ❌ Not covered — no dependency scanning in place |
+| 4 | Cryptographic Failures | ✅ Tested — Argon2, TLS, secure token storage |
+| 5 | Injection | ✅ Tested — parameterized queries, boundary validation |
+| 6 | Insecure Design | ✅ Tested — separation of duties in the assistance flow |
+| 7 | Authentication Failures | ✅ Tested — JWT lifetime, password handling |
+| 8 | Software & Data Integrity Failures | ❌ Not covered |
+| 9 | Logging & Alerting Failures | ✅ Tested — audit trail over state transitions |
+| 10 | Mishandling of Exceptional Conditions | ✅ Tested — error responses reveal no internals |
+
+Categories 3 and 8 are untested. Both need tooling I have not wired in yet — dependency and artifact scanning — rather than analysis I skipped.
+
+### Known gaps
+
+Stated plainly, because a security document that claims completeness isn't credible:
+
+- **No automated test suite.** Verification is currently build- and typecheck-based (below). This is the largest gap.
+- **All security testing is manual.** It does not re-run on every change, so a regression could reach `main` unnoticed.
+- **No dependency or artifact scanning**, which is why OWASP categories 3 and 8 are untested.
+- **No centralized log aggregation.** Audit records live in the database; shipping them to a SIEM would make anomaly detection continuous rather than manual.
+- **Nothing is wired into CI yet.** GitHub Actions already runs build and quality checks; adding dependency scanning and SAST there is the obvious next step.
+- **Authorization is enforced per-handler.** A policy middleware would make it structurally impossible to forget a check on a new endpoint.
+
+---
+
+## 4. Requirements
+
+| To run… | You need |
+| --- | --- |
+| Backend + web panel | **Docker Desktop** (Compose v2). Python and Node run inside the containers. |
+| Database | Included (`db` container, PostgreSQL 15), or bring your own via `DATABASE_URL`. |
+| Mobile app (development) | **Node 18+**, **Expo Go** on the phone, PC and phone on the same WiFi. |
+| Mobile app (native maps, background location) | An Expo **dev build** (`eas build`) — Expo Go does not support native maps. |
+| Google Maps / Geocoding (optional) | A Google Cloud project with billing enabled + restricted API keys. |
+| Email intake (optional) | An IMAP/SMTP mailbox (on Gmail, an app password). |
+
+---
+
+## 5. Setup
+
+### 5.1 Clone and configure
+
 ```bash
 git clone https://github.com/SebastianUC202120472/Geotrack.git
 cd Geotrack
-# Crea un archivo .env en la raíz (ver la tabla de variables de abajo).
+cp .env.example .env    # then fill in your own values
 ```
-Abre `.env` y ajusta los valores. Grupos de variables:
 
-| Grupo | Variables | Notas |
-|-------|-----------|-------|
-| **Base de datos** | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DATABASE_URL` | El host es `db` (nombre del servicio en Compose), **no** `localhost`. |
-| **Seguridad / JWT** | `SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES` | Genera una clave fuerte: `python -c "import secrets; print(secrets.token_hex(32))"`. |
-| **Admin inicial** | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Se crea solo al arrancar si no existe. **Cámbialos antes de producción.** |
-| **Mapas panel** | `VITE_GOOGLE_MAPS_KEY` | Vacía = OpenStreetMap (gratis). Con clave = Google Maps. |
-| **Geocoding backend** | `GOOGLE_GEOCODING_KEY` | Vacía = Nominatim/OSM (gratis, menos preciso). Con clave = Google (preciso). |
-| **Correo (opcional)** | `MAIL_ENABLED`, `MAIL_*`, `IMAP_*`, `SMTP_*` | Con `MAIL_ENABLED=false` la bandeja queda inactiva y el resto funciona igual. |
+| Group | Variables | Notes |
+| --- | --- | --- |
+| **Database** | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DATABASE_URL` | Host is `db` (the Compose service name), **not** `localhost`. |
+| **Auth / JWT** | `SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES` | Generate a strong key: `python -c "import secrets; print(secrets.token_hex(32))"` |
+| **Initial admin** | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Created on first boot if absent. **Set both to your own values — there are no defaults, by design.** |
+| **Panel maps** | `VITE_GOOGLE_MAPS_KEY` | Empty = OpenStreetMap (free). With key = Google Maps. |
+| **Backend geocoding** | `GOOGLE_GEOCODING_KEY` | Empty = Nominatim/OSM (free, less precise). With key = Google. |
+| **Email (optional)** | `MAIL_ENABLED`, `MAIL_*`, `IMAP_*`, `SMTP_*` | With `MAIL_ENABLED=false` the inbox is inactive and everything else works. |
 
-### 4.2 Elegir la base de datos
-- **Opción A — local (por defecto):** deja `DATABASE_URL` apuntando a `db` (el Postgres del `docker-compose`).
-  El contenedor `db` levanta un PostgreSQL con volumen persistente.
-- **Opción B — Supabase u otra remota:** reemplaza `DATABASE_URL` por la cadena de tu proveedor, p. ej.:
+> **Never commit `.env`.** It is gitignored. Restrict your Google keys by referrer and API, and set quota caps — an unrestricted billable key in a public repo is the fastest way to lose a Google Cloud account.
+
+### 5.2 Database options
+
+- **Local (default):** leave `DATABASE_URL` pointing at `db`. The container runs PostgreSQL 15 with a persistent volume.
+- **Remote (Supabase or similar):** replace `DATABASE_URL` with your provider's connection string, e.g.
+
   ```
   DATABASE_URL=postgresql://postgres.<ref>:<password>@aws-...pooler.supabase.com:5432/postgres?sslmode=require
   ```
-  (En Supabase, si la contraseña tiene `@`, escríbelo como `%40`.) El contenedor `db` puede seguir
-  arrancando pero quedará sin uso.
 
-> El esquema se crea solo al arrancar (`create_all`) y se siembra el admin inicial. Las migraciones de
-> Alembic están versionadas para entornos ya gestionados con Alembic.
+  URL-encode special characters in the password (`@` becomes `%40`).
 
-### 4.3 Levantar backend + panel
+The schema is created on boot (`create_all`) and the initial admin is seeded. Alembic migrations are versioned for environments already managed with Alembic.
+
+### 5.3 Run
+
 ```bash
 docker compose up --build
 ```
-| Servicio | URL |
-|----------|-----|
-| **Panel web** (admin / almacén) | http://localhost:8080 |
-| **API + Swagger** | http://localhost:8000/docs |
 
-Inicia sesión en el panel con el admin de tu `.env` (por defecto **admin@siol.com / admin123**).
+| Service | URL |
+| --- | --- |
+| Web panel | http://localhost:8080 |
+| API + Swagger | http://localhost:8000/docs |
 
-### 4.4 Claves de Google (opcional)
-Todo funciona **sin** Google (panel con OSM; geocoding con Nominatim). Para activarlo:
-1. En **Google Cloud Console**: crea un proyecto, activa **facturación** y habilita
-   **Maps JavaScript API** (panel), **Geocoding API** (backend) y **Maps SDK for Android/iOS** (app).
-2. Crea claves y **restríngelas** (referentes HTTP para el panel; API concreta + tope de cuota para geocoding).
-3. Pega cada clave donde corresponde y reconstruye:
-   - Panel → `VITE_GOOGLE_MAPS_KEY` en `.env` → `docker compose up -d --build frontend`.
-   - Backend → `GOOGLE_GEOCODING_KEY` en `.env` → `docker compose up -d --build backend`.
-   - Móvil → `EXPO_PUBLIC_GOOGLE_MAPS_KEY` en `mobile/.env` (aplica en `eas build`).
+Sign in with the admin credentials you set in `.env`.
 
-### 4.5 App móvil del conductor
+### 5.4 Google keys (optional)
+
+Everything works without Google — the panel falls back to OSM and geocoding to Nominatim. To enable Google:
+
+1. In Google Cloud Console: create a project, enable billing, and enable **Maps JavaScript API** (panel), **Geocoding API** (backend), and **Maps SDK for Android/iOS** (mobile).
+2. Create keys and **restrict them** — HTTP referrers for the panel, specific API plus a quota cap for geocoding.
+3. Set each key and rebuild:
+   - Panel → `VITE_GOOGLE_MAPS_KEY` → `docker compose up -d --build frontend`
+   - Backend → `GOOGLE_GEOCODING_KEY` → `docker compose up -d --build backend`
+   - Mobile → `EXPO_PUBLIC_GOOGLE_MAPS_KEY` in `mobile/.env` (applied at `eas build`)
+
+### 5.5 Driver mobile app
+
 ```bash
 cd mobile
 npm install
-npx expo install --check          # alinea versiones nativas con el SDK
-# Crea mobile/.env con la IP de tu PC (no localhost):
+npx expo install --check          # align native versions with the SDK
+# Create mobile/.env with your machine's LAN IP (not localhost):
 #   EXPO_PUBLIC_API_URL=http://192.168.x.x:8000/api
-npx expo start -c                 # escanea el QR con Expo Go (misma WiFi)
+npx expo start -c                 # scan the QR with Expo Go, same WiFi
 ```
-Para el **mapa nativo** y la **ubicación en segundo plano** se necesita un *dev build*:
-`eas build --platform android` (ver `mobile/README.md`).
+
+Native maps and background location require a dev build: `eas build --platform android`. See `mobile/README.md`.
 
 ---
 
-## 5. Comandos habituales (desarrollo y despliegue)
+## 6. Common commands
 
-| Quiero… | Comando |
-|---------|---------|
-| Levantar todo (1.ª vez o tras cambios) | `docker compose up --build` |
-| Levantar en segundo plano | `docker compose up -d --build` |
-| Reconstruir **solo el panel** (cambios de frontend) | `docker compose up -d --build --no-deps frontend` |
-| Reconstruir **solo el backend** (cambios de API/tablas) | `docker compose up -d --build backend` |
-| Reconstruir backend **y** panel | `docker compose up -d --build backend frontend` |
-| Ver logs en vivo | `docker compose logs -f backend` |
-| Parar todo | `docker compose down` |
-| Parar y **borrar la BD local** | `docker compose down -v` |
-| Correr la app móvil | `cd mobile && npx expo start -c` |
+| Task | Command |
+| --- | --- |
+| Bring everything up | `docker compose up --build` |
+| Run detached | `docker compose up -d --build` |
+| Rebuild panel only | `docker compose up -d --build --no-deps frontend` |
+| Rebuild backend only | `docker compose up -d --build backend` |
+| Follow logs | `docker compose logs -f backend` |
+| Stop | `docker compose down` |
+| Stop and wipe local DB | `docker compose down -v` |
+| Run the mobile app | `cd mobile && npx expo start -c` |
 
-> El panel es un **build estático** servido por Nginx: para ver cambios web hay que **reconstruir** su
-> imagen. El backend solo necesita reconstruirse cuando cambian dependencias, endpoints o tablas.
+The panel is a static build served by Nginx, so web changes require rebuilding its image. The backend only needs rebuilding when dependencies, endpoints or tables change.
 
-**Verificación antes de dar algo por hecho** (no hay tests automatizados; se valida con build/typecheck):
+**Verification before calling anything done** (no automated test suite yet — see Known gaps):
+
 ```bash
-# Frontend
-cd frontend && npm run build && npm run lint
-# Backend (sintaxis + importación de la app dentro de la imagen)
-docker compose run --rm backend python -c "import app.main"
-# Móvil (TypeScript)
-cd mobile && npx tsc --noEmit
+cd frontend && npm run build && npm run lint          # Frontend
+docker compose run --rm backend python -c "import app.main"   # Backend imports
+cd mobile && npx tsc --noEmit                          # Mobile typecheck
 ```
 
 ---
 
-## 6. ¿Cómo se usa?
+## 7. End-to-end walkthrough
 
-Recorrido de punta a punta de un envío:
+1. **Request.** A client emails an Excel of orders. It lands in the panel **Inbox**.
+2. **Accept (admin).** The admin opens the thread and accepts it by uploading the Excel → orders are created as `TO_PICK_UP` and geocoded in the background.
+3. **Build pickup route (warehouse).** Requests are assigned to a driver and vehicle.
+4. **Collect (driver).** The driver opens the pickup route, optimizes from their location, and registers receipt with photos → `PICKED_UP`.
+5. **Manual intake (warehouse).** The warehouse reviews the photo gallery, flags shortages (→ `FLAGGED`) and confirms; the rest move to `READY_TO_SHIP`.
+6. **Dispatch (admin).** In zone grouping, the admin picks a district and creates a delivery route → `ASSIGNED`.
+7. **Deliver (driver).** The driver optimizes the route, navigates stop by stop, and marks `DELIVERED` with proof of delivery or `FAILED` with a reason.
+8. **Reports and assistance.** The admin resolves reports and reschedules or cancels failures. On a breakdown, the driver reports it (route pauses), the admin dispatches help, and the driver resumes.
+9. **End of day.** With no stops pending, the driver closes the route.
 
-1. **Solicitud (Bandeja).** Llega un correo del cliente con un Excel de pedidos. Aparece en la **Bandeja**
-   del panel.
-2. **Aceptar (admin).** El admin abre la conversación y la **acepta** subiendo el Excel → se crean los
-   pedidos en `POR_RECOGER` y se geocodifican en segundo plano. La conversación queda `ATENDIDA`.
-3. **Armar recojo (almacén).** En **Armar ruta de recojo**, el almacén asigna las solicitudes a un
-   conductor + vehículo.
-4. **Recoger (conductor).** El conductor abre su ruta de recojo, **optimiza** desde su ubicación y
-   **registra la recepción** con varias fotos → el recojo queda `RECOGIDO`.
-5. **Ingreso manual (almacén).** En **Ingreso de almacén**, el almacén ve la galería de fotos, marca lo
-   **faltante** (→ `OBSERVADO`) y **confirma**: el resto pasa a `LISTO_PARA_ENVIO`. Los observados se
-   resuelven cuando se aclaran.
-6. **Despachar (admin).** En **Agrupación por zonas**, el admin elige una zona (distrito) y crea una
-   **ruta de entrega** para un conductor. Los pedidos pasan a `ASIGNADO`.
-7. **Entregar (conductor).** El conductor **optimiza** la ruta, navega parada por parada (deep link a
-   Google Maps), marca **ENTREGADO** con foto (POD) o **FALLIDO** con motivo (genera un reporte).
-8. **Reportes y auxilio (admin/conductor).** El admin **responde** los reportes y **reprograma o cancela**
-   los fallidos. Ante una avería, el conductor reporta auxilio (ruta pausada), el admin **manda ayuda** y
-   el conductor **reanuda**.
-9. **Cierre del día (conductor).** Cuando no quedan paradas pendientes, el conductor **cierra la ruta**.
+Throughout, the panel surfaces a KPI dashboard, live fleet tracking, per-order traceability, and client settlements.
 
-A lo largo del flujo, el panel muestra el **Dashboard** (KPIs y gráficos), el **Seguimiento de
-conductores** (mapa de flota en vivo), la **Trazabilidad** por pedido y las **Liquidaciones** por cliente.
-
-> **Probar el lado conductor sin la app:** mientras no haya *dev build*, el flujo del conductor se puede
-> ejercitar por los endpoints `/api/conductor/*` (login → manifiesto → optimizar → marcar
-> entregado/fallido → reportar → auxilio → reanudar). Todo se refleja en el panel. Ver Swagger en
-> http://localhost:8000/docs.
+> **Testing the driver flow without the app:** until a dev build exists, the driver side can be exercised through the `/api/conductor/*` endpoints (login → manifest → optimize → mark delivered/failed → report → assistance → resume). Everything reflects in the panel. See Swagger at http://localhost:8000/docs.
 
 ---
 
-## 7. Notas de seguridad (antes de producción)
+## 8. Git workflow
 
-- **Genera un `SECRET_KEY` fuerte y aleatorio** y **cambia `ADMIN_PASSWORD`** — no dejes los valores de
-  ejemplo.
-- Mantén `.env` fuera del repositorio (ya está en `.gitignore`) y **restringe** las claves de Google con
-  topes de cuota.
-- La autenticación es por **JWT** (`Authorization: Bearer`) con control por roles (`admin`, `almacen`,
-  `conductor`); en la app el token se guarda cifrado (`expo-secure-store`).
+The repository follows **Gitflow**: `main` (production) ← `develop` (integration) ← `feature/*` branches. Features merge into `develop` with `--no-ff` to preserve branch topology; `develop` is promoted to `main` per release. 480+ commits to date, with build and quality checks running in GitHub Actions.
 
 ---
 
-## 8. Flujo de trabajo (Git)
-
-El repositorio sigue **Gitflow**: `main` (producción) ← `develop` (integración) ← ramas `feature/*`.
-Las features se integran a `develop` con `merge --no-ff`; `develop` se promueve a `main` para cada versión.
+Built by **Sebastián Urteaga Castañeda** — [LinkedIn](https://www.linkedin.com/in/sebastian-urteaga/)
