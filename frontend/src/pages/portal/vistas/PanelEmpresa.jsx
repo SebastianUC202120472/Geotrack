@@ -733,8 +733,18 @@ function VerificacionOtp({ correoMask, otpInput, onOtpInput, onOtp, otpError, ot
     <div data-ppanel="1" style={{ maxWidth: 560, margin: "0 auto", background: "#fff", border: "1.5px solid rgba(38,121,216,.3)", borderRadius: 22, padding: "30px 28px", boxShadow: "0 16px 40px rgba(15,43,74,.08)", animation: "aparecer .4s ease both" }}>
       <p style={{ margin: 0, fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 21 }}>Verificación en dos pasos</p>
       <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.6, color: "#4f6580" }}>
-        Código enviado al correo del administrador{correoMask ? " " : ""}
-        {correoMask && <strong>{correoMask}</strong>}. Revise su bandeja de entrada (y spam) e ingréselo aquí.
+        {otpDemo ? (
+          <>
+            Por seguridad, el acceso exige un segundo factor. El código corresponde a la cuenta
+            {correoMask ? " " : ""}
+            {correoMask && <strong>{correoMask}</strong>}.
+          </>
+        ) : (
+          <>
+            Código enviado al correo del administrador{correoMask ? " " : ""}
+            {correoMask && <strong>{correoMask}</strong>}. Revise su bandeja de entrada (y spam) e ingréselo aquí.
+          </>
+        )}
       </p>
       {otpDemo && (
         <div style={{ margin: "14px 0 0", padding: "12px 14px", borderRadius: 12, background: "#fff7e6", border: "1.5px solid #f0c36d", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>

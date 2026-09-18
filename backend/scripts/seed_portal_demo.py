@@ -110,6 +110,21 @@ def _momento(base: datetime, hora: int, minuto: int) -> datetime:
     return base + timedelta(hours=hora, minutes=minuto)
 
 
+def momentos_de_cierre(pedidos) -> dict:
+    """Calcula el instante en que se cerro cada pedido terminal. Recibe [[pedido, estado,
+    indice], ...] y devuelve {pedido_id: momento UTC}.
+    Se calcula UNA sola vez y lo comparten el historial, la fecha de entrega, la
+    evidencia y el detalle de ruta: si cada uno inventara su hora, la linea de tiempo
+    del portal contradiria la hora que muestra el panel corporativo.
+    Las 11:00-17:59 locales van siempre despues del ultimo paso intermedio (10:xx)."""
+    inicio_dia, _ = fechas.rango_utc_del_dia()
+    return {
+        p.id: _momento(inicio_dia, 11 + indice % 7, indice % 60)
+        for p, estado, indice in pedidos
+        if estado in ("ENTREGADO", "FALLIDO")
+    }
+
+
 def crear_pedidos(db, empresas) -> list:
     """Crea los 250 pedidos del dia con su estado, destinatario y coordenadas.
     Recibe la sesion y la lista de empresas. Devuelve [[pedido, estado, indice], ...]."""
@@ -162,21 +177,25 @@ _CAMINO = {
 }
 
 
-def crear_historial(db, pedidos, admin_id):
-    """Inserta la trazabilidad completa de cada pedido. Recibe la sesion, los pedidos y
-    el id del admin. Las horas van escalonadas para que la linea de tiempo del portal
-    se lea en orden."""
+def crear_historial(db, pedidos, admin_id, cierres):
+    """Inserta la trazabilidad completa de cada pedido. Recibe la sesion, los pedidos,
+    el id del admin y los momentos de cierre.
+    Los pasos intermedios van de 07:00 a 10:xx (una hora cada uno, asi la linea de
+    tiempo sale en orden) y el paso final reutiliza el momento de cierre compartido."""
     inicio_dia, _ = fechas.rango_utc_del_dia()
     filas = []
     for p, estado, indice in pedidos:
         anterior = None
-        for paso, nuevo in enumerate(_CAMINO[estado]):
+        camino = _CAMINO[estado]
+        for paso, nuevo in enumerate(camino):
+            es_cierre = paso == len(camino) - 1 and p.id in cierres
             filas.append(HistorialPedido(
                 pedido_id=p.id,
                 estado_anterior=anterior,
                 estado_nuevo=nuevo,
                 usuario_id=admin_id,
-                fecha_utc=_momento(inicio_dia, 7 + paso * 2, (indice + paso * 7) % 60),
+                fecha_utc=(cierres[p.id] if es_cierre
+                           else _momento(inicio_dia, 7 + paso, (indice + paso * 11) % 60)),
             ))
             anterior = nuevo
     db.add_all(filas)
@@ -195,9 +214,10 @@ def _agrupar(pedidos, estados) -> dict:
     return grupos
 
 
-def crear_rutas(db, pedidos, conductores) -> dict:
+def crear_rutas(db, pedidos, conductores, cierres) -> dict:
     """Crea las rutas finalizadas y las que estan en curso, con sus paradas.
-    Recibe la sesion, los pedidos y los conductores. Devuelve {pedido_id: detalle}.
+    Recibe la sesion, los pedidos, los conductores y los momentos de cierre.
+    Devuelve {pedido_id: detalle}.
     Los conductores 2, 3 y 4 cargan las rutas; el primero queda libre para la demo."""
     inicio_dia, _ = fechas.rango_utc_del_dia()
     con_ruta = conductores[1:]
@@ -209,7 +229,7 @@ def crear_rutas(db, pedidos, conductores) -> dict:
         c = con_ruta[turno % len(con_ruta)]
         rutas.append({
             "nombre": f"Ruta {distrito}", "estado": "FINALIZADA", "conductor": c,
-            "pedidos": grupo, "salida": _momento(inicio_dia, 9, 0), "fin": _momento(inicio_dia, 16, 30),
+            "pedidos": grupo, "salida": _momento(inicio_dia, 10, 0), "fin": _momento(inicio_dia, 18, 30),
         })
 
     # Una ruta EN_PROGRESO por conductor con los pedidos que van en camino.
@@ -248,8 +268,7 @@ def crear_rutas(db, pedidos, conductores) -> dict:
             d = RutaDetalle(
                 ruta_id=r.id, pedido_id=p.id, secuencia=orden,
                 estado_entrega=estado_entrega, motivo_fallo=motivo,
-                fecha_gestion=(_momento(inicio_dia, 10 + orden % 6, orden % 60)
-                               if estado_entrega != "PENDIENTE" else None),
+                fecha_gestion=cierres.get(p.id) if estado_entrega != "PENDIENTE" else None,
             )
             db.add(d)
             nuevos.append(d)
@@ -285,16 +304,15 @@ def _imagen_pod(codigo: str, nombre: str, cuando: str):
     return img
 
 
-def crear_evidencias(db, pedidos, detalles):
+def crear_evidencias(db, pedidos, detalles, cierres):
     """Genera la foto POD de cada pedido entregado y la registra. Recibe la sesion, los
-    pedidos y los detalles de ruta. Escribe en uploads/evidencias con nombre no
-    enumerable (sufijo aleatorio), igual que las fotos que sube la app movil."""
+    pedidos, los detalles de ruta y los momentos de cierre. Escribe en uploads/evidencias
+    con nombre no enumerable (sufijo aleatorio), igual que las fotos que sube la app movil."""
     os.makedirs(DIR_POD, exist_ok=True)
-    inicio_dia, _ = fechas.rango_utc_del_dia()
     for p, estado, indice in pedidos:
         if estado != "ENTREGADO":
             continue
-        momento = _momento(inicio_dia, 10 + indice % 7, indice % 60)
+        momento = cierres[p.id]
         # La hora impresa en la constancia es la LOCAL de la operacion; en la BD la
         # marca se guarda en UTC naive, como el resto del sistema.
         etiqueta_hora = momento.replace(tzinfo=timezone.utc).astimezone(fechas.zona()).strftime("%H:%M")
@@ -364,6 +382,10 @@ def escribir_hoja(pedidos):
 def main():
     """Ejecuta la siembra completa de la demostracion del portal. Sin input."""
     db = SessionLocal()
+    # Tras cada commit los objetos siguen usables sin volver a consultarlos: la hoja de
+    # credenciales y la generacion de POD leen los 250 pedidos ya cargados, y con el
+    # comportamiento normal cada lectura seria un viaje mas a Supabase.
+    db.expire_on_commit = False
     try:
         conductores = conductores_de_la_demo(db)
         admin = db.query(Usuario).filter(Usuario.rol == "admin").order_by(Usuario.id).first()
@@ -378,15 +400,21 @@ def main():
         print("Creando pedidos...")
         pedidos = crear_pedidos(db, empresas)
 
+        cierres = momentos_de_cierre(pedidos)
+
         print("Creando historial...")
-        crear_historial(db, pedidos, admin_id)
+        crear_historial(db, pedidos, admin_id, cierres)
 
         print("Creando rutas...")
-        detalles = crear_rutas(db, pedidos, conductores)
+        detalles = crear_rutas(db, pedidos, conductores, cierres)
+        # Se cierra la transaccion ANTES de dibujar las imagenes. Generar 150 JPEG dentro
+        # de ella la mantendria abierta un par de minutos sobre tablas recien truncadas, y
+        # cualquier reinicio del backend en ese rato se quedaria esperando el lock hasta
+        # agotar el statement_timeout de Supabase.
+        db.commit()
 
         print("Generando fotos POD...")
-        crear_evidencias(db, pedidos, detalles)
-
+        crear_evidencias(db, pedidos, detalles, cierres)
         db.commit()
         ruta = escribir_hoja(pedidos)
         print(f"\nOK: {len(empresas)} empresas y {len(pedidos)} pedidos sembrados.")
