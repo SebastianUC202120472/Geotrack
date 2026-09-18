@@ -23,6 +23,7 @@ from app.core.codigos import (  # noqa: E402
     generar_codigo,
 )
 from app.core.security import get_password_hash  # noqa: E402
+from app.services.geocoder import obtener_coordenadas  # noqa: E402
 from app.db.database import SessionLocal  # noqa: E402
 from app.models.cliente import ClienteCorporativo  # noqa: E402
 from app.models.evidencia import EvidenciaEntrega  # noqa: E402
@@ -86,12 +87,17 @@ def crear_empresas(db) -> list:
     Devuelve la lista de ClienteCorporativo en el mismo orden del catalogo."""
     creados = []
     for datos in cat.EMPRESAS:
+        # El almacen SI se geocodifica (son 5 llamadas): sin coordenadas de origen el
+        # panel rechaza aceptarle una solicitud de recojo a esa empresa.
+        lat, lng = obtener_coordenadas(datos["direccion_origen"])
         c = ClienteCorporativo(
             razon_social=datos["razon_social"],
             identificador_unico=datos["ruc"],
             contacto=datos["correo_portal"],
             direccion_origen=datos["direccion_origen"],
             distrito=datos["direccion_origen"].split(",")[1].strip(),
+            latitud=lat,
+            longitud=lng,
             codigo_acceso=datos["codigo_acceso"],
             clave_hash=get_password_hash(datos["clave"]),
             correo_portal=datos["correo_portal"],
