@@ -15,6 +15,8 @@ venv/
 .pytest_cache/
 # Evidencias / archivos subidos en runtime (se sirven en /media)
 backend/uploads/
+# Hoja de credenciales que genera el script de siembra de la demostracion
+backend/scripts/salida/
 
 # --- Frontend (Node / Vite) ---
 node_modules/
