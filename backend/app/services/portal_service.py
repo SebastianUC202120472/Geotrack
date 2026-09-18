@@ -272,3 +272,16 @@ def respuesta_login_empresa(enviado: bool, otp: str, correo_mask: str, demo: boo
         status_code=503,
         detail="No se pudo enviar el codigo de verificacion. Contacte a SAVA para acceder al portal.",
     )
+
+
+def ayuda_demo(db: Session, demo: bool) -> dict:
+    """Credenciales y codigos de ejemplo para la sustentacion. Recibe db y si el modo
+    demostracion esta activo.
+    Con la bandera apagada devuelve {"activo": False} y NADA mas: estos datos incluyen
+    claves en claro y no pueden salir por un endpoint publico en operacion normal."""
+    if not demo:
+        return {"activo": False}
+    datos = repo.ayuda_demo(db)
+    if not datos:
+        return {"activo": False}
+    return {"activo": True, **datos}

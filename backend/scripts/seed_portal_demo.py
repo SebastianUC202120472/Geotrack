@@ -27,6 +27,7 @@ from app.db.database import SessionLocal  # noqa: E402
 from app.models.cliente import ClienteCorporativo  # noqa: E402
 from app.models.evidencia import EvidenciaEntrega  # noqa: E402
 from app.models.historial import HistorialPedido  # noqa: E402
+from app.models.parametro import ParametroSistema  # noqa: E402
 from app.models.pedido import Pedido  # noqa: E402
 from app.models.ruta import Ruta, RutaDetalle  # noqa: E402
 from app.models.usuario import Usuario  # noqa: E402
@@ -328,13 +329,62 @@ def crear_evidencias(db, pedidos, detalles, cierres):
             detalles[p.id].url_evidencia = url
 
 
+ETIQUETAS_ESTADO = {
+    "ENTREGADO": "Entregado", "EN_RUTA": "En camino", "LISTO_PARA_ENVIO": "Por salir",
+    "FALLIDO": "Reprogramado", "OBSERVADO": "En gestion",
+}
+
+
+def pedidos_de_ejemplo(pedidos) -> list:
+    """Elige un pedido por empresa y por estado. Recibe [[pedido, estado, indice], ...].
+    Es la misma lista que usan la hoja de credenciales y la ayuda que se ve en el portal,
+    para que no se puedan contradecir."""
+    vistos = set()
+    salida = []
+    for p, estado, _ in pedidos:
+        clave = (p.cliente_origen, estado)
+        if clave in vistos:
+            continue
+        vistos.add(clave)
+        salida.append({
+            "retail": p.cliente_origen,
+            "codigo": p.codigo,
+            "referencia": p.referencia_externa,
+            "estado": ETIQUETAS_ESTADO.get(estado, estado),
+            "dni": (p.dni_destinatario or "")[-4:],
+        })
+    return salida
+
+
+def guardar_ayuda_demo(db, pedidos):
+    """Guarda en parametros_sistema las credenciales y codigos que el portal muestra en
+    modo demostracion. Recibe la sesion y los pedidos.
+    Se guardan en la BD y no en el frontend para que salgan de la misma siembra; el
+    endpoint solo los entrega si PORTAL_OTP_DEMO esta encendida."""
+    datos = {
+        "empresas": [
+            {"nombre": e["razon_social"], "codigo": e["codigo_acceso"], "clave": e["clave"]}
+            for e in cat.EMPRESAS
+        ],
+        "pedidos": pedidos_de_ejemplo(pedidos),
+    }
+    fila = (
+        db.query(ParametroSistema)
+        .filter(ParametroSistema.categoria == "portal_demo", ParametroSistema.clave == "ayuda")
+        .first()
+    )
+    if fila:
+        fila.valor_json = datos
+    else:
+        db.add(ParametroSistema(categoria="portal_demo", clave="ayuda", valor_json=datos))
+    db.commit()
+
+
 def escribir_hoja(pedidos):
     """Escribe la hoja de credenciales y de pedidos de ejemplo. Recibe los pedidos.
     Devuelve la ruta del archivo generado."""
     os.makedirs(DIR_SALIDA, exist_ok=True)
     ruta = os.path.join(DIR_SALIDA, "credenciales_portal_demo.md")
-    etiqueta = {"ENTREGADO": "Entregado", "EN_RUTA": "En camino", "LISTO_PARA_ENVIO": "Por salir",
-                "FALLIDO": "Reprogramado", "OBSERVADO": "En gestion"}
     lineas = [
         "# Portal de clientes — hoja de sustentacion",
         "",
@@ -360,15 +410,10 @@ def escribir_hoja(pedidos):
         "|---|---|---|---|---|",
     ]
     # Un ejemplo por empresa y por estado, para tener a mano uno de cada caso.
-    vistos = set()
-    for p, estado, _ in pedidos:
-        clave = (p.cliente_origen, estado)
-        if clave in vistos:
-            continue
-        vistos.add(clave)
+    for e in pedidos_de_ejemplo(pedidos):
         lineas.append(
-            f"| {p.cliente_origen} | `{p.codigo}` | `{p.referencia_externa}` | "
-            f"{etiqueta[estado]} | `{p.dni_destinatario[-4:]}` |")
+            f"| {e['retail']} | `{e['codigo']}` | `{e['referencia']}` | "
+            f"{e['estado']} | `{e['dni']}` |")
     lineas += ["", "## Conductores", ""]
     for correo in CORREOS_CONDUCTORES:
         nota = " — SIN ruta activa, listo para el despacho en vivo" if correo == CORREOS_CONDUCTORES[0] else ""
@@ -395,7 +440,9 @@ def main():
     if "--solo-hoja" in sys.argv:
         db = SessionLocal()
         try:
-            ruta = escribir_hoja(pedidos_desde_bd(db))
+            filas = pedidos_desde_bd(db)
+            guardar_ayuda_demo(db, filas)
+            ruta = escribir_hoja(filas)
             print(f"Hoja regenerada: {ruta}")
         finally:
             db.close()
@@ -439,7 +486,7 @@ def _sembrar():
 
         print("Generando fotos POD...")
         crear_evidencias(db, pedidos, detalles, cierres)
-        db.commit()
+        guardar_ayuda_demo(db, pedidos)
         ruta = escribir_hoja(pedidos)
         print(f"\nOK: {len(empresas)} empresas y {len(pedidos)} pedidos sembrados.")
         print(f"Hoja de credenciales: {ruta}")

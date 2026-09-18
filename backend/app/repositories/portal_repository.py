@@ -10,6 +10,7 @@ from app.models.conductor import PerfilConductor
 from app.models.historial import HistorialPedido
 from app.models.evidencia import EvidenciaEntrega
 from app.models.cliente import ClienteCorporativo
+from app.models.parametro import ParametroSistema
 
 
 def pedido_por_codigo(db: Session, codigo: str) -> Optional[Pedido]:
@@ -140,3 +141,14 @@ def conteos_del_dia_reciente(db: Session):
 def ultimo_pedido(db: Session) -> Optional[Pedido]:
     """Devuelve el pedido mas reciente del sistema (para la tarjeta del landing)."""
     return db.query(Pedido).order_by(Pedido.id.desc()).first()
+
+
+def ayuda_demo(db: Session) -> Optional[dict]:
+    """Devuelve los datos de ayuda de la demostracion guardados por el seeder. Recibe db.
+    None si nunca se sembro la demostracion."""
+    fila = (
+        db.query(ParametroSistema)
+        .filter(ParametroSistema.categoria == "portal_demo", ParametroSistema.clave == "ayuda")
+        .first()
+    )
+    return fila.valor_json if fila else None
