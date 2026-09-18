@@ -195,7 +195,7 @@ export default function RastreoPersonal({ avisar }) {
             value={codigo}
             onChange={onCodigo}
             aria-label="Código de seguimiento"
-            placeholder="Código de seguimiento · ej. PD-2481"
+            placeholder="Código de seguimiento · ej. PD-001 o RPL-1000"
             className="ptl-input-buscar"
             style={{ flex: 1, minWidth: 200, boxSizing: "border-box", fontFamily: "Inter, sans-serif", fontSize: 15, padding: "14px 16px", border: "1.5px solid rgba(15,43,74,.16)", borderRadius: 12, background: "#f8fafc", color: "#0f2b4a", outline: "none" }}
           />
@@ -223,7 +223,7 @@ export default function RastreoPersonal({ avisar }) {
           <div data-ppanel="1" style={{ background: "#fff", border: "1.5px solid rgba(217,122,31,.35)", borderRadius: 18, padding: "22px 24px", animation: "aparecer .4s ease both" }}>
             <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#0f2b4a" }}>No encontramos el código «{errorCod}»</p>
             <p style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.6, color: "#4f6580" }}>
-              Revise que esté igual que en el correo o SMS de su tienda (con guion, ej. PD-2481). Si acaba de recibir la confirmación, el código puede tardar unos minutos en activarse.
+              Revise que esté igual que en el correo o SMS de su tienda (con guion, ej. RPL-1000 o PD-001). Si acaba de recibir la confirmación, el código puede tardar unos minutos en activarse.
             </p>
           </div>
         </section>
@@ -235,8 +235,10 @@ export default function RastreoPersonal({ avisar }) {
           <div style={{ border: "1.5px dashed rgba(38,121,216,.35)", borderRadius: 18, padding: "28px 24px", textAlign: "center", animation: "aparecer .5s ease .1s both" }}>
             <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#0f2b4a" }}>Su código está en el correo o SMS de su tienda</p>
             <p style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.6, color: "#4f6580", maxWidth: 540, display: "inline-block" }}>
-              Cuando Ripley, Falabella u otra tienda confirma su envío con SAVA, le llega un código como{" "}
-              <span style={{ fontWeight: 700, color: "#1b5fb3" }}>PD-2481</span>. Por su seguridad, además del código le pediremos verificar su identidad.
+              Cuando Ripley, Falabella u otra tienda confirma su envío con SAVA, le llega el número de su
+              tienda (como <span style={{ fontWeight: 700, color: "#1b5fb3" }}>RPL-1000</span>). También
+              sirve el código de SAVA, del tipo{" "}
+              <span style={{ fontWeight: 700, color: "#1b5fb3" }}>PD-001</span>. Por su seguridad, además del código le pediremos verificar su identidad.
             </p>
           </div>
         </section>
