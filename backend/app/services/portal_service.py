@@ -1,3 +1,5 @@
+from datetime import timezone
+
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
@@ -23,6 +25,18 @@ _ETIQUETAS = {
 _ETIQUETA_GENERICA = ("Actualizacion del envio", "")
 
 
+def hora_local(momento) -> str:
+    """Formatea una marca UTC naive como hora HH:MM de la zona de la operacion.
+    Recibe el datetime (puede ser None). Las marcas se guardan en UTC, pero el texto
+    lo lee el cliente final: sin convertir, una entrega de las 10:00 de Lima se le
+    mostraria como las 15:00."""
+    if momento is None:
+        return ""
+    if momento.tzinfo is None:
+        momento = momento.replace(tzinfo=timezone.utc)
+    return momento.astimezone(fechas.zona()).strftime("%H:%M")
+
+
 def traducir_eventos(historial) -> list:
     """Convierte el historial de un pedido en eventos amables para el portal. Recibe la lista de historial.
     Marca ok/alerta/vivo segun el estado destino de cada transicion."""
@@ -30,7 +44,7 @@ def traducir_eventos(historial) -> list:
     ultimo = len(historial) - 1
     for i, h in enumerate(historial):
         t, d = _ETIQUETAS.get((h.estado_nuevo or "").upper(), _ETIQUETA_GENERICA)
-        ev = {"t": t, "d": d, "h": h.fecha_utc.strftime("%H:%M") if h.fecha_utc else ""}
+        ev = {"t": t, "d": d, "h": hora_local(h.fecha_utc)}
         est = (h.estado_nuevo or "").upper()
         if est == "ENTREGADO":
             ev["ok"] = True
@@ -152,7 +166,7 @@ def tabla_empresa(db: Session, cliente_id: int) -> dict:
         # el detalle en curso, un EN_RUTA se mostraria como POR_SALIR (bug corregido).
         base = det.estado_entrega if (det and det.estado_entrega in ("ENTREGADO", "FALLIDO")) else p.estado
         est = estado_portal.mapear_estado(base)
-        hora = p.fecha_entrega.strftime("%H:%M") if (est == "ENTREGADO" and p.fecha_entrega) else "—"
+        hora = (hora_local(p.fecha_entrega) if est == "ENTREGADO" else "") or "—"
         extra = ""
         if est == "EN_RUTA" and det:
             extra = f"Parada {det.secuencia}"
@@ -242,3 +256,19 @@ def _calcular_estadisticas(db: Session) -> dict:
             "eventos": traducir_eventos(repo.historial_de(db, p.id)),
         }
     return {"reporte": reporte, "pedido": pedido}
+
+
+def respuesta_login_empresa(enviado: bool, otp: str, correo_mask: str, demo: bool) -> dict:
+    """Arma la respuesta del login de empresa. Recibe si el correo salio, el OTP generado,
+    el correo enmascarado y si el modo demostracion esta activo.
+    Sin correo saliente el OTP no llega a nadie: o se devuelve en claro (solo en modo
+    demostracion) o se avisa con un 503, en vez de responder "enviado" y dejar al
+    usuario esperando un codigo que nunca va a recibir."""
+    if enviado:
+        return {"enviado": True, "correoMask": correo_mask}
+    if demo:
+        return {"enviado": False, "correoMask": correo_mask, "otpDemo": otp}
+    raise HTTPException(
+        status_code=503,
+        detail="No se pudo enviar el codigo de verificacion. Contacte a SAVA para acceder al portal.",
+    )

@@ -13,8 +13,17 @@ from app.models.cliente import ClienteCorporativo
 
 
 def pedido_por_codigo(db: Session, codigo: str) -> Optional[Pedido]:
-    """Busca un pedido por su codigo. Recibe db y codigo."""
-    return db.query(Pedido).filter(Pedido.codigo == codigo).first()
+    """Busca un pedido por su codigo interno (PD-014) o por la referencia del retail
+    (RPL-1000). Recibe db y el codigo tecleado por el cliente.
+    El destinatario final conoce el numero que le dio la tienda, no el codigo interno
+    de SAVA, asi que el portal acepta los dos. Se prioriza el codigo interno para que
+    una referencia externa que coincida con un codigo nunca tape al pedido correcto."""
+    if not codigo:
+        return None
+    p = db.query(Pedido).filter(Pedido.codigo == codigo).first()
+    if p:
+        return p
+    return db.query(Pedido).filter(Pedido.referencia_externa == codigo).first()
 
 
 def ruta_y_detalle_de(db: Session, pedido_id: int) -> Tuple[Optional[Ruta], Optional[RutaDetalle], int]:

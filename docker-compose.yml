@@ -20,6 +20,10 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       SECRET_KEY: ${SECRET_KEY}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
+      # Modo demostracion del portal de empresa: con SMTP apagado el login no puede
+      # enviar el OTP, y en true el backend lo devuelve para mostrarlo en pantalla.
+      # NO activar en produccion: expone un factor de autenticacion.
+      PORTAL_OTP_DEMO: ${PORTAL_OTP_DEMO:-false}
       CORS_ORIGINS: ${CORS_ORIGINS}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
