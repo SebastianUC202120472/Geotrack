@@ -242,3 +242,19 @@ def _calcular_estadisticas(db: Session) -> dict:
             "eventos": traducir_eventos(repo.historial_de(db, p.id)),
         }
     return {"reporte": reporte, "pedido": pedido}
+
+
+def respuesta_login_empresa(enviado: bool, otp: str, correo_mask: str, demo: bool) -> dict:
+    """Arma la respuesta del login de empresa. Recibe si el correo salio, el OTP generado,
+    el correo enmascarado y si el modo demostracion esta activo.
+    Sin correo saliente el OTP no llega a nadie: o se devuelve en claro (solo en modo
+    demostracion) o se avisa con un 503, en vez de responder "enviado" y dejar al
+    usuario esperando un codigo que nunca va a recibir."""
+    if enviado:
+        return {"enviado": True, "correoMask": correo_mask}
+    if demo:
+        return {"enviado": False, "correoMask": correo_mask, "otpDemo": otp}
+    raise HTTPException(
+        status_code=503,
+        detail="No se pudo enviar el codigo de verificacion. Contacte a SAVA para acceder al portal.",
+    )
