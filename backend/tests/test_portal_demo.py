@@ -33,3 +33,13 @@ def test_bandera_apagada_por_defecto():
     leeria la variable de entorno del contenedor, que en desarrollo esta en true."""
     from app.core.config import Settings
     assert Settings.model_fields["PORTAL_OTP_DEMO"].default is False
+
+
+def test_la_hora_del_portal_se_muestra_en_la_zona_de_la_operacion():
+    """Una entrega de las 10:00 de Lima se guarda como 15:00 UTC; el cliente final debe
+    leer 10:00, no la hora UTC cruda."""
+    from datetime import datetime
+    from app.services.portal_service import hora_local
+    assert hora_local(datetime(2026, 9, 18, 15, 0)) == "10:00"
+    assert hora_local(datetime(2026, 9, 19, 2, 6)) == "21:06"
+    assert hora_local(None) == ""

@@ -379,8 +379,32 @@ def escribir_hoja(pedidos):
     return ruta
 
 
+def pedidos_desde_bd(db) -> list:
+    """Reconstruye la lista de pedidos desde la BD. Recibe la sesion.
+    Devuelve la misma forma que crear_pedidos ([[pedido, estado, indice], ...]) para
+    poder rehacer la hoja de credenciales sin volver a sembrar: la hoja vive en la capa
+    efimera del contenedor y se pierde cada vez que se reconstruye la imagen."""
+    filas = db.query(Pedido).order_by(Pedido.id).all()
+    return [[p, p.estado, i] for i, p in enumerate(filas)]
+
+
 def main():
-    """Ejecuta la siembra completa de la demostracion del portal. Sin input."""
+    """Ejecuta la siembra completa de la demostracion del portal.
+    Con el argumento --solo-hoja no toca la base: solo vuelve a escribir la hoja de
+    credenciales a partir de lo que ya esta sembrado."""
+    if "--solo-hoja" in sys.argv:
+        db = SessionLocal()
+        try:
+            ruta = escribir_hoja(pedidos_desde_bd(db))
+            print(f"Hoja regenerada: {ruta}")
+        finally:
+            db.close()
+        return
+    _sembrar()
+
+
+def _sembrar():
+    """Hace la siembra completa (borrado + empresas + pedidos + rutas + POD). Sin input."""
     db = SessionLocal()
     # Tras cada commit los objetos siguen usables sin volver a consultarlos: la hoja de
     # credenciales y la generacion de POD leen los 250 pedidos ya cargados, y con el
