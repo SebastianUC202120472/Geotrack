@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ESTADOS, OPCIONES } from "../datos/portalUi.js";
 import { buscarPedido, verificarPedido, reprogramar, urlPod } from "../servicios/portal.js";
+import { AyudaPedidos } from "./AyudaDemo";
 
 // ============================================================================
 // Vista PERSONA NATURAL del portal de clientes (Tarea 10 · re-cableada a datos
@@ -14,7 +15,7 @@ import { buscarPedido, verificarPedido, reprogramar, urlPod } from "../servicios
 
 // RastreoPersonal: vista de rastreo para el destinatario final.
 // Input: prop `avisar(texto, ms)` para mostrar el toast del portal.
-export default function RastreoPersonal({ avisar }) {
+export default function RastreoPersonal({ avisar, demo }) {
   // Estado de la vista (port del bloque de estado personal del mockup).
   const [codigo, setCodigo] = useState(""); // texto del input de código
   const [buscando, setBuscando] = useState(false); // spinner "Buscando…"
@@ -241,6 +242,7 @@ export default function RastreoPersonal({ avisar }) {
               <span style={{ fontWeight: 700, color: "#1b5fb3" }}>PD-001</span>. Por su seguridad, además del código le pediremos verificar su identidad.
             </p>
           </div>
+          {demo && <AyudaPedidos pedidos={demo.pedidos} onElegir={setCodigo} />}
         </section>
       )}
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ESTADOS } from "../datos/portalUi.js";
+import { AyudaEmpresas } from "./AyudaDemo";
 import { empresaLogin, empresaVerificar, empresaPedidos } from "../servicios/portal.js";
 
 // ============================================================================
@@ -63,7 +64,7 @@ const ORDEN = ["ENTREGADO", "EN_RUTA", "POR_SALIR", "OBSERVADO", "REPROGRAMADO"]
 
 // PanelEmpresa: vista corporativa del portal para clientes retail.
 // Input: prop `avisar(texto, ms)` para mostrar el toast del portal.
-export default function PanelEmpresa({ avisar }) {
+export default function PanelEmpresa({ avisar, demo }) {
   // --- Estado del flujo (port del bloque de estado empresa del mockup) ---
   const [paso, setPaso] = useState(0); // 0 credenciales · 1 OTP · 2 panel
   const [codEmp, setCodEmp] = useState(""); // input del código de empresa
@@ -153,6 +154,14 @@ export default function PanelEmpresa({ avisar }) {
   };
   const onClaveEmp = (e) => {
     setClaveEmp(e.target.value);
+    setError(false);
+  };
+
+  // usarEmpresaDemo: rellena código y clave desde el bloque de ayuda de la demostración.
+  // Input: el código de acceso y la clave de la empresa elegida.
+  const usarEmpresaDemo = (codigo, clave) => {
+    setCodEmp(codigo);
+    setClaveEmp(clave);
     setError(false);
   };
 
@@ -412,6 +421,8 @@ export default function PanelEmpresa({ avisar }) {
           ahora={ahora}
           error={error}
           intentos={intentos}
+          demo={demo}
+          onUsarDemo={usarEmpresaDemo}
         />
       )}
 
@@ -652,7 +663,7 @@ const SELECT_ESTILO = {
 // Input: valores/handlers de los inputs, estado de carga/bloqueo/error/intentos y el
 // reloj `ahora` (para el countdown del bloqueo).
 // ----------------------------------------------------------------------------
-function Credenciales({ codEmp, claveEmp, onCodEmp, onClaveEmp, onCreds, cargando, empBloq, bloqueoHasta, ahora, error, intentos }) {
+function Credenciales({ codEmp, claveEmp, onCodEmp, onClaveEmp, onCreds, cargando, empBloq, bloqueoHasta, ahora, error, intentos, demo, onUsarDemo }) {
   const bloqueoTxt = "Demasiados intentos fallidos. Por seguridad, el acceso está pausado " + Math.ceil(Math.max(0, bloqueoHasta - ahora) / 1000) + " s.";
   const intentosTxt = String(Math.max(0, 3 - intentos));
 
@@ -710,6 +721,7 @@ function Credenciales({ codEmp, claveEmp, onCodEmp, onClaveEmp, onCreds, cargand
               Credenciales incorrectas · le quedan {intentosTxt} intentos antes del bloqueo temporal
             </p>
           )}
+          {demo && <AyudaEmpresas empresas={demo.empresas} onElegir={onUsarDemo} />}
         </>
       )}
 

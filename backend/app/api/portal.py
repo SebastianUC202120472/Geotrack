@@ -23,6 +23,13 @@ def estadisticas(db: Session = Depends(get_db)):
     return portal_service.estadisticas_publicas(db)
 
 
+@router.get("/demo", dependencies=[Depends(limite_publico(30, 60))])
+def ayuda_demo(db: Session = Depends(get_db)):
+    """Credenciales y codigos de ejemplo de la demostracion, para mostrarlos en el portal.
+    Sin input. Devuelve {"activo": false} si el modo demostracion esta apagado."""
+    return portal_service.ayuda_demo(db, settings.PORTAL_OTP_DEMO)
+
+
 @router.post("/pedidos/{codigo}/buscar", dependencies=[Depends(limite_publico(30, 60))])
 def buscar_pedido(codigo: str, db: Session = Depends(get_db)):
     """Resumen enmascarado de un pedido (pre-verificacion). Recibe el codigo en la ruta."""
