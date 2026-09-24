@@ -75,7 +75,7 @@ def crear_personal(db: Session, datos: PersonalCreate) -> Usuario:
 
 
 def actualizar_personal(db: Session, usuario_id: int, datos: PersonalUpdate, admin_id: int) -> Usuario:
-    """Actualiza rol/estado/datos de un usuario del panel. Recibe id, cambios e id del admin."""
+    """Actualiza rol/estado/correo/datos de un usuario del panel. Recibe id, cambios e id del admin."""
     usuario = _personal_o_404(db, usuario_id)
     campos = datos.model_dump(exclude_unset=True)
     # Compara contra el valor actual para no bloquear al admin si solo edita datos personales.
@@ -88,6 +88,16 @@ def actualizar_personal(db: Session, usuario_id: int, datos: PersonalUpdate, adm
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No puedes cambiar tu propio rol ni estado (evita bloquearte fuera del sistema)",
         )
+    if "correo" in campos and campos["correo"] is not None:
+        nuevo_correo = str(campos["correo"]).strip().lower()
+        if nuevo_correo != usuario.correo:
+            existente = usuario_repository.obtener_por_correo(db, nuevo_correo)
+            if existente and existente.id != usuario.id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="El correo ya está registrado por otra cuenta",
+                )
+            usuario_repository.actualizar_correo(db, usuario, nuevo_correo)
     if "rol" in campos and campos["rol"] is not None:
         usuario_repository.actualizar_rol(db, usuario, campos["rol"].value)
     if "estado" in campos and campos["estado"] is not None:

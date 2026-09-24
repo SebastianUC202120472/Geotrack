@@ -63,8 +63,18 @@ def _conductor_activo(db: Session, usuario_id: int):
 
 
 def actualizar(db: Session, usuario_id: int, datos: ConductorUpdate) -> dict:
-    """Edita la ficha (nombre/teléfono/DNI) de un conductor activo."""
+    """Edita la ficha (correo/nombre/teléfono/DNI) de un conductor activo."""
     usuario = _conductor_activo(db, usuario_id)
+    if datos.correo:
+        nuevo_correo = str(datos.correo).strip().lower()
+        if nuevo_correo != usuario.correo:
+            existente = usuario_repository.obtener_por_correo(db, nuevo_correo)
+            if existente and existente.id != usuario.id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="El correo ya está registrado por otra cuenta",
+                )
+            usuario_repository.actualizar_correo(db, usuario, nuevo_correo)
     conductor_repository.actualizar_perfil(
         db, usuario_id, nombre=datos.nombre, telefono=datos.telefono, dni=datos.dni
     )

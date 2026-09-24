@@ -104,7 +104,7 @@ export default function Usuarios() {
       <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
         <SectionCard title="Crear usuario" className="lg:col-span-1">
           <form onSubmit={registrar} noValidate className="space-y-4">
-            <Input label="Correo (acceso al panel)" type="email" required value={form.correo}
+            <Input label="Correo (acceso al paneasasal)" type="email" required value={form.correo}
               onChange={(e) => setForm((f) => ({ ...f, correo: e.target.value }))} placeholder="almacen@siol.com" />
             <PasswordInput label="Contraseña" required value={form.contrasena}
               onChange={(e) => setForm((f) => ({ ...f, contrasena: e.target.value }))}
@@ -142,7 +142,7 @@ export default function Usuarios() {
 
       <Modal open={!!seleccionado} onClose={() => setSeleccionado(null)} variant="center">
         {seleccionado && (
-          <DetalleUsuario usuario={seleccionado} onCerrar={() => setSeleccionado(null)} onCambios={() => { setSeleccionado(null); cargar(); }} />
+          <DetalleUsuario key={seleccionado.id ?? seleccionado.usuario_id} usuario={seleccionado} onCerrar={() => setSeleccionado(null)} onCambios={() => { setSeleccionado(null); cargar(); }} />
         )}
       </Modal>
     </div>
@@ -154,21 +154,34 @@ function DetalleUsuario({ usuario: u, onCerrar, onCambios }) {
   const [modo, setModo] = useState("ver"); // "ver" | "clave"
   const [rol, setRol] = useState(u.rol);
   const [datos, setDatos] = useState({
+    correo: u.correo || "",
     nombre: u.nombre || "",
     dni: u.dni || "",
     telefono: u.telefono || "",
     cargo: u.cargo || "",
   });
+
+  useEffect(() => {
+    setRol(u.rol);
+    setDatos({
+      correo: u.correo || "",
+      nombre: u.nombre || "",
+      dni: u.dni || "",
+      telefono: u.telefono || "",
+      cargo: u.cargo || "",
+    });
+  }, [u]);
   const [nuevaClave, setNuevaClave] = useState("");
   const [claveOk, setClaveOk] = useState(false);
   const [aviso, setAviso] = useState(null);
   const [trabajando, setTrabajando] = useState(false);
 
-  // Guarda rol y datos personales del usuario. Recibe el id del usuario.
+  // Guarda rol, correo y datos personales del usuario. Recibe el id del usuario.
   const guardarRol = async () => {
     setTrabajando(true); setAviso(null);
     try {
       await actualizarUsuario(u.usuario_id ?? u.id, {
+        correo: datos.correo.trim(),
         rol,
         nombre: datos.nombre.trim() || null,
         dni: datos.dni.trim() || null,
@@ -199,7 +212,7 @@ function DetalleUsuario({ usuario: u, onCerrar, onCambios }) {
         <div className="flex items-center gap-3">
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-600 text-white"><UserCog size={22} /></span>
           <div>
-            <h2 className="font-bold text-slate-900">{u.correo}</h2>
+            <h2 className="font-bold text-slate-900">{datos.correo || u.correo}</h2>
             <p className="text-sm text-slate-500 nums">{u.codigo} · {etiquetaRol(u.rol)}</p>
           </div>
         </div>
@@ -214,10 +227,8 @@ function DetalleUsuario({ usuario: u, onCerrar, onCambios }) {
 
       {modo === "ver" && (
         <div className="mt-6 space-y-4">
-          <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm">
-            <Mail size={18} className="text-slate-400" />
-            <div><p className="text-xs text-slate-400">Correo</p><p className="font-medium text-slate-700">{u.correo}</p></div>
-          </div>
+          <Input label="Correo electrónico" type="email" required value={datos.correo}
+            onChange={(e) => setDatos((d) => ({ ...d, correo: e.target.value }))} placeholder="usuario@siol.com" />
           <Input as="select" label="Rol" value={rol} onChange={(e) => setRol(e.target.value)}>
             {ROLES.map((r) => <option key={r.valor} value={r.valor}>{r.etiqueta}</option>)}
           </Input>

@@ -267,7 +267,7 @@ export default function Conductores() {
 // Modal de detalle del conductor: ver, editar, eliminar o restablecer contraseña.
 function DetalleConductor({ conductor: c, efic, onCerrar, onCambios }) {
   const [modo, setModo] = useState("ver"); // "ver" | "editar" | "confirmar" | "clave"
-  const [form, setForm] = useState({ nombre: c.nombre || "", telefono: c.telefono || "", dni: c.dni || "" });
+  const [form, setForm] = useState({ correo: c.correo || "", nombre: c.nombre || "", telefono: c.telefono || "", dni: c.dni || "" });
   const [errores, setErrores] = useState({});
   const [aviso, setAviso] = useState(null);
   const [trabajando, setTrabajando] = useState(false);
@@ -286,6 +286,7 @@ function DetalleConductor({ conductor: c, efic, onCerrar, onCambios }) {
   // Valida y guarda la edición de la ficha.
   const guardar = async () => {
     const errs = {
+      correo: validarCorreo(form.correo),
       nombre: validarNombre(form.nombre),
       telefono: validarTelefono(form.telefono),
       dni: validarDni(form.dni),
@@ -298,6 +299,7 @@ function DetalleConductor({ conductor: c, efic, onCerrar, onCambios }) {
     setAviso(null);
     try {
       await actualizarConductor(c.usuario_id, {
+        correo: form.correo.trim(),
         nombre: form.nombre,
         telefono: form.telefono || null,
         dni: form.dni || null,
@@ -460,6 +462,7 @@ function DetalleConductor({ conductor: c, efic, onCerrar, onCambios }) {
 
       {modo === "editar" && (
         <div className="mt-6 space-y-4">
+          <Input label="Correo (acceso a la app)" type="email" required value={form.correo} onChange={set("correo")} error={errores.correo} placeholder="conductor@siol.com" />
           <Input label="Nombre completo" value={form.nombre} onChange={set("nombre")} error={errores.nombre} hint="Al menos 3 caracteres" />
           <div className="grid grid-cols-2 gap-4">
             <Input label="Teléfono" inputMode="numeric" value={form.telefono} onChange={set("telefono", (v) => soloDigitos(v, 9))}
