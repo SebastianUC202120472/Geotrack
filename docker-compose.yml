@@ -5,6 +5,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -39,6 +41,7 @@ services:
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-SAVA S.A.C.}
       MAIL_SIGNATURE: ${MAIL_SIGNATURE:-}
     volumes:
+      - ./backend:/app
       - backend_uploads:/app/uploads
     ports:
       - "8000:8000"
@@ -50,12 +53,16 @@ services:
   frontend:
     build:
       context: ./frontend
-      args:
-        VITE_API_URL: /api
-        VITE_WS_URL: /
-        VITE_GOOGLE_MAPS_KEY: ${VITE_GOOGLE_MAPS_KEY}
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     ports:
-      - "8080:80"
+      - "8080:5173"
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=/api
+      - VITE_WS_URL=/
     depends_on:
       - backend
     restart: unless-stopped
