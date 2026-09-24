@@ -1,16 +1,30 @@
 import { useEffect, useState } from "react";
-import { Truck, CircleCheck, CircleX, Clock, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Truck, CircleCheck, CircleX, Clock, FileSpreadsheet, Loader2, Pencil } from "lucide-react";
 import Card from "../ui/Card";
 import SectionCard from "../ui/SectionCard";
 import EmptyState from "../ui/EmptyState";
 import Button from "../ui/Button";
+import Modal from "../ui/Modal";
 import { EstadoBadge } from "../ui/Badge";
 import { obtenerFlota, descargarManifiesto } from "../../services/api";
+import ModalEditarRuta from "../ModalEditarRuta";
 
 // Muestra el avance de cada ruta activa. Sin props; carga datos con obtenerFlota() al montar.
 export default function VistaPorRuta() {
   const [rutas, setRutas] = useState(null);
   const [cargando, setCargando] = useState(true);
+  const [rutaAEditar, setRutaAEditar] = useState(null);
+
+  const cargar = (silencioso = false) => {
+    if (!silencioso) setCargando(true);
+    obtenerFlota()
+      .then((data) => setRutas(data.rutas || []))
+      .catch((err) => {
+        console.error("No se pudo cargar las rutas:", err.message);
+        if (!silencioso) setRutas([]);
+      })
+      .finally(() => { if (!silencioso) setCargando(false); });
+  };
 
   useEffect(() => {
     let activo = true;
@@ -47,58 +61,78 @@ export default function VistaPorRuta() {
   }
 
   return (
-    <SectionCard
-      title="Rutas en operación"
-      subtitle={`${rutas.length} ruta${rutas.length !== 1 ? "s" : ""} activa${rutas.length !== 1 ? "s" : ""}`}
-    >
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {rutas.map((r, i) => (
-          <div key={r.ruta_id} style={{ animationDelay: `${i * 40}ms` }} className="animate-fade-up">
-            <Card hover>
-              <div className="mb-4 flex items-start justify-between">
-                <div>
-                  <h3 className="font-semibold text-slate-900">{r.nombre}</h3>
-                  <p className="text-sm text-slate-500">{r.conductor_nombre || "Sin conductor"}</p>
+    <>
+      <SectionCard
+        title="Rutas en operación"
+        subtitle={`${rutas.length} ruta${rutas.length !== 1 ? "s" : ""} activa${rutas.length !== 1 ? "s" : ""}`}
+      >
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {rutas.map((r, i) => (
+            <div key={r.ruta_id} style={{ animationDelay: `${i * 40}ms` }} className="animate-fade-up">
+              <Card hover>
+                <div className="mb-4 flex items-start justify-between">
+                  <div>
+                    <h3 className="font-semibold text-slate-900">{r.nombre}</h3>
+                    <p className="text-sm text-slate-500">{r.conductor_nombre || "Sin conductor"}</p>
+                  </div>
+                  <EstadoBadge estado={r.estado} />
                 </div>
-                <EstadoBadge estado={r.estado} />
-              </div>
 
-              <div className="mb-4">
-                <div className="mb-1 flex justify-between text-sm">
-                  <span className="text-slate-500">Avance</span>
-                  <span className="font-semibold text-slate-700 nums">
-                    {Math.round(r.avance_porcentaje)}%
-                  </span>
+                <div className="mb-4">
+                  <div className="mb-1 flex justify-between text-sm">
+                    <span className="text-slate-500">Avance</span>
+                    <span className="font-semibold text-slate-700 nums">
+                      {Math.round(r.avance_porcentaje)}%
+                    </span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-brand-600 transition-all"
+                      style={{ width: `${r.avance_porcentaje}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                  <div
-                    className="h-full rounded-full bg-brand-600 transition-all"
-                    style={{ width: `${r.avance_porcentaje}%` }}
-                  />
+
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <Contador icon={CircleCheck} color="text-success" valor={r.entregadas} etiqueta="Entregadas" />
+                  <Contador icon={CircleX} color="text-danger" valor={r.fallidas} etiqueta="Fallidas" />
+                  <Contador icon={Clock} color="text-warning" valor={r.pendientes} etiqueta="Pendientes" />
                 </div>
-              </div>
 
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <Contador icon={CircleCheck} color="text-success" valor={r.entregadas} etiqueta="Entregadas" />
-                <Contador icon={CircleX} color="text-danger" valor={r.fallidas} etiqueta="Fallidas" />
-                <Contador icon={Clock} color="text-warning" valor={r.pendientes} etiqueta="Pendientes" />
-              </div>
+                <div className="mt-4 flex gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={Pencil}
+                    onClick={() => setRutaAEditar(r)}
+                  >
+                    Editar ruta
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={FileSpreadsheet}
+                    onClick={() => descargarManifiesto(r.ruta_id, `manifiesto_${r.nombre}.xlsx`)}
+                  >
+                    Manifiesto
+                  </Button>
+                </div>
+              </Card>
+            </div>
+          ))}
+        </div>
+      </SectionCard>
 
-              <div className="mt-4 flex gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon={FileSpreadsheet}
-                  onClick={() => descargarManifiesto(r.ruta_id, `manifiesto_${r.nombre}.xlsx`)}
-                >
-                  Manifiesto
-                </Button>
-              </div>
-            </Card>
-          </div>
-        ))}
-      </div>
-    </SectionCard>
+      <Modal open={!!rutaAEditar} onClose={() => setRutaAEditar(null)} variant="center" className="max-w-4xl">
+        {rutaAEditar && (
+          <ModalEditarRuta
+            ruta={rutaAEditar}
+            onCerrar={() => setRutaAEditar(null)}
+            onCambios={() => cargar(true)}
+          />
+        )}
+      </Modal>
+    </>
   );
 }
 

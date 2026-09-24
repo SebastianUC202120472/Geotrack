@@ -325,6 +325,7 @@ export default function Pedidos() {
             pedido={seleccionado}
             reporte={reportePorPedido[seleccionado.id] || null}
             onCerrar={() => setSeleccionado(null)}
+            onIrARuta={() => { setSeleccionado(null); setVista("ruta"); }}
             onAccion={() => { setSeleccionado(null); cargarTodo(); }}
             onDireccionResuelta={() => { setSeleccionado(null); cargar(); }}
             onVerReporte={(codigo) => navigate(`/panel/reportes?pedido=${encodeURIComponent(codigo)}`)}
@@ -337,7 +338,7 @@ export default function Pedidos() {
 }
 
 // Panel lateral de detalle. Recibe pedido, reporte abierto (o null) y callbacks de acción.
-function DetallePedido({ pedido, reporte, onCerrar, onAccion, onDireccionResuelta, onVerReporte }) {
+function DetallePedido({ pedido, reporte, onCerrar, onIrARuta, onAccion, onDireccionResuelta, onVerReporte }) {
   const [historial, setHistorial] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
@@ -385,7 +386,17 @@ function DetallePedido({ pedido, reporte, onCerrar, onAccion, onDireccionResuelt
         <Dato etiqueta="Destinatario" valor={pedido.nombre_destinatario || "—"} />
         <Dato etiqueta="Dirección" valor={pedido.direccion_destino} icono={MapPin} />
         <Dato etiqueta="Distrito" valor={pedido.distrito || "—"} />
-        <Dato etiqueta="Ruta asignada" valor={pedido.ruta_nombre || historial?.ruta_asignada || "Sin asignar"} icono={Truck} />
+        <div className="flex items-center justify-between">
+          <Dato etiqueta="Ruta asignada" valor={pedido.ruta_nombre || historial?.ruta_asignada || "Sin asignar"} icono={Truck} />
+          {onIrARuta && (pedido.ruta_nombre || historial?.ruta_asignada) && (
+            <button
+              onClick={onIrARuta}
+              className="rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100"
+            >
+              Ver en Por ruta →
+            </button>
+          )}
+        </div>
         <Dato etiqueta="Conductor" valor={pedido.conductor_nombre || historial?.conductor_asignado || "Sin asignar"} icono={User} />
 
         {pedido.estado === "FALLIDO" && reporte && (
