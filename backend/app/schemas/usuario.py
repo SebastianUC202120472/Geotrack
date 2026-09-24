@@ -70,7 +70,8 @@ class PersonalCreate(BaseModel):
 
 
 class PersonalUpdate(BaseModel):
-    """Datos de entrada para actualizar rol, estado o datos personales del personal."""
+    """Datos de entrada para actualizar rol, estado, correo o datos personales del personal."""
+    correo: Optional[EmailStr] = None
     rol: Optional[RolUsuario] = None
     estado: Optional[bool] = None
     nombre: Optional[str] = None

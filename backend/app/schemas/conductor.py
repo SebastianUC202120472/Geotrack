@@ -64,7 +64,8 @@ class ConductorCreate(BaseModel):
 
 
 class ConductorUpdate(BaseModel):
-    """Datos opcionales para editar la ficha de un conductor (correo no editable aqui)."""
+    """Datos opcionales para editar la ficha de un conductor."""
+    correo: Optional[EmailStr] = None
     nombre: Optional[str] = None
     telefono: Optional[str] = None
     dni: Optional[str] = None

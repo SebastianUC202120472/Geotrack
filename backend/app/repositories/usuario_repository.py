@@ -64,6 +64,14 @@ def actualizar_datos_personales(db: Session, usuario: Usuario, campos: dict) -> 
     return usuario
 
 
+def actualizar_correo(db: Session, usuario: Usuario, correo: str) -> Usuario:
+    """Actualiza el correo electrónico del usuario. Recibe: usuario y nuevo correo."""
+    usuario.correo = correo
+    db.commit()
+    db.refresh(usuario)
+    return usuario
+
+
 def actualizar_hash(db: Session, usuario_id: int, hash_contrasena: str) -> Optional[Usuario]:
     """Reemplaza el hash de contrasena del usuario. Recibe: usuario_id y hash ya generado."""
     usuario = obtener_por_id(db, usuario_id)
