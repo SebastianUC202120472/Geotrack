@@ -40,8 +40,11 @@ export function esErrorDeRed(error: unknown): boolean {
   return axios.isAxiosError(error) && !error.response;
 }
 
-// Extrae un mensaje de error legible del backend. Recibe: error de axios.
+// Extrae un mensaje de error legible del backend o de errores locales. Recibe: error capturado.
 export function mensajeDeError(error: unknown): string {
+  if (error instanceof Error && !axios.isAxiosError(error)) {
+    return error.message;
+  }
   if (axios.isAxiosError(error)) {
     const detalle = error.response?.data?.detail;
     if (typeof detalle === "string") return detalle;

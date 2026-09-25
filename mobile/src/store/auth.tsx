@@ -94,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const rol = decodificarRol(access_token);
 
     if (rol && rol.toUpperCase() !== "CONDUCTOR") {
-      throw new Error(`Acceso denegado: Esta aplicación es de uso exclusivo para conductores (tu rol es: ${rol}).`);
+      throw new Error("Esta aplicación es de uso exclusivo para conductores.");
     }
 
     await guardarToken(access_token);
