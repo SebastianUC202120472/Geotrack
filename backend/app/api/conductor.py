@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from typing import List
 
 from app.db.database import get_db
 from app.api.deps import get_current_conductor
+from app.core.config import settings
+from app.core.imagenes import leer_imagen_subida
 from app.models.usuario import Usuario
 from app.services import ruta_service, reporte_service, conductor_service, parametro_service, incidencia_service, recojo_service
 from app.schemas.ruta import (
@@ -112,7 +114,7 @@ async def cargar_evidencia(
     db: Session = Depends(get_db),
     conductor: Usuario = Depends(get_current_conductor),
 ):
-    contenido = await file.read()
+    contenido = await leer_imagen_subida(file)
     return ruta_service.guardar_evidencia(
         db, conductor.id, pedido_id, contenido, file.filename
     )
@@ -144,7 +146,7 @@ async def cargar_evidencia_incidencia(
     conductor: Usuario = Depends(get_current_conductor),
 ):
     """Adjunta foto de averia a una incidencia. Recibe incidencia_id y archivo."""
-    contenido = await file.read()
+    contenido = await leer_imagen_subida(file)
     return incidencia_service.guardar_evidencia(db, incidencia_id, conductor.id, contenido, file.filename)
 
 
@@ -187,7 +189,10 @@ async def registrar_recepcion(
     conductor: Usuario = Depends(get_current_conductor),
 ):
     """Registra el recojo con cantidad declarada y fotos de evidencia."""
-    archivos = [(await f.read(), f.filename) for f in files]
+    # Se corta antes de leer para no cargar en memoria un lote desmedido.
+    if len(files) > settings.RECOJO_MAX_FOTOS:
+        raise HTTPException(status_code=400, detail=f"Puedes adjuntar como máximo {settings.RECOJO_MAX_FOTOS} fotos")
+    archivos = [(await leer_imagen_subida(f), f.filename) for f in files]
     return recojo_service.registrar_recepcion(
         db, conductor.id, recojo_id, cantidad_declarada, archivos
     )

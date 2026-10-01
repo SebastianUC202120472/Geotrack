@@ -5,6 +5,7 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.imagenes import validar_imagen
 from app.models.ruta import Ruta, RutaDetalle
 from app.models.pedido import Pedido
 from app.models.solicitud_recojo import ESTADOS_RECOGIDO
@@ -24,7 +25,6 @@ from app.schemas.ruta import (
 
 # Directorio de fotos POD, servido en /media.
 DIR_EVIDENCIAS = os.path.join("uploads", "evidencias")
-EXTENSIONES_IMAGEN = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 def _construir_parada(detalle: RutaDetalle, pedido: Pedido) -> ParadaManifiesto:
@@ -212,12 +212,8 @@ def guardar_evidencia(
     """Guarda la foto POD y la asocia al detalle de ruta. Recibe: id conductor, pedido, bytes e imagen."""
     detalle = _obtener_detalle_de_mi_ruta(db, conductor_id, pedido_id)
 
-    _, extension = os.path.splitext(nombre_archivo.lower())
-    if extension not in EXTENSIONES_IMAGEN:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Formato no permitido. Usa: {', '.join(sorted(EXTENSIONES_IMAGEN))}",
-        )
+    # La extension sale del contenido real, no del nombre que manda el cliente.
+    extension = validar_imagen(contenido)
 
     os.makedirs(DIR_EVIDENCIAS, exist_ok=True)
     # El sufijo aleatorio evita que la foto sea adivinable: /media se sirve como

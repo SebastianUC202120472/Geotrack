@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     # operacion peruana cambiaria a las 7 p.m. hora de Lima.
     ZONA_HORARIA: str = "America/Lima"
 
+    # Limites de las fotos subidas (entrega, recojo, auxilio, conductor).
+    IMAGEN_MAX_MB: int = 8
+    RECOJO_MAX_FOTOS: int = 10
+
     ADMIN_EMAIL: str = "admin@siol.com"
     ADMIN_PASSWORD: str = "admin123"  # nosec B105
 
