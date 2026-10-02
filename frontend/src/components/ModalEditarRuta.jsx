@@ -1,16 +1,22 @@
 import { useEffect, useState } from "react";
-import { X, ChevronUp, ChevronDown, Trash2, CheckCircle2, AlertCircle, Loader2, Save, Route } from "lucide-react";
+import { X, ChevronUp, ChevronDown, Trash2, CheckCircle2, AlertCircle, Loader2, Save, Route, MoveRight } from "lucide-react";
 import Button from "./ui/Button";
 import { EstadoBadge } from "./ui/Badge";
-import { obtenerParadasRuta, reordenarParadasRuta, quitarParadaRuta } from "../services/api";
+import { obtenerParadasRuta, reordenarParadasRuta, quitarParadaRuta, moverParadaRuta } from "../services/api";
 
 // Modal para reordenar y quitar paradas de una ruta (CUS-21: Ajuste Manual de Ruta).
-export default function ModalEditarRuta({ ruta, onCerrar, onCambios }) {
+export default function ModalEditarRuta({ ruta, rutas = [], onCerrar, onCambios }) {
   const [paradas, setParadas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [quitandoId, setQuitandoId] = useState(null);
+  const [moviendoId, setMoviendoId] = useState(null);
+  const [destinos, setDestinos] = useState({});
   const [aviso, setAviso] = useState(null);
+
+  const rutasDestino = (rutas || []).filter(
+    (r) => r.ruta_id !== ruta.ruta_id && r.estado !== "FINALIZADA"
+  );
 
   const cargar = async () => {
     setCargando(true);
@@ -72,6 +78,32 @@ export default function ModalEditarRuta({ ruta, onCerrar, onCambios }) {
     }
   };
 
+  // Traspasa una parada pendiente a otra ruta activa.
+  const moverARuta = async (pedidoId, codigo) => {
+    const rutaDestinoId = Number(destinos[pedidoId]);
+    if (!rutaDestinoId) {
+      setAviso({ ok: false, texto: "Selecciona una ruta destino para mover la parada." });
+      return;
+    }
+    setMoviendoId(pedidoId);
+    setAviso(null);
+    try {
+      const res = await moverParadaRuta(ruta.ruta_id, pedidoId, rutaDestinoId);
+      setAviso({ ok: true, texto: res.mensaje || `Pedido ${codigo} movido a otra ruta.` });
+      setParadas((prev) => prev.filter((p) => p.pedido_id !== pedidoId));
+      setDestinos((prev) => {
+        const copia = { ...prev };
+        delete copia[pedidoId];
+        return copia;
+      });
+      if (onCambios) onCambios();
+    } catch (err) {
+      setAviso({ ok: false, texto: err.message });
+    } finally {
+      setMoviendoId(null);
+    }
+  };
+
   return (
     <div className="w-full space-y-5">
       <div className="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -110,8 +142,8 @@ export default function ModalEditarRuta({ ruta, onCerrar, onCambios }) {
         <div className="py-8 text-center text-slate-500">Esta ruta no tiene paradas asignadas.</div>
       ) : (
         <>
-          <div className="max-h-[500px] overflow-y-auto overflow-x-hidden rounded-xl border border-slate-200 bg-white">
-            <table className="w-full text-left text-sm">
+          <div className="max-h-[500px] overflow-auto rounded-xl border border-slate-200 bg-white">
+            <table className="min-w-[980px] w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs font-semibold text-slate-500">
                 <tr>
                   <th className="px-3 py-2.5 text-center">#</th>
@@ -119,13 +151,16 @@ export default function ModalEditarRuta({ ruta, onCerrar, onCambios }) {
                   <th className="px-3 py-2.5">Destinatario / Dirección</th>
                   <th className="px-3 py-2.5">Estado</th>
                   <th className="px-3 py-2.5 text-center">Orden</th>
-                  <th className="px-3 py-2.5 text-right">Acción</th>
+                  <th className="px-3 py-2.5">Mover a</th>
+                  <th className="px-3 py-2.5 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {paradas.map((p, idx) => {
                   const gestionada = p.estado_entrega === "ENTREGADO" || p.estado_entrega === "FALLIDO";
-                  const procesandoEsta = quitandoId === p.pedido_id;
+                  const quitandoEsta = quitandoId === p.pedido_id;
+                  const moviendoEsta = moviendoId === p.pedido_id;
+                  const procesandoEsta = quitandoEsta || moviendoEsta;
 
                   return (
                     <tr key={p.pedido_id} className="hover:bg-slate-50/80">
@@ -166,28 +201,55 @@ export default function ModalEditarRuta({ ruta, onCerrar, onCambios }) {
                           </button>
                         </div>
                       </td>
+                      <td className="px-3 py-3">
+                        {gestionada ? (
+                          <span className="text-xs text-slate-400">No disponible</span>
+                        ) : rutasDestino.length === 0 ? (
+                          <span className="text-xs text-slate-400">Sin otra ruta activa</span>
+                        ) : (
+                          <select
+                            value={destinos[p.pedido_id] || ""}
+                            onChange={(e) => setDestinos((prev) => ({ ...prev, [p.pedido_id]: e.target.value }))}
+                            disabled={guardando || procesandoEsta}
+                            className="w-44 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:opacity-50"
+                          >
+                            <option value="">Ruta destino</option>
+                            {rutasDestino.map((r) => (
+                              <option key={r.ruta_id} value={r.ruta_id}>
+                                {r.nombre}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </td>
                       <td className="px-3 py-3 text-right">
                         {gestionada ? (
                           <span className="text-xs text-slate-400" title="No se puede quitar una parada ya entregada o fallida">
                             Gestionada
                           </span>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => quitar(p.pedido_id, p.codigo)}
-                            disabled={procesandoEsta || guardando}
-                            title="Quitar de la ruta (vuelve a Listo para envío)"
-                            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-danger hover:bg-danger-soft disabled:opacity-50"
-                          >
-                            {procesandoEsta ? (
-                              <Loader2 className="animate-spin" size={14} />
-                            ) : (
-                              <>
-                                <Trash2 size={14} />
-                                Quitar
-                              </>
-                            )}
-                          </button>
+                          <div className="flex justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => moverARuta(p.pedido_id, p.codigo)}
+                              disabled={moviendoEsta || quitandoEsta || guardando || rutasDestino.length === 0}
+                              title="Mover la parada a otra ruta activa"
+                              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-50"
+                            >
+                              {moviendoEsta ? <Loader2 className="animate-spin" size={14} /> : <MoveRight size={14} />}
+                              Mover
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => quitar(p.pedido_id, p.codigo)}
+                              disabled={procesandoEsta || guardando}
+                              title="Quitar de la ruta (vuelve a Listo para envío)"
+                              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-danger hover:bg-danger-soft disabled:opacity-50"
+                            >
+                              {quitandoEsta ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />}
+                              Quitar
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>

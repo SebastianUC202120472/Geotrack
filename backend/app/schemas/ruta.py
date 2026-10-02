@@ -161,3 +161,8 @@ class RutaParadasResponse(BaseModel):
 # Nuevo orden de paradas. Recibe lista de pedido_id en orden deseado.
 class ReordenarRequest(BaseModel):
     orden: List[int]
+
+
+# Destino para mover una parada pendiente entre rutas.
+class MoverParadaRequest(BaseModel):
+    ruta_destino_id: int

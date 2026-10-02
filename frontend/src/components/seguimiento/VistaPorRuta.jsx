@@ -123,10 +123,11 @@ export default function VistaPorRuta() {
         </div>
       </SectionCard>
 
-      <Modal open={!!rutaAEditar} onClose={() => setRutaAEditar(null)} variant="center" className="max-w-4xl">
+      <Modal open={!!rutaAEditar} onClose={() => setRutaAEditar(null)} variant="center" className="w-[calc(100vw-3rem)] max-w-7xl">
         {rutaAEditar && (
           <ModalEditarRuta
             ruta={rutaAEditar}
+            rutas={rutas}
             onCerrar={() => setRutaAEditar(null)}
             onCambios={() => cargar(true)}
           />
