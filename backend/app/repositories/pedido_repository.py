@@ -21,9 +21,56 @@ def crear_pedidos(db: Session, pedidos: List[Pedido]) -> None:
     db.commit()
 
 
-def listar(db: Session, skip: int = 0, limit: int = 100) -> List[Pedido]:
-    """Devuelve pedidos paginados. Recibe db, offset y limite."""
-    return db.query(Pedido).offset(skip).limit(limit).all()
+def listar(
+    db: Session,
+    skip: int = 0,
+    limit: int = 100,
+    busqueda: Optional[str] = None,
+    distrito: Optional[str] = None,
+    estado: Optional[str] = None,
+) -> List[Pedido]:
+    """Devuelve pedidos paginados con filtros desde el servidor ordenados desc por fecha/id."""
+    query = db.query(Pedido)
+    
+    if busqueda:
+        patron = f"%{busqueda}%"
+        query = query.filter(
+            (Pedido.codigo.ilike(patron)) |
+            (Pedido.cliente_origen.ilike(patron)) |
+            (Pedido.direccion_destino.ilike(patron)) |
+            (Pedido.distrito.ilike(patron))
+        )
+    if distrito:
+        query = query.filter(Pedido.distrito == distrito)
+    if estado:
+        query = query.filter(Pedido.estado == estado)
+        
+    return query.order_by(Pedido.id.desc()).offset(skip).limit(limit).all()
+
+
+def contar_filtrados(
+    db: Session,
+    busqueda: Optional[str] = None,
+    distrito: Optional[str] = None,
+    estado: Optional[str] = None,
+) -> int:
+    """Cuenta el total de pedidos que coinciden con los filtros aplicados."""
+    query = db.query(func.count(Pedido.id))
+    
+    if busqueda:
+        patron = f"%{busqueda}%"
+        query = query.filter(
+            (Pedido.codigo.ilike(patron)) |
+            (Pedido.cliente_origen.ilike(patron)) |
+            (Pedido.direccion_destino.ilike(patron)) |
+            (Pedido.distrito.ilike(patron))
+        )
+    if distrito:
+        query = query.filter(Pedido.distrito == distrito)
+    if estado:
+        query = query.filter(Pedido.estado == estado)
+        
+    return query.scalar() or 0
 
 
 def obtener_sin_coordenadas(db: Session) -> List[Pedido]:

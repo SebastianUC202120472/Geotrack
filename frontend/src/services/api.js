@@ -161,7 +161,18 @@ export const listarReportes = (estado) =>
 export const responderReporte = (id, datos) =>
   request(`/reportes/${id}/responder`, { method: "POST", body: datos });
 
-export const listarPedidos = (limit = 1000) => request(`/pedidos/?limit=${limit}`);
+// Lista pedidos con soporte de busqueda, filtros y paginacion en el servidor (sin tope fijo)
+export const listarPedidos = (params = {}) => {
+  const query = new URLSearchParams();
+  if (params.page) query.append("page", params.page);
+  if (params.limit) query.append("limit", params.limit);
+  if (params.busqueda) query.append("busqueda", params.busqueda);
+  if (params.distrito) query.append("distrito", params.distrito);
+  if (params.estado) query.append("estado", params.estado);
+  
+  const queryString = query.toString();
+  return request(`/pedidos/${queryString ? `?${queryString}` : ""}`);
+};
 
 export const listarZonas = () => request("/pedidos/zonas");
 
