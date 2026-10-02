@@ -370,3 +370,10 @@ export const reordenarParadasRuta = (rutaId, orden) =>
 export const quitarParadaRuta = (rutaId, pedidoId) =>
   request(`/rutas/${rutaId}/paradas/${pedidoId}`, { method: "DELETE" });
 
+// CUS-21: Mover parada pendiente a otra ruta. Recibe ruta origen, pedido y ruta destino.
+export const moverParadaRuta = (rutaId, pedidoId, rutaDestinoId) =>
+  request(`/rutas/${rutaId}/paradas/${pedidoId}/mover`, {
+    method: "PATCH",
+    body: { ruta_destino_id: rutaDestinoId },
+  });
+
