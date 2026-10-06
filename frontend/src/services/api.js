@@ -52,6 +52,13 @@ function leerPayload(token) {
   }
 }
 
+// Traduce el codigo HTTP de un login fallido a un mensaje para el usuario. Recibe el status.
+const mensajeErrorLogin = (status) => {
+  if (status === 429) return "Demasiados intentos. Espera un minuto e inténtalo de nuevo.";
+  if (status === 400) return "La cuenta está desactivada. Contacta al administrador.";
+  return "Correo o contraseña incorrectos";
+};
+
 // Login del panel. Valida rol (admin/almacen) antes de guardar el token. Recibe correo y contrasena.
 export const loginAdmin = async (correo, contrasena) => {
   const formulario = new URLSearchParams();
@@ -64,7 +71,7 @@ export const loginAdmin = async (correo, contrasena) => {
     body: formulario,
   });
 
-  if (!respuesta.ok) throw new Error("Correo o contraseña incorrectos");
+  if (!respuesta.ok) throw new Error(mensajeErrorLogin(respuesta.status));
 
   const datos = await respuesta.json();
 

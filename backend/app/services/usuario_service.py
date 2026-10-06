@@ -116,5 +116,11 @@ def autenticar_y_generar_token(db: Session, correo: str, contrasena: str) -> str
             detail="Correo o contraseña incorrectos",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    # Validar si la cuenta se encuentra desactivada (CUS-01 / C01-01)
+    if not usuario.estado:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La cuenta se encuentra inactiva o desactivada",
+        )
 
     return create_access_token(data={"sub": usuario.correo, "rol": usuario.rol})
