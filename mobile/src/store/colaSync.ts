@@ -1,6 +1,6 @@
 // Cola persistente de acciones de entrega offline; guarda fotos POD en disco.
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 
 export type TipoAccion = "ENTREGA" | "FALLIDO";
 
