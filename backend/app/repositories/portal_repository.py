@@ -10,11 +10,21 @@ from app.models.conductor import PerfilConductor
 from app.models.historial import HistorialPedido
 from app.models.evidencia import EvidenciaEntrega
 from app.models.cliente import ClienteCorporativo
+from app.models.parametro import ParametroSistema
 
 
 def pedido_por_codigo(db: Session, codigo: str) -> Optional[Pedido]:
-    """Busca un pedido por su codigo. Recibe db y codigo."""
-    return db.query(Pedido).filter(Pedido.codigo == codigo).first()
+    """Busca un pedido por su codigo interno (PD-014) o por la referencia del retail
+    (RPL-1000). Recibe db y el codigo tecleado por el cliente.
+    El destinatario final conoce el numero que le dio la tienda, no el codigo interno
+    de SAVA, asi que el portal acepta los dos. Se prioriza el codigo interno para que
+    una referencia externa que coincida con un codigo nunca tape al pedido correcto."""
+    if not codigo:
+        return None
+    p = db.query(Pedido).filter(Pedido.codigo == codigo).first()
+    if p:
+        return p
+    return db.query(Pedido).filter(Pedido.referencia_externa == codigo).first()
 
 
 def ruta_y_detalle_de(db: Session, pedido_id: int) -> Tuple[Optional[Ruta], Optional[RutaDetalle], int]:
@@ -131,3 +141,14 @@ def conteos_del_dia_reciente(db: Session):
 def ultimo_pedido(db: Session) -> Optional[Pedido]:
     """Devuelve el pedido mas reciente del sistema (para la tarjeta del landing)."""
     return db.query(Pedido).order_by(Pedido.id.desc()).first()
+
+
+def ayuda_demo(db: Session) -> Optional[dict]:
+    """Devuelve los datos de ayuda de la demostracion guardados por el seeder. Recibe db.
+    None si nunca se sembro la demostracion."""
+    fila = (
+        db.query(ParametroSistema)
+        .filter(ParametroSistema.categoria == "portal_demo", ParametroSistema.clave == "ayuda")
+        .first()
+    )
+    return fila.valor_json if fila else None

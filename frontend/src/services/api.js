@@ -52,6 +52,13 @@ function leerPayload(token) {
   }
 }
 
+// Traduce el codigo HTTP de un login fallido a un mensaje para el usuario. Recibe el status.
+const mensajeErrorLogin = (status) => {
+  if (status === 429) return "Demasiados intentos. Espera un minuto e inténtalo de nuevo.";
+  if (status === 400) return "La cuenta está desactivada. Contacta al administrador.";
+  return "Correo o contraseña incorrectos";
+};
+
 // Login del panel. Valida rol (admin/almacen) antes de guardar el token. Recibe correo y contrasena.
 export const loginAdmin = async (correo, contrasena) => {
   const formulario = new URLSearchParams();
@@ -64,7 +71,7 @@ export const loginAdmin = async (correo, contrasena) => {
     body: formulario,
   });
 
-  if (!respuesta.ok) throw new Error("Correo o contraseña incorrectos");
+  if (!respuesta.ok) throw new Error(mensajeErrorLogin(respuesta.status));
 
   const datos = await respuesta.json();
 
@@ -161,9 +168,33 @@ export const listarReportes = (estado) =>
 export const responderReporte = (id, datos) =>
   request(`/reportes/${id}/responder`, { method: "POST", body: datos });
 
-export const listarPedidos = (limit = 1000) => request(`/pedidos/?limit=${limit}`);
+// Lista una pagina de pedidos (mas nuevos primero) con filtros del servidor.
+// Recibe { skip, limit, busqueda, distrito, estado }, todos opcionales.
+export const listarPedidos = (params = {}) => {
+  const query = new URLSearchParams();
+  for (const clave of ["skip", "limit", "busqueda", "distrito", "estado"]) {
+    if (params[clave]) query.append(clave, params[clave]);
+  }
+  const queryString = query.toString();
+  return request(`/pedidos/${queryString ? `?${queryString}` : ""}`);
+};
+
+const PEDIDOS_POR_PAGINA = 500;
+
+// Trae TODOS los pedidos pidiendolos por paginas, sin tope fijo. Recibe filtros opcionales.
+export const listarTodosLosPedidos = async (filtros = {}) => {
+  const todos = [];
+  for (let skip = 0; ; skip += PEDIDOS_POR_PAGINA) {
+    const pagina = await listarPedidos({ ...filtros, skip, limit: PEDIDOS_POR_PAGINA });
+    todos.push(...pagina);
+    if (pagina.length < PEDIDOS_POR_PAGINA) return todos;
+  }
+};
 
 export const listarZonas = () => request("/pedidos/zonas");
+
+// Zonas con pedidos pendientes o asignados, contadas en el servidor.
+export const listarZonasPorEnrutar = () => request("/pedidos/zonas/por-enrutar");
 
 // Lista pedidos sin geocodificacion valida (para ubicar a mano).
 export const listarPorUbicar = () => request("/pedidos/por-ubicar");
@@ -358,3 +389,22 @@ export const obtenerRetornoRuta = (id) => request(`/almacen/retornos/rutas/${id}
 // Registra el escaneo de un paquete devuelto. Recibe id y codigo.
 export const escanearRetorno = (id, codigo) =>
   request(`/almacen/retornos/rutas/${id}/escanear`, { method: "POST", body: { codigo } });
+
+// CUS-21: Obtener paradas ordenadas de una ruta para edicion. Recibe rutaId.
+export const obtenerParadasRuta = (rutaId) => request(`/rutas/${rutaId}/paradas`);
+
+// CUS-21: Reordenar secuencia de paradas de una ruta. Recibe rutaId y orden (array de pedido_id).
+export const reordenarParadasRuta = (rutaId, orden) =>
+  request(`/rutas/${rutaId}/reordenar`, { method: "PATCH", body: { orden } });
+
+// CUS-21: Quitar parada pendiente de una ruta. Recibe rutaId y pedidoId.
+export const quitarParadaRuta = (rutaId, pedidoId) =>
+  request(`/rutas/${rutaId}/paradas/${pedidoId}`, { method: "DELETE" });
+
+// CUS-21: Mover parada pendiente a otra ruta. Recibe ruta origen, pedido y ruta destino.
+export const moverParadaRuta = (rutaId, pedidoId, rutaDestinoId) =>
+  request(`/rutas/${rutaId}/paradas/${pedidoId}/mover`, {
+    method: "PATCH",
+    body: { ruta_destino_id: rutaDestinoId },
+  });
+

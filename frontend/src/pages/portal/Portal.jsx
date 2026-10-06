@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useEfectosScroll } from "../../hooks/useEfectosScroll";
 import RastreoPersonal from "./vistas/RastreoPersonal";
 import PanelEmpresa from "./vistas/PanelEmpresa";
+import { ayudaDemo } from "./servicios/portal";
 import logo from "../../assets/logo.png";
 import "./portal.css";
 
@@ -12,6 +13,7 @@ import "./portal.css";
 export default function Portal() {
   const [modo, setModo] = useState(null); // null | "personal" | "empresa"
   const [toast, setToast] = useState("");
+  const [demo, setDemo] = useState(null); // credenciales y códigos de ejemplo (solo en modo demostración)
   const contRef = useRef(null);
   const timerToast = useRef(null);
   useEfectosScroll(contRef);
@@ -19,6 +21,16 @@ export default function Portal() {
   // Título de la pestaña al entrar al portal.
   useEffect(() => {
     document.title = "Portal de clientes — SAVA";
+  }, []);
+
+  // Pide una sola vez los datos de ayuda de la demostración. Si el backend no está en
+  // modo demostración responde {activo:false} y no se muestra nada.
+  useEffect(() => {
+    let vivo = true;
+    ayudaDemo()
+      .then((d) => { if (vivo && d && d.activo) setDemo(d); })
+      .catch(() => {});
+    return () => { vivo = false; };
   }, []);
 
   // Limpia el timer del toast al desmontar la página (evita setState tras unmount).
@@ -183,8 +195,8 @@ export default function Portal() {
       </div>
 
       {/* Vista según el perfil elegido */}
-      {modo === "personal" && <RastreoPersonal avisar={avisar} />}
-      {modo === "empresa" && <PanelEmpresa avisar={avisar} />}
+      {modo === "personal" && <RastreoPersonal avisar={avisar} demo={demo} />}
+      {modo === "empresa" && <PanelEmpresa avisar={avisar} demo={demo} />}
 
       {/* FOOTER */}
       <footer style={{ borderTop: "1px solid rgba(15,43,74,.08)", background: "#fff", marginTop: "auto" }}>

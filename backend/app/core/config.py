@@ -10,6 +10,12 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
     PORTAL_TOKEN_EXPIRE_MIN: int = 15    # expiracion del token de portal (persona)
 
+    # Modo demostracion del OTP del portal de empresa. Con SMTP apagado el login no
+    # puede enviar el codigo; si esta bandera esta encendida el backend lo devuelve
+    # en la respuesta para que el portal lo muestre en pantalla. SOLO para demos:
+    # expone un factor de autenticacion, por eso viene apagada de fabrica.
+    PORTAL_OTP_DEMO: bool = False
+
     DATABASE_URL: str = "postgresql://sava_admin:sava_password123@db:5432/siol_sava_db"  # nosec B105
 
     CORS_ORIGINS: str = "*"
@@ -18,6 +24,10 @@ class Settings(BaseSettings):
     # vistas diarias (panel corporativo, reporte del landing). Con UTC, el dia de una
     # operacion peruana cambiaria a las 7 p.m. hora de Lima.
     ZONA_HORARIA: str = "America/Lima"
+
+    # Limites de las fotos subidas (entrega, recojo, auxilio, conductor).
+    IMAGEN_MAX_MB: int = 8
+    RECOJO_MAX_FOTOS: int = 10
 
     ADMIN_EMAIL: str = "admin@siol.com"
     ADMIN_PASSWORD: str = "admin123"  # nosec B105

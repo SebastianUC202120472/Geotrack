@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ESTADOS } from "../datos/portalUi.js";
+import { AyudaEmpresas } from "./AyudaDemo";
 import { empresaLogin, empresaVerificar, empresaPedidos } from "../servicios/portal.js";
 
 // ============================================================================
@@ -63,7 +64,7 @@ const ORDEN = ["ENTREGADO", "EN_RUTA", "POR_SALIR", "OBSERVADO", "REPROGRAMADO"]
 
 // PanelEmpresa: vista corporativa del portal para clientes retail.
 // Input: prop `avisar(texto, ms)` para mostrar el toast del portal.
-export default function PanelEmpresa({ avisar }) {
+export default function PanelEmpresa({ avisar, demo }) {
   // --- Estado del flujo (port del bloque de estado empresa del mockup) ---
   const [paso, setPaso] = useState(0); // 0 credenciales · 1 OTP · 2 panel
   const [codEmp, setCodEmp] = useState(""); // input del código de empresa
@@ -76,6 +77,7 @@ export default function PanelEmpresa({ avisar }) {
   const [correoMask, setCorreoMask] = useState(""); // correo enmascarado donde llegó el OTP (lo informa el backend)
   const [otpInput, setOtpInput] = useState(""); // input del OTP (solo dígitos)
   const [otpError, setOtpError] = useState(false); // OTP incorrecto (aviso + sacudir)
+  const [otpDemo, setOtpDemo] = useState(""); // código mostrado en pantalla cuando el backend no pudo enviar el correo
   const [empresa, setEmpresa] = useState(null); // { nombre, ini } de la sesión iniciada (o null)
   const [filas, setFilas] = useState([]); // pedidos de hoy del cliente (llegan del backend tras verificar)
   const [sesionFin, setSesionFin] = useState(0); // timestamp de expiración de la sesión
@@ -155,6 +157,14 @@ export default function PanelEmpresa({ avisar }) {
     setError(false);
   };
 
+  // usarEmpresaDemo: rellena código y clave desde el bloque de ayuda de la demostración.
+  // Input: el código de acceso y la clave de la empresa elegida.
+  const usarEmpresaDemo = (codigo, clave) => {
+    setCodEmp(codigo);
+    setClaveEmp(clave);
+    setError(false);
+  };
+
   // onCreds: valida credenciales contra el backend (empresaLogin), que si son correctas
   // envía el OTP por correo al administrador de la cuenta. Si acierta → pasa al paso 1
   // y guarda el correo enmascarado que informó el backend. Si falla (401) suma un
@@ -173,13 +183,16 @@ export default function PanelEmpresa({ avisar }) {
         setCargando(false);
         setPendiente(c);
         setCorreoMask(res.correoMask || "");
+        setOtpDemo(res.otpDemo || "");
         setPaso(1);
         setOtpInput("");
         setOtpError(false);
         setIntentos(0);
         setCodEmp(c);
         avisar(
-          "Código enviado al correo del administrador" + (res.correoMask ? " (" + res.correoMask + ")" : ""),
+          res.otpDemo
+            ? "Modo demostración — el código se muestra en pantalla"
+            : "Código enviado al correo del administrador" + (res.correoMask ? " (" + res.correoMask + ")" : ""),
           6000
         );
       })
@@ -267,7 +280,13 @@ export default function PanelEmpresa({ avisar }) {
         setOtpInput("");
         setOtpError(false);
         setCorreoMask(res.correoMask || correoMask);
-        avisar("Nuevo código enviado" + (res.correoMask ? " a " + res.correoMask : ""), 6000);
+        setOtpDemo(res.otpDemo || "");
+        avisar(
+          res.otpDemo
+            ? "Nuevo código generado — se muestra en pantalla"
+            : "Nuevo código enviado" + (res.correoMask ? " a " + res.correoMask : ""),
+          6000
+        );
       })
       .catch(() => avisar("No se pudo reenviar el código — intente de nuevo", 4000));
   };
@@ -279,6 +298,7 @@ export default function PanelEmpresa({ avisar }) {
     setCorreoMask("");
     setOtpInput("");
     setOtpError(false);
+    setOtpDemo("");
   };
 
   // salirEmpresa: cierre de sesión manual desde el panel. Port de salirEmpresa (1318).
@@ -401,6 +421,8 @@ export default function PanelEmpresa({ avisar }) {
           ahora={ahora}
           error={error}
           intentos={intentos}
+          demo={demo}
+          onUsarDemo={usarEmpresaDemo}
         />
       )}
 
@@ -412,6 +434,7 @@ export default function PanelEmpresa({ avisar }) {
           onOtpInput={onOtpInput}
           onOtp={onOtp}
           otpError={otpError}
+          otpDemo={otpDemo}
           reenviarOtp={reenviarOtp}
           volverCreds={volverCreds}
         />
@@ -640,7 +663,7 @@ const SELECT_ESTILO = {
 // Input: valores/handlers de los inputs, estado de carga/bloqueo/error/intentos y el
 // reloj `ahora` (para el countdown del bloqueo).
 // ----------------------------------------------------------------------------
-function Credenciales({ codEmp, claveEmp, onCodEmp, onClaveEmp, onCreds, cargando, empBloq, bloqueoHasta, ahora, error, intentos }) {
+function Credenciales({ codEmp, claveEmp, onCodEmp, onClaveEmp, onCreds, cargando, empBloq, bloqueoHasta, ahora, error, intentos, demo, onUsarDemo }) {
   const bloqueoTxt = "Demasiados intentos fallidos. Por seguridad, el acceso está pausado " + Math.ceil(Math.max(0, bloqueoHasta - ahora) / 1000) + " s.";
   const intentosTxt = String(Math.max(0, 3 - intentos));
 
@@ -698,6 +721,7 @@ function Credenciales({ codEmp, claveEmp, onCodEmp, onClaveEmp, onCreds, cargand
               Credenciales incorrectas · le quedan {intentosTxt} intentos antes del bloqueo temporal
             </p>
           )}
+          {demo && <AyudaEmpresas empresas={demo.empresas} onElegir={onUsarDemo} />}
         </>
       )}
 
@@ -713,16 +737,35 @@ function Credenciales({ codEmp, claveEmp, onCodEmp, onClaveEmp, onCreds, cargand
 // VerificacionOtp: paso 1 del flujo. Panel con el mensaje (con el correo enmascarado
 // donde el backend envió el código), el input de OTP de 6 dígitos, el botón de validar,
 // el error (con sacudir) y las acciones de reenviar código / volver. Input: correo
-// enmascarado, valor/handlers del OTP, bandera de error y los handlers de reenviar/volver.
+// enmascarado, valor/handlers del OTP, bandera de error, el código de demostración
+// (vacío en operación normal) y los handlers de reenviar/volver.
 // ----------------------------------------------------------------------------
-function VerificacionOtp({ correoMask, otpInput, onOtpInput, onOtp, otpError, reenviarOtp, volverCreds }) {
+function VerificacionOtp({ correoMask, otpInput, onOtpInput, onOtp, otpError, otpDemo, reenviarOtp, volverCreds }) {
   return (
     <div data-ppanel="1" style={{ maxWidth: 560, margin: "0 auto", background: "#fff", border: "1.5px solid rgba(38,121,216,.3)", borderRadius: 22, padding: "30px 28px", boxShadow: "0 16px 40px rgba(15,43,74,.08)", animation: "aparecer .4s ease both" }}>
       <p style={{ margin: 0, fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 21 }}>Verificación en dos pasos</p>
       <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.6, color: "#4f6580" }}>
-        Código enviado al correo del administrador{correoMask ? " " : ""}
-        {correoMask && <strong>{correoMask}</strong>}. Revise su bandeja de entrada (y spam) e ingréselo aquí.
+        {otpDemo ? (
+          <>
+            Por seguridad, el acceso exige un segundo factor. El código corresponde a la cuenta
+            {correoMask ? " " : ""}
+            {correoMask && <strong>{correoMask}</strong>}.
+          </>
+        ) : (
+          <>
+            Código enviado al correo del administrador{correoMask ? " " : ""}
+            {correoMask && <strong>{correoMask}</strong>}. Revise su bandeja de entrada (y spam) e ingréselo aquí.
+          </>
+        )}
       </p>
+      {otpDemo && (
+        <div style={{ margin: "14px 0 0", padding: "12px 14px", borderRadius: 12, background: "#fff7e6", border: "1.5px solid #f0c36d", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, color: "#7a5a12", lineHeight: 1.5 }}>
+            Modo demostración · el envío de correo está desactivado. Su código es
+          </span>
+          <strong style={{ fontFamily: "Archivo, sans-serif", fontSize: 20, letterSpacing: ".18em", color: "#5c4206" }}>{otpDemo}</strong>
+        </div>
+      )}
       <form onSubmit={onOtp} style={{ margin: "18px 0 0", display: "flex", gap: 10, flexWrap: "wrap" }}>
         <input
           value={otpInput}

@@ -241,9 +241,10 @@ def _nombres_conductores(db: Session, ids: set[int]) -> dict:
     return nombres
 
 
-def listar_pedidos(db: Session, skip: int, limit: int):
-    """Devuelve los pedidos paginados enriquecidos con ruta y conductor asignados."""
-    pedidos = pedido_repository.listar(db, skip=skip, limit=limit)
+def listar_pedidos(db: Session, skip: int, limit: int, busqueda: str | None = None,
+                   distrito: str | None = None, estado: str | None = None):
+    """Devuelve los pedidos paginados y filtrados, con ruta y conductor asignados. Recibe offset, limite y filtros."""
+    pedidos = pedido_repository.listar(db, skip=skip, limit=limit, busqueda=busqueda, distrito=distrito, estado=estado)
     mapa = ruta_repository.mapa_ruta_por_pedidos(db, [p.id for p in pedidos])
     nombres = _nombres_conductores(db, {cid for (_, cid) in mapa.values() if cid})
     for p in pedidos:
@@ -309,6 +310,20 @@ def agrupar_por_zona(db: Session) -> dict:
     resultados = pedido_repository.agrupar_por_zona(db)
     zonas = [{"distrito": r.distrito, "total_pedidos": r.total_pedidos} for r in resultados]
     return {"zonas_operativas": zonas}
+
+
+def zonas_por_enrutar(db: Session) -> dict:
+    """Zonas con pedidos pendientes (LISTO_PARA_ENVIO) o asignados, de mayor a menor carga. Recibe db."""
+    zonas: dict[str, dict] = {}
+    for distrito, estado, total in pedido_repository.contar_activos_por_distrito(db):
+        clave = distrito or ""
+        zona = zonas.setdefault(clave, {"distrito": clave, "pendientes": 0, "asignados": 0})
+        if estado == "LISTO_PARA_ENVIO":
+            zona["pendientes"] += total
+        else:
+            zona["asignados"] += total
+    ordenadas = sorted(zonas.values(), key=lambda z: z["pendientes"] + z["asignados"], reverse=True)
+    return {"zonas": ordenadas}
 
 
 def listar_para_ubicar(db: Session):

@@ -11,7 +11,7 @@ import { EstadoBadge } from "../components/ui/Badge";
 import { SkeletonStat } from "../components/ui/Skeleton";
 import EmptyState from "../components/ui/EmptyState";
 import { agruparPedidosPorDia } from "../utils/dashboard";
-import { obtenerResumen, listarPedidos, obtenerSeguimientoClientes, obtenerUbicacionesFlota } from "../services/api";
+import { obtenerResumen, listarTodosLosPedidos, obtenerSeguimientoClientes, obtenerUbicacionesFlota } from "../services/api";
 
 // Colores por estado para gráficos.
 const COLOR_ESTADO = {
@@ -54,7 +54,7 @@ export default function Dashboard() {
       if (silencioso) setActualizando(true);
       Promise.allSettled([
         obtenerResumen().then(setResumen),
-        listarPedidos().then(setPedidos),
+        listarTodosLosPedidos().then(setPedidos),
         obtenerSeguimientoClientes().then(actualizarClientes),
         obtenerUbicacionesFlota().then(actualizarFlota),
       ]).finally(() => {
@@ -83,7 +83,8 @@ export default function Dashboard() {
   }));
 
   const entregados = porEstado.ENTREGADO || 0;
-  const recientes = [...pedidos].slice(-6).reverse();
+  // El servidor entrega los pedidos del mas nuevo al mas antiguo.
+  const recientes = pedidos.slice(0, 6);
   const pedidosPorDia = agruparPedidosPorDia(pedidos, 7);
 
   // Maximo de pendientes del top-6 para escalar las barras de progreso.

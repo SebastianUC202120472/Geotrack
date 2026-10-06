@@ -5,6 +5,7 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.imagenes import validar_imagen
 from app.models.ruta import Ruta, RutaDetalle
 from app.models.pedido import Pedido
 from app.models.solicitud_recojo import ESTADOS_RECOGIDO
@@ -24,7 +25,6 @@ from app.schemas.ruta import (
 
 # Directorio de fotos POD, servido en /media.
 DIR_EVIDENCIAS = os.path.join("uploads", "evidencias")
-EXTENSIONES_IMAGEN = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 def _construir_parada(detalle: RutaDetalle, pedido: Pedido) -> ParadaManifiesto:
@@ -212,12 +212,8 @@ def guardar_evidencia(
     """Guarda la foto POD y la asocia al detalle de ruta. Recibe: id conductor, pedido, bytes e imagen."""
     detalle = _obtener_detalle_de_mi_ruta(db, conductor_id, pedido_id)
 
-    _, extension = os.path.splitext(nombre_archivo.lower())
-    if extension not in EXTENSIONES_IMAGEN:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Formato no permitido. Usa: {', '.join(sorted(EXTENSIONES_IMAGEN))}",
-        )
+    # La extension sale del contenido real, no del nombre que manda el cliente.
+    extension = validar_imagen(contenido)
 
     os.makedirs(DIR_EVIDENCIAS, exist_ok=True)
     # El sufijo aleatorio evita que la foto sea adivinable: /media se sirve como
@@ -469,6 +465,55 @@ def reordenar_paradas(db: Session, ruta_id: int, orden: list[int]) -> dict:
             secuencia += 1
     db.commit()
     return {"mensaje": "Orden de paradas actualizado", "total_paradas": secuencia - 1}
+
+
+def _renumerar_ruta(db: Session, ruta_id: int) -> int:
+    """Normaliza la secuencia de una ruta desde 1. Recibe ruta_id."""
+    secuencia = 1
+    for detalle, _ in ruta_repository.obtener_detalles_con_pedido(db, ruta_id):
+        detalle.secuencia = secuencia
+        secuencia += 1
+    return secuencia - 1
+
+
+def mover_parada(db: Session, ruta_origen_id: int, pedido_id: int, ruta_destino_id: int, usuario_id: int | None = None) -> dict:
+    """Mueve una parada pendiente de una ruta a otra. Recibe ruta origen, pedido, ruta destino y admin."""
+    if ruta_origen_id == ruta_destino_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="La ruta destino debe ser distinta a la ruta actual.")
+
+    ruta_origen = _ruta_editable_o_400(db, ruta_origen_id)
+    ruta_destino = _ruta_editable_o_400(db, ruta_destino_id)
+    if ruta_origen.tipo != "ENTREGA" or ruta_destino.tipo != "ENTREGA":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Solo se pueden mover paradas entre rutas de entrega.")
+
+    detalle = ruta_repository.obtener_detalle_de_ruta(db, ruta_origen.id, pedido_id)
+    if not detalle:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Esa parada no pertenece a la ruta")
+    if detalle.estado_entrega in ("ENTREGADO", "FALLIDO"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="No se puede mover una parada ya gestionada (entregada o fallida).")
+    if ruta_repository.obtener_detalle_de_ruta(db, ruta_destino.id, pedido_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="El pedido ya pertenece a la ruta destino.")
+
+    total_destino = len(ruta_repository.obtener_detalles_con_pedido(db, ruta_destino.id))
+    detalle.ruta_id = ruta_destino.id
+    detalle.secuencia = total_destino + 1
+    _renumerar_ruta(db, ruta_origen.id)
+
+    pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
+    if pedido:
+        historial_repository.registrar(db, pedido.id, pedido.estado, pedido.estado, usuario_id)
+
+    db.commit()
+    return {
+        "mensaje": f"Parada movida a la ruta '{ruta_destino.nombre}'",
+        "ruta_origen_id": ruta_origen.id,
+        "ruta_destino_id": ruta_destino.id,
+        "pedido_id": pedido_id,
+    }
 
 
 def quitar_parada(db: Session, ruta_id: int, pedido_id: int, usuario_id: int | None = None) -> dict:

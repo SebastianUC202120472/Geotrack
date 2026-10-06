@@ -5,6 +5,7 @@ import secrets
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.imagenes import validar_imagen
 from app.repositories import conductor_repository, usuario_repository, ubicacion_repository, solicitud_restablecimiento_repository
 from app.core.security import get_password_hash
 from app.schemas.conductor import ConductorCreate, ConductorUpdate, UbicacionRequest, ConductorResetContrasena
@@ -63,8 +64,18 @@ def _conductor_activo(db: Session, usuario_id: int):
 
 
 def actualizar(db: Session, usuario_id: int, datos: ConductorUpdate) -> dict:
-    """Edita la ficha (nombre/teléfono/DNI) de un conductor activo."""
+    """Edita la ficha (correo/nombre/teléfono/DNI) de un conductor activo."""
     usuario = _conductor_activo(db, usuario_id)
+    if datos.correo:
+        nuevo_correo = str(datos.correo).strip().lower()
+        if nuevo_correo != usuario.correo:
+            existente = usuario_repository.obtener_por_correo(db, nuevo_correo)
+            if existente and existente.id != usuario.id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="El correo ya está registrado por otra cuenta",
+                )
+            usuario_repository.actualizar_correo(db, usuario, nuevo_correo)
     conductor_repository.actualizar_perfil(
         db, usuario_id, nombre=datos.nombre, telefono=datos.telefono, dni=datos.dni
     )
@@ -100,19 +111,14 @@ def eliminar(db: Session, usuario_id: int) -> dict:
 
 
 DIR_FOTOS = os.path.join("uploads", "conductores")
-EXTENSIONES_IMAGEN = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 def guardar_foto(db: Session, usuario_id: int, contenido: bytes, nombre_archivo: str) -> dict:
     """Guarda o reemplaza la foto de un conductor activo. Recibe: id, bytes y nombre original del archivo."""
     usuario = _conductor_activo(db, usuario_id)
 
-    _, extension = os.path.splitext((nombre_archivo or "").lower())
-    if extension not in EXTENSIONES_IMAGEN:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Formato no permitido. Usa: {', '.join(sorted(EXTENSIONES_IMAGEN))}",
-        )
+    # La extension sale del contenido real, no del nombre que manda el cliente.
+    extension = validar_imagen(contenido)
 
     os.makedirs(DIR_FOTOS, exist_ok=True)
     # Borra la foto anterior: el patron viejo (cond_ID.ext, sin sufijo) y el nuevo

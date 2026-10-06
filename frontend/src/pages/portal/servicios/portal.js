@@ -56,6 +56,9 @@ export const empresaPedidos = (token) =>
     headers: { Authorization: `Bearer ${token}` },
   });
 
+// --- Ayuda de la demostración (vacía si el backend no está en modo demo) ---
+export const ayudaDemo = () => pedir(`${BASE}/demo`);
+
 // --- Landing (estadísticas públicas agregadas, sin datos personales) ---
 export const estadisticasPublicas = () => pedir(`${BASE}/estadisticas`);
 

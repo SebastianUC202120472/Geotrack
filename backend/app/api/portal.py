@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
+from app.core.config import settings
 from app.core.rate_limit import limite_publico
 from app.core import portal_token
 from app.core.security import verify_password
@@ -20,6 +21,13 @@ router = APIRouter()
 def estadisticas(db: Session = Depends(get_db)):
     """Estadisticas agregadas para el landing (publico, sin datos personales)."""
     return portal_service.estadisticas_publicas(db)
+
+
+@router.get("/demo", dependencies=[Depends(limite_publico(30, 60))])
+def ayuda_demo(db: Session = Depends(get_db)):
+    """Credenciales y codigos de ejemplo de la demostracion, para mostrarlos en el portal.
+    Sin input. Devuelve {"activo": false} si el modo demostracion esta apagado."""
+    return portal_service.ayuda_demo(db, settings.PORTAL_OTP_DEMO)
 
 
 @router.post("/pedidos/{codigo}/buscar", dependencies=[Depends(limite_publico(30, 60))])
@@ -83,14 +91,8 @@ def empresa_login(datos: EmpresaLogin, db: Session = Depends(get_db)):
     enviado = correo_service.enviar_simple(
         cliente.correo_portal, "Codigo de acceso al portal SAVA",
         f"Su codigo de verificacion es: {otp}\n\nExpira en 10 minutos.")
-    # Sin correo saliente el OTP no llega a nadie: se avisa en lugar de responder
-    # "enviado" y dejar al usuario esperando un codigo que nunca va a recibir.
-    if not enviado:
-        raise HTTPException(
-            status_code=503,
-            detail="No se pudo enviar el codigo de verificacion. Contacte a SAVA para acceder al portal.",
-        )
-    return {"enviado": True, "correoMask": enmascarado.mask_correo(cliente.correo_portal)}
+    return portal_service.respuesta_login_empresa(
+        enviado, otp, enmascarado.mask_correo(cliente.correo_portal), settings.PORTAL_OTP_DEMO)
 
 
 @router.post("/empresa/verificar", dependencies=[Depends(limite_publico(10, 60))])

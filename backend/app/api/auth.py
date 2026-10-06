@@ -7,6 +7,7 @@ from app.api.deps import get_current_admin
 from app.models.usuario import Usuario
 from app.schemas.usuario import UsuarioCreate, UsuarioResponse, Token, SolicitudRestablecimientoRequest
 from app.services import usuario_service
+from app.core.rate_limit import limite_publico
 
 router = APIRouter()
 
@@ -21,7 +22,7 @@ def registrar_usuario(
     return usuario_service.registrar_usuario(db, usuario)
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=Token, dependencies=[Depends(limite_publico(maximo=5, ventana_seg=60))])
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """Autentica con correo y contrasena, devuelve el token JWT."""
     access_token = usuario_service.autenticar_y_generar_token(
