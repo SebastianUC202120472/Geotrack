@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     # expone un factor de autenticacion, por eso viene apagada de fabrica.
     PORTAL_OTP_DEMO: bool = False
 
+    # Modo demostracion del almacen: encendida, una solicitud recien aceptada aparece
+    # en "Ingreso a Almacen" sin pasar por la ruta de recojo del conductor (recepcion
+    # directa, sin fotos). SOLO para presentaciones: se salta la evidencia del recojo.
+    ALMACEN_INGRESO_DIRECTO: bool = False
+
     DATABASE_URL: str = "postgresql://sava_admin:sava_password123@db:5432/siol_sava_db"  # nosec B105
 
     CORS_ORIGINS: str = "*"
