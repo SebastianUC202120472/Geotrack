@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.repositories import almacen_repository, recojo_repository, historial_repository
 from app.schemas.almacen import (
     ConteoConciliacion,
@@ -12,7 +13,13 @@ from app.schemas.almacen import (
     ConfirmarIngresoResponse,
 )
 
-ESTADOS_INGRESABLES = ("RECOGIDO", "INGRESADO")
+
+def estados_ingresables() -> tuple:
+    """Estados de recojo que el almacen puede ingresar. Con ALMACEN_INGRESO_DIRECTO (modo
+    demostracion) suma SOLICITADO: la solicitud recien aceptada se recibe sin ruta de recojo."""
+    if settings.ALMACEN_INGRESO_DIRECTO:
+        return ("SOLICITADO", "RECOGIDO", "INGRESADO")
+    return ("RECOGIDO", "INGRESADO")
 
 
 def _recojo_ingresable(db: Session, recojo_id: int, bloquear: bool = False):
@@ -24,7 +31,7 @@ def _recojo_ingresable(db: Session, recojo_id: int, bloquear: bool = False):
     )
     if not recojo:
         raise HTTPException(status_code=404, detail="Recojo no encontrado")
-    if recojo.estado not in ESTADOS_INGRESABLES:
+    if recojo.estado not in estados_ingresables():
         raise HTTPException(
             status_code=400,
             detail=f"El recojo debe estar RECOGIDO para ingresarlo (estado: {recojo.estado})",
@@ -106,8 +113,9 @@ def confirmar_ingreso(db: Session, recojo_id: int, referencias_faltantes: list[s
 
 
 def listar_recojos(db: Session, estado: str | None = None) -> list:
-    """Lista recojos RECOGIDO/INGRESADO con su conteo de pedidos. Recibe estado opcional para filtrar."""
-    estados = [estado] if estado else ["RECOGIDO", "INGRESADO"]
+    """Lista los recojos ingresables (RECOGIDO/INGRESADO, y SOLICITADO en modo demostracion)
+    con su conteo de pedidos. Recibe estado opcional para filtrar."""
+    estados = [estado] if estado else list(estados_ingresables())
     items = []
     for e in estados:
         for r in recojo_repository.listar(db, e):

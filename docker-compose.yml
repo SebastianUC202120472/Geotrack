@@ -24,6 +24,9 @@ services:
       # enviar el OTP, y en true el backend lo devuelve para mostrarlo en pantalla.
       # NO activar en produccion: expone un factor de autenticacion.
       PORTAL_OTP_DEMO: ${PORTAL_OTP_DEMO:-false}
+      # Modo demostracion del almacen: en true, la solicitud aceptada se recibe directo en
+      # "Ingreso a Almacen" sin ruta de recojo ni fotos. NO activar en produccion.
+      ALMACEN_INGRESO_DIRECTO: ${ALMACEN_INGRESO_DIRECTO:-false}
       CORS_ORIGINS: ${CORS_ORIGINS}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
