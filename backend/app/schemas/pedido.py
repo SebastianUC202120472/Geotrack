@@ -60,6 +60,18 @@ class ZonasResponse(BaseModel):
     zonas_operativas: List[ZonaItem]
 
 
+class ZonaPorEnrutarItem(BaseModel):
+    """Una zona con pedidos por enrutar: distrito + pendientes + asignados."""
+    distrito: str
+    pendientes: int
+    asignados: int
+
+
+class ZonasPorEnrutarResponse(BaseModel):
+    """Zonas con pedidos pendientes o asignados, calculadas en el servidor."""
+    zonas: List[ZonaPorEnrutarItem]
+
+
 class UbicacionManualRequest(BaseModel):
     """Entrada para fijar manualmente la ubicacion de un pedido. Recibe lat/lng y direccion opcional."""
     model_config = ConfigDict(allow_inf_nan=False)
