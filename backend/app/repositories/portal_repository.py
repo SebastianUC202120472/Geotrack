@@ -98,17 +98,32 @@ def pedidos_de_cliente_hoy(db: Session, cliente_id: int):
         .order_by(Pedido.codigo.asc())
         .all()
     )
-    salida = []
-    for p in pedidos:
-        det = (
-            db.query(RutaDetalle)
-            .join(Ruta, Ruta.id == RutaDetalle.ruta_id)
-            .filter(RutaDetalle.pedido_id == p.id, Ruta.tipo == "ENTREGA")
-            .order_by(RutaDetalle.id.desc())
-            .first()
-        )
-        salida.append((p, det))
-    return salida
+    return [(p, _detalle_entrega(db, p.id)) for p in pedidos]
+
+
+def _detalle_entrega(db: Session, pedido_id: int) -> Optional[RutaDetalle]:
+    """Ultimo detalle de una ruta de ENTREGA del pedido (o None). Recibe db y el id del pedido."""
+    return (
+        db.query(RutaDetalle)
+        .join(Ruta, Ruta.id == RutaDetalle.ruta_id)
+        .filter(RutaDetalle.pedido_id == pedido_id, Ruta.tipo == "ENTREGA")
+        .order_by(RutaDetalle.id.desc())
+        .first()
+    )
+
+
+def pedidos_de_clientes(db: Session, cliente_ids: List[int]):
+    """Devuelve (pedido, detalle de ruta) de todos los pedidos de esos clientes, por codigo.
+    Recibe db y la lista de ids de cliente. Lo usa la ayuda en vivo de la demostracion."""
+    if not cliente_ids:
+        return []
+    pedidos = (
+        db.query(Pedido)
+        .filter(Pedido.cliente_id.in_(cliente_ids))
+        .order_by(Pedido.codigo.asc())
+        .all()
+    )
+    return [(p, _detalle_entrega(db, p.id)) for p in pedidos]
 
 
 def conteos_del_dia_reciente(db: Session):

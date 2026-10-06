@@ -156,16 +156,21 @@ def _texto_recibido(p) -> str:
     return f"Recibido por {nombre}."
 
 
+def _estado_visible(p, det) -> str:
+    """Estado del portal de un pedido. Recibe el pedido y su detalle de ruta de entrega (o None).
+    estado_entrega del detalle solo es terminal (ENTREGADO/FALLIDO) o PENDIENTE; para el estado
+    en curso (EN_RUTA, etc.) se usa el del pedido. Si se usara el detalle en curso, un EN_RUTA
+    se mostraria como POR_SALIR (bug corregido)."""
+    base = det.estado_entrega if (det and det.estado_entrega in ("ENTREGADO", "FALLIDO")) else p.estado
+    return estado_portal.mapear_estado(base)
+
+
 def tabla_empresa(db: Session, cliente_id: int) -> dict:
     """Filas + contadores de los pedidos de hoy de un cliente. Recibe el id del cliente."""
     filas = []
     contadores = {}
     for p, det in repo.pedidos_de_cliente_hoy(db, cliente_id):
-        # estado_entrega del detalle solo es terminal (ENTREGADO/FALLIDO) o PENDIENTE;
-        # para el estado en curso (EN_RUTA, etc.) se usa el estado del pedido. Si se usara
-        # el detalle en curso, un EN_RUTA se mostraria como POR_SALIR (bug corregido).
-        base = det.estado_entrega if (det and det.estado_entrega in ("ENTREGADO", "FALLIDO")) else p.estado
-        est = estado_portal.mapear_estado(base)
+        est = _estado_visible(p, det)
         hora = (hora_local(p.fecha_entrega) if est == "ENTREGADO" else "") or "—"
         extra = ""
         if est == "EN_RUTA" and det:
@@ -284,4 +289,43 @@ def ayuda_demo(db: Session, demo: bool) -> dict:
     datos = repo.ayuda_demo(db)
     if not datos:
         return {"activo": False}
-    return {"activo": True, **datos}
+    empresas = datos.get("empresas") or []
+    # Los pedidos se leen EN VIVO de las empresas de la ayuda (no de una lista guardada):
+    # asi nunca muestra pedidos borrados y su estado avanza junto con la demostracion.
+    ids = [c.id for c in (repo.cliente_por_codigo_acceso(db, e.get("codigo", "")) for e in empresas) if c]
+    filas = [_fila_ayuda(p, det) for p, det in repo.pedidos_de_clientes(db, ids)]
+    return {"activo": True, "empresas": empresas, "pedidos": seleccionar_pedidos_ayuda(filas)}
+
+
+# Etiqueta corta de cada estado del portal para la ayuda de la demostracion.
+ETIQUETAS_AYUDA = {
+    "POR_SALIR": "Por salir", "EN_RUTA": "En camino", "ENTREGADO": "Entregado",
+    "REPROGRAMADO": "Reprogramado", "OBSERVADO": "En gestión", "CANCELADO": "Cancelado",
+}
+MAX_PEDIDOS_AYUDA = 12
+
+
+def _fila_ayuda(p, det) -> dict:
+    """Fila de la ayuda: tienda, codigos, estado visible y ultimos 4 del DNI. Recibe pedido y detalle."""
+    est = _estado_visible(p, det)
+    return {
+        "retail": p.cliente_origen or "",
+        "codigo": p.codigo or "",
+        "referencia": p.referencia_externa or "",
+        "estado": ETIQUETAS_AYUDA.get(est, est.capitalize()),
+        "dni": (p.dni_destinatario or "")[-4:] or "—",
+    }
+
+
+def seleccionar_pedidos_ayuda(filas: list, maximo: int = MAX_PEDIDOS_AYUDA) -> list:
+    """Si caben, devuelve todos los pedidos; si son muchos, uno por tienda y estado (hasta el
+    maximo). Recibe las filas ya armadas y el maximo a mostrar."""
+    if len(filas) <= maximo:
+        return filas
+    vistos, salida = set(), []
+    for f in filas:
+        clave = (f["retail"], f["estado"])
+        if clave not in vistos:
+            vistos.add(clave)
+            salida.append(f)
+    return salida[:maximo]
