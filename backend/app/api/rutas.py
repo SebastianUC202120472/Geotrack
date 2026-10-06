@@ -12,6 +12,7 @@ from app.schemas.ruta import (
     OptimizacionResponse,
     RutaParadasResponse,
     ReordenarRequest,
+    MoverParadaRequest,
 )
 
 router = APIRouter()
@@ -53,6 +54,18 @@ def reordenar_paradas(ruta_id: int, datos: ReordenarRequest, db: Session = Depen
 def quitar_parada(ruta_id: int, pedido_id: int, db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
     """Quita un pedido de la ruta y lo devuelve a LISTO_PARA_ENVIO. Recibe ruta_id y pedido_id."""
     return ruta_service.quitar_parada(db, ruta_id, pedido_id, usuario_id=admin.id)
+
+
+@router.patch("/{ruta_id}/paradas/{pedido_id}/mover", dependencies=[Depends(get_current_admin)])
+def mover_parada(
+    ruta_id: int,
+    pedido_id: int,
+    datos: MoverParadaRequest,
+    db: Session = Depends(get_db),
+    admin: Usuario = Depends(get_current_admin),
+):
+    """Mueve una parada pendiente a otra ruta. Recibe ruta origen, pedido y ruta destino."""
+    return ruta_service.mover_parada(db, ruta_id, pedido_id, datos.ruta_destino_id, usuario_id=admin.id)
 
 
 @router.get("/{ruta_id}/manifiesto", dependencies=[Depends(get_current_admin)])

@@ -17,7 +17,7 @@ import { useTheme, sombra, spacing, radius } from "@/theme";
 export default function LoginScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { iniciarSesion } = useAuth();
+  const { iniciarSesion, sesionExpirada, limpiarAvisoExpirado } = useAuth();
   const [correo, setCorreo] = useState("");
   const [contrasena, setContrasena] = useState("");
   const [error, setError] = useState("");
@@ -27,6 +27,7 @@ export default function LoginScreen() {
 
   // Valida y llama a iniciarSesion con correo y contrasena del estado local.
   const entrar = async () => {
+    if (limpiarAvisoExpirado) limpiarAvisoExpirado();
     if (!correo.trim() || !contrasena) {
       setError("Ingresa tu correo y contraseña.");
       return;
@@ -44,6 +45,7 @@ export default function LoginScreen() {
 
   // Solicita restablecimiento de contrasena al backend usando el correo del estado.
   const solicitarReset = async () => {
+    if (limpiarAvisoExpirado) limpiarAvisoExpirado();
     if (!correo.trim()) {
       setError("Escribe tu correo arriba y vuelve a tocar para solicitar el restablecimiento.");
       return;
@@ -74,10 +76,37 @@ export default function LoginScreen() {
 
         <Aparecer style={estilos.cuerpo}>
           <View style={[estilos.tarjeta, sombra(colors), { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Field label="Correo" value={correo} onChangeText={setCorreo} placeholder="conductor@siol.com"
-              icono="mail-outline" keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
-            <Field label="Contraseña" value={contrasena} onChangeText={setContrasena} placeholder="••••••••"
-              icono="lock-closed-outline" secureTextEntry autoComplete="password" />
+            {sesionExpirada ? (
+              <Texto variante="body" color={colors.warning} style={[estilos.avisoExpirado, { backgroundColor: colors.warningSoft, borderColor: colors.warning }]}>
+                ⚠️ Tu sesión ha expirado. Por favor, vuelve a iniciar sesión.
+              </Texto>
+            ) : null}
+
+            <Field
+              label="Correo"
+              value={correo}
+              onChangeText={(txt) => {
+                setCorreo(txt);
+                if (sesionExpirada && limpiarAvisoExpirado) limpiarAvisoExpirado();
+              }}
+              placeholder="conductor@siol.com"
+              icono="mail-outline"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+            />
+            <Field
+              label="Contraseña"
+              value={contrasena}
+              onChangeText={(txt) => {
+                setContrasena(txt);
+                if (sesionExpirada && limpiarAvisoExpirado) limpiarAvisoExpirado();
+              }}
+              placeholder="••••••••"
+              icono="lock-closed-outline"
+              secureTextEntry
+              autoComplete="password"
+            />
 
             {error ? (
               <Texto variante="body" color={colors.danger} style={[estilos.error, { backgroundColor: colors.dangerSoft }]}>{error}</Texto>
@@ -111,6 +140,7 @@ const estilos = StyleSheet.create({
   subtitulo: { textAlign: "center", opacity: 0.9 },
   cuerpo: { paddingHorizontal: spacing.lg, marginTop: -spacing.xl },
   tarjeta: { borderRadius: radius.xl, borderWidth: 1, padding: spacing.lg, gap: spacing.lg },
+  avisoExpirado: { padding: spacing.md, borderRadius: radius.md, textAlign: "center", borderWidth: 1, fontWeight: "600" },
   error: { padding: spacing.md, borderRadius: radius.md, textAlign: "center" },
   olvide: { alignItems: "center", paddingVertical: spacing.xs },
   info: { padding: spacing.md, borderRadius: radius.md, textAlign: "center" },

@@ -61,7 +61,7 @@ export default function Modal({ open, onClose, variant = "center", className = "
         className={`absolute inset-0 flex ${posicion}`}
         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
-        <div className={`relative ${panelBase[variant]} ${transicion} ${className}`}>
+        <div className={`relative ${className.includes("max-w-") ? panelBase[variant].replace("max-w-md", "") : panelBase[variant]} ${transicion} ${className}`}>
           {open ? children : contenido}
         </div>
       </div>

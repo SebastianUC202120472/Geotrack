@@ -365,3 +365,22 @@ export const obtenerRetornoRuta = (id) => request(`/almacen/retornos/rutas/${id}
 // Registra el escaneo de un paquete devuelto. Recibe id y codigo.
 export const escanearRetorno = (id, codigo) =>
   request(`/almacen/retornos/rutas/${id}/escanear`, { method: "POST", body: { codigo } });
+
+// CUS-21: Obtener paradas ordenadas de una ruta para edicion. Recibe rutaId.
+export const obtenerParadasRuta = (rutaId) => request(`/rutas/${rutaId}/paradas`);
+
+// CUS-21: Reordenar secuencia de paradas de una ruta. Recibe rutaId y orden (array de pedido_id).
+export const reordenarParadasRuta = (rutaId, orden) =>
+  request(`/rutas/${rutaId}/reordenar`, { method: "PATCH", body: { orden } });
+
+// CUS-21: Quitar parada pendiente de una ruta. Recibe rutaId y pedidoId.
+export const quitarParadaRuta = (rutaId, pedidoId) =>
+  request(`/rutas/${rutaId}/paradas/${pedidoId}`, { method: "DELETE" });
+
+// CUS-21: Mover parada pendiente a otra ruta. Recibe ruta origen, pedido y ruta destino.
+export const moverParadaRuta = (rutaId, pedidoId, rutaDestinoId) =>
+  request(`/rutas/${rutaId}/paradas/${pedidoId}/mover`, {
+    method: "PATCH",
+    body: { ruta_destino_id: rutaDestinoId },
+  });
+
