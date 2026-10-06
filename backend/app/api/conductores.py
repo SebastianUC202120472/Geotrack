@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.api.deps import get_current_admin, get_current_almacen
+from app.core.imagenes import leer_imagen_subida
 from app.services import conductor_service
 from app.schemas.conductor import ConductorCreate, ConductorResponse, ConductorUpdate, ConductorResetContrasena
 
@@ -47,5 +48,5 @@ async def subir_foto_conductor(
     db: Session = Depends(get_db),
 ):
     """Sube/reemplaza la foto del conductor (la verá en su app móvil)."""
-    contenido = await file.read()
+    contenido = await leer_imagen_subida(file)
     return conductor_service.guardar_foto(db, usuario_id, contenido, file.filename)

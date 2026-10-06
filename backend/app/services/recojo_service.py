@@ -5,6 +5,8 @@ from datetime import datetime
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
+from app.core.imagenes import validar_imagen
 from app.models.solicitud_recojo import SolicitudRecojo, ESTADOS_RECOGIDO
 from app.models.pedido import Pedido
 from app.models.cliente import ClienteCorporativo
@@ -28,7 +30,6 @@ from app.services import pedido_service as _pedido_svc
 from app.schemas.ruta import OptimizacionRequest, CierreRutaResponse
 
 DIR_GUIAS = os.path.join("uploads", "guias")
-EXTENSIONES_IMAGEN = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 def _distrito_de(direccion: str) -> str:
@@ -379,6 +380,8 @@ def registrar_recepcion(db: Session, conductor_id: int, recojo_id: int, cantidad
         raise HTTPException(status_code=400, detail="La cantidad declarada debe ser un entero mayor que 0")
     if not archivos:
         raise HTTPException(status_code=400, detail="Debes adjuntar al menos una foto de evidencia")
+    if len(archivos) > settings.RECOJO_MAX_FOTOS:
+        raise HTTPException(status_code=400, detail=f"Puedes adjuntar como máximo {settings.RECOJO_MAX_FOTOS} fotos")
 
     ruta = _ruta_recojo_activa_o_404(db, conductor_id)
 
@@ -391,15 +394,12 @@ def registrar_recepcion(db: Session, conductor_id: int, recojo_id: int, cantidad
     if recojo.estado == "RECOGIDO":
         raise HTTPException(status_code=400, detail="Este recojo ya fue registrado")
 
-    for _, nombre_archivo in archivos:
-        _, extension = os.path.splitext((nombre_archivo or "").lower())
-        if extension not in EXTENSIONES_IMAGEN:
-            raise HTTPException(status_code=400, detail=f"Formato no permitido. Usa: {', '.join(sorted(EXTENSIONES_IMAGEN))}")
+    # Se validan todas antes de escribir ninguna; la extension sale del contenido real.
+    extensiones = [validar_imagen(contenido) for contenido, _ in archivos]
 
     os.makedirs(DIR_GUIAS, exist_ok=True)
     urls: list[str] = []
-    for i, (contenido, nombre_archivo) in enumerate(archivos, start=1):
-        _, extension = os.path.splitext((nombre_archivo or "").lower())
+    for i, ((contenido, _), extension) in enumerate(zip(archivos, extensiones), start=1):
         # Sufijo aleatorio: /media es estatico, un nombre secuencial dejaria las
         # fotos de recojo al alcance de cualquiera que itere enteros.
         nombre_final = f"guia_{ruta.id}_{recojo_id}_{i}_{secrets.token_hex(8)}{extension}"

@@ -5,12 +5,12 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.imagenes import validar_imagen
 from app.repositories import incidencia_repository, ruta_repository, usuario_repository
 from app.models.conductor import PerfilConductor
 from app.services import notificaciones_service
 
 DIR_INCIDENCIAS = os.path.join("uploads", "incidencias")
-EXTENSIONES_IMAGEN = {".jpg", ".jpeg", ".png", ".webp"}
 
 
 def _nombre_conductor(db: Session, conductor_id: int):
@@ -86,9 +86,8 @@ def guardar_evidencia(db: Session, incidencia_id: int, conductor_id: int, conten
     if not inc or inc.conductor_id != conductor_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incidencia no encontrada")
 
-    _, extension = os.path.splitext(nombre_archivo.lower())
-    if extension not in EXTENSIONES_IMAGEN:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Formato no permitido. Usa: {', '.join(sorted(EXTENSIONES_IMAGEN))}")
+    # La extension sale del contenido real, no del nombre que manda el cliente.
+    extension = validar_imagen(contenido)
 
     os.makedirs(DIR_INCIDENCIAS, exist_ok=True)
     # Sufijo aleatorio: /media es estatico y el nombre no debe ser adivinable.
