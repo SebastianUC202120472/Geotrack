@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { RefreshCw, MapPinned, Clock, Truck, ChevronRight, PackageSearch } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
@@ -7,22 +7,7 @@ import SectionCard from "../components/ui/SectionCard";
 import EmptyState from "../components/ui/EmptyState";
 import Skeleton from "../components/ui/Skeleton";
 import Button from "../components/ui/Button";
-import { listarPedidos } from "../services/api";
-
-// Agrupa pedidos por distrito contando pendientes y asignados. Recibe array de pedidos.
-function agruparZonas(pedidos) {
-  const mapa = new Map();
-  for (const p of pedidos) {
-    const clave = p.distrito || "";
-    if (!mapa.has(clave)) mapa.set(clave, { distrito: clave, pendientes: 0, asignados: 0 });
-    const z = mapa.get(clave);
-    if (p.estado === "LISTO_PARA_ENVIO") z.pendientes++;
-    else if (p.estado === "ASIGNADO") z.asignados++;
-  }
-  return [...mapa.values()]
-    .filter((z) => z.pendientes > 0 || z.asignados > 0)
-    .sort((a, b) => b.pendientes + b.asignados - (a.pendientes + a.asignados));
-}
+import { listarZonasPorEnrutar } from "../services/api";
 
 // Pastilla clicable de conteo por estado. Recibe tono, label, valor y onClick.
 function PildoraEstado({ tono, label, valor, onClick }) {
@@ -125,13 +110,14 @@ function EsqueletoZonas() {
 
 export default function AgrupacionZonas() {
   const navigate = useNavigate();
-  const [pedidos, setPedidos] = useState([]);
+  const [zonas, setZonas] = useState([]);
   const [cargando, setCargando] = useState(true);
 
   const cargar = async () => {
     setCargando(true);
     try {
-      setPedidos(await listarPedidos());
+      const { zonas: lista } = await listarZonasPorEnrutar();
+      setZonas(lista || []);
     } catch (err) {
       console.error("Error al cargar zonas:", err.message);
     } finally {
@@ -143,7 +129,6 @@ export default function AgrupacionZonas() {
     cargar();
   }, []);
 
-  const zonas = useMemo(() => agruparZonas(pedidos), [pedidos]);
   const totalPendientes = zonas.reduce((acc, z) => acc + z.pendientes, 0);
   const totalAsignados = zonas.reduce((acc, z) => acc + z.asignados, 0);
 

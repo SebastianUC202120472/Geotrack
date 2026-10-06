@@ -168,9 +168,33 @@ export const listarReportes = (estado) =>
 export const responderReporte = (id, datos) =>
   request(`/reportes/${id}/responder`, { method: "POST", body: datos });
 
-export const listarPedidos = (limit = 1000) => request(`/pedidos/?limit=${limit}`);
+// Lista una pagina de pedidos (mas nuevos primero) con filtros del servidor.
+// Recibe { skip, limit, busqueda, distrito, estado }, todos opcionales.
+export const listarPedidos = (params = {}) => {
+  const query = new URLSearchParams();
+  for (const clave of ["skip", "limit", "busqueda", "distrito", "estado"]) {
+    if (params[clave]) query.append(clave, params[clave]);
+  }
+  const queryString = query.toString();
+  return request(`/pedidos/${queryString ? `?${queryString}` : ""}`);
+};
+
+const PEDIDOS_POR_PAGINA = 500;
+
+// Trae TODOS los pedidos pidiendolos por paginas, sin tope fijo. Recibe filtros opcionales.
+export const listarTodosLosPedidos = async (filtros = {}) => {
+  const todos = [];
+  for (let skip = 0; ; skip += PEDIDOS_POR_PAGINA) {
+    const pagina = await listarPedidos({ ...filtros, skip, limit: PEDIDOS_POR_PAGINA });
+    todos.push(...pagina);
+    if (pagina.length < PEDIDOS_POR_PAGINA) return todos;
+  }
+};
 
 export const listarZonas = () => request("/pedidos/zonas");
+
+// Zonas con pedidos pendientes o asignados, contadas en el servidor.
+export const listarZonasPorEnrutar = () => request("/pedidos/zonas/por-enrutar");
 
 // Lista pedidos sin geocodificacion valida (para ubicar a mano).
 export const listarPorUbicar = () => request("/pedidos/por-ubicar");

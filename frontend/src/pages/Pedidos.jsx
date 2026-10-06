@@ -13,7 +13,7 @@ import ResolverDireccionModal from "../components/ResolverDireccionModal";
 import VistaPorRuta from "../components/seguimiento/VistaPorRuta";
 import VistaPorCliente from "../components/seguimiento/VistaPorCliente";
 import TabTrazabilidad from "../components/TabTrazabilidad";
-import { listarPedidos, listarZonas, obtenerHistorial, reprogramarPedido, cancelarPedido, listarReportes } from "../services/api";
+import { listarTodosLosPedidos, listarZonas, obtenerHistorial, reprogramarPedido, cancelarPedido, listarReportes } from "../services/api";
 
 const POR_PAGINA = 12;
 const fmt = (f) => (f ? new Date(f).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—");
@@ -66,7 +66,7 @@ export default function Pedidos() {
   const cargar = async () => {
     setCargando(true);
     try {
-      const [ped, z] = await Promise.all([listarPedidos(), listarZonas()]);
+      const [ped, z] = await Promise.all([listarTodosLosPedidos(), listarZonas()]);
       setPedidos(ped);
       setZonas(z.zonas_operativas || []);
     } catch (err) {

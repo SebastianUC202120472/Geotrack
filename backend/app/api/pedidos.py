@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -9,18 +9,26 @@ from app.schemas.pedido import (
     PedidoResponse,
     GeocodificacionResponse,
     ZonasResponse,
+    ZonasPorEnrutarResponse,
     UbicacionManualRequest,
     BuscarDireccionResponse,
 )
-from typing import List
+from typing import List, Optional
 
 router = APIRouter()
 
 
 @router.get("/", response_model=List[PedidoResponse], dependencies=[Depends(get_current_admin)])
-def listar_pedidos(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """Lista paginada de pedidos."""
-    return pedido_service.listar_pedidos(db, skip=skip, limit=limit)
+def listar_pedidos(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    busqueda: Optional[str] = None,
+    distrito: Optional[str] = None,
+    estado: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Lista paginada de pedidos (mas nuevos primero). Recibe offset, limite (max 1000) y filtros opcionales."""
+    return pedido_service.listar_pedidos(db, skip=skip, limit=limit, busqueda=busqueda, distrito=distrito, estado=estado)
 
 
 @router.post("/geocodificar", response_model=GeocodificacionResponse)
@@ -33,6 +41,12 @@ def procesar_geocodificacion(db: Session = Depends(get_db), admin: Usuario = Dep
 def agrupar_pedidos_por_zona(db: Session = Depends(get_db)):
     """Agrupa los pedidos geocodificados por distrito."""
     return pedido_service.agrupar_por_zona(db)
+
+
+@router.get("/zonas/por-enrutar", response_model=ZonasPorEnrutarResponse, dependencies=[Depends(get_current_admin)])
+def zonas_por_enrutar(db: Session = Depends(get_db)):
+    """Zonas con pedidos pendientes o asignados, contadas en el servidor."""
+    return pedido_service.zonas_por_enrutar(db)
 
 
 @router.get("/por-ubicar", response_model=List[PedidoResponse], dependencies=[Depends(get_current_admin)])
