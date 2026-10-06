@@ -18,21 +18,14 @@ export default function ModalEditarRuta({ ruta, rutas = [], onCerrar, onCambios 
     (r) => r.ruta_id !== ruta.ruta_id && r.estado !== "FINALIZADA"
   );
 
-  const cargar = async () => {
-    setCargando(true);
-    setAviso(null);
-    try {
-      const res = await obtenerParadasRuta(ruta.ruta_id);
-      setParadas(res.paradas || []);
-    } catch (err) {
-      setAviso({ ok: false, texto: err.message });
-    } finally {
-      setCargando(false);
-    }
-  };
-
+  // Carga las paradas de la ruta al abrir el modal. El estado se fija en los callbacks de la promesa.
   useEffect(() => {
-    cargar();
+    let activo = true;
+    obtenerParadasRuta(ruta.ruta_id)
+      .then((res) => { if (activo) setParadas(res.paradas || []); })
+      .catch((err) => { if (activo) setAviso({ ok: false, texto: err.message }); })
+      .finally(() => { if (activo) setCargando(false); });
+    return () => { activo = false; };
   }, [ruta.ruta_id]);
 
   // Mueve una parada hacia arriba (-1) o hacia abajo (+1) en el estado local.

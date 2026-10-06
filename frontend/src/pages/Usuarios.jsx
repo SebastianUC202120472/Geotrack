@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { UserCog, UserPlus, ShieldCheck, X, Check, KeyRound, CheckCircle2, AlertCircle, Mail } from "lucide-react";
+import { UserCog, UserPlus, ShieldCheck, X, Check, KeyRound, CheckCircle2, AlertCircle } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -104,7 +104,7 @@ export default function Usuarios() {
       <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
         <SectionCard title="Crear usuario" className="lg:col-span-1">
           <form onSubmit={registrar} noValidate className="space-y-4">
-            <Input label="Correo (acceso al paneasasal)" type="email" required value={form.correo}
+            <Input label="Correo (acceso al panel)" type="email" required value={form.correo}
               onChange={(e) => setForm((f) => ({ ...f, correo: e.target.value }))} placeholder="almacen@siol.com" />
             <PasswordInput label="Contraseña" required value={form.contrasena}
               onChange={(e) => setForm((f) => ({ ...f, contrasena: e.target.value }))}
@@ -160,17 +160,6 @@ function DetalleUsuario({ usuario: u, onCerrar, onCambios }) {
     telefono: u.telefono || "",
     cargo: u.cargo || "",
   });
-
-  useEffect(() => {
-    setRol(u.rol);
-    setDatos({
-      correo: u.correo || "",
-      nombre: u.nombre || "",
-      dni: u.dni || "",
-      telefono: u.telefono || "",
-      cargo: u.cargo || "",
-    });
-  }, [u]);
   const [nuevaClave, setNuevaClave] = useState("");
   const [claveOk, setClaveOk] = useState(false);
   const [aviso, setAviso] = useState(null);
