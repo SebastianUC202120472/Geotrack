@@ -1,6 +1,7 @@
 # Reinicia la demostracion desde cero: borra los datos operativos (pedidos, recojos, rutas,
 # historial, evidencias, reportes, notificaciones, ubicaciones...) con la numeracion de nuevo
 # en 1, y deja en la Bandeja el correo de Saga Falabella con su Excel de 6 pedidos, pendiente.
+# La ayuda del portal (modo demostracion) queda solo con Saga Falabella y sus pedidos en vivo.
 # CONSERVA usuarios, conductores, vehiculos, clientes, parametros, el resto de la Bandeja y la
 # cache de direcciones. Sin --si solo muestra lo que borraria (no toca nada).
 # Correr dentro del contenedor backend:  python scripts/reset_demo.py --si
@@ -15,6 +16,7 @@ from sqlalchemy import text  # noqa: E402
 
 from app.db.database import SessionLocal  # noqa: E402
 from app.models.correo import Conversacion, MensajeCorreo, MensajeAdjunto  # noqa: E402
+from app.models.parametro import ParametroSistema  # noqa: E402
 
 TABLAS_OPERATIVAS = (
     "pedidos", "ruta_detalles", "rutas", "solicitudes_recojo", "reportes", "incidencias",
@@ -26,6 +28,9 @@ EXCEL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "solicitud_reco
 EMAIL_CLIENTE = "despachos@sagafalabella.com.pe"
 NOMBRE_CLIENTE = "Saga Falabella S.A."  # igual a la razon social: la Bandeja preselecciona el cliente
 ASUNTO = "Solicitud de recojo - 6 pedidos"
+
+# Empresa que muestra la ayuda del portal (modo demostracion). Sus pedidos se leen en vivo.
+EMPRESAS_AYUDA = [{"nombre": NOMBRE_CLIENTE, "codigo": "FALABELLA", "clave": "Falabella2026"}]
 
 
 def contar_operativos(db) -> dict:
@@ -87,6 +92,20 @@ def sembrar_correo_demo(db) -> int:
     return conv.id
 
 
+def configurar_ayuda_portal(db) -> None:
+    """Deja la ayuda del portal solo con la empresa de la demo (sin pedidos guardados). Recibe la sesion."""
+    fila = (
+        db.query(ParametroSistema)
+        .filter(ParametroSistema.categoria == "portal_demo", ParametroSistema.clave == "ayuda")
+        .first()
+    )
+    datos = {"empresas": EMPRESAS_AYUDA}
+    if fila:
+        fila.valor_json = datos
+    else:
+        db.add(ParametroSistema(categoria="portal_demo", clave="ayuda", valor_json=datos))
+
+
 def main():
     """Muestra lo que se borraria y, con --si, reinicia la demo. No recibe parametros."""
     db = SessionLocal()
@@ -98,6 +117,7 @@ def main():
             return
         db.execute(text("TRUNCATE TABLE " + ", ".join(TABLAS_OPERATIVAS) + " RESTART IDENTITY CASCADE"))
         conv_id = sembrar_correo_demo(db)
+        configurar_ayuda_portal(db)
         db.commit()
         print(f"OK: demo reiniciada. Correo de {NOMBRE_CLIENTE} pendiente en la Bandeja (conversacion {conv_id}).")
     except Exception:

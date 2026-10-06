@@ -78,7 +78,7 @@ export function AyudaPedidos({ pedidos, onElegir }) {
   return (
     <Caja
       titulo="pedidos de prueba"
-      apoyo="Un pedido por empresa y estado. El código de SAVA y el de la tienda llevan al mismo envío; DNI = los 4 dígitos que pide la verificación."
+      apoyo="Pedidos de la demostración con su estado en vivo. El código de SAVA y el de la tienda llevan al mismo envío; DNI = los 4 dígitos que pide la verificación."
     >
       <div style={{ margin: "10px 0 0", maxHeight: 260, overflowY: "auto", display: "grid", gap: 6 }}>
         {pedidos.map((p) => (
