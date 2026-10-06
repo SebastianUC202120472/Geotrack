@@ -1,6 +1,5 @@
 import asyncio
 import os
-from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -32,29 +31,9 @@ from app.api.portal import router as portal_router
 from app.api.reclamos import router as reclamos_router
 
 
-async def tarea_limpieza_usuarios():
-    """Borra cada hora usuarios @prueba.com con mas de 6 horas de antiguedad."""
-    while True:
-        await asyncio.sleep(3600)
-        db = SessionLocal()
-        try:
-            hace_6_horas = datetime.utcnow() - timedelta(hours=6)
-            db.query(Usuario).filter(
-                Usuario.correo.like("%@prueba.com%"),
-                Usuario.fecha_creacion <= hace_6_horas,
-            ).delete(synchronize_session=False)
-            db.commit()
-            print("Limpieza de usuarios de prueba completada.")
-        except Exception as e:
-            db.rollback()
-            print(f"Error en limpieza automática: {e}")
-        finally:
-            db.close()
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Ciclo de vida: inicializa BD, admin, catalogos y tarea de limpieza al arrancar."""
+    """Ciclo de vida: inicializa BD, admin y catalogos al arrancar."""
     print("Esperando 5 segundos a que PostgreSQL esté 100% listo...")
     await asyncio.sleep(5)
 
@@ -84,12 +63,7 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
 
-    print("Iniciando tarea de limpieza en segundo plano...")
-    tarea_background = asyncio.create_task(tarea_limpieza_usuarios())
-
     yield
-
-    tarea_background.cancel()
 
 
 app = FastAPI(
