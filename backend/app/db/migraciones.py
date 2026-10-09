@@ -22,6 +22,12 @@ SENTENCIAS = [
     "ALTER TABLE conductor_perfiles ADD COLUMN IF NOT EXISTS licencia_vencimiento DATE",
     # Bloqueo progresivo de la verificacion del portal (C42-01).
     "ALTER TABLE verificaciones_portal ADD COLUMN IF NOT EXISTS bloqueos INTEGER DEFAULT 0",
+    # Solicitudes de recojo: fecha pedida y visitas no realizadas (C11-04, C12-02).
+    "ALTER TABLE solicitudes_recojo ADD COLUMN IF NOT EXISTS fecha_programada DATE",
+    "ALTER TABLE solicitudes_recojo ADD COLUMN IF NOT EXISTS motivo_no_realizado VARCHAR(255)",
+    "ALTER TABLE solicitudes_recojo ADD COLUMN IF NOT EXISTS intentos_no_realizados INTEGER DEFAULT 0",
+    # Ubicacion de captura de las fotos del recojo (C13-01).
+    "ALTER TABLE evidencias_recojo ADD COLUMN IF NOT EXISTS latitud_longitud_captura VARCHAR(60)",
 ]
 
 

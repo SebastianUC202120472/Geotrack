@@ -65,11 +65,12 @@ def obtener_resumen_ruta_activa(db: Session, conductor_id: int) -> RutaActivaRes
         recojos = recojo_repository.obtener_por_ruta(db, ruta.id)
         total = len(recojos)
         recogidas = sum(1 for r in recojos if r.estado in ESTADOS_RECOGIDO)
+        no_realizadas = sum(1 for r in recojos if r.estado == "NO_REALIZADO")
         return RutaActivaResponse(
             ruta_id=ruta.id, codigo=ruta.codigo, nombre=ruta.nombre, estado=ruta.estado,
             fecha_creacion=ruta.fecha_creacion, fecha_salida=ruta.fecha_salida,
-            vehiculo_placa=ruta.vehiculo_placa, total_paradas=total, pendientes=total - recogidas,
-            entregadas=recogidas, fallidas=0, pausada=abierta is not None,
+            vehiculo_placa=ruta.vehiculo_placa, total_paradas=total, pendientes=total - recogidas - no_realizadas,
+            entregadas=recogidas, fallidas=no_realizadas, pausada=abierta is not None,
             incidencia_id=abierta.id if abierta else None,
             ayuda_enviada_en=abierta.ayuda_enviada_en if abierta else None,
             ayuda_detalle=abierta.ayuda_detalle if abierta else None, tipo=ruta.tipo,
@@ -538,36 +539,70 @@ def quitar_parada(db: Session, ruta_id: int, pedido_id: int, usuario_id: int | N
 
 
 COLUMNAS_MANIFIESTO = ["Secuencia", "Código", "Cliente", "Destinatario", "Dirección", "Distrito", "Teléfono", "Estado"]
+COLUMNAS_MANIFIESTO_RECOJO = ["Secuencia", "Código", "Cliente", "Dirección de recojo", "Distrito", "Contacto",
+                              "Pedidos", "Volumen (m³)", "Fecha pedida", "Estado"]
+
+
+def _encabezado_manifiesto(db: Session, ruta) -> list[list]:
+    """Filas de cabecera del manifiesto: ruta, conductor, placa y fecha (C22-01). Recibe la ruta."""
+    from app.core.fechas import fecha_local_de
+    from app.repositories import conductor_repository
+    perfil = conductor_repository.obtener_perfil(db, ruta.conductor_id) if ruta.conductor_id else None
+    tipo = "recojo" if ruta.tipo == "RECOJO" else "carga"
+    fecha = fecha_local_de(ruta.fecha_salida or ruta.fecha_creacion)
+    return [
+        [f"Manifiesto de {tipo} · {ruta.nombre} ({ruta.codigo or ruta.id})"],
+        ["Conductor", perfil.nombre if perfil else "—", "Placa", ruta.vehiculo_placa or "—",
+         "Fecha", fecha.strftime("%d/%m/%Y") if fecha else "—"],
+        [],
+    ]
 
 
 def generar_manifiesto_excel(db: Session, ruta_id: int) -> tuple[bytes, str]:
-    """Genera el manifiesto de carga como Excel en memoria. Recibe: id de ruta. Devuelve: (bytes, nombre)."""
+    """Genera el manifiesto de la ruta (de entrega o de recojo, C22-02) como Excel en memoria, con
+    conductor y placa en el encabezado (C22-01). Recibe: id de ruta. Devuelve: (bytes, nombre)."""
     import io
     from openpyxl import Workbook
     from openpyxl.styles import Font
 
     ruta = _ruta_o_404(db, ruta_id)
-    detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
 
     wb = Workbook()
     hoja = wb.active
     hoja.title = "Manifiesto"
-    hoja.append([f"Manifiesto de carga · {ruta.nombre} ({ruta.codigo or ruta.id})"])
-    hoja.append(COLUMNAS_MANIFIESTO)
-    for celda in hoja[2]:
-        celda.font = Font(bold=True)
+    for fila in _encabezado_manifiesto(db, ruta):
+        hoja.append(fila)
+    hoja["A1"].font = Font(bold=True, size=13)
+    for celda in ("A2", "C2", "E2"):
+        hoja[celda].font = Font(bold=True)
 
-    for detalle, pedido in detalles:
-        hoja.append([
-            detalle.secuencia,
-            pedido.codigo or "",
-            pedido.cliente_origen or "",
-            pedido.nombre_destinatario or "",
-            pedido.direccion_destino or "",
-            pedido.distrito or "",
-            pedido.telefono_destinatario or "",
-            detalle.estado_entrega or "",
-        ])
+    if ruta.tipo == "RECOJO":
+        hoja.append(COLUMNAS_MANIFIESTO_RECOJO)
+        recojos = recojo_repository.obtener_por_ruta(db, ruta.id)
+        totales = pedido_repository.totales_por_recojo(db, [r.id for r in recojos])
+        for r in recojos:
+            n, volumen, _ = totales.get(r.id, (0, 0.0, 0.0))
+            hoja.append([
+                r.secuencia or "", r.codigo or "", r.cliente_origen or "", r.direccion_origen or "",
+                r.distrito or "", r.contacto_origen or "", n, round(volumen or (r.volumen_estimado_m3 or 0), 3),
+                r.fecha_programada.strftime("%d/%m/%Y") if r.fecha_programada else "",
+                r.estado or "",
+            ])
+    else:
+        hoja.append(COLUMNAS_MANIFIESTO)
+        for detalle, pedido in ruta_repository.obtener_detalles_con_pedido(db, ruta.id):
+            hoja.append([
+                detalle.secuencia,
+                pedido.codigo or "",
+                pedido.cliente_origen or "",
+                pedido.nombre_destinatario or "",
+                pedido.direccion_destino or "",
+                pedido.distrito or "",
+                pedido.telefono_destinatario or "",
+                detalle.estado_entrega or "",
+            ])
+    for celda in hoja[4]:
+        celda.font = Font(bold=True)
 
     buffer = io.BytesIO()
     wb.save(buffer)

@@ -19,7 +19,7 @@ from app.schemas.ruta import (
     OptimizacionRequest,
     OptimizacionResponse,
 )
-from app.schemas.recojo import ManifiestoRecojoResponse, RecepcionResponse
+from app.schemas.recojo import ManifiestoRecojoResponse, RecepcionResponse, NoRealizadoRequest
 from app.schemas.reporte import ReporteCreate, ReporteResponse
 from app.schemas.incidencia import IncidenciaCreate, ResolverIncidenciaRequest, IncidenciaResponse
 from app.schemas.conductor import ConductorResponse, UbicacionRequest
@@ -185,14 +185,27 @@ async def registrar_recepcion(
     recojo_id: int,
     cantidad_declarada: int = Form(...),
     files: list[UploadFile] = File(...),
+    latitud: float | None = Form(None),
+    longitud: float | None = Form(None),
     db: Session = Depends(get_db),
     conductor: Usuario = Depends(get_current_conductor),
 ):
-    """Registra el recojo con cantidad declarada y fotos de evidencia."""
+    """Registra el recojo con cantidad declarada, fotos de evidencia y la posicion GPS de la captura."""
     # Se corta antes de leer para no cargar en memoria un lote desmedido.
     if len(files) > settings.RECOJO_MAX_FOTOS:
         raise HTTPException(status_code=400, detail=f"Puedes adjuntar como máximo {settings.RECOJO_MAX_FOTOS} fotos")
     archivos = [(await leer_imagen_subida(f), f.filename) for f in files]
     return recojo_service.registrar_recepcion(
-        db, conductor.id, recojo_id, cantidad_declarada, archivos
+        db, conductor.id, recojo_id, cantidad_declarada, archivos, latitud, longitud
     )
+
+
+@router.post("/recojo/{recojo_id}/no-realizado")
+def marcar_recojo_no_realizado(
+    recojo_id: int,
+    datos: NoRealizadoRequest,
+    db: Session = Depends(get_db),
+    conductor: Usuario = Depends(get_current_conductor),
+):
+    """Marca que el recojo no se pudo hacer (tienda cerrada, sin mercadería...). Recibe el motivo."""
+    return recojo_service.marcar_no_realizado(db, conductor.id, recojo_id, datos.motivo)

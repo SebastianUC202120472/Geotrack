@@ -99,3 +99,17 @@ class EscaneoRetornoResponse(BaseModel):
     codigo: str
     mensaje: str
     conteo: ConteoRetorno
+
+
+class ObservadoItem(BaseModel):
+    """Pedido OBSERVADO para la vista de almacén: datos, lote y días que lleva observado (C15-01)."""
+    pedido_id: int
+    codigo: Optional[str] = None
+    referencia: Optional[str] = None
+    cliente: str
+    destinatario: Optional[str] = None
+    direccion_destino: str
+    lote: Optional[str] = None             # código del recojo (RC-001)
+    recojo_id: Optional[int] = None
+    observado_desde: Optional[datetime] = None
+    dias: int = 0

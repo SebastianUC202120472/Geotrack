@@ -337,9 +337,22 @@ export const aceptarSolicitud = (clienteId, archivo, extras = {}) => {
   if (extras.referencia) fd.append("referencia", extras.referencia);
   if (extras.contacto_origen) fd.append("contacto_origen", extras.contacto_origen);
   if (extras.conversacion_id) fd.append("conversacion_id", extras.conversacion_id);
+  if (extras.fecha_programada) fd.append("fecha_programada", extras.fecha_programada);
   fd.append("file", archivo);
   return request("/recojos/aceptar", { method: "POST", body: fd });
 };
+
+// Registra una solicitud sin Excel con sus pedidos escritos a mano. Recibe { cliente_id, referencia?, contacto_origen?, fecha_programada?, pedidos }.
+export const registrarSolicitudManual = (datos) =>
+  request("/recojos/manual", { method: "POST", body: datos });
+
+// Lista las solicitudes de recojo del admin con su numero de pedidos. Recibe estado opcional.
+export const listarSolicitudesRecojo = (estado) =>
+  request(`/recojos/${estado ? `?estado=${encodeURIComponent(estado)}` : ""}`);
+
+// Edita una solicitud aun no asignada a ruta. Recibe id y campos (fecha_programada, contacto_origen, referencia, ...).
+export const editarSolicitudRecojo = (id, datos) =>
+  request(`/recojos/${id}`, { method: "PATCH", body: datos });
 
 // Lista incidencias de auxilio. Recibe estado opcional ("ABIERTA"|"RESUELTA").
 export const listarIncidencias = (estado) =>
@@ -381,6 +394,12 @@ export const listarSolicitudesAlmacen = (estado = "SOLICITADO") =>
 // Asigna una ruta de recojo desde solicitudes seleccionadas. Recibe datos { recojo_ids, conductor_id, vehiculo_placa, nombre_ruta? }.
 export const asignarRutaRecojoAlmacen = (datos) =>
   request("/almacen/solicitudes/asignar-ruta", { method: "POST", body: datos });
+
+// Rutas de recojo activas y recientes para el almacen. Recibe los dias hacia atras (por defecto 7).
+export const listarRutasRecojoAlmacen = (dias = 7) => request(`/almacen/rutas-recojo?dias=${dias}`);
+
+// Pedidos OBSERVADO con su lote y antigüedad (vista Observados del almacen).
+export const listarObservados = () => request("/almacen/observados");
 
 // Lista recojos del almacen. Recibe estado opcional.
 export const listarRecojosAlmacen = (estado) =>

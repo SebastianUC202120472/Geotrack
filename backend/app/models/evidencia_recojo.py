@@ -11,4 +11,5 @@ class EvidenciaRecojo(Base):
     recojo_id = Column(Integer, ForeignKey("solicitudes_recojo.id"), index=True, nullable=False)
     url_foto = Column(String(255), nullable=False)   # /media/guias/guia_<ruta>_<recojo>_<i>.<ext>
     secuencia = Column(Integer, default=0)            # orden de captura (0,1,2,…)
+    latitud_longitud_captura = Column(String(60), nullable=True)  # "lat,lng" donde se tomo la foto (C13-01)
     creado_en = Column(DateTime, default=datetime.utcnow)

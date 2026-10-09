@@ -16,6 +16,7 @@ import {
   ClipboardList,
   Wrench,
   BookText,
+  AlertOctagon,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -70,6 +71,7 @@ const secciones = [
     items: [
       { icon: RouteIcon, label: "Armar ruta de recojo", path: "/panel/almacen/recojos" },
       { icon: PackageCheck, label: "Ingreso a Almacén", path: "/panel/almacen" },
+      { icon: AlertOctagon, label: "Pedidos observados", path: "/panel/almacen/observados" },
       { icon: Undo2, label: "Retornos de Ruta", path: "/panel/almacen/retornos" },
       { icon: MapPin, label: "Mapa de recojos", path: "/panel/almacen/mapa" },
     ],

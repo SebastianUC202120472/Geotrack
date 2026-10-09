@@ -156,10 +156,15 @@ export async function optimizarRecojo(rutaId: number, coords: Coordenadas): Prom
   return data;
 }
 
-// Registra la recepcion con cantidad declarada y fotos de evidencia por multipart. Recibe recojoId, cantidad y uris.
-export async function registrarRecepcion(recojoId: number, cantidad: number, uris: string[]): Promise<Recepcion> {
+// Registra la recepcion con cantidad declarada, fotos de evidencia y la posicion GPS de la captura
+// por multipart. Recibe recojoId, cantidad, uris y coords opcionales.
+export async function registrarRecepcion(recojoId: number, cantidad: number, uris: string[], coords?: Coordenadas | null): Promise<Recepcion> {
   const form = new FormData();
   form.append("cantidad_declarada", String(cantidad));
+  if (coords) {
+    form.append("latitud", String(coords.latitud));
+    form.append("longitud", String(coords.longitud));
+  }
   uris.forEach((uri, i) => {
     const nombre = uri.split("/").pop() ?? `guia_${recojoId}_${i}.jpg`;
     form.append("files", { uri, name: nombre, type: "image/jpeg" } as unknown as Blob);
@@ -169,5 +174,11 @@ export async function registrarRecepcion(recojoId: number, cantidad: number, uri
     form,
     { headers: { "Content-Type": "multipart/form-data" } }
   );
+  return data;
+}
+
+// Marca que el recojo no se pudo hacer (tienda cerrada, sin mercaderia...). Recibe recojoId y motivo.
+export async function marcarRecojoNoRealizado(recojoId: number, motivo: string): Promise<{ mensaje: string }> {
+  const { data } = await api.post<{ mensaje: string }>(`/conductor/recojo/${recojoId}/no-realizado`, { motivo });
   return data;
 }

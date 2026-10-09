@@ -37,6 +37,7 @@ const mapaEstados = {
   FALLIDO: "danger",
   GEOCODIFICACION_FALLIDA: "danger",
   CANCELADO: "neutral",
+  NO_REALIZADO: "danger",
 };
 
 const puntoPorTono = {
