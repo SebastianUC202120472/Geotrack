@@ -57,16 +57,19 @@ def crear(db: Session, placa: str, marca=None, capacidad_volumetrica=None,
     return vehiculo
 
 
+def liberar_otros_de(db: Session, conductor_id: int, excepto_id: Optional[int] = None) -> None:
+    """Quita al conductor de cualquier otro vehiculo (regla 1 a 1, RN-07). Recibe conductor_id y el vehiculo a conservar."""
+    otros = db.query(Vehiculo).filter(Vehiculo.conductor_id == conductor_id)
+    if excepto_id is not None:
+        otros = otros.filter(Vehiculo.id != excepto_id)
+    for previo in otros.all():
+        previo.conductor_id = None
+
+
 def reasignar_conductor(db: Session, vehiculo: Vehiculo, conductor_id: Optional[int]) -> Vehiculo:
     """Asigna conductor a un vehiculo liberando el previo si aplica. Recibe: vehiculo y conductor_id (None = sin conductor)."""
     if conductor_id is not None:
-        previo = (
-            db.query(Vehiculo)
-            .filter(Vehiculo.conductor_id == conductor_id, Vehiculo.id != vehiculo.id)
-            .first()
-        )
-        if previo:
-            previo.conductor_id = None
+        liberar_otros_de(db, conductor_id, excepto_id=vehiculo.id)
     vehiculo.conductor_id = conductor_id
     db.commit()
     db.refresh(vehiculo)

@@ -77,6 +77,9 @@ export const loginAdmin = async (correo, contrasena) => {
 
   const payload = leerPayload(datos.access_token);
   const ROLES_PANEL = ["admin", "almacen"];
+  if (payload?.rol === "conductor") {
+    throw new Error("Las cuentas de conductor ingresan desde la app móvil GeoTrack, no desde el panel.");
+  }
   if (!ROLES_PANEL.includes(payload?.rol)) {
     throw new Error("Esta cuenta no tiene acceso al panel.");
   }
@@ -131,6 +134,14 @@ export const listarReclamos = () => request("/reclamos/");
 export const listarUsuarios = () => request("/usuarios/");
 
 export const obtenerMiPerfil = () => request("/usuarios/yo");
+
+// Cambia la contraseña del usuario autenticado. Recibe la clave actual y la nueva.
+export const cambiarMiContrasena = (actual, nueva) =>
+  request("/usuarios/yo/contrasena", { method: "POST", body: { actual, nueva } });
+
+// Pide al administrador una nueva contraseña desde el login (publico). Recibe el correo.
+export const solicitarRestablecimiento = (correo) =>
+  request("/auth/solicitar-restablecimiento", { method: "POST", body: { correo }, auth: false });
 
 export const crearUsuario = (datos) =>
   request("/usuarios/", { method: "POST", body: datos });

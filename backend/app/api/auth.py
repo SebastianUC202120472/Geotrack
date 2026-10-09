@@ -31,7 +31,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@router.post("/solicitar-restablecimiento")
+@router.post("/solicitar-restablecimiento", dependencies=[Depends(limite_publico(maximo=5, ventana_seg=60))])
 def solicitar_restablecimiento(datos: SolicitudRestablecimientoRequest, db: Session = Depends(get_db)):
-    """Solicita restablecer contrasena (publico). Recibe correo del conductor."""
+    """Solicita restablecer contrasena (publico). Recibe el correo de un conductor o del personal del panel."""
     return usuario_service.solicitar_restablecimiento(db, datos.correo)

@@ -115,6 +115,8 @@ export interface PerfilConductor {
   dni?: string | null;
   vehiculo?: { id: number; codigo?: string | null; placa: string } | null;
   foto_url?: string | null;
+  licencia_numero?: string | null;
+  licencia_vencimiento?: string | null; // "AAAA-MM-DD"
 }
 
 // Reporte de falla de un pedido.

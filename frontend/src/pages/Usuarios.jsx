@@ -48,6 +48,7 @@ export default function Usuarios() {
     total: usuarios.length,
     activos: usuarios.filter((u) => u.estado).length,
     admins: usuarios.filter((u) => u.rol === "admin").length,
+    solicitudes: usuarios.filter((u) => u.solicito_restablecimiento).length,
   }), [usuarios]);
 
   const registrar = async (e) => {
@@ -83,6 +84,12 @@ export default function Usuarios() {
         <div>
           {u.nombre && <p className="font-medium text-slate-800">{u.nombre}</p>}
           <p className={u.nombre ? "text-xs text-slate-500" : "text-slate-700"}>{u.correo}</p>
+          {u.solicito_restablecimiento && (
+            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning-strong"
+              title="Pidió una nueva contraseña desde el login">
+              <KeyRound size={12} /> Solicitó clave
+            </span>
+          )}
         </div>
       ),
     },
@@ -94,6 +101,16 @@ export default function Usuarios() {
   return (
     <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
       <PageHeader titulo="Usuarios del Panel" subtitulo="Crea cuentas de personal y define su rol (administrador o almacén)." />
+
+      {kpis.solicitudes > 0 && (
+        <div className="flex items-center gap-2 rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning-strong animate-fade-up">
+          <KeyRound size={18} className="shrink-0" />
+          <span>
+            <b>{kpis.solicitudes}</b> {kpis.solicitudes === 1 ? "persona pidió" : "personas pidieron"} una nueva contraseña desde el login.
+            Ábrelas (marcadas abajo) y usa <b>"Restablecer contraseña"</b>.
+          </span>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 animate-fade-up">
         <KpiCard label="Total" value={kpis.total} icon={UserCog} tone="brand" />
@@ -214,6 +231,13 @@ function DetalleUsuario({ usuario: u, onCerrar, onCambios }) {
         </div>
       )}
 
+      {modo === "ver" && u.solicito_restablecimiento && (
+        <div className="mt-4 flex items-start gap-2 rounded-xl bg-warning-soft px-3.5 py-3 text-sm text-warning-strong">
+          <KeyRound size={18} className="shrink-0" />
+          <span>Esta persona <b>pidió una nueva contraseña</b>. Genera una y comunícasela.</span>
+        </div>
+      )}
+
       {modo === "ver" && (
         <div className="mt-6 space-y-4">
           <Input label="Correo electrónico" type="email" required value={datos.correo}
@@ -249,7 +273,7 @@ function DetalleUsuario({ usuario: u, onCerrar, onCambios }) {
                 <CheckCircle2 size={20} className="shrink-0" />
                 <span>Contraseña restablecida. Comunícasela a la persona.</span>
               </div>
-              <Button block onClick={() => setModo("ver")}>Listo</Button>
+              <Button block onClick={onCambios}>Listo</Button>
             </>
           ) : (
             <>

@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.imagenes import validar_imagen
-from app.repositories import conductor_repository, usuario_repository, ubicacion_repository, solicitud_restablecimiento_repository
+from app.repositories import conductor_repository, usuario_repository, ubicacion_repository, solicitud_restablecimiento_repository, vehiculo_repository
 from app.core.security import get_password_hash
 from app.schemas.conductor import ConductorCreate, ConductorUpdate, UbicacionRequest, ConductorResetContrasena
 
@@ -26,6 +26,8 @@ def _a_respuesta(db: Session, usuario, ids_pendientes=None) -> dict:
         "telefono": perfil.telefono if perfil else None,
         "dni": perfil.dni if perfil else None,
         "foto_url": perfil.foto_url if perfil else None,
+        "licencia_numero": perfil.licencia_numero if perfil else None,
+        "licencia_vencimiento": perfil.licencia_vencimiento if perfil else None,
         "vehiculo": vehiculo,
     }
 
@@ -41,17 +43,32 @@ def obtener_uno(db: Session, usuario) -> dict:
     return _a_respuesta(db, usuario)
 
 
+def _vehiculo_libre_o_400(db: Session, vehiculo_id: int):
+    """Devuelve el vehiculo si existe y no tiene conductor; si no, lanza 400. Recibe el vehiculo_id."""
+    vehiculo = vehiculo_repository.obtener_por_id(db, vehiculo_id)
+    if vehiculo is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El vehículo elegido no existe o fue dado de baja")
+    if vehiculo.conductor_id is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"El vehículo {vehiculo.placa} ya está asignado a otro conductor")
+    return vehiculo
+
+
 def crear(db: Session, datos: ConductorCreate) -> dict:
-    """Crea un nuevo conductor (usuario + perfil). Recibe: sesion y datos del schema."""
+    """Crea un nuevo conductor (usuario + perfil con licencia) y, si se eligio, le asigna su vehiculo. Recibe: sesion y datos del schema."""
     if usuario_repository.obtener_por_correo(db, datos.correo):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El correo ya está registrado")
+    # Se valida el vehiculo ANTES de crear la cuenta para no dejar un alta a medias.
+    vehiculo = _vehiculo_libre_o_400(db, datos.vehiculo_id) if datos.vehiculo_id else None
 
     usuario = usuario_repository.crear_usuario(
         db, correo=datos.correo, hash_contrasena=get_password_hash(datos.contrasena), rol="conductor"
     )
     conductor_repository.crear_perfil(
-        db, usuario_id=usuario.id, nombre=datos.nombre, telefono=datos.telefono, dni=datos.dni
+        db, usuario_id=usuario.id, nombre=datos.nombre, telefono=datos.telefono, dni=datos.dni,
+        licencia_numero=datos.licencia_numero, licencia_vencimiento=datos.licencia_vencimiento,
     )
+    if vehiculo is not None:
+        vehiculo_repository.reasignar_conductor(db, vehiculo, usuario.id)
     return _a_respuesta(db, usuario)
 
 
@@ -64,7 +81,7 @@ def _conductor_activo(db: Session, usuario_id: int):
 
 
 def actualizar(db: Session, usuario_id: int, datos: ConductorUpdate) -> dict:
-    """Edita la ficha (correo/nombre/teléfono/DNI) de un conductor activo."""
+    """Edita la ficha (correo/nombre/teléfono/DNI/licencia) de un conductor activo. Recibe id y cambios."""
     usuario = _conductor_activo(db, usuario_id)
     if datos.correo:
         nuevo_correo = str(datos.correo).strip().lower()
@@ -76,8 +93,10 @@ def actualizar(db: Session, usuario_id: int, datos: ConductorUpdate) -> dict:
                     detail="El correo ya está registrado por otra cuenta",
                 )
             usuario_repository.actualizar_correo(db, usuario, nuevo_correo)
+    # La licencia solo se toca si viene en la peticion (asi un cliente viejo no la borra).
+    licencia = datos.model_dump(include={"licencia_numero", "licencia_vencimiento"}, exclude_unset=True)
     conductor_repository.actualizar_perfil(
-        db, usuario_id, nombre=datos.nombre, telefono=datos.telefono, dni=datos.dni
+        db, usuario_id, nombre=datos.nombre, telefono=datos.telefono, dni=datos.dni, licencia=licencia
     )
     return _a_respuesta(db, usuario)
 

@@ -23,7 +23,8 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "postgresql://sava_admin:sava_password123@db:5432/siol_sava_db"  # nosec B105
 
-    CORS_ORIGINS: str = "*"
+    # Vacio = solo mismo origen (el panel llega por Nginx). Con dominios, separarlos por comas.
+    CORS_ORIGINS: str = ""
 
     # Zona horaria de la operacion. Define donde empieza y termina "el dia" en las
     # vistas diarias (panel corporativo, reporte del landing). Con UTC, el dia de una
