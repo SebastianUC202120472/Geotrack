@@ -132,15 +132,18 @@ def momentos_de_cierre(pedidos) -> dict:
     }
 
 
-def crear_pedidos(db, empresas) -> list:
-    """Crea los 250 pedidos del dia con su estado, destinatario y coordenadas.
-    Recibe la sesion y la lista de empresas. Devuelve [[pedido, estado, indice], ...]."""
+def crear_pedidos(db, empresas, excluir=()) -> list:
+    """Crea los pedidos del dia (50 por empresa) con su estado, destinatario y coordenadas.
+    Recibe la sesion, la lista de empresas y los codigos de acceso de las empresas que se
+    dejan SIN pedidos (p. ej. la que se usa para el flujo en vivo). Devuelve [[pedido, estado, indice], ...]."""
     inicio_dia, _ = fechas.rango_utc_del_dia()
     azar = random.Random(20260918)   # semilla fija: la siembra es reproducible
     distritos = list(cat.DISTRITOS)
     pedidos = []
     indice = 0
     for pos_empresa, (empresa, datos) in enumerate(zip(empresas, cat.EMPRESAS)):
+        if datos["codigo_acceso"] in excluir:
+            continue
         for i, estado in enumerate(cat.reparto_estados(50)):
             # Los pendientes se concentran en pocas zonas; el resto se reparte por toda Lima.
             if estado == "LISTO_PARA_ENVIO":
@@ -456,8 +459,9 @@ def main():
     _sembrar()
 
 
-def _sembrar():
-    """Hace la siembra completa (borrado + empresas + pedidos + rutas + POD). Sin input."""
+def _sembrar(excluir=()):
+    """Hace la siembra completa (borrado + empresas + pedidos + rutas + POD). Recibe los codigos
+    de acceso de las empresas que quedan sin pedidos (por defecto ninguna)."""
     db = SessionLocal()
     # Tras cada commit los objetos siguen usables sin volver a consultarlos: la hoja de
     # credenciales y la generacion de POD leen los 250 pedidos ya cargados, y con el
@@ -475,7 +479,7 @@ def _sembrar():
         empresas = crear_empresas(db)
 
         print("Creando pedidos...")
-        pedidos = crear_pedidos(db, empresas)
+        pedidos = crear_pedidos(db, empresas, excluir)
 
         cierres = momentos_de_cierre(pedidos)
 
