@@ -17,6 +17,7 @@ import Usuarios from "./pages/Usuarios";
 import Parametros from "./pages/Parametros";
 import SeguimientoConductores from "./pages/SeguimientoConductores";
 import IngresoAlmacen from "./pages/IngresoAlmacen";
+import PedidosObservados from "./pages/PedidosObservados";
 import RetornosAlmacen from "./pages/RetornosAlmacen";
 import ArmarRutaRecojo from "./pages/ArmarRutaRecojo";
 import MapaRecojos from "./pages/MapaRecojos";
@@ -80,6 +81,7 @@ export default function App() {
         <Route path="notificaciones" element={<Notificaciones />} />
         <Route path="almacen" element={<IngresoAlmacen />} />
         <Route path="almacen/retornos" element={<RetornosAlmacen />} />
+        <Route path="almacen/observados" element={<PedidosObservados />} />
         <Route path="almacen/recojos" element={<ArmarRutaRecojo />} />
         <Route path="almacen/mapa" element={<MapaRecojos />} />
       </Route>

@@ -67,3 +67,45 @@ def test_bloqueos_seguidos_se_alargan_hasta_el_tope():
     duraciones = [segundos_de_bloqueo(30, n) for n in range(8)]
     assert duraciones == sorted(duraciones)
     assert duraciones[-1] == ESCALONES_BLOQUEO_SEG[-1]
+
+
+# --- F3: solicitudes de recojo ---
+from fastapi import HTTPException  # noqa: E402
+from app.models.solicitud_recojo import ESTADOS_GESTIONADOS  # noqa: E402
+from app.schemas.recojo import PedidoManualIn, SolicitudManualCreate, NoRealizadoRequest  # noqa: E402
+from app.services.recojo_service import _exigir_filas_validas  # noqa: E402
+
+
+def test_pedido_manual_exige_referencia_y_direccion():
+    """Un pedido escrito a mano sin referencia o sin direccion no pasa (C11-02)."""
+    with pytest.raises(ValueError):
+        PedidoManualIn(referencia_externa="  ", direccion_destino="Av. Larco 100, Miraflores")
+    p = PedidoManualIn(referencia_externa=" SF-1 ", direccion_destino="Av.  Larco 100,  Miraflores")
+    assert p.referencia_externa == "SF-1" and p.direccion_destino == "Av. Larco 100, Miraflores"
+
+
+def test_solicitud_manual_sin_pedidos_se_rechaza():
+    """La solicitud manual necesita al menos un pedido."""
+    with pytest.raises(ValueError):
+        SolicitudManualCreate(cliente_id=1, pedidos=[])
+
+
+def test_reintento_con_todo_duplicado_es_409():
+    """Si todas las filas ya existian, el reintento responde 409 y no crea nada (C11-01)."""
+    with pytest.raises(HTTPException) as e:
+        _exigir_filas_validas([], ["Fila 1: el pedido SF-1 ya está registrado (PD-001)"], duplicadas=1)
+    assert e.value.status_code == 409
+
+
+def test_filas_invalidas_sin_duplicados_es_400():
+    """Si no hay filas validas por datos faltantes, responde 400 con el motivo."""
+    with pytest.raises(HTTPException) as e:
+        _exigir_filas_validas([], ["Fila 1: falta direccion_destino"], duplicadas=0)
+    assert e.value.status_code == 400 and "falta direccion_destino" in e.value.detail
+
+
+def test_no_realizado_cuenta_como_gestionado_y_exige_motivo():
+    """Un recojo no realizado ya no esta pendiente en la ruta y requiere motivo (C12-02)."""
+    assert "NO_REALIZADO" in ESTADOS_GESTIONADOS
+    with pytest.raises(ValueError):
+        NoRealizadoRequest(motivo=" a ")

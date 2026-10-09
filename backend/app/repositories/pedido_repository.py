@@ -164,3 +164,55 @@ def agrupar_por_cliente(db: Session):
         .group_by(Pedido.cliente_origen, estado_efectivo)
         .all()
     )
+
+
+def referencias_existentes(db: Session, cliente_id: int, referencias: list) -> dict:
+    """Pedidos vigentes (no cancelados) de un cliente con esas referencias del retail (C11-01).
+    Recibe el id del cliente y la lista de referencias. Devuelve {referencia: codigo PD}."""
+    refs = [r for r in {(r or "").strip() for r in referencias} if r]
+    if not refs:
+        return {}
+    filas = (
+        db.query(Pedido.referencia_externa, Pedido.codigo)
+        .filter(Pedido.cliente_id == cliente_id, Pedido.referencia_externa.in_(refs), Pedido.estado != "CANCELADO")
+        .all()
+    )
+    return {ref: codigo for ref, codigo in filas}
+
+
+def totales_por_recojo(db: Session, recojo_ids: list) -> dict:
+    """Cantidad, volumen y peso de los pedidos de cada recojo en una sola consulta (C12-03).
+    Recibe la lista de ids de recojo. Devuelve {recojo_id: (cantidad, volumen_m3, peso_kg)}."""
+    from sqlalchemy import func
+    if not recojo_ids:
+        return {}
+    filas = (
+        db.query(Pedido.recojo_id, func.count(Pedido.id),
+                 func.coalesce(func.sum(Pedido.volumen_m3), 0), func.coalesce(func.sum(Pedido.peso_kg), 0))
+        .filter(Pedido.recojo_id.in_(recojo_ids))
+        .group_by(Pedido.recojo_id)
+        .all()
+    )
+    return {rid: (int(n), float(vol or 0), float(peso or 0)) for rid, n, vol, peso in filas}
+
+
+def listar_observados(db: Session) -> list:
+    """Pedidos OBSERVADO con su lote (recojo) y desde cuando estan observados (C15-01).
+    Devuelve [(pedido, codigo del recojo, fecha en que paso a OBSERVADO)] del mas antiguo al mas nuevo."""
+    from sqlalchemy import func
+    from app.models.historial import HistorialPedido
+    from app.models.solicitud_recojo import SolicitudRecojo
+    desde = (
+        db.query(HistorialPedido.pedido_id, func.max(HistorialPedido.fecha_utc).label("desde"))
+        .filter(HistorialPedido.estado_nuevo == "OBSERVADO")
+        .group_by(HistorialPedido.pedido_id)
+        .subquery()
+    )
+    return (
+        db.query(Pedido, SolicitudRecojo.codigo, desde.c.desde)
+        .outerjoin(SolicitudRecojo, SolicitudRecojo.id == Pedido.recojo_id)
+        .outerjoin(desde, desde.c.pedido_id == Pedido.id)
+        .filter(Pedido.estado == "OBSERVADO")
+        .order_by(desde.c.desde.asc().nullsfirst(), Pedido.id.asc())
+        .all()
+    )

@@ -1,3 +1,4 @@
+from datetime import date
 from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Query, UploadFile
@@ -12,6 +13,7 @@ from app.schemas.recojo import (
     SolicitudRecojoUpdate,
     SolicitudRecojoResponse,
     AceptarSolicitudResponse,
+    SolicitudManualCreate,
 )
 
 router = APIRouter()
@@ -44,6 +46,7 @@ async def aceptar_solicitud(
     referencia: str | None = Form(None),
     contacto_origen: str | None = Form(None),
     conversacion_id: int | None = Form(None),
+    fecha_programada: date | None = Form(None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     admin: Usuario = Depends(get_current_admin),
@@ -51,8 +54,22 @@ async def aceptar_solicitud(
     """Acepta una solicitud: crea pedidos POR_RECOGER desde Excel y geocodifica en segundo plano. Recibe Excel + metadatos del admin."""
     contenido = await file.read()
     resultado = recojo_service.aceptar_solicitud(
-        db, cliente_id, contenido, file.filename, referencia, contacto_origen, admin.id, conversacion_id
+        db, cliente_id, contenido, file.filename, referencia, contacto_origen, admin.id, conversacion_id,
+        fecha_programada,
     )
+    background_tasks.add_task(recojo_service.geocodificar_pedidos_recojo, resultado.recojo_id)
+    return resultado
+
+
+@router.post("/manual", response_model=AceptarSolicitudResponse)
+def registrar_manual(
+    datos: SolicitudManualCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    admin: Usuario = Depends(get_current_admin),
+):
+    """Registra una solicitud pedida por teléfono con sus pedidos escritos a mano. Recibe cliente, datos y pedidos."""
+    resultado = recojo_service.registrar_solicitud_manual(db, datos, admin.id)
     background_tasks.add_task(recojo_service.geocodificar_pedidos_recojo, resultado.recojo_id)
     return resultado
 

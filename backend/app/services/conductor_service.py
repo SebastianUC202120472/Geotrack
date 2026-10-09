@@ -101,6 +101,29 @@ def actualizar(db: Session, usuario_id: int, datos: ConductorUpdate) -> dict:
     return _a_respuesta(db, usuario)
 
 
+def validar_para_ruta(db: Session, conductor_id: int):
+    """Comprueba que el conductor pueda recibir una ruta: activo, con vehiculo vinculado y sin la
+    licencia vencida (C12-01, C19-01). Recibe el id. Devuelve (usuario, vehiculo) o lanza 400."""
+    from app.core.fechas import hoy_local  # import local: fechas depende de config
+
+    usuario = usuario_repository.obtener_por_id(db, conductor_id)
+    if usuario is None or usuario.rol != "conductor" or not usuario.estado:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El conductor elegido no existe o está dado de baja")
+    vehiculo = vehiculo_repository.obtener_por_conductor(db, conductor_id)
+    if vehiculo is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El conductor no tiene un vehículo asignado. Asígnale uno en Flota de Vehículos.",
+        )
+    perfil = conductor_repository.obtener_perfil(db, conductor_id)
+    if perfil and perfil.licencia_vencimiento and perfil.licencia_vencimiento < hoy_local():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La licencia de conducir del conductor está vencida. Actualiza su ficha antes de asignarle rutas.",
+        )
+    return usuario, vehiculo
+
+
 def restablecer_contrasena(db: Session, usuario_id: int, datos: ConductorResetContrasena) -> dict:
     """Fija una nueva contrasena hasheada para un conductor activo. Recibe: id y nueva clave."""
     usuario = _conductor_activo(db, usuario_id)

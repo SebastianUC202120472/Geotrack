@@ -50,8 +50,11 @@ export function RutaRecojoView() {
 
   const paradas: ParadaRecojo[] = manifiesto.data?.paradas ?? [];
   // RECOGIDO e INGRESADO cuentan como recogido: si almacén ya ingresó el recojo, para el conductor sigue recogido.
+  // NO_REALIZADO (tienda cerrada, etc.) ya no está pendiente: vuelve a la lista al cerrar la ruta (C12-02).
   const RECOGIDOS = ["RECOGIDO", "INGRESADO"];
-  const pendientes = paradas.filter((p) => !RECOGIDOS.includes(p.estado)).sort((a, b) => a.secuencia - b.secuencia);
+  const GESTIONADOS = [...RECOGIDOS, "NO_REALIZADO"];
+  const pendientes = paradas.filter((p) => !GESTIONADOS.includes(p.estado)).sort((a, b) => a.secuencia - b.secuencia);
+  const sinExito = paradas.filter((p) => p.estado === "NO_REALIZADO");
 
   const puntosNavegar = pendientes
     .filter((p) => p.latitud != null && p.longitud != null)
@@ -61,7 +64,7 @@ export function RutaRecojoView() {
     secuencia: p.secuencia, detalle_id: p.recojo_id, pedido_id: p.recojo_id, codigo: p.codigo,
     cliente_origen: p.cliente_origen, nombre_destinatario: p.cliente_origen, telefono_destinatario: null,
     direccion_destino: p.direccion_origen, distrito: p.distrito, latitud: p.latitud, longitud: p.longitud,
-    peso_kg: null, estado_entrega: RECOGIDOS.includes(p.estado) ? "ENTREGADO" : "PENDIENTE", url_evidencia: p.url_guia,
+    peso_kg: null, estado_entrega: RECOGIDOS.includes(p.estado) ? "ENTREGADO" : p.estado === "NO_REALIZADO" ? "FALLIDO" : "PENDIENTE", url_evidencia: p.url_guia,
   })) as ParadaManifiesto[];
 
   // Refresca ruta y manifiesto juntos. Pull-to-refresh.
@@ -100,6 +103,7 @@ export function RutaRecojoView() {
 
   const total = ruta.data?.total_paradas ?? 0;
   const recogidas = ruta.data?.entregadas ?? 0;
+  const noRealizadas = ruta.data?.fallidas ?? 0;
   const puedeCerrar = !!ruta.data && total > 0 && (ruta.data.pendientes ?? 0) === 0 && !pausada;
 
   const Encabezado = (
@@ -115,11 +119,12 @@ export function RutaRecojoView() {
             {(ruta.data.codigo ?? "—")} · {(ruta.data.estado ?? "").replace("_", " ").toLowerCase()}
           </Texto>
           <View style={{ marginTop: spacing.lg }}>
-            <BarraProgreso valor={recogidas} total={total} porEstado />
+            <BarraProgreso valor={recogidas + noRealizadas} total={total} porEstado />
           </View>
           <View style={estilos.contadores}>
             <ContadorEtiqueta valor={ruta.data.pendientes ?? 0} etiqueta="Pendientes" />
             <ContadorEtiqueta valor={recogidas} etiqueta="Recogidos" />
+            {noRealizadas > 0 && <ContadorEtiqueta valor={noRealizadas} etiqueta="Sin éxito" />}
           </View>
         </GradientHeader>
       )}
@@ -161,15 +166,26 @@ export function RutaRecojoView() {
 
   const Pie = ruta.data ? (
     <Aparecer style={{ marginTop: spacing.lg, gap: spacing.md, paddingHorizontal: spacing.lg }}>
+      {sinExito.length > 0 && (
+        <Card style={{ backgroundColor: colors.warningSoft }}>
+          <Texto variante="bodyMedium" color={colors.warning}>No realizados ({sinExito.length})</Texto>
+          {sinExito.map((p) => (
+            <Texto key={p.recojo_id} variante="caption" color={colors.warning} style={{ marginTop: 2 }} onPress={() => router.push(`/recojo/${p.recojo_id}`)}>
+              {p.codigo ?? p.recojo_id} · {p.cliente_origen}: {p.motivo_no_realizado || "sin motivo"}
+            </Texto>
+          ))}
+          <Texto variante="caption" color={colors.muted} style={{ marginTop: spacing.xs }}>Al cerrar el día volverán a la lista para reprogramarlos.</Texto>
+        </Card>
+      )}
       <Card>
         <Texto variante="subtitle" color={colors.ink} style={{ marginBottom: spacing.xs }}>Cierre del día</Texto>
         {puedeCerrar ? (
           <>
-            <Texto variante="body" color={colors.muted} style={{ marginBottom: spacing.md }}>Todos los recojos están registrados. Ya puedes cerrar el día.</Texto>
+            <Texto variante="body" color={colors.muted} style={{ marginBottom: spacing.md }}>Todos los recojos están gestionados. Ya puedes cerrar el día.</Texto>
             <Button titulo="Cerrar el día" onPress={cerrarDia} cargando={finalizar.isPending} />
           </>
         ) : (
-          <Texto variante="body" color={colors.muted}>Registra todos los recojos para cerrar el día. Faltan {ruta.data.pendientes ?? 0} de {total}.</Texto>
+          <Texto variante="body" color={colors.muted}>Registra cada recojo (o marca que no se pudo) para cerrar el día. Faltan {ruta.data.pendientes ?? 0} de {total}.</Texto>
         )}
       </Card>
     </Aparecer>

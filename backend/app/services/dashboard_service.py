@@ -5,6 +5,7 @@ from sqlalchemy import func
 from datetime import datetime
 
 from app.models.usuario import Usuario
+from app.models.solicitud_recojo import ESTADOS_GESTIONADOS
 from app.repositories import ruta_repository, pedido_repository, usuario_repository, historial_repository, ubicacion_repository, incidencia_repository, recojo_repository
 from app.schemas.dashboard import (
     RutaFlota,
@@ -112,7 +113,7 @@ def obtener_ubicaciones_flota(db: Session, tipo: str | None = None) -> list[Cond
                     secuencia=r.secuencia,
                 )
                 for r in recojos
-                if r.estado != "RECOGIDO" and r.latitud is not None and r.longitud is not None
+                if r.estado not in ESTADOS_GESTIONADOS and r.latitud is not None and r.longitud is not None
             ]
         else:
             detalles = (

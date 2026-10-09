@@ -4,13 +4,14 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.repositories import almacen_repository, recojo_repository, historial_repository
+from app.repositories import almacen_repository, recojo_repository, historial_repository, pedido_repository
 from app.schemas.almacen import (
     ConteoConciliacion,
     ConciliacionResponse,
     PedidoIngresoItem,
     RecojoAlmacenItem,
     ConfirmarIngresoResponse,
+    ObservadoItem,
 )
 
 
@@ -128,3 +129,17 @@ def listar_recojos(db: Session, estado: str | None = None) -> list:
                 conteo=_conteo(db, r.id),
             ))
     return items
+
+
+def listar_observados(db: Session) -> list[ObservadoItem]:
+    """Todos los pedidos OBSERVADO con su lote y antigüedad del caso, del mas antiguo al mas nuevo (C15-01). Recibe la sesion."""
+    ahora = datetime.utcnow()
+    salida = []
+    for pedido, lote, desde in pedido_repository.listar_observados(db):
+        salida.append(ObservadoItem(
+            pedido_id=pedido.id, codigo=pedido.codigo, referencia=pedido.referencia_externa,
+            cliente=pedido.cliente_origen, destinatario=pedido.nombre_destinatario,
+            direccion_destino=pedido.direccion_destino, lote=lote, recojo_id=pedido.recojo_id,
+            observado_desde=desde, dias=max(0, (ahora - desde).days) if desde else 0,
+        ))
+    return salida

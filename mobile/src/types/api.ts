@@ -168,9 +168,12 @@ export interface ParadaRecojo {
   latitud?: number | null;
   longitud?: number | null;
   volumen_estimado_m3?: number | null;
-  estado: string; // SOLICITADO | ASIGNADO | EN_RUTA | RECOGIDO
+  estado: string; // SOLICITADO | ASIGNADO | EN_RUTA | RECOGIDO | NO_REALIZADO
   cantidad_declarada?: number | null;
   url_guia?: string | null;
+  contacto_origen?: string | null;
+  motivo_no_realizado?: string | null;
+  num_pedidos?: number;
 }
 
 export interface ManifiestoRecojo {

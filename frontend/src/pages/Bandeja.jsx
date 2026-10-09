@@ -6,6 +6,7 @@ import EmptyState from "../components/ui/EmptyState";
 import Button from "../components/ui/Button";
 import Badge, { EstadoBadge } from "../components/ui/Badge";
 import FormAceptarSolicitud from "../components/FormAceptarSolicitud";
+import SolicitudesRecojo from "../components/SolicitudesRecojo";
 import {
   listarConversaciones, obtenerConversacion, sincronizarCorreos,
   responderCorreo, marcarConversacion, descargarAdjunto,
@@ -94,6 +95,7 @@ export default function Bandeja() {
   const PESTANAS = [
     { id: "correos", label: "Solicitud del cliente" },
     { id: "registrar", label: "Registrar solicitud" },
+    { id: "solicitudes", label: "Solicitudes registradas" },
   ];
 
   return (
@@ -266,6 +268,12 @@ export default function Bandeja() {
       {pestana === "registrar" && (
         <div className="animate-fade-up" style={{ animationDelay: "60ms" }}>
           <FormAceptarSolicitud desdeCorreo={solicitudDesdeCorreo} />
+        </div>
+      )}
+
+      {pestana === "solicitudes" && (
+        <div className="animate-fade-up" style={{ animationDelay: "60ms" }}>
+          <SolicitudesRecojo />
         </div>
       )}
     </div>
