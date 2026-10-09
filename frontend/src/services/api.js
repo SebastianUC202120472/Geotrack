@@ -119,6 +119,14 @@ export const actualizarCliente = (id, datos) =>
 export const eliminarCliente = (id) =>
   request(`/clientes/${id}`, { method: "DELETE" });
 
+// Vuelve a intentar ubicar la direccion de recojo de un cliente. Recibe el id.
+export const reintentarUbicacionCliente = (id) =>
+  request(`/clientes/${id}/geocodificar`, { method: "POST" });
+
+// Fija a mano el punto de recojo de un cliente. Recibe id y { latitud, longitud }.
+export const fijarUbicacionCliente = (id, datos) =>
+  request(`/clientes/${id}/ubicacion`, { method: "PUT", body: datos });
+
 // Genera/reinicia el acceso al portal de un cliente. Recibe id y correoPortal.
 // Devuelve {codigoAcceso, clave} con la clave en claro UNA sola vez.
 export const generarAccesoPortal = (id, correoPortal) =>

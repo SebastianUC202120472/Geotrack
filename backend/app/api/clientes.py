@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.api.deps import get_current_admin
 from app.services import cliente_service
-from app.schemas.cliente import AccesoPortalIn, ClienteCreate, ClienteResponse, ClienteUpdate
+from app.schemas.cliente import AccesoPortalIn, ClienteCreate, ClienteResponse, ClienteUpdate, UbicacionClienteIn
 
 router = APIRouter()
 
@@ -32,6 +32,18 @@ def actualizar_cliente(cliente_id: int, datos: ClienteUpdate, db: Session = Depe
 def eliminar_cliente(cliente_id: int, db: Session = Depends(get_db)):
     """Da de baja una empresa cliente (borrado logico). Recibe cliente_id."""
     return cliente_service.eliminar_cliente(db, cliente_id)
+
+
+@router.post("/{cliente_id}/geocodificar", response_model=ClienteResponse, dependencies=[Depends(get_current_admin)])
+def reintentar_ubicacion(cliente_id: int, db: Session = Depends(get_db)):
+    """Vuelve a intentar ubicar en el mapa la dirección de recojo del cliente. Recibe cliente_id."""
+    return cliente_service.reintentar_ubicacion(db, cliente_id)
+
+
+@router.put("/{cliente_id}/ubicacion", response_model=ClienteResponse, dependencies=[Depends(get_current_admin)])
+def fijar_ubicacion(cliente_id: int, datos: UbicacionClienteIn, db: Session = Depends(get_db)):
+    """Fija a mano el punto de recojo del cliente. Recibe cliente_id y {latitud, longitud}."""
+    return cliente_service.fijar_ubicacion(db, cliente_id, datos)
 
 
 @router.post("/{cliente_id}/acceso-portal", dependencies=[Depends(get_current_admin)])

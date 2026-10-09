@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import get_password_hash
 from app.repositories import cliente_repository
-from app.schemas.cliente import ClienteCreate, ClienteUpdate
+from app.schemas.cliente import ClienteCreate, ClienteUpdate, UbicacionClienteIn, digito_ruc_valido
 from app.services.geocoder import obtener_coordenadas
 
 
@@ -31,6 +31,15 @@ def _geocodificar_origen(direccion: str):
     return lat, lng, distrito
 
 
+def _exigir_digito_ruc(ruc) -> None:
+    """Rechaza un RUC cuyo digito verificador no cuadra (C07-01). Recibe el RUC ya normalizado (o None)."""
+    if ruc and not digito_ruc_valido(ruc):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El RUC no es válido: revisa los 11 dígitos (el dígito verificador no coincide)",
+        )
+
+
 def _cliente_o_404(db: Session, cliente_id: int):
     """Devuelve el cliente activo o lanza 404. Recibe: sesion db y cliente_id."""
     cliente = cliente_repository.obtener_por_id(db, cliente_id)
@@ -46,6 +55,7 @@ def listar_clientes(db: Session):
 
 def crear_cliente(db: Session, datos: ClienteCreate):
     """Crea un cliente nuevo validando RUC unico y geocodificando la direccion. Recibe: sesion db y datos del cliente."""
+    _exigir_digito_ruc(datos.identificador_unico)
     if datos.identificador_unico:
         existente = cliente_repository.obtener_por_identificador(db, datos.identificador_unico)
         if existente:
@@ -77,17 +87,16 @@ def actualizar_cliente(db: Session, cliente_id: int, datos: ClienteUpdate):
     cliente = _cliente_o_404(db, cliente_id)
     campos = datos.model_dump(exclude_unset=True)
 
-    if "razon_social" in campos:
-        rs = (campos["razon_social"] or "").strip()
-        if len(rs) < 3:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="La razón social debe tener al menos 3 caracteres",
-            )
-        campos["razon_social"] = rs
+    if "razon_social" in campos and not campos["razon_social"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La razón social debe tener al menos 3 caracteres",
+        )
 
     nuevo_ruc = campos.get("identificador_unico")
     if nuevo_ruc and nuevo_ruc != cliente.identificador_unico:
+        # Solo se exige el digito verificador si el RUC cambia: asi un RUC historico no bloquea la edicion.
+        _exigir_digito_ruc(nuevo_ruc)
         otro = cliente_repository.obtener_por_identificador(db, nuevo_ruc)
         if otro and otro.id != cliente.id:
             raise HTTPException(
@@ -112,10 +121,34 @@ def actualizar_cliente(db: Session, cliente_id: int, datos: ClienteUpdate):
 
 
 def eliminar_cliente(db: Session, cliente_id: int) -> dict:
-    """Baja logica de un cliente. Recibe: sesion db y cliente_id."""
+    """Baja logica de un cliente; tambien le quita el acceso al portal (C07-03). Recibe: sesion db y cliente_id."""
     cliente = _cliente_o_404(db, cliente_id)
+    cliente.acceso_activo = False
     cliente_repository.eliminar(db, cliente)
     return {"mensaje": "Cliente eliminado"}
+
+
+def reintentar_ubicacion(db: Session, cliente_id: int):
+    """Vuelve a geocodificar la direccion de recojo del cliente (C07-02). Recibe: sesion db y cliente_id."""
+    cliente = _cliente_o_404(db, cliente_id)
+    if not (cliente.direccion_origen or "").strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El cliente no tiene dirección de recojo")
+    lat, lng, distrito = _geocodificar_origen(cliente.direccion_origen)
+    if lat is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Tampoco se pudo ubicar ahora. Corrige la dirección o marca el punto en el mapa.",
+        )
+    return cliente_repository.actualizar(db, cliente, latitud=lat, longitud=lng, distrito=distrito)
+
+
+def fijar_ubicacion(db: Session, cliente_id: int, datos: UbicacionClienteIn):
+    """Guarda el punto de recojo marcado a mano en el mapa (C07-02). Recibe: sesion db, cliente_id y coordenadas."""
+    cliente = _cliente_o_404(db, cliente_id)
+    return cliente_repository.actualizar(
+        db, cliente, latitud=datos.latitud, longitud=datos.longitud,
+        distrito=cliente.distrito or _distrito_de(cliente.direccion_origen),
+    )
 
 
 def generar_acceso_portal(db: Session, cliente_id: int, correo_portal: str) -> dict:
@@ -126,7 +159,7 @@ def generar_acceso_portal(db: Session, cliente_id: int, correo_portal: str) -> d
     clave = secrets.token_urlsafe(9)
     cliente.codigo_acceso = codigo
     cliente.clave_hash = get_password_hash(clave)
-    cliente.correo_portal = correo_portal
+    cliente.correo_portal = str(correo_portal).strip().lower()
     cliente.acceso_activo = True
     db.commit()
     return {"codigoAcceso": codigo, "clave": clave}

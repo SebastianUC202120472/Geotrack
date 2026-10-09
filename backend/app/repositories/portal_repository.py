@@ -86,19 +86,54 @@ def cliente_por_codigo_acceso(db: Session, codigo_acceso: str) -> Optional[Clien
     )
 
 
-def pedidos_de_cliente_hoy(db: Session, cliente_id: int):
-    """Devuelve (pedido, detalle de ruta) del cliente creados hoy. Recibe el id del cliente.
+# Estados en curso: un pedido asi sigue "vivo" para el cliente aunque se haya creado otro dia.
+ESTADOS_ACTIVOS = ("POR_RECOGER", "OBSERVADO", "LISTO_PARA_ENVIO", "ASIGNADO", "EN_RUTA", "FALLIDO")
+
+
+def pedidos_de_cliente_en_fecha(db: Session, cliente_id: int, dia=None):
+    """Devuelve (pedido, detalle de ruta) de los pedidos del cliente que importan ese dia (C45-01):
+    creados ese dia, con algun movimiento ese dia o entregados ese dia; si el dia es hoy, ademas
+    todos los que siguen en curso. Recibe el id del cliente y la fecha local (por defecto hoy).
     Filtra por cliente_id (FK) y NO por razon_social, que no es unica (evita fuga cross-empresa).
-    "Hoy" es el dia de la zona horaria de la operacion, no el dia UTC: con UTC el dia del
-    cliente cambiaria a las 7 p.m. hora de Lima."""
-    inicio, fin = fechas.rango_utc_del_dia()
+    El dia es el de la zona horaria de la operacion, no el dia UTC."""
+    from sqlalchemy import or_
+    dia = dia or fechas.hoy_local()
+    inicio, fin = fechas.rango_utc_del_dia(dia)
+    con_movimiento = (
+        db.query(HistorialPedido.pedido_id)
+        .filter(HistorialPedido.fecha_utc >= inicio, HistorialPedido.fecha_utc <= fin)
+    )
+    condiciones = [
+        Pedido.fecha_creacion.between(inicio, fin),
+        Pedido.fecha_entrega.between(inicio, fin),
+        Pedido.id.in_(con_movimiento),
+    ]
+    if dia == fechas.hoy_local():
+        condiciones.append(Pedido.estado.in_(ESTADOS_ACTIVOS))
     pedidos = (
         db.query(Pedido)
-        .filter(Pedido.cliente_id == cliente_id, Pedido.fecha_creacion >= inicio, Pedido.fecha_creacion <= fin)
+        .filter(Pedido.cliente_id == cliente_id, or_(*condiciones))
         .order_by(Pedido.codigo.asc())
         .all()
     )
     return [(p, _detalle_entrega(db, p.id)) for p in pedidos]
+
+
+def historial_de_pedidos(db: Session, pedido_ids: List[int]) -> dict:
+    """Historial de varios pedidos en una sola consulta, agrupado por pedido y en orden cronologico.
+    Recibe la lista de ids. Devuelve {pedido_id: [HistorialPedido, ...]}."""
+    if not pedido_ids:
+        return {}
+    filas = (
+        db.query(HistorialPedido)
+        .filter(HistorialPedido.pedido_id.in_(pedido_ids))
+        .order_by(HistorialPedido.pedido_id.asc(), HistorialPedido.fecha_utc.asc())
+        .all()
+    )
+    agrupado = {}
+    for h in filas:
+        agrupado.setdefault(h.pedido_id, []).append(h)
+    return agrupado
 
 
 def _detalle_entrega(db: Session, pedido_id: int) -> Optional[RutaDetalle]:

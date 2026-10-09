@@ -1,7 +1,39 @@
 import { useEffect, useRef, useState } from "react";
 import { ESTADOS, OPCIONES } from "../datos/portalUi.js";
-import { buscarPedido, verificarPedido, reprogramar, urlPod } from "../servicios/portal.js";
+import { buscarPedido, verificarPedido, reprogramar, urlPod, detallePedido } from "../servicios/portal.js";
 import { AyudaPedidos } from "./AyudaDemo";
+
+// Verificación guardada en la pestaña (sessionStorage): sobrevive a recargar la página y
+// se borra al cerrar la pestaña, al cerrar el pedido o al vencer el token (C42-01).
+const CLAVE_VERIFICACION = "ptl_rastreo_verificado";
+
+// leerVerificacion: devuelve { codigo, token, resumen } si hay una verificación guardada y su
+// token sigue vigente; si no, null. Sin input.
+function leerVerificacion() {
+  try {
+    const g = JSON.parse(sessionStorage.getItem(CLAVE_VERIFICACION) || "null");
+    if (!g?.token || !g?.codigo) return null;
+    const exp = JSON.parse(atob(g.token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).exp;
+    return exp * 1000 > Date.now() ? g : null;
+  } catch {
+    return null;
+  }
+}
+
+// guardarVerificacion / borrarVerificacion: persisten o limpian la verificación de la pestaña.
+// Input (guardar): codigo, token y resumen enmascarado del pedido.
+function guardarVerificacion(codigo, token, resumen) {
+  try { sessionStorage.setItem(CLAVE_VERIFICACION, JSON.stringify({ codigo, token, resumen })); } catch { /* sin almacenamiento: solo en memoria */ }
+}
+function borrarVerificacion() {
+  try { sessionStorage.removeItem(CLAVE_VERIFICACION); } catch { /* nada que limpiar */ }
+}
+
+// textoEspera: segundos de bloqueo a texto ("45 s" o "10 min"). Input: segundos.
+function textoEspera(seg) {
+  const s = Math.max(0, Math.ceil(seg));
+  return s < 60 ? `${s} s` : `${Math.ceil(s / 60)} min`;
+}
 
 // ============================================================================
 // Vista PERSONA NATURAL del portal de clientes (Tarea 10 · re-cableada a datos
@@ -24,7 +56,7 @@ export default function RastreoPersonal({ avisar, demo }) {
   const [errorCod, setErrorCod] = useState(""); // código que NO existe (para el aviso de error)
   const [verificado, setVerificado] = useState(false); // identidad confirmada → muestra detalle
   const [detalle, setDetalle] = useState(null); // detalle completo del pedido (post-verificación)
-  const [token, setToken] = useState(null); // token de portal (persona), solo en memoria del componente
+  const [token, setToken] = useState(null); // token de portal (persona); también en sessionStorage de la pestaña
   const [verInput, setVerInput] = useState(""); // input de DNI (solo numérico)
   const [verError, setVerError] = useState(false); // marca el último intento como fallido
   const [intentos, setIntentos] = useState(0); // intentos restantes antes del bloqueo (los informa el backend)
@@ -52,11 +84,33 @@ export default function RastreoPersonal({ avisar, demo }) {
   // Limpia el timeout de la búsqueda al desmontar (evita setState tras unmount).
   useEffect(() => () => clearTimeout(timerBuscar.current), []);
 
+  // Al cargar la página recupera la verificación de esta pestaña (C42-01): si el token
+  // sigue vigente vuelve a pedir el detalle sin exigir otra vez el DNI. El setState va
+  // dentro del .then (regla de lint).
+  useEffect(() => {
+    const guardada = leerVerificacion();
+    if (!guardada) return undefined;
+    let activo = true;
+    detallePedido(guardada.codigo, guardada.token)
+      .then((pedido) => {
+        if (!activo) return;
+        setCodigo(guardada.codigo);
+        setEncontrado(guardada.codigo);
+        setResumen(guardada.resumen);
+        setToken(guardada.token);
+        setDetalle(pedido);
+        setVerificado(true);
+      })
+      .catch(() => borrarVerificacion());
+    return () => { activo = false; };
+  }, []);
+
   // buscarCodigo: dispara la búsqueda de un pedido por su código `c` (ya en mayúsculas).
   // Resetea el flujo de verificación y, tras 900 ms, llama al backend: si existe marca
   // encontrado+resumen, si no (404) marca error. El setState va dentro del .then/.catch
   // (regla de lint). Port de Component.buscarCodigo (fuente 1040-1047).
   const buscarCodigo = (c) => {
+    borrarVerificacion();
     setBuscando(true);
     setErrorCod("");
     setEncontrado(null);
@@ -115,6 +169,7 @@ export default function RastreoPersonal({ avisar, demo }) {
     if (!v) return;
     verificarPedido(encontrado, v)
       .then(({ token: tk, pedido }) => {
+        guardarVerificacion(encontrado, tk, resumen);
         setToken(tk);
         setDetalle(pedido);
         setVerificado(true);
@@ -129,7 +184,7 @@ export default function RastreoPersonal({ avisar, demo }) {
           setVerError(false);
           setVerInput("");
           setBloqueoHasta(Date.now() + seg * 1000);
-          avisar("Demasiados intentos — acceso pausado " + seg + " segundos", 4500);
+          avisar("Demasiados intentos — acceso pausado " + textoEspera(seg), 4500);
         } else {
           const restantes = err.data?.detail?.intentosRestantes;
           setIntentos(typeof restantes === "number" ? restantes : 0);
@@ -142,6 +197,7 @@ export default function RastreoPersonal({ avisar, demo }) {
   // volviendo a la búsqueda vacía ("Cerrar y proteger datos"). Port de cerrarPedido
   // (fuente 1211).
   const cerrarPedido = () => {
+    borrarVerificacion();
     setEncontrado(null);
     setResumen(null);
     setVerificado(false);
@@ -341,8 +397,8 @@ export default function RastreoPersonal({ avisar, demo }) {
 function Verificacion({ enc, em, encCod, verInput, onVerInput, onVerificar, verError, verBloq, intentos, bloqueoHasta, now }) {
   const bloqueoTxt =
     "Demasiados intentos fallidos. Por su seguridad, espere " +
-    Math.ceil(Math.max(0, bloqueoHasta - now) / 1000) +
-    " s para volver a intentar.";
+    textoEspera((bloqueoHasta - now) / 1000) +
+    " para volver a intentar. Cada nuevo bloqueo dura más.";
   const intentosTxt = String(Math.max(0, intentos));
 
   return (
