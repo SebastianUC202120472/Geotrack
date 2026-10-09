@@ -1,6 +1,6 @@
 // Pantalla de ajustes del conductor: notificaciones, opciones y cerrar sesión.
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,6 +12,7 @@ import { DeslizarPestanas } from "@/components/DeslizarPestanas";
 import { Aparecer } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
 import { useAuth } from "@/store/auth";
+import { useCola } from "@/features/sync/hooks";
 import { useTheme, spacing, radius, type Palette } from "@/theme";
 
 const CLAVE_NOTIF = "notif_pedidos"; // preferencia local de avisos de nuevos pedidos
@@ -20,6 +21,18 @@ export default function AjustesScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const { cerrarSesion } = useAuth();
+  const { pendientes } = useCola();
+
+  // Pide confirmacion antes de salir; si hay entregas sin sincronizar avisa que se perderan (C05-01).
+  const confirmarCierre = () => {
+    const mensaje = pendientes > 0
+      ? `Tienes ${pendientes} ${pendientes === 1 ? "entrega" : "entregas"} sin sincronizar. Si cierras sesión ahora se perderán. Conéctate a internet y espera a que se envíen.`
+      : "Tendrás que volver a ingresar tu correo y contraseña.";
+    Alert.alert("¿Cerrar sesión?", mensaje, [
+      { text: "Cancelar", style: "cancel" },
+      { text: pendientes > 0 ? "Cerrar de todos modos" : "Cerrar sesión", style: "destructive", onPress: () => { cerrarSesion(); } },
+    ]);
+  };
 
   const [notif, setNotif] = useState(true);
   useEffect(() => {
@@ -65,7 +78,7 @@ export default function AjustesScreen() {
           </Aparecer>
 
           <Aparecer delay={120}>
-            <Button titulo="Cerrar sesión" variante="danger" onPress={cerrarSesion} />
+            <Button titulo="Cerrar sesión" variante="danger" onPress={confirmarCierre} />
           </Aparecer>
         </ScrollView>
       </DeslizarPestanas>

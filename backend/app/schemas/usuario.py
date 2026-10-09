@@ -30,6 +30,8 @@ class UsuarioResponse(BaseModel):
     dni: Optional[str] = None
     telefono: Optional[str] = None
     cargo: Optional[str] = None
+    solicito_restablecimiento: bool = False   # pidió nueva clave desde el login (C04-01)
+    clave_por_defecto: bool = False           # sigue con la clave de fábrica del admin semilla (EX-01)
 
     class Config:
         from_attributes = True
@@ -94,4 +96,15 @@ class PersonalResetContrasena(BaseModel):
     @field_validator("contrasena")
     @classmethod
     def _v_contrasena(cls, v: str) -> str:
+        return validar_fuerza_contrasena(v)
+
+
+class CambioContrasenaPropia(BaseModel):
+    """Datos para que un usuario del panel cambie su propia contraseña: la actual y la nueva."""
+    actual: str
+    nueva: str
+
+    @field_validator("nueva")
+    @classmethod
+    def _v_nueva(cls, v: str) -> str:
         return validar_fuerza_contrasena(v)

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check, Pencil, Trash2, Camera, KeyRound, Fuel, Route as RouteIcon, PiggyBank, Wrench } from "lucide-react";
+import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check, Pencil, Trash2, Camera, KeyRound, Fuel, Route as RouteIcon, PiggyBank, Wrench, BadgeCheck } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -10,8 +10,13 @@ import Button from "../components/ui/Button";
 import Badge, { EstadoBadge } from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
 import SectionCard from "../components/ui/SectionCard";
-import { listarConductores, crearConductor, actualizarConductor, eliminarConductor, subirFotoConductor, restablecerContrasenaConductor, urlMedia, obtenerEficienciaConductores, listarIncidencias } from "../services/api";
-import { validarNombre, validarCorreo, validarPassword, validarTelefono, validarDni, soloDigitos } from "../utils/validaciones";
+import { listarConductores, crearConductor, actualizarConductor, eliminarConductor, subirFotoConductor, restablecerContrasenaConductor, urlMedia, obtenerEficienciaConductores, listarIncidencias, listarVehiculos } from "../services/api";
+import { validarNombre, validarCorreo, validarPassword, validarTelefono, validarDni, soloDigitos, validarLicencia, validarVencimientoLicencia, estadoLicencia, fechaCorta } from "../utils/validaciones";
+
+const FORM_VACIO = { nombre: "", correo: "", contrasena: "", telefono: "", dni: "", licencia_numero: "", licencia_vencimiento: "", vehiculo_id: "" };
+
+// Normaliza la licencia a mayusculas sin espacios ni guiones. Recibe el texto escrito.
+const normalizarLicencia = (v) => (v || "").toUpperCase().replace(/[\s-]/g, "").slice(0, 9);
 
 // Página de conductores: lista, registro y detalle (editar/eliminar/restablecer clave).
 export default function Conductores() {
@@ -19,10 +24,11 @@ export default function Conductores() {
   const [conductores, setConductores] = useState([]);
   const [eficiencia, setEficiencia] = useState({});
   const [incidenciasAbiertas, setIncidenciasAbiertas] = useState({});
+  const [vehiculosLibres, setVehiculosLibres] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [seleccionado, setSeleccionado] = useState(null);
 
-  const [form, setForm] = useState({ nombre: "", correo: "", contrasena: "", telefono: "", dni: "" });
+  const [form, setForm] = useState(FORM_VACIO);
   const [errores, setErrores] = useState({});
   const [aviso, setAviso] = useState(null);
   const [guardando, setGuardando] = useState(false);
@@ -43,6 +49,9 @@ export default function Conductores() {
           setIncidenciasAbiertas(mapa);
         })
         .catch(() => { /* si falla, no se muestra el botón de auxilio */ });
+      listarVehiculos()
+        .then((vs) => setVehiculosLibres(vs.filter((v) => !v.conductor_id)))
+        .catch(() => { /* sin la lista, el alta sigue sin vehículo */ });
     } catch (err) {
       console.error("No se pudo cargar conductores:", err.message);
     } finally {
@@ -61,7 +70,8 @@ export default function Conductores() {
     const sinVehiculo = conductores.filter((c) => c.estado && !c.vehiculo).length;
     const inactivos = conductores.filter((c) => !c.estado).length;
     const solicitudes = conductores.filter((c) => c.solicito_restablecimiento).length;
-    return { total, activos, sinVehiculo, inactivos, solicitudes };
+    const licenciasVencidas = conductores.filter((c) => c.estado && estadoLicencia(c.licencia_vencimiento)?.tono === "danger").length;
+    return { total, activos, sinVehiculo, inactivos, solicitudes, licenciasVencidas };
   }, [conductores]);
 
   // Actualiza un campo y limpia su error mientras el usuario corrige.
@@ -77,6 +87,8 @@ export default function Conductores() {
     contrasena: validarPassword(form.contrasena),
     telefono: validarTelefono(form.telefono),
     dni: validarDni(form.dni),
+    licencia_numero: validarLicencia(form.licencia_numero),
+    licencia_vencimiento: validarVencimientoLicencia(form.licencia_vencimiento),
   });
 
   const registrar = async (e) => {
@@ -97,9 +109,13 @@ export default function Conductores() {
         contrasena: form.contrasena,
         telefono: form.telefono || null,
         dni: form.dni || null,
+        licencia_numero: form.licencia_numero,
+        licencia_vencimiento: form.licencia_vencimiento,
+        vehiculo_id: form.vehiculo_id ? Number(form.vehiculo_id) : null,
       });
-      setAviso({ ok: true, texto: `Conductor ${c.nombre} registrado (${c.codigo}).` });
-      setForm({ nombre: "", correo: "", contrasena: "", telefono: "", dni: "" });
+      const conVehiculo = c.vehiculo ? ` con el vehículo ${c.vehiculo.placa}` : "";
+      setAviso({ ok: true, texto: `Conductor ${c.nombre} registrado (${c.codigo})${conVehiculo}.` });
+      setForm(FORM_VACIO);
       cargar();
     } catch (err) {
       setAviso({ ok: false, texto: err.message });
@@ -127,6 +143,7 @@ export default function Conductores() {
               <KeyRound size={12} /> Solicitó clave
             </span>
           )}
+          <AvisoLicencia vencimiento={c.licencia_vencimiento} soloAlertas />
         </span>
       ),
     },
@@ -187,6 +204,16 @@ export default function Conductores() {
         subtitulo="Registra y consulta a los conductores de reparto."
       />
 
+      {kpis.licenciasVencidas > 0 && (
+        <div className="flex items-center gap-2 rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger-strong animate-fade-up">
+          <BadgeCheck size={18} className="shrink-0" />
+          <span>
+            <b>{kpis.licenciasVencidas}</b> {kpis.licenciasVencidas === 1 ? "conductor tiene" : "conductores tienen"} la licencia vencida.
+            Actualiza su ficha antes de asignarles rutas.
+          </span>
+        </div>
+      )}
+
       {kpis.solicitudes > 0 && (
         <div className="flex items-center gap-2 rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning-strong animate-fade-up">
           <KeyRound size={18} className="shrink-0" />
@@ -222,6 +249,18 @@ export default function Conductores() {
               <Input label="DNI" inputMode="numeric" value={form.dni} onChange={set("dni", (v) => soloDigitos(v, 8))}
                 placeholder="12345678" error={errores.dni} hint="8 dígitos" />
             </div>
+            <Input label="Licencia de conducir" required value={form.licencia_numero}
+              onChange={set("licencia_numero", normalizarLicencia)} placeholder="Q12345678"
+              error={errores.licencia_numero} hint="Una letra y 8 dígitos" />
+            <Input label="Vencimiento de la licencia" type="date" required value={form.licencia_vencimiento}
+              onChange={set("licencia_vencimiento")} error={errores.licencia_vencimiento} />
+            <Input as="select" label="Vehículo (opcional)" value={form.vehiculo_id} onChange={set("vehiculo_id")}
+              hint={vehiculosLibres.length ? "Solo se listan vehículos sin conductor" : "No hay vehículos libres; asígnalo luego en Flota"}>
+              <option value="">Asignar después</option>
+              {vehiculosLibres.map((v) => (
+                <option key={v.id} value={v.id}>{v.placa}{v.marca ? ` · ${v.marca}` : ""}</option>
+              ))}
+            </Input>
             <Button type="submit" icon={UserPlus} block disabled={guardando}>
               {guardando ? "Registrando…" : "Registrar conductor"}
             </Button>
@@ -267,7 +306,10 @@ export default function Conductores() {
 // Modal de detalle del conductor: ver, editar, eliminar o restablecer contraseña.
 function DetalleConductor({ conductor: c, efic, onCerrar, onCambios }) {
   const [modo, setModo] = useState("ver"); // "ver" | "editar" | "confirmar" | "clave"
-  const [form, setForm] = useState({ correo: c.correo || "", nombre: c.nombre || "", telefono: c.telefono || "", dni: c.dni || "" });
+  const [form, setForm] = useState({
+    correo: c.correo || "", nombre: c.nombre || "", telefono: c.telefono || "", dni: c.dni || "",
+    licencia_numero: c.licencia_numero || "", licencia_vencimiento: c.licencia_vencimiento || "",
+  });
   const [errores, setErrores] = useState({});
   const [aviso, setAviso] = useState(null);
   const [trabajando, setTrabajando] = useState(false);
@@ -290,6 +332,8 @@ function DetalleConductor({ conductor: c, efic, onCerrar, onCambios }) {
       nombre: validarNombre(form.nombre),
       telefono: validarTelefono(form.telefono),
       dni: validarDni(form.dni),
+      licencia_numero: form.licencia_numero ? validarLicencia(form.licencia_numero) : "",
+      licencia_vencimiento: form.licencia_numero && !form.licencia_vencimiento ? "Indica la fecha de vencimiento" : "",
     };
     if (Object.values(errs).some(Boolean)) {
       setErrores(errs);
@@ -303,6 +347,8 @@ function DetalleConductor({ conductor: c, efic, onCerrar, onCambios }) {
         nombre: form.nombre,
         telefono: form.telefono || null,
         dni: form.dni || null,
+        licencia_numero: form.licencia_numero || null,
+        licencia_vencimiento: form.licencia_vencimiento || null,
       });
       onCambios();
     } catch (err) {
@@ -397,6 +443,10 @@ function DetalleConductor({ conductor: c, efic, onCerrar, onCambios }) {
             <Dato icono={Mail} etiqueta="Correo" valor={c.correo} />
             <Dato icono={Phone} etiqueta="Teléfono" valor={c.telefono || "—"} />
             <Dato icono={IdCard} etiqueta="DNI" valor={c.dni || "—"} />
+            <Dato icono={BadgeCheck} etiqueta="Licencia de conducir"
+              valor={c.licencia_numero
+                ? <span className="flex flex-wrap items-center gap-2">{c.licencia_numero} · vence {fechaCorta(c.licencia_vencimiento)} <AvisoLicencia vencimiento={c.licencia_vencimiento} /></span>
+                : "Sin registrar"} />
             <Dato icono={Truck} etiqueta="Vehículo asignado"
               valor={c.vehiculo ? `${c.vehiculo.placa}${c.vehiculo.codigo ? ` (${c.vehiculo.codigo})` : ""}` : "Sin vehículo asignado"} />
           </div>
@@ -438,7 +488,7 @@ function DetalleConductor({ conductor: c, efic, onCerrar, onCambios }) {
                 <CheckCircle2 size={20} className="shrink-0" />
                 <span>Contraseña restablecida. Comunícasela a <b>{c.nombre || "el conductor"}</b> para que entre a la app.</span>
               </div>
-              <Button block onClick={() => setModo("ver")}>Listo</Button>
+              <Button block onClick={onCambios}>Listo</Button>
             </>
           ) : (
             <>
@@ -470,6 +520,12 @@ function DetalleConductor({ conductor: c, efic, onCerrar, onCambios }) {
             <Input label="DNI" inputMode="numeric" value={form.dni} onChange={set("dni", (v) => soloDigitos(v, 8))}
               error={errores.dni} hint="8 dígitos" />
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Licencia de conducir" value={form.licencia_numero} onChange={set("licencia_numero", normalizarLicencia)}
+              placeholder="Q12345678" error={errores.licencia_numero} hint="Letra + 8 dígitos" />
+            <Input label="Vence el" type="date" value={form.licencia_vencimiento} onChange={set("licencia_vencimiento")}
+              error={errores.licencia_vencimiento} />
+          </div>
           <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50">
             <Camera size={18} className="text-slate-400" />
             {subiendoFoto ? "Subiendo…" : c.foto_url ? "Cambiar foto" : "Subir foto"}
@@ -498,16 +554,25 @@ function DetalleConductor({ conductor: c, efic, onCerrar, onCambios }) {
   );
 }
 
+// Fila de dato de la ficha (icono + etiqueta + valor). Recibe etiqueta, valor (texto o nodo) e icono.
 function Dato({ etiqueta, valor, icono: Icono }) {
   return (
     <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm">
       <Icono size={18} className="text-slate-400" />
       <div>
         <p className="text-xs text-slate-400">{etiqueta}</p>
-        <p className="font-medium text-slate-700">{valor}</p>
+        <div className="font-medium text-slate-700">{valor}</div>
       </div>
     </div>
   );
+}
+
+// Etiqueta del estado de la licencia (vencida, por vencer o vigente). Recibe la fecha de
+// vencimiento y soloAlertas (true = no muestra nada si esta vigente).
+function AvisoLicencia({ vencimiento, soloAlertas = false }) {
+  const estado = estadoLicencia(vencimiento);
+  if (!estado || (soloAlertas && estado.tono === "success")) return null;
+  return <Badge tono={estado.tono}><BadgeCheck size={12} />{estado.texto}</Badge>;
 }
 
 // Lista de requisitos de la contraseña que se va marcando en vivo al escribir.

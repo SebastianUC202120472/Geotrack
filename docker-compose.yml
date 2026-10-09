@@ -27,7 +27,9 @@ services:
       # Modo demostracion del almacen: en true, la solicitud aceptada se recibe directo en
       # "Ingreso a Almacen" sin ruta de recojo ni fotos. NO activar en produccion.
       ALMACEN_INGRESO_DIRECTO: ${ALMACEN_INGRESO_DIRECTO:-false}
-      CORS_ORIGINS: ${CORS_ORIGINS}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      # Procesos de uvicorn (1 por defecto; el limitador de intentos es por proceso).
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-1}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       GOOGLE_GEOCODING_KEY: ${GOOGLE_GEOCODING_KEY:-}
@@ -43,6 +45,8 @@ services:
       MAIL_SIGNATURE: ${MAIL_SIGNATURE:-}
     volumes:
       - backend_uploads:/app/uploads
+      # Registro de errores (EX-11): sobrevive a la reconstruccion del contenedor.
+      - backend_logs:/app/logs
     ports:
       - "8000:8000"
     depends_on:
@@ -66,3 +70,4 @@ services:
 volumes:
   postgres_data:
   backend_uploads:
+  backend_logs:

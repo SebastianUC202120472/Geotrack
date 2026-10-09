@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { LogIn, ArrowLeft } from "lucide-react";
-import { loginAdmin } from "../services/api";
+import { LogIn, ArrowLeft, KeyRound, CheckCircle2, Smartphone } from "lucide-react";
+import { loginAdmin, solicitarRestablecimiento } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import Logo from "../components/ui/Logo";
 import EscenaReparto from "../components/EscenaReparto";
@@ -19,8 +19,32 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
+  const [modo, setModo] = useState("login"); // "login" | "olvido"
+  const [solicitudEnviada, setSolicitudEnviada] = useState("");
 
   const destino = location.state?.from?.pathname || "/panel";
+
+  // Cambia entre el login y el pedido de nueva contrasena, limpiando mensajes. Recibe el modo.
+  const irA = (nuevoModo) => {
+    setError("");
+    setSolicitudEnviada("");
+    setModo(nuevoModo);
+  };
+
+  // Pide al administrador una nueva contrasena (C04-01). Recibe el evento del formulario.
+  const pedirNuevaClave = async (e) => {
+    e.preventDefault();
+    setError("");
+    setCargando(true);
+    try {
+      const r = await solicitarRestablecimiento(correo.trim());
+      setSolicitudEnviada(r?.mensaje || "Solicitud enviada al administrador.");
+    } catch (err) {
+      setError(err.message || "No se pudo conectar con el servidor.");
+    } finally {
+      setCargando(false);
+    }
+  };
 
   // Envia credenciales al backend. Recibe el evento del formulario.
   const handleSubmit = async (e) => {
@@ -51,8 +75,8 @@ export default function Login() {
             En ruta, en tiempo real.
           </h2>
           <p className="mt-4 max-w-md text-slate-400">
-            Importa pedidos, arma rutas, asigna conductores y haz seguimiento de
-            tu flota en tiempo real desde un solo panel.
+            Recibe las solicitudes de tus clientes, agrupa los pedidos por zona,
+            despacha rutas a tus conductores y sigue cada entrega en tiempo real.
           </p>
         </div>
         <p className="relative z-10 text-xs text-slate-500">© SAVA S.A.C — GeoTrack</p>
@@ -65,9 +89,13 @@ export default function Login() {
           </div>
 
           <div className="rounded-card border border-slate-200 bg-white p-8 shadow-card">
-            <h1 className="text-2xl font-bold text-slate-900">Iniciar sesión</h1>
+            <h1 className="text-2xl font-bold text-slate-900">
+              {modo === "login" ? "Iniciar sesión" : "Recuperar contraseña"}
+            </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Panel de administración GeoTrack
+              {modo === "login"
+                ? "Panel de administración y almacén GeoTrack"
+                : "Escribe el correo de tu cuenta. El administrador recibirá tu solicitud y te dará una nueva contraseña."}
             </p>
 
             {error && (
@@ -76,33 +104,79 @@ export default function Login() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="mt-6 space-y-5">
-              <Input
-                label="Correo electrónico"
-                type="email"
-                required
-                autoFocus
-                autoComplete="email"
-                value={correo}
-                onChange={(e) => setCorreo(e.target.value)}
-                placeholder="admin@siol.com"
-              />
-              <PasswordInput
-                label="Contraseña"
-                required
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-              />
-              <Button type="submit" block size="lg" icon={LogIn} disabled={cargando}>
-                {cargando ? "Autenticando…" : "Iniciar sesión"}
-              </Button>
-            </form>
+            {modo === "login" ? (
+              <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+                <Input
+                  label="Correo electrónico"
+                  type="email"
+                  required
+                  autoFocus
+                  autoComplete="email"
+                  value={correo}
+                  onChange={(e) => setCorreo(e.target.value)}
+                  placeholder="admin@siol.com"
+                />
+                <div>
+                  <PasswordInput
+                    label="Contraseña"
+                    required
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => irA("olvido")}
+                    className="mt-2 text-sm font-medium text-brand-700 hover:text-brand-800 hover:underline"
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </button>
+                </div>
+                <Button type="submit" block size="lg" icon={LogIn} disabled={cargando}>
+                  {cargando ? "Autenticando…" : "Iniciar sesión"}
+                </Button>
+              </form>
+            ) : solicitudEnviada ? (
+              <div className="mt-6 space-y-5">
+                <div className="flex items-start gap-3 rounded-xl bg-success-soft px-4 py-3 text-sm text-success-strong">
+                  <CheckCircle2 size={20} className="mt-0.5 shrink-0" />
+                  <span>{solicitudEnviada}</span>
+                </div>
+                <Button block size="lg" variant="secondary" icon={ArrowLeft} onClick={() => irA("login")}>
+                  Volver a iniciar sesión
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={pedirNuevaClave} className="mt-6 space-y-5">
+                <Input
+                  label="Correo electrónico"
+                  type="email"
+                  required
+                  autoFocus
+                  autoComplete="email"
+                  value={correo}
+                  onChange={(e) => setCorreo(e.target.value)}
+                  placeholder="tu.correo@sava.pe"
+                />
+                <Button type="submit" block size="lg" icon={KeyRound} disabled={cargando}>
+                  {cargando ? "Enviando…" : "Pedir nueva contraseña"}
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => irA("login")}
+                  className="w-full text-center text-sm font-medium text-slate-500 hover:text-slate-700"
+                >
+                  Volver a iniciar sesión
+                </button>
+              </form>
+            )}
 
-            <p className="mt-6 text-center text-xs text-slate-400">
-              Uso restringido a personal autorizado.
+            <p className="mt-6 flex items-center justify-center gap-1.5 text-center text-xs text-slate-400">
+              <Smartphone size={14} className="shrink-0" />
+              ¿Eres conductor? Ingresa desde la app móvil GeoTrack.
             </p>
+            <p className="mt-1 text-center text-xs text-slate-400">Uso restringido a personal autorizado.</p>
           </div>
 
           {/* Volver al sitio publico de SAVA */}

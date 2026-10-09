@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, Date, ForeignKey
 from app.db.database import Base
 
 
@@ -12,3 +12,5 @@ class PerfilConductor(Base):
     telefono = Column(String(30), nullable=True)
     dni = Column(String(20), nullable=True)
     foto_url = Column(String(255), nullable=True)  # ruta /media/conductores/...; la sube el admin
+    licencia_numero = Column(String(20), nullable=True)      # brevete: letra + 8 digitos (ej. Q12345678)
+    licencia_vencimiento = Column(Date, nullable=True)       # fecha de vencimiento de la licencia

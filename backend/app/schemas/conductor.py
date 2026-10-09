@@ -1,9 +1,23 @@
 import re
+from datetime import date
 from typing import Optional
 from pydantic import BaseModel, EmailStr, field_validator
 
+from app.core.fechas import hoy_local
+
 _RE_TELEFONO = re.compile(r"^9\d{8}$")
 _RE_DNI = re.compile(r"^\d{8}$")
+_RE_LICENCIA = re.compile(r"^[A-Z]\d{8}$")
+
+
+def validar_licencia(v: Optional[str]) -> Optional[str]:
+    """Normaliza y valida el numero de licencia (una letra + 8 digitos). Recibe el texto."""
+    if v in (None, ""):
+        return None
+    v = v.strip().upper().replace(" ", "").replace("-", "")
+    if not _RE_LICENCIA.match(v):
+        raise ValueError("La licencia debe tener una letra y 8 dígitos (ej. Q12345678)")
+    return v
 
 
 def validar_fuerza_contrasena(v: str) -> str:
@@ -22,12 +36,27 @@ def validar_fuerza_contrasena(v: str) -> str:
 
 
 class ConductorCreate(BaseModel):
-    """Datos para dar de alta un conductor. Recibe correo, contrasena, nombre y datos opcionales."""
+    """Datos para dar de alta un conductor. Recibe correo, contrasena, nombre, licencia y datos opcionales."""
     correo: EmailStr
     contrasena: str
     nombre: str
     telefono: Optional[str] = None
     dni: Optional[str] = None
+    licencia_numero: Optional[str] = None
+    licencia_vencimiento: Optional[date] = None
+    vehiculo_id: Optional[int] = None   # vehiculo libre que se le asigna en el mismo alta (C09-02)
+
+    @field_validator("licencia_numero")
+    @classmethod
+    def _v_licencia(cls, v: Optional[str]) -> Optional[str]:
+        return validar_licencia(v)
+
+    @field_validator("licencia_vencimiento")
+    @classmethod
+    def _v_vencimiento(cls, v: Optional[date]) -> Optional[date]:
+        if v is not None and v < hoy_local():
+            raise ValueError("La licencia está vencida: no se puede registrar al conductor")
+        return v
 
     @field_validator("nombre")
     @classmethod
@@ -64,11 +93,18 @@ class ConductorCreate(BaseModel):
 
 
 class ConductorUpdate(BaseModel):
-    """Datos opcionales para editar la ficha de un conductor."""
+    """Datos opcionales para editar la ficha de un conductor (incluida la licencia)."""
     correo: Optional[EmailStr] = None
     nombre: Optional[str] = None
     telefono: Optional[str] = None
     dni: Optional[str] = None
+    licencia_numero: Optional[str] = None
+    licencia_vencimiento: Optional[date] = None
+
+    @field_validator("licencia_numero")
+    @classmethod
+    def _v_licencia(cls, v: Optional[str]) -> Optional[str]:
+        return validar_licencia(v)
 
     @field_validator("nombre")
     @classmethod
@@ -138,4 +174,6 @@ class ConductorResponse(BaseModel):
     telefono: Optional[str] = None
     dni: Optional[str] = None
     foto_url: Optional[str] = None
+    licencia_numero: Optional[str] = None
+    licencia_vencimiento: Optional[date] = None
     vehiculo: Optional[VehiculoAsignado] = None

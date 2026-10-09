@@ -11,6 +11,14 @@ import { EstadoBadge } from "../components/ui/Badge";
 import { listarVehiculos, crearVehiculo, listarConductores, actualizarVehiculo, eliminarVehiculo } from "../services/api";
 import { validarPlaca, validarCapacidad } from "../utils/validaciones";
 
+// Texto de ayuda cuando el conductor elegido ya maneja otro vehiculo (regla 1 a 1, C09-01).
+// Recibe la lista de conductores, el id elegido y el id del vehiculo que se edita (si aplica).
+function avisoReasignacion(conductores, conductorId, vehiculoActualId = null) {
+  const c = conductores.find((x) => String(x.usuario_id) === String(conductorId));
+  if (!c?.vehiculo || c.vehiculo.id === vehiculoActualId) return undefined;
+  return `Se le quitará el vehículo ${c.vehiculo.placa}: cada conductor maneja un solo vehículo.`;
+}
+
 // Página de flota: lista y registro de vehículos con asignación de conductor.
 export default function Flota() {
   const [vehiculos, setVehiculos] = useState([]);
@@ -160,11 +168,12 @@ export default function Flota() {
             </div>
             <Input label="Capacidad (cajas)" type="number" min="0" step="1" value={cajas}
               onChange={(e) => setCajas(e.target.value)} placeholder="200" hint="Cuántas cajas soporta (opcional)" />
-            <Input as="select" label="Conductor asignado" value={conductorId} onChange={(e) => setConductorId(e.target.value)}>
+            <Input as="select" label="Conductor asignado" value={conductorId} onChange={(e) => setConductorId(e.target.value)}
+              hint={avisoReasignacion(conductores, conductorId)}>
               <option value="">Sin conductor (de la empresa)</option>
               {conductores.map((c) => (
                 <option key={c.usuario_id} value={c.usuario_id}>
-                  {c.nombre || c.correo} {c.codigo ? `· ${c.codigo}` : ""}
+                  {c.nombre || c.correo} {c.codigo ? `· ${c.codigo}` : ""}{c.vehiculo ? ` (tiene ${c.vehiculo.placa})` : ""}
                 </option>
               ))}
             </Input>
@@ -274,11 +283,12 @@ function EditarVehiculo({ vehiculo, conductores, onCerrar, onCambios }) {
             <Input label="Capacidad (cajas)" type="number" min="0" step="1" value={cajas}
               onChange={(e) => setCajas(e.target.value)} placeholder="200" />
           </div>
-          <Input as="select" label="Conductor asignado" value={conductorId} onChange={(e) => setConductorId(e.target.value)}>
+          <Input as="select" label="Conductor asignado" value={conductorId} onChange={(e) => setConductorId(e.target.value)}
+            hint={avisoReasignacion(conductores, conductorId, vehiculo.id)}>
             <option value="">Sin conductor (de la empresa)</option>
             {conductores.map((c) => (
               <option key={c.usuario_id} value={c.usuario_id}>
-                {c.nombre || c.correo} {c.codigo ? `· ${c.codigo}` : ""}
+                {c.nombre || c.correo} {c.codigo ? `· ${c.codigo}` : ""}{c.vehiculo && c.vehiculo.id !== vehiculo.id ? ` (tiene ${c.vehiculo.placa})` : ""}
               </option>
             ))}
           </Input>

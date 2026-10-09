@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { User } from "lucide-react";
+import { User, AlertTriangle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { obtenerResumen, listarRecojosAlmacen } from "../services/api";
+import { obtenerResumen, listarRecojosAlmacen, obtenerMiPerfil } from "../services/api";
 import Modal from "./ui/Modal";
 import MiPerfil from "./MiPerfil";
 
@@ -12,6 +12,16 @@ export default function Topbar() {
   const [ultimoOk, setUltimoOk] = useState(null);
   const [perfilAbierto, setPerfilAbierto] = useState(false);
   const [ahora, setAhora] = useState(() => Date.now());
+  const [claveDeFabrica, setClaveDeFabrica] = useState(false);
+
+  // Consulta una vez si la cuenta sigue con la clave de fabrica para avisar (EX-01). Sin input.
+  useEffect(() => {
+    let activo = true;
+    obtenerMiPerfil()
+      .then((p) => activo && setClaveDeFabrica(Boolean(p?.clave_por_defecto)))
+      .catch(() => {});
+    return () => { activo = false; };
+  }, [perfilAbierto]);
 
   const endpoint = rol === "almacen" ? "/almacen/recojos" : "/dashboard/resumen";
 
@@ -99,6 +109,16 @@ export default function Topbar() {
             </p>
           </div>
         </div>
+      )}
+
+      {claveDeFabrica && (
+        <button
+          onClick={() => setPerfilAbierto(true)}
+          className="inline-flex items-center gap-1.5 rounded-full bg-warning-soft px-3 py-1 text-xs font-semibold text-warning-strong transition-colors hover:bg-warning/20"
+          title="Tu cuenta usa la contraseña de fábrica"
+        >
+          <AlertTriangle size={14} /> Cambia la contraseña de fábrica
+        </button>
       )}
 
       <button

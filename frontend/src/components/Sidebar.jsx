@@ -17,9 +17,11 @@ import {
   Wrench,
   BookText,
 } from "lucide-react";
+import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Logo from "./ui/Logo";
+import ConfirmDialog from "./ui/ConfirmDialog";
 import CampanaNotificaciones from "./CampanaNotificaciones";
 
 // Secciones de navegacion agrupadas por rol.
@@ -80,8 +82,11 @@ export default function Sidebar({ onNavigate }) {
   const { pathname } = useLocation();
   const { cerrarSesion, rol } = useAuth();
   const visibles = secciones.filter((s) => !s.roles || s.roles.includes(rol));
+  const [confirmandoSalida, setConfirmandoSalida] = useState(false);
 
+  // Cierra la sesion tras confirmarla en el dialogo (C05-01). Sin input.
   const salir = () => {
+    setConfirmandoSalida(false);
     cerrarSesion();
     navigate("/panel/login", { replace: true });
   };
@@ -126,13 +131,24 @@ export default function Sidebar({ onNavigate }) {
 
       <div className="border-t border-slate-800 p-3">
         <button
-          onClick={salir}
+          onClick={() => setConfirmandoSalida(true)}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-800 py-2.5 text-sm font-semibold text-slate-200 transition-colors hover:bg-danger hover:text-white"
         >
           <LogOut size={18} />
           Cerrar sesión
         </button>
       </div>
+
+      <ConfirmDialog
+        open={confirmandoSalida}
+        titulo="¿Cerrar sesión?"
+        mensaje="Tendrás que volver a ingresar tu correo y contraseña para usar el panel."
+        textoConfirmar="Cerrar sesión"
+        tono="danger"
+        icono={LogOut}
+        onConfirmar={salir}
+        onCancelar={() => setConfirmandoSalida(false)}
+      />
     </aside>
   );
 }

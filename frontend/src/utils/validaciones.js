@@ -25,6 +25,30 @@ export const validarTelefono = (v) =>
 export const validarDni = (v) =>
   /^\d{8}$/.test((v || "").trim()) ? "" : "Debe tener exactamente 8 dígitos";
 
+// Licencia de conducir Perú: una letra y 8 dígitos (ej. Q12345678).
+export const validarLicencia = (v) =>
+  /^[A-Za-z]\d{8}$/.test((v || "").replace(/[\s-]/g, "")) ? "" : "Una letra y 8 dígitos (ej. Q12345678)";
+
+// Vencimiento de licencia: obligatorio y no pasado. Recibe la fecha "AAAA-MM-DD".
+export const validarVencimientoLicencia = (v) => {
+  if (!v) return "Indica la fecha de vencimiento";
+  const hoy = new Date().toLocaleDateString("en-CA"); // AAAA-MM-DD en la hora local
+  return v < hoy ? "La licencia está vencida" : "";
+};
+
+// Estado de una licencia segun su vencimiento ("AAAA-MM-DD"): vencida, por vencer (30 días) o vigente.
+export const estadoLicencia = (vencimiento) => {
+  if (!vencimiento) return null;
+  const hoy = new Date(new Date().toLocaleDateString("en-CA"));
+  const dias = Math.round((new Date(vencimiento) - hoy) / 86400000);
+  if (dias < 0) return { tono: "danger", texto: "Licencia vencida", dias };
+  if (dias <= 30) return { tono: "warning", texto: `Licencia vence en ${dias} d`, dias };
+  return { tono: "success", texto: "Licencia vigente", dias };
+};
+
+// Fecha "AAAA-MM-DD" a texto corto local (dd/mm/aaaa). Recibe la fecha.
+export const fechaCorta = (v) => (v ? v.split("-").reverse().join("/") : "—");
+
 // Placa de auto Perú: 3 letras + 3 dígitos (acepta con o sin guion/espacios).
 export const validarPlaca = (v) =>
   /^[A-Za-z]{3}[-\s]?\d{3}$/.test((v || "").trim()) ? "" : "Formato: ABC-123 (3 letras y 3 dígitos)";
