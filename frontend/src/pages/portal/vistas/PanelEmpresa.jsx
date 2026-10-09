@@ -1,7 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { ESTADOS } from "../datos/portalUi.js";
 import { AyudaEmpresas } from "./AyudaDemo";
-import { empresaLogin, empresaVerificar, empresaPedidos } from "../servicios/portal.js";
+import { empresaLogin, empresaVerificar, empresaPedidos, descargarExcelEmpresa } from "../servicios/portal.js";
+
+// Cada cuanto se refrescan los pedidos con la sesion abierta (ms). Ademas de mantener el
+// panel en vivo, asi una revocacion del acceso corta la sesion en menos de 30 s (C46-01).
+const REFRESCO_MS = 30000;
+
+// fechaLocalISO: fecha local de hoy en formato "AAAA-MM-DD" (la del navegador del cliente).
+const fechaLocalISO = () => new Date().toLocaleDateString("en-CA");
+
+// fechaLarga: "AAAA-MM-DD" a texto largo capitalizado ("Miércoles, 8 de octubre"). Input: fecha ISO.
+const fechaLarga = (iso) => {
+  const [a, m, d] = iso.split("-").map(Number);
+  const s = new Date(a, m - 1, d).toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "long" });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
 
 // ============================================================================
 // Vista EMPRESA / RETAIL del portal de clientes (Tarea 11 · re-cableada a datos
@@ -34,11 +48,14 @@ const maskN = (s) => s.slice(0, 4) + "•••";
 // Input: string de dirección. Port de `maskD` (fuente 1143).
 const maskD = (s) => s.split(" ")[0] + " ••• •••";
 
-// detalleDe: arma la mini-línea de tiempo de un pedido corporativo según su estado
-// (manifiesto + verificación fijos, y luego eventos que dependen del estado).
-// Input: fila normalizada `r` y el nombre de la empresa `empN`. Devuelve un array de
-// eventos { h, t, color }. Port de Component.detalleDe (fuente 1061-1079).
+// detalleDe: mini-línea de tiempo de un pedido corporativo. Usa los eventos REALES del
+// historial que manda el backend (hora local de cada cambio de estado); solo si no
+// llegaran cae a la línea de tiempo genérica según el estado. Input: fila `r` y el
+// nombre de la empresa `empN`. Devuelve un array de eventos { h, t, color }.
 const detalleDe = (r, empN) => {
+  if (r.eventos && r.eventos.length) {
+    return r.eventos.map((e) => ({ h: e.h, t: e.t, color: e.ok ? "#22a35e" : e.alerta ? "#d97a1f" : "#2679d8" }));
+  }
   const evs = [
     { h: "08:40", t: "Manifiesto de " + empN, color: "#2679d8" },
     { h: "10:30", t: "Verificado en centro SAVA", color: "#2679d8" },
@@ -60,7 +77,7 @@ const detalleDe = (r, empN) => {
 
 // Orden de prioridad de los botones-filtro de estado (los que tengan >0 se muestran).
 // Port de la constante ORDEN de renderVals (fuente 1141).
-const ORDEN = ["ENTREGADO", "EN_RUTA", "POR_SALIR", "OBSERVADO", "REPROGRAMADO"];
+const ORDEN = ["ENTREGADO", "EN_RUTA", "POR_SALIR", "OBSERVADO", "REPROGRAMADO", "CANCELADO"];
 
 // PanelEmpresa: vista corporativa del portal para clientes retail.
 // Input: prop `avisar(texto, ms)` para mostrar el toast del portal.
@@ -79,7 +96,10 @@ export default function PanelEmpresa({ avisar, demo }) {
   const [otpError, setOtpError] = useState(false); // OTP incorrecto (aviso + sacudir)
   const [otpDemo, setOtpDemo] = useState(""); // código mostrado en pantalla cuando el backend no pudo enviar el correo
   const [empresa, setEmpresa] = useState(null); // { nombre, ini } de la sesión iniciada (o null)
-  const [filas, setFilas] = useState([]); // pedidos de hoy del cliente (llegan del backend tras verificar)
+  const [filas, setFilas] = useState([]); // pedidos del día elegido (llegan del backend tras verificar)
+  const [tokenEmp, setTokenEmp] = useState(null); // token de la sesión corporativa (solo en memoria)
+  const [fecha, setFecha] = useState(fechaLocalISO); // día consultado ("AAAA-MM-DD"); por defecto hoy
+  const [exportando, setExportando] = useState(false); // descarga del Excel en curso
   const [sesionFin, setSesionFin] = useState(0); // timestamp de expiración de la sesión
   const [filtro, setFiltro] = useState("TODOS"); // filtro de estado activo
   const [q, setQ] = useState(""); // búsqueda libre
@@ -105,6 +125,8 @@ export default function PanelEmpresa({ avisar, demo }) {
   const cerrarSesionEmp = (motivo) => {
     setPaso(0);
     setEmpresa(null);
+    setTokenEmp(null);
+    setFecha(fechaLocalISO());
     setPendiente(null);
     setCorreoMask("");
     setFilas([]);
@@ -145,6 +167,52 @@ export default function PanelEmpresa({ avisar, demo }) {
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paso, sesionFin, bloqueoHasta]);
+
+  // cargarPedidos: trae los pedidos de la empresa para un día (C45-01). Si el backend
+  // responde 401 (sesión vencida o acceso revocado, C46-01) cierra la sesión con su
+  // motivo. Input: token y fecha "AAAA-MM-DD".
+  const cargarPedidos = (tk, dia) =>
+    empresaPedidos(tk, dia)
+      .then((res) => setFilas(res.filas))
+      .catch((err) => {
+        if (err.status === 401) {
+          const motivo = typeof err.data?.detail === "string" ? err.data.detail : "Sesión expirada por seguridad — vuelva a ingresar";
+          cerrarSesionEmp(motivo);
+        } else {
+          avisar("No se pudieron cargar los pedidos — se reintentará en unos segundos", 4500);
+        }
+      });
+
+  // Refresco periódico con la sesión abierta: mantiene el panel en vivo y detecta una
+  // revocación del acceso. El setState ocurre en el callback de la promesa (regla de lint).
+  useEffect(() => {
+    if (paso !== 2 || !tokenEmp) return undefined;
+    const id = setInterval(() => cargarPedidos(tokenEmp, fecha), REFRESCO_MS);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paso, tokenEmp, fecha]);
+
+  // onFecha: cambia el día consultado y recarga la tabla (C45-02). Input: evento del <input date>.
+  const onFecha = (e) => {
+    const dia = e.target.value;
+    if (!dia || !tokenEmp) return;
+    setFecha(dia);
+    setAbierta(null);
+    cargarPedidos(tokenEmp, dia);
+  };
+
+  // exportarExcel: descarga los pedidos del día consultado en Excel (C45-02).
+  const exportarExcel = () => {
+    if (!tokenEmp || exportando) return;
+    setExportando(true);
+    descargarExcelEmpresa(tokenEmp, fecha)
+      .then(() => avisar("Excel descargado", 3000))
+      .catch((err) => {
+        if (err.status === 401) cerrarSesionEmp(typeof err.data?.detail === "string" ? err.data.detail : "Sesión expirada");
+        else avisar("No se pudo generar el Excel — intente de nuevo", 4000);
+      })
+      .finally(() => setExportando(false));
+  };
 
   // onCodEmp / onClaveEmp: sincronizan los inputs y limpian el error de credenciales.
   // Input: evento del <input>. Port de onCodEmp/onClaveEmp (fuente 1254, 1256).
@@ -251,9 +319,10 @@ export default function PanelEmpresa({ avisar, demo }) {
         setFOrden("hora");
         setPrivado(false);
         avisar("Sesión segura iniciada — expira automáticamente en 10 minutos", 5000);
-        empresaPedidos(tk)
-          .then((res) => setFilas(res.filas))
-          .catch(() => avisar("No se pudieron cargar los pedidos — intente recargar la página", 4500));
+        const hoy = fechaLocalISO();
+        setTokenEmp(tk);
+        setFecha(hoy);
+        cargarPedidos(tk, hoy);
       })
       .catch((err) => {
         if (err.status === 429) {
@@ -376,9 +445,10 @@ export default function PanelEmpresa({ avisar, demo }) {
 
   // KPIs clicables: cada uno filtra la tabla por su estado al pulsarse. Port de kpis
   // (fuente 1327-1332).
+  const esHoy = fecha === fechaLocalISO();
   const kpis = empresa
     ? [
-        { n: "Pedidos de hoy", v: todos.length, color: "#0f2b4a", f: "TODOS" },
+        { n: esHoy ? "Pedidos de hoy" : "Pedidos del día", v: todos.length, color: "#0f2b4a", f: "TODOS" },
         { n: "Entregados", v: nDe("ENTREGADO"), color: "#1e7a43", f: "ENTREGADO" },
         { n: "En ruta", v: nDe("EN_RUTA"), color: "#1b5fb3", f: "EN_RUTA" },
         { n: "Incidencias", v: inc, color: "#b35c12", f: "INCIDENCIA" },
@@ -450,9 +520,13 @@ export default function PanelEmpresa({ avisar, demo }) {
             </span>
             <div style={{ flex: 1, minWidth: 180 }}>
               <h2 style={{ margin: 0, fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 23 }}>{empMeta ? empMeta.nombre : ""}</h2>
-              <p style={{ margin: "2px 0 0", fontSize: 13, color: "#7288a0" }}>Pedidos de hoy · {hoyTxt}</p>
+              <p style={{ margin: "2px 0 0", fontSize: 13, color: "#7288a0" }}>
+                {esHoy ? `Pedidos de hoy · ${hoyTxt}` : `Pedidos del ${fechaLarga(fecha)}`}
+              </p>
             </div>
-            <span style={{ background: "#e3f2e8", color: "#1e7a43", fontSize: 11, fontWeight: 700, letterSpacing: ".06em", padding: "5px 12px", borderRadius: 99, animation: "latido 1.9s ease-in-out infinite" }}>EN VIVO</span>
+            {esHoy && (
+              <span style={{ background: "#e3f2e8", color: "#1e7a43", fontSize: 11, fontWeight: 700, letterSpacing: ".06em", padding: "5px 12px", borderRadius: 99, animation: "latido 1.9s ease-in-out infinite" }}>EN VIVO</span>
+            )}
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8, border: "1.5px solid rgba(15,43,74,.14)", background: "#fff", borderRadius: 99, padding: "7px 14px", fontSize: 12, fontWeight: 600, color: "#3d5570" }}>
               <span style={{ width: 7, height: 7, borderRadius: 99, background: "#22a35e", flex: "none", animation: "latido 2s ease-in-out infinite" }} />
               <span>Sesión expira en {sesionTxt}</span>
@@ -464,6 +538,36 @@ export default function PanelEmpresa({ avisar, demo }) {
               style={{ border: "1.5px solid rgba(15,43,74,.16)", background: "#fff", color: "#3d5570", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 600, padding: "9px 18px", borderRadius: 99, cursor: "pointer", transition: "border-color .2s ease, color .2s ease" }}
             >
               Cerrar sesión
+            </button>
+          </div>
+
+          {/* Día consultado + exportación (C45-02) */}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", margin: "16px 0 0" }}>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12.5, fontWeight: 600, color: "#3d5570" }}>
+              Día
+              <input
+                type="date"
+                value={fecha}
+                max={fechaLocalISO()}
+                onChange={onFecha}
+                aria-label="Día a consultar"
+                className="ptl-select-emp"
+                style={{ ...SELECT_ESTILO, backgroundImage: "none", padding: "8px 12px" }}
+              />
+            </label>
+            {!esHoy && (
+              <button type="button" onClick={() => onFecha({ target: { value: fechaLocalISO() } })} style={{ border: 0, background: "none", cursor: "pointer", fontFamily: "Inter, sans-serif", fontSize: 12.5, fontWeight: 600, color: "#1b5fb3", padding: "8px 4px" }}>
+                Volver a hoy
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={exportarExcel}
+              disabled={exportando || todos.length === 0}
+              className="ptl-btn-salir-emp"
+              style={{ marginLeft: "auto", border: "1.5px solid rgba(15,43,74,.16)", background: "#fff", color: "#1e7a43", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 700, padding: "9px 18px", borderRadius: 99, cursor: exportando || todos.length === 0 ? "not-allowed" : "pointer", opacity: todos.length === 0 ? 0.55 : 1 }}
+            >
+              {exportando ? "Generando…" : "Exportar a Excel"}
             </button>
           </div>
 
@@ -489,13 +593,13 @@ export default function PanelEmpresa({ avisar, demo }) {
           {/* Avance del día */}
           <div data-ppanel="1" style={{ margin: "12px 0 0", background: "#fff", border: "1px solid rgba(15,43,74,.09)", borderRadius: 18, padding: "18px 20px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#0f2b4a" }}>Avance del día</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#0f2b4a" }}>{esHoy ? "Avance del día" : "Avance de ese día"}</span>
               <span style={{ fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 19, color: "#22a35e" }}>{empPct}</span>
             </div>
             <div style={{ margin: "10px 0 0", height: 8, borderRadius: 99, background: "#e8f0f8", overflow: "hidden" }}>
               <div style={{ height: "100%", borderRadius: 99, width: empPct, background: "linear-gradient(90deg,#2679d8,#22a35e)", transition: "width 1.2s ease .1s" }} />
             </div>
-            <p style={{ margin: "8px 0 0", fontSize: 12.5, color: "#7288a0" }}>{empResumen} — se actualiza en vivo</p>
+            <p style={{ margin: "8px 0 0", fontSize: 12.5, color: "#7288a0" }}>{empResumen}{esHoy ? " — se actualiza en vivo" : ""}</p>
           </div>
 
           {/* Fila 1 de filtros: botones de estado + búsqueda */}
@@ -620,7 +724,7 @@ export default function PanelEmpresa({ avisar, demo }) {
             ))}
             {filtrados.length === 0 && (
               <p style={{ margin: 0, padding: "26px 18px", textAlign: "center", fontSize: 13.5, color: "#7288a0", borderTop: "1px solid rgba(15,43,74,.06)" }}>
-                Ningún pedido coincide con esos filtros o búsqueda.
+                {todos.length === 0 ? "No hay pedidos con movimiento ese día." : "Ningún pedido coincide con esos filtros o búsqueda."}
               </p>
             )}
           </div>
@@ -664,7 +768,8 @@ const SELECT_ESTILO = {
 // reloj `ahora` (para el countdown del bloqueo).
 // ----------------------------------------------------------------------------
 function Credenciales({ codEmp, claveEmp, onCodEmp, onClaveEmp, onCreds, cargando, empBloq, bloqueoHasta, ahora, error, intentos, demo, onUsarDemo }) {
-  const bloqueoTxt = "Demasiados intentos fallidos. Por seguridad, el acceso está pausado " + Math.ceil(Math.max(0, bloqueoHasta - ahora) / 1000) + " s.";
+  const restante = Math.ceil(Math.max(0, bloqueoHasta - ahora) / 1000);
+  const bloqueoTxt = "Demasiados intentos fallidos. Por seguridad, el acceso está pausado " + (restante < 60 ? `${restante} s.` : `${Math.ceil(restante / 60)} min.`);
   const intentosTxt = String(Math.max(0, 3 - intentos));
 
   return (

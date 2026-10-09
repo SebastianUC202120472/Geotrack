@@ -51,10 +51,33 @@ export const empresaVerificar = (codigoAcceso, otp) =>
     body: JSON.stringify({ codigoAcceso, otp }),
   });
 
-export const empresaPedidos = (token) =>
-  pedir(`${BASE}/empresa/pedidos`, {
+// Pedidos de la empresa en una fecha ("AAAA-MM-DD"; vacia = hoy). Recibe token y fecha.
+export const empresaPedidos = (token, fecha) =>
+  pedir(`${BASE}/empresa/pedidos${fecha ? `?fecha=${encodeURIComponent(fecha)}` : ""}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
+
+// Descarga en Excel los pedidos de la empresa en una fecha y lo guarda en el equipo.
+// Recibe token y fecha ("AAAA-MM-DD"). Rechaza con { status, data } como pedir().
+export async function descargarExcelEmpresa(token, fecha) {
+  const res = await fetch(`${BASE}/empresa/pedidos/excel?fecha=${encodeURIComponent(fecha)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return Promise.reject({ status: res.status, data });
+  }
+  const blob = await res.blob();
+  const nombre = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") || "")?.[1] || `pedidos_${fecha}.xlsx`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nombre;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 // --- Ayuda de la demostración (vacía si el backend no está en modo demo) ---
 export const ayudaDemo = () => pedir(`${BASE}/demo`);

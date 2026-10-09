@@ -20,6 +20,8 @@ SENTENCIAS = [
     # Licencia de conducir del conductor (C03-03).
     "ALTER TABLE conductor_perfiles ADD COLUMN IF NOT EXISTS licencia_numero VARCHAR(20)",
     "ALTER TABLE conductor_perfiles ADD COLUMN IF NOT EXISTS licencia_vencimiento DATE",
+    # Bloqueo progresivo de la verificacion del portal (C42-01).
+    "ALTER TABLE verificaciones_portal ADD COLUMN IF NOT EXISTS bloqueos INTEGER DEFAULT 0",
 ]
 
 

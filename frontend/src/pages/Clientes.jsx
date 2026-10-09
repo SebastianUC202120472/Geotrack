@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Building2, Plus, CheckCircle2, AlertCircle, X, Pencil, Trash2, Check, IdCard, Mail, MapPin, KeyRound, Copy, ShieldOff } from "lucide-react";
+import { Building2, Plus, CheckCircle2, AlertCircle, X, Pencil, Trash2, Check, IdCard, Mail, MapPin, KeyRound, Copy, ShieldOff, ShieldCheck, MapPinOff, RotateCw, Search } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -7,7 +7,23 @@ import SectionCard from "../components/ui/SectionCard";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import Modal from "../components/ui/Modal";
-import { listarClientes, crearCliente, actualizarCliente, eliminarCliente, generarAccesoPortal, revocarAccesoPortal } from "../services/api";
+import Badge from "../components/ui/Badge";
+import ConfirmDialog from "../components/ui/ConfirmDialog";
+import MapaPicker from "../components/MapaPicker";
+import { listarClientes, crearCliente, actualizarCliente, eliminarCliente, generarAccesoPortal, revocarAccesoPortal, reintentarUbicacionCliente, fijarUbicacionCliente, buscarDireccion } from "../services/api";
+import { validarCorreo } from "../utils/validaciones";
+
+// Valida el RUC en pantalla: vacio (opcional) o 11 digitos con prefijo 10/15/16/17/20. Recibe el texto.
+const validarRuc = (v) => {
+  const ruc = (v || "").replace(/\s/g, "");
+  if (!ruc) return "";
+  if (!/^\d{11}$/.test(ruc)) return "El RUC debe tener exactamente 11 dígitos";
+  if (!/^(10|15|16|17|20)/.test(ruc)) return "El RUC debe empezar con 10, 15, 16, 17 o 20";
+  return "";
+};
+
+// Dice si el cliente tiene direccion de recojo pero no se pudo ubicar en el mapa. Recibe el cliente.
+const sinUbicar = (c) => Boolean(c.direccion_origen) && (c.latitud == null || c.longitud == null);
 
 // Pagina de administracion de clientes corporativos: alta, edicion y baja.
 export default function Clientes() {
@@ -18,6 +34,7 @@ export default function Clientes() {
 
   const [form, setForm] = useState({ razon_social: "", identificador_unico: "", contacto: "", direccion_origen: "" });
   const [error, setError] = useState("");
+  const [errorRuc, setErrorRuc] = useState("");
   const [aviso, setAviso] = useState(null);
   const [guardando, setGuardando] = useState(false);
 
@@ -44,6 +61,8 @@ export default function Clientes() {
   const kpis = useMemo(() => ({
     total: clientes.length,
     conRuc: clientes.filter((c) => c.identificador_unico).length,
+    conPortal: clientes.filter((c) => c.acceso_activo).length,
+    sinUbicar: clientes.filter(sinUbicar).length,
   }), [clientes]);
 
   const registrar = async (e) => {
@@ -51,6 +70,11 @@ export default function Clientes() {
     setAviso(null);
     if (form.razon_social.trim().length < 3) {
       setError("La razón social debe tener al menos 3 caracteres.");
+      return;
+    }
+    const problemaRuc = validarRuc(form.identificador_unico);
+    if (problemaRuc) {
+      setErrorRuc(problemaRuc);
       return;
     }
     setError("");
@@ -62,7 +86,9 @@ export default function Clientes() {
         contacto: form.contacto.trim() || null,
         direccion_origen: form.direccion_origen.trim(),
       });
-      setAviso({ ok: true, texto: `Cliente ${c.razon_social} registrado (${c.codigo || "—"}).` });
+      setAviso(sinUbicar(c)
+        ? { ok: false, texto: `Cliente ${c.razon_social} registrado (${c.codigo || "—"}), pero su dirección de recojo no se pudo ubicar en el mapa. Ábrelo y márcala.` }
+        : { ok: true, texto: `Cliente ${c.razon_social} registrado (${c.codigo || "—"}).` });
       setForm({ razon_social: "", identificador_unico: "", contacto: "", direccion_origen: "" });
       cargar();
     } catch (err) {
@@ -74,7 +100,17 @@ export default function Clientes() {
 
   const columnas = [
     { key: "codigo", header: "Código", render: (c) => <span className="font-medium text-slate-800 nums">{c.codigo || "—"}</span> },
-    { key: "razon_social", header: "Razón social", render: (c) => <span className="text-slate-700">{c.razon_social}</span> },
+    {
+      key: "razon_social",
+      header: "Razón social",
+      render: (c) => (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-slate-700">{c.razon_social}</span>
+          {sinUbicar(c) && <Badge tono="warning"><MapPinOff size={12} />Sin ubicar</Badge>}
+          {c.acceso_activo && <Badge tono="success"><ShieldCheck size={12} />Portal</Badge>}
+        </div>
+      ),
+    },
     { key: "identificador_unico", header: "RUC", render: (c) => <span className="text-slate-600 nums">{c.identificador_unico || "—"}</span> },
     { key: "contacto", header: "Contacto", render: (c) => <span className="text-slate-600">{c.contacto || "—"}</span> },
     {
@@ -100,7 +136,19 @@ export default function Clientes() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 animate-fade-up">
         <KpiCard label="Total" value={kpis.total} icon={Building2} tone="brand" />
         <KpiCard label="Con RUC" value={kpis.conRuc} icon={IdCard} tone="info" />
+        <KpiCard label="Con acceso al portal" value={kpis.conPortal} icon={ShieldCheck} tone="success" />
+        <KpiCard label="Sin ubicar" value={kpis.sinUbicar} icon={MapPinOff} tone="warning" />
       </div>
+
+      {kpis.sinUbicar > 0 && (
+        <div className="flex items-center gap-2 rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning-strong animate-fade-up">
+          <MapPinOff size={18} className="shrink-0" />
+          <span>
+            <b>{kpis.sinUbicar}</b> {kpis.sinUbicar === 1 ? "cliente tiene" : "clientes tienen"} la dirección de recojo sin ubicar en el mapa:
+            sus solicitudes no podrán entrar a una ruta de recojo. Ábrelos y márcala.
+          </span>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
         <SectionCard title="Registrar cliente" className="lg:col-span-1">
@@ -108,9 +156,9 @@ export default function Clientes() {
             <Input label="Razón social" required value={form.razon_social}
               onChange={(e) => { setForm((f) => ({ ...f, razon_social: e.target.value })); setError(""); }}
               placeholder="Ej. Ripley S.A." error={error} hint="Nombre legal de la empresa" />
-            <Input label="RUC" value={form.identificador_unico}
-              onChange={(e) => setForm((f) => ({ ...f, identificador_unico: e.target.value }))}
-              placeholder="20123456789" hint="Identificador único (opcional)" />
+            <Input label="RUC" value={form.identificador_unico} inputMode="numeric"
+              onChange={(e) => { setForm((f) => ({ ...f, identificador_unico: e.target.value.replace(/\D/g, "").slice(0, 11) })); setErrorRuc(""); }}
+              placeholder="20123456789" error={errorRuc} hint="11 dígitos (opcional)" />
             <Input label="Contacto" value={form.contacto}
               onChange={(e) => setForm((f) => ({ ...f, contacto: e.target.value }))}
               placeholder="correo / teléfono" hint="Opcional" />
@@ -153,12 +201,17 @@ function DetalleCliente({ cliente: c, onCerrar, onCambios, modoInicial = "ver" }
   const [aviso, setAviso] = useState(null);
   const [trabajando, setTrabajando] = useState(false);
 
-  const [correoPortal, setCorreoPortal] = useState(c.contacto || "");
+  const [correoPortal, setCorreoPortal] = useState(c.correo_portal || (validarCorreo(c.contacto) ? "" : c.contacto) || "");
   const [credenciales, setCredenciales] = useState(null);
   const [errorPortal, setErrorPortal] = useState("");
+  const [confirmarRevocar, setConfirmarRevocar] = useState(false);
+  const [ubicacion, setUbicacion] = useState({ lat: c.latitud ?? null, lng: c.longitud ?? null, busqueda: c.direccion_origen || "" });
+  const [buscando, setBuscando] = useState(false);
 
   const guardar = async () => {
     if (form.razon_social.trim().length < 3) { setAviso({ texto: "La razón social debe tener al menos 3 caracteres." }); return; }
+    const problemaRuc = validarRuc(form.identificador_unico);
+    if (problemaRuc) { setAviso({ texto: problemaRuc }); return; }
     setTrabajando(true); setAviso(null);
     try {
       await actualizarCliente(c.id, {
@@ -177,9 +230,38 @@ function DetalleCliente({ cliente: c, onCerrar, onCambios, modoInicial = "ver" }
     catch (err) { setAviso({ texto: err.message }); setTrabajando(false); setModo("ver"); }
   };
 
+  // Vuelve a intentar ubicar la direccion de recojo con el geocodificador (C07-02).
+  const reintentarUbicacion = async () => {
+    setTrabajando(true); setAviso(null);
+    try { await reintentarUbicacionCliente(c.id); onCambios(); }
+    catch (err) { setAviso({ texto: err.message }); setTrabajando(false); }
+  };
+
+  // Busca la direccion escrita y mueve el pin al resultado (para marcarla a mano).
+  const buscarEnMapa = () => {
+    if (!ubicacion.busqueda.trim()) return;
+    setBuscando(true); setAviso(null);
+    buscarDireccion(ubicacion.busqueda.trim())
+      .then((r) => {
+        if (r.encontrado) setUbicacion((u) => ({ ...u, lat: r.latitud, lng: r.longitud }));
+        else setAviso({ texto: "No se encontró esa dirección. Haz clic en el mapa para marcar el punto." });
+      })
+      .catch((err) => setAviso({ texto: err.message }))
+      .finally(() => setBuscando(false));
+  };
+
+  // Guarda el punto de recojo marcado en el mapa (C07-02).
+  const guardarUbicacion = async () => {
+    if (ubicacion.lat == null) { setAviso({ texto: "Primero marca el punto en el mapa." }); return; }
+    setTrabajando(true); setAviso(null);
+    try { await fijarUbicacionCliente(c.id, { latitud: ubicacion.lat, longitud: ubicacion.lng }); onCambios(); }
+    catch (err) { setAviso({ texto: err.message }); setTrabajando(false); }
+  };
+
   // Genera un nuevo acceso al portal para el correo indicado. La clave solo se muestra esta vez.
   const generarAcceso = async () => {
-    if (!correoPortal.trim()) { setErrorPortal("Ingresa el correo del portal."); return; }
+    const problemaCorreo = validarCorreo(correoPortal);
+    if (problemaCorreo) { setErrorPortal(problemaCorreo); return; }
     setTrabajando(true); setErrorPortal("");
     try {
       const datos = await generarAccesoPortal(c.id, correoPortal.trim());
@@ -188,11 +270,12 @@ function DetalleCliente({ cliente: c, onCerrar, onCambios, modoInicial = "ver" }
     finally { setTrabajando(false); }
   };
 
-  // Revoca el acceso al portal del cliente (no borra sus credenciales).
+  // Revoca el acceso al portal del cliente tras confirmarlo; su sesion abierta se corta en la
+  // siguiente consulta (no borra sus credenciales).
   const revocarAcceso = async () => {
     setTrabajando(true); setErrorPortal("");
-    try { await revocarAccesoPortal(c.id); onCerrar(); }
-    catch (err) { setErrorPortal(err.message); setTrabajando(false); }
+    try { await revocarAccesoPortal(c.id); setConfirmarRevocar(false); onCambios(); }
+    catch (err) { setErrorPortal(err.message); setTrabajando(false); setConfirmarRevocar(false); }
   };
 
   // Copia la clave generada al portapapeles.
@@ -221,10 +304,22 @@ function DetalleCliente({ cliente: c, onCerrar, onCambios, modoInicial = "ver" }
 
       {modo === "ver" && (
         <>
+          {sinUbicar(c) && (
+            <div className="mt-4 rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning-strong">
+              <p className="flex items-center gap-2 font-semibold"><MapPinOff size={18} /> Dirección de recojo sin ubicar</p>
+              <p className="mt-1">No se encontró en el mapa: sus solicitudes no entrarán a una ruta de recojo hasta ubicarla.</p>
+              <div className="mt-3 flex gap-2">
+                <Button size="sm" variant="secondary" icon={RotateCw} onClick={reintentarUbicacion} disabled={trabajando}>Reintentar</Button>
+                <Button size="sm" icon={MapPin} onClick={() => { setAviso(null); setModo("ubicar"); }} disabled={trabajando}>Marcar en el mapa</Button>
+              </div>
+            </div>
+          )}
           <div className="mt-6 space-y-3">
             <Dato icono={IdCard} etiqueta="RUC" valor={c.identificador_unico || "—"} />
             <Dato icono={Mail} etiqueta="Contacto" valor={c.contacto || "—"} />
             <Dato icono={MapPin} etiqueta="Dirección de recojo" valor={c.direccion_origen || "—"} />
+            <Dato icono={ShieldCheck} etiqueta="Portal de clientes"
+              valor={c.acceso_activo ? `Activo · ${c.codigo_acceso}${c.correo_portal ? ` · ${c.correo_portal}` : ""}` : "Sin acceso"} />
           </div>
           <div className="mt-6 flex gap-2">
             <Button variant="secondary" icon={Pencil} block onClick={() => { setAviso(null); setModo("editar"); }}>Editar</Button>
@@ -239,7 +334,8 @@ function DetalleCliente({ cliente: c, onCerrar, onCambios, modoInicial = "ver" }
       {modo === "editar" && (
         <div className="mt-6 space-y-4">
           <Input label="Razón social" value={form.razon_social} onChange={(e) => setForm((f) => ({ ...f, razon_social: e.target.value }))} />
-          <Input label="RUC" value={form.identificador_unico} onChange={(e) => setForm((f) => ({ ...f, identificador_unico: e.target.value }))} />
+          <Input label="RUC" value={form.identificador_unico} inputMode="numeric" hint="11 dígitos"
+            onChange={(e) => setForm((f) => ({ ...f, identificador_unico: e.target.value.replace(/\D/g, "").slice(0, 11) }))} />
           <Input label="Contacto" value={form.contacto} onChange={(e) => setForm((f) => ({ ...f, contacto: e.target.value }))} />
           <Input label="Dirección de recojo" value={form.direccion_origen}
             onChange={(e) => setForm((f) => ({ ...f, direccion_origen: e.target.value }))}
@@ -256,11 +352,34 @@ function DetalleCliente({ cliente: c, onCerrar, onCambios, modoInicial = "ver" }
         <div className="mt-6 space-y-4">
           <div className="flex items-start gap-3 rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger-strong">
             <AlertCircle size={20} className="shrink-0" />
-            <span>¿Dar de baja a <b>{c.razon_social}</b>? Dejará de aparecer en la lista (su historial se conserva).</span>
+            <span>
+              ¿Dar de baja a <b>{c.razon_social}</b>? Dejará de aparecer en la lista (su historial se conserva)
+              {c.acceso_activo ? " y perderá su acceso al portal de inmediato." : "."}
+            </span>
           </div>
           <div className="flex gap-2">
             <Button variant="secondary" block onClick={() => setModo("ver")} disabled={trabajando}>Cancelar</Button>
             <Button variant="danger" icon={Trash2} block onClick={eliminar} disabled={trabajando}>{trabajando ? "Eliminando…" : "Sí, eliminar"}</Button>
+          </div>
+        </div>
+      )}
+
+      {modo === "ubicar" && (
+        <div className="mt-6 space-y-4">
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <Input label="Dirección / lugar" value={ubicacion.busqueda}
+                onChange={(e) => setUbicacion((u) => ({ ...u, busqueda: e.target.value }))}
+                hint="Busca la dirección y ajusta el pin; o haz clic en el mapa." />
+            </div>
+            <Button variant="secondary" icon={Search} onClick={buscarEnMapa} disabled={buscando}>{buscando ? "…" : "Buscar"}</Button>
+          </div>
+          <MapaPicker lat={ubicacion.lat} lng={ubicacion.lng} onChange={(la, lo) => setUbicacion((u) => ({ ...u, lat: la, lng: lo }))} />
+          <div className="flex gap-2">
+            <Button variant="secondary" block onClick={() => setModo("ver")} disabled={trabajando}>Cancelar</Button>
+            <Button icon={Check} block onClick={guardarUbicacion} disabled={trabajando || ubicacion.lat == null}>
+              {trabajando ? "Guardando…" : "Guardar ubicación"}
+            </Button>
           </div>
         </div>
       )}
@@ -296,14 +415,16 @@ function DetalleCliente({ cliente: c, onCerrar, onCambios, modoInicial = "ver" }
                 Genera o renueva las credenciales que el cliente usará para entrar al panel corporativo del portal.
               </p>
               <Input label="Correo del portal" type="email" value={correoPortal}
-                onChange={(e) => setCorreoPortal(e.target.value)}
-                placeholder="contacto@empresa.com" />
+                onChange={(e) => { setCorreoPortal(e.target.value); setErrorPortal(""); }}
+                placeholder="contacto@empresa.com" hint="Aquí llega el código de verificación de cada ingreso" />
               <Button icon={KeyRound} block onClick={generarAcceso} disabled={trabajando}>
-                {trabajando ? "Generando…" : "Generar acceso"}
+                {trabajando ? "Generando…" : c.acceso_activo ? "Renovar clave de acceso" : "Generar acceso"}
               </Button>
-              <Button variant="danger" icon={ShieldOff} block onClick={revocarAcceso} disabled={trabajando}>
-                {trabajando ? "Revocando…" : "Revocar acceso"}
-              </Button>
+              {c.acceso_activo && (
+                <Button variant="danger" icon={ShieldOff} block onClick={() => setConfirmarRevocar(true)} disabled={trabajando}>
+                  Revocar acceso
+                </Button>
+              )}
             </>
           )}
 
@@ -312,10 +433,23 @@ function DetalleCliente({ cliente: c, onCerrar, onCambios, modoInicial = "ver" }
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmarRevocar}
+        titulo="¿Revocar el acceso al portal?"
+        mensaje={<><b>{c.razon_social}</b> no podrá volver a entrar al panel corporativo y, si tiene una sesión abierta, se cerrará en su siguiente consulta. Podrás generar un acceso nuevo cuando quieras.</>}
+        textoConfirmar="Sí, revocar"
+        tono="danger"
+        icono={ShieldOff}
+        cargando={trabajando}
+        onConfirmar={revocarAcceso}
+        onCancelar={() => setConfirmarRevocar(false)}
+      />
     </>
   );
 }
 
+// Fila de dato de la ficha del cliente (icono + etiqueta + valor). Recibe etiqueta, valor e icono.
 function Dato({ etiqueta, valor, icono: Icono }) {
   return (
     <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3 text-sm">

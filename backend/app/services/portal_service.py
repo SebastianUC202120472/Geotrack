@@ -165,13 +165,39 @@ def _estado_visible(p, det) -> str:
     return estado_portal.mapear_estado(base)
 
 
-def tabla_empresa(db: Session, cliente_id: int) -> dict:
-    """Filas + contadores de los pedidos de hoy de un cliente. Recibe el id del cliente."""
+def _momento_local(momento, dia) -> str:
+    """Hora local de un evento; si no es del dia consultado antepone la fecha (dd/mm). Recibe el datetime UTC y el dia."""
+    if momento is None:
+        return ""
+    if fechas.fecha_local_de(momento) == dia:
+        return hora_local(momento)
+    m = momento.replace(tzinfo=timezone.utc).astimezone(fechas.zona())
+    return m.strftime("%d/%m %H:%M")
+
+
+def _eventos_empresa(historial, dia) -> list:
+    """Linea de tiempo REAL de un pedido para el panel corporativo. Recibe su historial y el dia consultado."""
+    eventos = []
+    for h in historial:
+        est = (h.estado_nuevo or "").upper()
+        titulo, _ = _ETIQUETAS.get(est, _ETIQUETA_GENERICA)
+        eventos.append({
+            "h": _momento_local(h.fecha_utc, dia), "t": titulo,
+            "ok": est == "ENTREGADO", "alerta": est in ("FALLIDO", "OBSERVADO", "CANCELADO"),
+        })
+    return eventos
+
+
+def filas_empresa(db: Session, cliente_id: int, dia=None) -> list:
+    """Pedidos de un cliente en una fecha (C45-01) con su estado visible y linea de tiempo real.
+    Recibe el id del cliente y la fecha local (por defecto hoy). Devuelve una lista de filas."""
+    dia = dia or fechas.hoy_local()
+    pares = repo.pedidos_de_cliente_en_fecha(db, cliente_id, dia)
+    historiales = repo.historial_de_pedidos(db, [p.id for p, _ in pares])
     filas = []
-    contadores = {}
-    for p, det in repo.pedidos_de_cliente_hoy(db, cliente_id):
+    for p, det in pares:
         est = _estado_visible(p, det)
-        hora = (hora_local(p.fecha_entrega) if est == "ENTREGADO" else "") or "—"
+        hora = (_momento_local(p.fecha_entrega, dia) if est == "ENTREGADO" else "") or "—"
         extra = ""
         if est == "EN_RUTA" and det:
             extra = f"Parada {det.secuencia}"
@@ -179,13 +205,65 @@ def tabla_empresa(db: Session, cliente_id: int) -> dict:
             extra = "Sale en el proximo bloque"
         elif est == "OBSERVADO":
             extra = "En gestion"
+        elif est == "REPROGRAMADO":
+            extra = (det.motivo_fallo if det and det.motivo_fallo else "Intento sin éxito")
         filas.append({
-            "cod": p.codigo, "cliente": p.nombre_destinatario or "—",
+            "cod": p.codigo, "ref": p.referencia_externa or "", "cliente": p.nombre_destinatario or "—",
             "dir": p.direccion_destino or "", "dist": p.distrito or "—",
             "estado": est, "h": hora, "extra": extra,
+            "eventos": _eventos_empresa(historiales.get(p.id, []), dia),
         })
-        contadores[est] = contadores.get(est, 0) + 1
-    return {"filas": filas, "contadores": contadores}
+    return filas
+
+
+def tabla_empresa(db: Session, cliente_id: int, dia=None) -> dict:
+    """Filas + contadores de los pedidos de un cliente en una fecha. Recibe el id del cliente y la fecha (por defecto hoy)."""
+    dia = dia or fechas.hoy_local()
+    filas = filas_empresa(db, cliente_id, dia)
+    contadores = {}
+    for f in filas:
+        contadores[f["estado"]] = contadores.get(f["estado"], 0) + 1
+    return {"fecha": dia.isoformat(), "esHoy": dia == fechas.hoy_local(), "filas": filas, "contadores": contadores}
+
+
+_ESTADO_LEGIBLE = {
+    "ENTREGADO": "Entregado", "EN_RUTA": "En ruta", "POR_SALIR": "Por salir",
+    "OBSERVADO": "Observado", "REPROGRAMADO": "Reprogramado", "CANCELADO": "Cancelado",
+}
+
+
+def excel_empresa(db: Session, cliente, dia=None) -> tuple[bytes, str]:
+    """Exporta a Excel los pedidos de un cliente en una fecha (C45-02). Recibe el cliente y la fecha.
+    Devuelve (bytes del .xlsx, nombre del archivo)."""
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    dia = dia or fechas.hoy_local()
+    filas = filas_empresa(db, cliente.id, dia)
+    wb = Workbook()
+    hoja = wb.active
+    hoja.title = "Pedidos"
+    hoja.append([f"Pedidos de {cliente.razon_social} · {dia.strftime('%d/%m/%Y')}"])
+    hoja["A1"].font = Font(bold=True, size=13)
+    hoja.append([f"Generado desde el portal de clientes SAVA · {len(filas)} pedidos"])
+    hoja.append([])
+    columnas = ["Código SAVA", "Referencia", "Destinatario", "Dirección", "Distrito", "Estado", "Hora de entrega", "Detalle"]
+    hoja.append(columnas)
+    for celda in hoja[4]:
+        celda.font = Font(bold=True)
+    for f in filas:
+        hoja.append([
+            f["cod"], f["ref"], f["cliente"], f["dir"], f["dist"],
+            _ESTADO_LEGIBLE.get(f["estado"], f["estado"]), "" if f["h"] == "—" else f["h"], f["extra"],
+        ])
+    for letra, ancho in zip("ABCDEFGH", (14, 16, 26, 42, 18, 14, 16, 30)):
+        hoja.column_dimensions[letra].width = ancho
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    codigo = (cliente.codigo_acceso or str(cliente.id)).replace("/", "-")
+    return buffer.getvalue(), f"pedidos_{codigo}_{dia.isoformat()}.xlsx"
 
 
 def registrar_reprogramacion(db: Session, codigo: str, franja: str) -> dict:

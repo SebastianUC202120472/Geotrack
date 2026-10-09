@@ -1,13 +1,15 @@
 import os
+from datetime import date, timedelta
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.core.config import settings
 from app.core.rate_limit import limite_publico
-from app.core import portal_token
+from app.core import portal_token, fechas
 from app.core.security import verify_password
 from app.services import portal_service, verificacion_portal_service as verif
 from app.services import correo_service, enmascarado, publico_forms_service
@@ -15,6 +17,29 @@ from app.repositories import portal_repository as repo
 from app.schemas.portal import VerificarDni, Reprogramar, EmpresaLogin, EmpresaVerificar, ContactoIn, ReclamoIn
 
 router = APIRouter()
+
+# Hasta cuantos dias atras puede consultar una empresa sus pedidos en el portal.
+DIAS_HISTORIAL_PORTAL = 366
+
+
+def _cliente_con_acceso(db: Session, cod: str):
+    """Devuelve el cliente si su acceso al portal sigue vigente; si fue revocado o dado de baja,
+    corta la sesion con 401 en la misma consulta (C46-01). Recibe el codigo de acceso."""
+    cliente = repo.cliente_por_codigo_acceso(db, cod)
+    if not cliente or not cliente.acceso_activo or cliente.eliminado_en is not None:
+        raise HTTPException(status_code=401, detail="El acceso de su empresa al portal no está vigente")
+    return cliente
+
+
+def _fecha_consultable(fecha: Optional[date]) -> date:
+    """Valida la fecha pedida por la empresa: no futura y dentro del historial. Recibe la fecha (o None = hoy)."""
+    hoy = fechas.hoy_local()
+    dia = fecha or hoy
+    if dia > hoy:
+        raise HTTPException(status_code=400, detail="No se pueden consultar fechas futuras")
+    if dia < hoy - timedelta(days=DIAS_HISTORIAL_PORTAL):
+        raise HTTPException(status_code=400, detail="Solo se puede consultar el último año")
+    return dia
 
 
 @router.get("/estadisticas", dependencies=[Depends(limite_publico(30, 60))])
@@ -100,7 +125,7 @@ def empresa_verificar(datos: EmpresaVerificar, db: Session = Depends(get_db)):
     """Valida el OTP de empresa y devuelve token + datos. Recibe {codigoAcceso, otp}."""
     cod = datos.codigoAcceso.strip().upper()
     cliente = repo.cliente_por_codigo_acceso(db, cod)
-    if not cliente:
+    if not cliente or not cliente.acceso_activo or cliente.eliminado_en is not None:
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
     verif.verificar_otp(db, "EMPRESA", cod, datos.otp, bloqueo_seg=45)
     token = portal_token.crear_token_empresa(cod)
@@ -110,12 +135,30 @@ def empresa_verificar(datos: EmpresaVerificar, db: Session = Depends(get_db)):
 
 
 @router.get("/empresa/pedidos")
-def empresa_pedidos(cod: str = Depends(portal_token.requiere_token_empresa), db: Session = Depends(get_db)):
-    """Filas + contadores de los pedidos de hoy del cliente (requiere token). Sin input extra."""
-    cliente = repo.cliente_por_codigo_acceso(db, cod)
-    if not cliente:
-        raise HTTPException(status_code=401, detail="Sesion invalida")
-    return portal_service.tabla_empresa(db, cliente.id)
+def empresa_pedidos(
+    fecha: Optional[date] = Query(None, description="Día a consultar (AAAA-MM-DD); por defecto hoy"),
+    cod: str = Depends(portal_token.requiere_token_empresa),
+    db: Session = Depends(get_db),
+):
+    """Filas + contadores de los pedidos del cliente en una fecha (requiere token). Recibe la fecha opcional."""
+    cliente = _cliente_con_acceso(db, cod)
+    return portal_service.tabla_empresa(db, cliente.id, _fecha_consultable(fecha))
+
+
+@router.get("/empresa/pedidos/excel")
+def empresa_pedidos_excel(
+    fecha: Optional[date] = Query(None, description="Día a exportar (AAAA-MM-DD); por defecto hoy"),
+    cod: str = Depends(portal_token.requiere_token_empresa),
+    db: Session = Depends(get_db),
+):
+    """Descarga en Excel los pedidos del cliente en una fecha (requiere token). Recibe la fecha opcional."""
+    cliente = _cliente_con_acceso(db, cod)
+    contenido, nombre = portal_service.excel_empresa(db, cliente, _fecha_consultable(fecha))
+    return Response(
+        content=contenido,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
 
 
 @router.post("/contacto", dependencies=[Depends(limite_publico(5, 60))])

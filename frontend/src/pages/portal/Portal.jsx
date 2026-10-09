@@ -11,7 +11,11 @@ import "./portal.css";
 // (persona natural / empresa) + hueco de la vista elegida +
 // footer. Sin i18n (el mockup del portal es solo español).
 export default function Portal() {
-  const [modo, setModo] = useState(null); // null | "personal" | "empresa"
+  // null | "personal" | "empresa". Si la pestaña ya verificó un pedido (sessionStorage),
+  // abre directo el rastreo para recuperarlo al recargar (C42-01).
+  const [modo, setModo] = useState(() => {
+    try { return sessionStorage.getItem("ptl_rastreo_verificado") ? "personal" : null; } catch { return null; }
+  });
   const [toast, setToast] = useState("");
   const [demo, setDemo] = useState(null); // credenciales y códigos de ejemplo (solo en modo demostración)
   const contRef = useRef(null);
