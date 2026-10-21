@@ -85,7 +85,7 @@ export default function App() {
         <Route path="almacen/observados" element={<PedidosObservados />} />
         <Route path="almacen/recojos" element={<ArmarRutaRecojo />} />
         <Route path="almacen/mapa" element={<MapaRecojos />} />
-        <Route path="/capacidad" element={<ModuloCapacidadPage />} />
+        <Route path="capacidad" element={<ModuloCapacidadPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
