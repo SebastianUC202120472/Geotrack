@@ -1,0 +1,50 @@
+[
+  {
+    "id": "jetour-x70",
+    "marca": "Jetour",
+    "modelo": "X70",
+    "tipo": "suv",
+    "largo_m": 1.30,
+    "ancho_m": 1.10,
+    "alto_m": 0.85,
+    "volumen_util_m3": 1.20,
+    "carga_util_kg": 550.0,
+    "fuente": "Ficha técnica oficial Jetour Perú"
+  },
+  {
+    "id": "toyota-hiace-van",
+    "marca": "Toyota",
+    "modelo": "HiAce Cargo",
+    "tipo": "van",
+    "largo_m": 2.93,
+    "ancho_m": 1.54,
+    "alto_m": 1.33,
+    "volumen_util_m3": 6.00,
+    "carga_util_kg": 1150.0,
+    "fuente": "Ficha técnica Toyota Perú"
+  },
+  {
+    "id": "hyundai-h100-camion",
+    "marca": "Hyundai",
+    "modelo": "H100 Baranda",
+    "tipo": "camion_ligero",
+    "largo_m": 3.11,
+    "ancho_m": 1.63,
+    "alto_m": 0.35,
+    "volumen_util_m3": 5.50,
+    "carga_util_kg": 1500.0,
+    "fuente": "Ficha técnica Hyundai Perú"
+  },
+  {
+    "id": "dfsk-glory-v21",
+    "marca": "DFSK",
+    "modelo": "Glory V21 Cargo",
+    "tipo": "furgoneta",
+    "largo_m": 2.30,
+    "ancho_m": 1.45,
+    "alto_m": 1.20,
+    "volumen_util_m3": 4.00,
+    "carga_util_kg": 900.0,
+    "fuente": "Ficha técnica DFSK Perú"
+  }
+]
