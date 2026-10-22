@@ -109,19 +109,29 @@ def peticion(metodo: str, url: str, token: str | None = None, datos=None, formul
         raise SystemExit(f"ERROR: no se pudo conectar con {url} ({exc.reason}). ¿Está levantado docker compose?")
 
 
-def iniciar_sesion(url_base: str, ruta_env: str | None = None) -> str:
-    """Inicia sesion como admin con las credenciales del .env. Recibe la URL base y la ruta del .env.
-    Devuelve el token (no se imprime)."""
-    correo, clave = leer_credenciales(ruta_env)
+def iniciar_sesion_con(url_base: str, correo: str, clave: str, etiqueta: str) -> str:
+    """Inicia sesion con un correo y una clave. Recibe URL base, credenciales y una etiqueta para los
+    mensajes (p. ej. 'almacén'). Devuelve el token (no se imprime)."""
     try:
         respuesta = peticion("POST", f"{url_base}/api/auth/login", formulario={"username": correo, "password": clave})
     except ErrorApi as exc:
         if exc.codigo == 429:
             raise SystemExit("ERROR: demasiados intentos de login. Espera un minuto y vuelve a correr el script.")
-        raise SystemExit(f"ERROR: no se pudo iniciar sesión como admin (HTTP {exc.codigo}: {exc.detalle}). "
-                         "Revisa ADMIN_EMAIL y ADMIN_PASSWORD en el .env.")
+        raise SystemExit(f"ERROR: no se pudo iniciar sesión como {etiqueta} (HTTP {exc.codigo}: {exc.detalle}).")
     token = (respuesta or {}).get("access_token")
     if not token:
         raise SystemExit("ERROR: el login no devolvió un token.")
-    print("Sesión iniciada como administrador.")
+    print(f"Sesión iniciada como {etiqueta}.")
     return token
+
+
+def iniciar_sesion(url_base: str, ruta_env: str | None = None) -> str:
+    """Inicia sesion como admin con las credenciales del .env. Recibe la URL base y la ruta del .env.
+    Devuelve el token (no se imprime)."""
+    correo, clave = leer_credenciales(ruta_env)
+    try:
+        return iniciar_sesion_con(url_base, correo, clave, "administrador")
+    except SystemExit as exc:
+        if "como administrador" in str(exc):
+            raise SystemExit(f"{exc} Revisa ADMIN_EMAIL y ADMIN_PASSWORD en el .env.") from None
+        raise

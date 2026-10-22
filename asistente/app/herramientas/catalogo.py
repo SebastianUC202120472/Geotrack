@@ -135,6 +135,23 @@ DEFINICIONES = {
     },
 }
 
+# Como se nombra cada funcion si el modelo la menciona en su respuesta: el nombre interno
+# nunca llega al usuario (OWASP LLM07, no revelar la configuracion).
+NOMBRES_VISIBLES = {
+    "resumen_del_dia": "resumen del día",
+    "buscar_pedidos": "búsqueda de pedidos",
+    "trazabilidad_pedido": "trazabilidad de un pedido",
+    "estado_rutas": "estado de las rutas",
+    "ubicacion_conductores": "ubicación de los conductores",
+    "auxilios_mecanicos": "auxilios mecánicos",
+    "reportes_falla": "reportes de falla",
+    "solicitudes_bandeja": "solicitudes de la Bandeja",
+    "retornos_almacen": "retornos al almacén",
+    "pedidos_observados": "pedidos observados",
+    "recojos_almacen": "recojos del almacén",
+    "avance_por_cliente": "avance por cliente",
+}
+
 # Texto que ve el usuario mientras se ejecuta cada funcion.
 ETIQUETAS = {
     "resumen_del_dia": "Armando el resumen del día",

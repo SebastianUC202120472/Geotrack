@@ -1,6 +1,9 @@
 # Transcripcion de mensajes de voz con Whisper (API de Groq, compatible con OpenAI).
 # El audio se procesa en memoria y se descarta al terminar: nunca se escribe a disco
 # ni se guarda en la base de datos.
+import io
+import wave
+
 import httpx
 
 from app.core.config import settings
@@ -34,13 +37,35 @@ def detectar_formato(contenido: bytes) -> tuple[str, str]:
     raise ErrorAudio("Formato de audio no admitido")
 
 
+def _duracion_wav(contenido: bytes) -> float | None:
+    """Duracion de un WAV leida de su cabecera, o None si no se puede leer. Recibe los bytes."""
+    try:
+        with wave.open(io.BytesIO(contenido)) as w:
+            return w.getnframes() / float(w.getframerate())
+    except (wave.Error, EOFError, ZeroDivisionError):
+        return None
+
+
+def _validar_duracion(segundos: float) -> None:
+    """Corta los audios que duran mas del maximo (con 2 s de tolerancia). Recibe la duracion."""
+    if segundos > settings.ASISTENTE_VOZ_MAX_SEG + 2:
+        raise ErrorAudio(f"El audio dura más de {settings.ASISTENTE_VOZ_MAX_SEG} segundos")
+
+
 def validar_audio(contenido: bytes) -> tuple[str, str]:
-    """Aplica los topes de tamaño y formato antes de transcribir. Recibe los bytes del audio."""
+    """Aplica los topes de tamaño, formato y (en WAV) duración antes de transcribir. Recibe los bytes.
+    En WAV la duración se lee de la cabecera, así un audio largo se rechaza sin enviarlo al proveedor;
+    en los formatos comprimidos se controla con la duración que devuelve la transcripción."""
     if not contenido:
         raise ErrorAudio("El audio está vacío")
     if len(contenido) > settings.ASISTENTE_VOZ_MAX_KB * 1024:
         raise ErrorAudio(f"El audio supera el máximo de {settings.ASISTENTE_VOZ_MAX_KB} KB")
-    return detectar_formato(contenido)
+    extension, tipo = detectar_formato(contenido)
+    if extension == "wav":
+        duracion = _duracion_wav(contenido)
+        if duracion is not None:
+            _validar_duracion(duracion)
+    return extension, tipo
 
 
 def voz_en_servidor_disponible() -> bool:
@@ -76,7 +101,5 @@ async def transcribir(contenido: bytes, http: httpx.AsyncClient | None = None) -
         cuerpo = r.json()
     except ValueError as exc:
         raise ErrorTranscripcion("Respuesta inválida del servicio de transcripción") from exc
-    duracion = float(cuerpo.get("duration") or 0)
-    if duracion > settings.ASISTENTE_VOZ_MAX_SEG + 2:
-        raise ErrorAudio(f"El audio dura más de {settings.ASISTENTE_VOZ_MAX_SEG} segundos")
+    _validar_duracion(float(cuerpo.get("duration") or 0))
     return (cuerpo.get("text") or "").strip()

@@ -123,6 +123,50 @@ class Seudonimos:
         return bool(self._valores)
 
 
+ENLACE_OMITIDO = "[enlace externo omitido]"
+# Enlace en Markdown "[texto](url)": queda solo el texto. URL suelta: se reemplaza por un aviso.
+_RE_ENLACE_MD = re.compile(r"\]\((?:https?://|www\.)[^)\s]*\)", re.I)
+_RE_URL = re.compile(r"\b(?:https?://|www\.)[^\s<>\"'`)\]]+", re.I)
+
+
+class FiltroSalida:
+    """Limpia la respuesta del modelo antes de mostrarla, aunque llegue partida en el streaming
+    (retiene la ultima palabra hasta saber como termina):
+    - nombres internos de las funciones -> su nombre visible (no revelar la configuracion);
+    - URLs absolutas -> se quitan: los enlaces al panel los arma el servidor, nunca el modelo.
+    Recibe el mapa {nombre_interno: nombre_visible}."""
+
+    def __init__(self, nombres: dict[str, str]):
+        self._nombres = nombres
+        alternativas = "|".join(sorted(map(re.escape, nombres), key=len, reverse=True))
+        self._patron = re.compile(rf"`?(?<![\w])({alternativas})(?![\w])`?") if nombres else None
+        self._pendiente = ""
+
+    def _reemplazar(self, texto: str) -> str:
+        """Aplica los reemplazos a un texto completo. Recibe el texto."""
+        if not texto:
+            return texto
+        # La puntuacion final ("…/x.") es de la oracion, no del enlace: se conserva.
+        texto = _RE_URL.sub(lambda m: ENLACE_OMITIDO + m.group(0)[len(m.group(0).rstrip(".,;:!?")):],
+                            _RE_ENLACE_MD.sub("]", texto))
+        if not self._patron:
+            return texto
+        return self._patron.sub(lambda m: self._nombres[m.group(1)], texto)
+
+    def agregar(self, fragmento: str) -> str:
+        """Agrega un fragmento y devuelve lo que ya se puede mostrar. Recibe el fragmento."""
+        self._pendiente += fragmento
+        cola = re.search(r"\S*$", self._pendiente)
+        corte = cola.start() if cola else len(self._pendiente)
+        listo, self._pendiente = self._pendiente[:corte], self._pendiente[corte:]
+        return self._reemplazar(listo)
+
+    def cerrar(self) -> str:
+        """Devuelve lo retenido al terminar el flujo. Sin input."""
+        resto, self._pendiente = self._pendiente, ""
+        return self._reemplazar(resto)
+
+
 class RestituidorFlujo:
     """Restituye marcas en un texto que llega por partes (streaming) sin cortar una marca a la mitad."""
 

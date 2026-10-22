@@ -1,4 +1,7 @@
 # Mensajes de voz: tamaño y formato real validados; el audio no se guarda.
+import io
+import wave
+
 import httpx
 
 from app.core.config import settings
@@ -49,6 +52,40 @@ def test_rechaza_audio_demasiado_largo(cliente, monkeypatch):
         lambda r: httpx.Response(200, json={"text": "hola", "duration": 600})
     ))
     assert _enviar(cliente, WEBM).status_code == 400
+
+
+def _wav(segundos: float, hz: int = 8000) -> bytes:
+    """WAV de silencio (8 bits, mono) con la duracion pedida. Recibe segundos y frecuencia."""
+    salida = io.BytesIO()
+    with wave.open(salida, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(1)
+        w.setframerate(hz)
+        w.writeframes(b"\x80" * int(segundos * hz))
+    return salida.getvalue()
+
+
+def test_wav_largo_se_rechaza_sin_enviarlo_al_proveedor(cliente, monkeypatch):
+    """Un WAV liviano pero mas largo que el maximo se corta por su cabecera: no llega a Whisper."""
+    monkeypatch.setattr(settings, "GROQ_API_KEY", "k")
+    llamadas = []
+    app.state.http_ia = httpx.AsyncClient(transport=httpx.MockTransport(
+        lambda r: llamadas.append(r) or httpx.Response(200, json={"text": "hola", "duration": 1})
+    ))
+    contenido = _wav(settings.ASISTENTE_VOZ_MAX_SEG + 15)
+    assert len(contenido) < settings.ASISTENTE_VOZ_MAX_KB * 1024
+    r = _enviar(cliente, contenido, "mensaje.wav", "audio/wav")
+    assert r.status_code == 400 and "segundos" in r.json()["detail"]
+    assert llamadas == []
+
+
+def test_wav_corto_si_se_transcribe(cliente, monkeypatch):
+    """Un WAV dentro del limite pasa la validacion y se transcribe."""
+    monkeypatch.setattr(settings, "GROQ_API_KEY", "k")
+    app.state.http_ia = httpx.AsyncClient(transport=httpx.MockTransport(
+        lambda r: httpx.Response(200, json={"text": "hola", "duration": 3})
+    ))
+    assert _enviar(cliente, _wav(3), "mensaje.wav", "audio/wav").status_code == 200
 
 
 def test_sin_clave_avisa_que_no_hay_voz_en_servidor(cliente, monkeypatch):

@@ -17,6 +17,7 @@ from app.core.config import settings
 from app.core.registro import log
 from app.herramientas.catalogo import (
     ETIQUETAS,
+    NOMBRES_VISIBLES,
     ArgumentoInvalido,
     herramientas_para_rol,
     nombres_para_rol,
@@ -27,7 +28,8 @@ from app.herramientas.funciones import FUNCIONES, Contexto
 from app.ia.prompt import envolver_datos, instrucciones_sistema
 from app.ia.proveedores import CadenaProveedores, ErrorProveedor, SinProveedores
 from app.repositories import auditoria_repository, conversacion_repository
-from app.services.privacidad import RestituidorFlujo, Seudonimos, enmascarar_texto, sanear_datos
+from app.services.defensa import AVISO_DATOS, AVISO_USUARIO, intenta_cambiar_reglas, neutralizar_datos
+from app.services.privacidad import FiltroSalida, RestituidorFlujo, Seudonimos, enmascarar_texto, sanear_datos
 
 _MAX_LLAMADAS_POR_RONDA = 4
 # Lo que ve el usuario cuando ningun proveedor de IA responde (el detalle tecnico va al log).
@@ -62,7 +64,10 @@ def _construir_mensajes(usuario: dict, previos: list, pregunta: str, seud: Seudo
                 "role": "user" if m.rol == "usuario" else "assistant",
                 "content": seud.ocultar(m.contenido),
             })
-    mensajes.append({"role": "user", "content": seud.ocultar(pregunta)})
+    contenido = seud.ocultar(pregunta)
+    if intenta_cambiar_reglas(pregunta):
+        contenido += AVISO_USUARIO
+    mensajes.append({"role": "user", "content": contenido})
     return mensajes
 
 
@@ -100,7 +105,13 @@ async def _ejecutar_llamada(llamada: dict, rol: str, contexto: Contexto, seud: S
 
     registro["ok"] = "error" not in resultado.datos
     bloques = [sanear_datos(b, max_texto=120) if b.get("tipo") == "tabla" else b for b in resultado.bloques]
-    return sanear_datos(resultado.datos), bloques, registro
+    # El texto de terceros con ordenes para el asistente no llega al modelo (OWASP LLM01).
+    datos, omitio = neutralizar_datos(sanear_datos(resultado.datos))
+    if omitio:
+        registro["texto_omitido"] = True
+        if isinstance(datos, dict):
+            datos["aviso_seguridad"] = AVISO_DATOS
+    return datos, bloques, registro
 
 
 async def conversar(
@@ -145,6 +156,7 @@ async def conversar(
             llamadas: list[dict] = []
             texto_ronda = ""
             restituidor = RestituidorFlujo(seud)
+            filtro = FiltroSalida(NOMBRES_VISIBLES)
             # Si una ronda anterior ya escribio texto, la siguiente empieza en otro parrafo.
             separador_pendiente = bool(texto_visible) and not texto_visible.endswith("\n")
 
@@ -153,7 +165,7 @@ async def conversar(
                     proveedor_usado = valor
                 elif tipo == "texto":
                     texto_ronda += valor
-                    visible = restituidor.agregar(valor)
+                    visible = filtro.agregar(restituidor.agregar(valor))
                     if visible:
                         if separador_pendiente:
                             visible = "\n\n" + visible
@@ -162,8 +174,11 @@ async def conversar(
                         yield _evento("texto", texto=visible)
                 elif tipo == "llamadas":
                     llamadas = valor
-            resto = restituidor.cerrar()
+            resto = filtro.agregar(restituidor.cerrar()) + filtro.cerrar()
             if resto:
+                if separador_pendiente:
+                    resto = "\n\n" + resto
+                    separador_pendiente = False
                 texto_visible += resto
                 yield _evento("texto", texto=resto)
 
