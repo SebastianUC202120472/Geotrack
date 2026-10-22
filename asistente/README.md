@@ -4,6 +4,26 @@ Servicio aparte (FastAPI, puerto interno `8100`) que responde preguntas del pane
 consultando el backend con el token del usuario. Nginx lo publica en `/api/asistente/`
 (ver `frontend/nginx.conf`) y se activa con `ASISTENTE_ENABLED=true` en el `.env` de la raíz.
 
+## Modelos de IA por defecto
+
+Se usan en el orden de `ASISTENTE_PROVEEDORES`. Todos los modelos se llaman con function calling
+(herramientas) por la API compatible con OpenAI de cada proveedor.
+
+| Proveedor | Variable          | Valor por defecto        | Nota |
+|-----------|-------------------|--------------------------|------|
+| Gemini    | `GEMINI_MODELO`   | `gemini-3.5-flash-lite`  | `gemini-2.5-flash` ya no se habilita en proyectos nuevos (404). `gemini-3.8-flash` también sirve, pero suele dar 503 por alta demanda. |
+| Groq      | `GROQ_MODELO`     | `openai/gpt-oss-120b`    | `llama-3.3-70b-versatile` puede no estar disponible en tu cuenta (404 `model_not_found`). Alternativa más rápida: `openai/gpt-oss-20b`. |
+
+Los modelos que ve cada cuenta cambian con el tiempo. Para listar los tuyos sin imprimir las claves:
+
+```bash
+docker exec geotrack-asistente-1 python -c "import os,httpx; print(*sorted(m['id'] for m in httpx.get('https://api.groq.com/openai/v1/models', headers={'Authorization': 'Bearer '+os.environ['GROQ_API_KEY']}).json()['data']), sep='\n')"
+docker exec geotrack-asistente-1 python -c "import os,httpx; print(*sorted(m['name'][7:] for m in httpx.get('https://generativelanguage.googleapis.com/v1beta/models', params={'key': os.environ['GEMINI_API_KEY'], 'pageSize': 1000}).json()['models']), sep='\n')"
+```
+
+Para cambiar de modelo, define `GEMINI_MODELO` o `GROQ_MODELO` en el `.env` de la raíz y aplica el
+cambio con `docker compose up -d asistente`.
+
 ## Preparar la demo en cualquier PC
 
 Los scripts de `asistente/scripts/` usan solo la librería estándar de Python (3.9 o superior):

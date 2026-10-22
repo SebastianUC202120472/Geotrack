@@ -24,11 +24,11 @@ class Settings(BaseSettings):
     ASISTENTE_PROVEEDORES: str = "gemini,groq,openrouter,ollama"
 
     GEMINI_API_KEY: str = ""
-    GEMINI_MODELO: str = "gemini-2.5-flash"
+    GEMINI_MODELO: str = "gemini-3.5-flash-lite"
     GEMINI_URL: str = "https://generativelanguage.googleapis.com/v1beta/openai"
 
     GROQ_API_KEY: str = ""
-    GROQ_MODELO: str = "llama-3.3-70b-versatile"
+    GROQ_MODELO: str = "openai/gpt-oss-120b"
     GROQ_URL: str = "https://api.groq.com/openai/v1"
 
     OPENROUTER_API_KEY: str = ""

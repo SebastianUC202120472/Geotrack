@@ -65,9 +65,9 @@ services:
       ASISTENTE_CORE_API_URL: http://backend:8000/api
       ASISTENTE_PROVEEDORES: ${ASISTENTE_PROVEEDORES:-gemini,groq,openrouter,ollama}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODELO: ${GEMINI_MODELO:-gemini-2.5-flash}
+      GEMINI_MODELO: ${GEMINI_MODELO:-gemini-3.5-flash-lite}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
-      GROQ_MODELO: ${GROQ_MODELO:-llama-3.3-70b-versatile}
+      GROQ_MODELO: ${GROQ_MODELO:-openai/gpt-oss-120b}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODELO: ${OPENROUTER_MODELO:-meta-llama/llama-3.3-70b-instruct:free}
       OLLAMA_URL: ${OLLAMA_URL:-}
