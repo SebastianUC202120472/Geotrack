@@ -49,6 +49,29 @@ def test_filtros_opcionales_se_envian_anulables():
     assert validar_argumentos("recojos_almacen", {"cliente": None, "estado": None, "presentar": None}) == {}
 
 
+def test_conductor_en_ruta_sin_gps_no_figura_con_ubicacion():
+    """Un conductor con ruta cuya app nunca envio su posicion va a 'sin ubicacion' y no cuenta como en linea."""
+    nucleo = NucleoFalso()
+    original = nucleo._responder
+
+    def responder(ruta, request):
+        if ruta == "/api/dashboard/flota/ubicaciones":
+            return httpx.Response(200, json=[{
+                "conductor_id": 3, "conductor": "Rosa Medina", "ruta": "Ruta tarde Pueblo Libre",
+                "latitud": None, "longitud": None, "actualizado_en": None, "en_linea": False, "pausado": False,
+                "paradas": [{"latitud": -12.07, "longitud": -77.06, "destinatario": "Pedro Vargas", "secuencia": 1, "estado": "PENDIENTE"}],
+            }])
+        return original(ruta, request)
+
+    nucleo._responder = responder
+    r = asyncio.run(F.ubicacion_conductores(_contexto(nucleo), {}))
+    assert r.datos["conductores_con_ubicacion"] == []
+    assert r.datos["en_linea_ahora"] == 0
+    rosa = r.datos["conductores_sin_ubicacion"][0]
+    assert rosa["conductor"] == "Rosa Medina" and "desconectado" in rosa["situacion"]
+    assert rosa["paradas_pendientes"] == 1
+
+
 def test_resumen_del_dia_cuenta_entregados_de_hoy():
     """Los entregados de hoy se cuentan por su fecha de entrega local."""
     nucleo = NucleoFalso()

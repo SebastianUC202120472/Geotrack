@@ -380,17 +380,13 @@ async def ubicacion_conductores(ctx: Contexto, a: dict) -> Resultado:
         ubicaciones = [u for u in ubicaciones if _contiene(u.get("conductor"), nombre)]
         conductores = [c for c in conductores if _contiene(c.get("nombre"), nombre)]
 
-    con_senal = []
+    con_senal, en_ruta_sin_gps = [], []
     for u in ubicaciones:
         pendientes = [p for p in u.get("paradas", []) if p.get("estado") not in ("ENTREGADO", "FALLIDO")]
         proxima = min(pendientes, key=lambda p: p.get("secuencia") or 9999, default=None)
-        con_senal.append({
+        base = {
             "conductor": u.get("conductor"),
             "ruta": u.get("ruta"),
-            "zona_aproximada": zona_aproximada(u.get("latitud"), u.get("longitud")),
-            "ultima_senal": texto_fecha_hora(u.get("actualizado_en")),
-            "hace": _hace(u.get("actualizado_en")),
-            "en_linea": u.get("en_linea", False),
             "pausado_por_auxilio": u.get("pausado", False),
             "paradas_pendientes": len(pendientes),
             "proxima_parada": {
@@ -398,12 +394,26 @@ async def ubicacion_conductores(ctx: Contexto, a: dict) -> Resultado:
                 "destinatario": proxima.get("destinatario"),
                 "zona_aproximada": zona_aproximada(proxima.get("latitud"), proxima.get("longitud")),
             } if proxima else None,
-            "latitud": round(u["latitud"], 4) if u.get("latitud") is not None else None,
-            "longitud": round(u["longitud"], 4) if u.get("longitud") is not None else None,
+        }
+        # Con ruta pero sin ningun punto enviado: NO tiene ubicacion. Se separa para que el modelo
+        # no lo cuente como "en linea" por estar en la lista de ubicaciones.
+        if u.get("latitud") is None or u.get("longitud") is None:
+            en_ruta_sin_gps.append({**base, "situacion": "en ruta, pero la app aún no envió su ubicación (desconectado)"})
+            continue
+        en_linea = bool(u.get("en_linea", False))
+        con_senal.append({
+            **base,
+            "senal": "en línea" if en_linea else f"desconectado (última señal {_hace(u.get('actualizado_en')) or 'sin dato'})",
+            "en_linea": en_linea,
+            "zona_aproximada": zona_aproximada(u.get("latitud"), u.get("longitud")),
+            "ultima_senal": texto_fecha_hora(u.get("actualizado_en")),
+            "hace": _hace(u.get("actualizado_en")),
+            "latitud": round(u["latitud"], 4),
+            "longitud": round(u["longitud"], 4),
         })
 
-    nombres_con_senal = {_normal(c["conductor"]) for c in con_senal}
-    sin_senal = [
+    nombres_con_senal = {_normal(c["conductor"]) for c in con_senal + en_ruta_sin_gps}
+    sin_senal = en_ruta_sin_gps + [
         {
             "conductor": c.get("nombre"),
             "situacion": "en ruta pero sin señal de ubicación reciente" if c.get("en_ruta") else "sin ruta activa ahora",
@@ -416,7 +426,9 @@ async def ubicacion_conductores(ctx: Contexto, a: dict) -> Resultado:
     datos = {
         "conductores_con_ubicacion": con_senal,
         "conductores_sin_ubicacion": sin_senal[:15],
-        "nota": "La zona es aproximada (distrito más cercano al último punto enviado por la app).",
+        "en_linea_ahora": sum(1 for c in con_senal if c["en_linea"]),
+        "nota": "La zona es aproximada (distrito más cercano al último punto enviado por la app). "
+                "Solo están en línea los que tienen senal 'en línea'; los demás están desconectados.",
     }
     if nombre and not con_senal and not sin_senal:
         datos["resultado"] = f"No hay ningún conductor que coincida con '{nombre}'."

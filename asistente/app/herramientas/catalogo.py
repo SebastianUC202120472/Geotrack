@@ -157,20 +157,31 @@ def nombres_para_rol(rol: str) -> list[str]:
     return [nombre for nombre, d in DEFINICIONES.items() if rol in d["roles"]]
 
 
-def _anulable(regla: dict) -> dict:
-    """Copia de la regla que tambien admite null. Algunos modelos (gpt-oss en Groq) mandan null en
-    los filtros que no usan y Groq rechaza la llamada si el esquema no lo permite. Recibe la regla."""
-    copia = dict(regla)
-    if isinstance(copia.get("type"), str):
-        copia["type"] = [copia["type"], "null"]
-    if "enum" in copia:
-        copia["enum"] = [*copia["enum"], None]
+# Reglas que valida el servidor (validar_argumentos) y que no hace falta mandarle al modelo:
+# se repiten en casi todas las funciones y solo gastan tokens de cada pregunta.
+_SOLO_SERVIDOR = ("maxLength", "minimum", "pattern")
+
+
+def _para_modelo(regla: dict, requerido: bool) -> dict:
+    """Version compacta de la regla que se envia al modelo. Recibe la regla y si es obligatoria.
+    - Sin las restricciones que ya valida el servidor.
+    - 'presentar' sin descripcion: su uso se explica una sola vez en las instrucciones.
+    - Los filtros opcionales admiten null: algunos modelos (gpt-oss en Groq) mandan null en los
+      que no usan y Groq rechaza la llamada si el esquema no lo permite."""
+    copia = {k: v for k, v in regla.items() if k not in _SOLO_SERVIDOR}
+    if regla is _PRESENTAR:
+        copia.pop("description", None)
+    if not requerido:
+        if isinstance(copia.get("type"), str):
+            copia["type"] = [copia["type"], "null"]
+        if "enum" in copia:
+            copia["enum"] = [*copia["enum"], None]
     return copia
 
 
 def herramientas_para_rol(rol: str) -> list[dict]:
-    """Definiciones en formato 'tools' (compatible OpenAI) para un rol. Recibe el rol.
-    Los filtros opcionales se declaran anulables; validar_argumentos ignora los null."""
+    """Definiciones en formato 'tools' (compatible OpenAI) para un rol, en version compacta.
+    Recibe el rol. Solo incluye las funciones de ese rol; validar_argumentos aplica las reglas completas."""
     salida = []
     for nombre in nombres_para_rol(rol):
         d = DEFINICIONES[nombre]
@@ -183,7 +194,7 @@ def herramientas_para_rol(rol: str) -> list[dict]:
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        clave: regla if clave in requeridos else _anulable(regla)
+                        clave: _para_modelo(regla, clave in requeridos)
                         for clave, regla in d["parametros"].items()
                     },
                     "required": requeridos,
