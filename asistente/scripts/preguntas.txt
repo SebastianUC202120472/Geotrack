@@ -1,0 +1,13 @@
+# Preguntas de prueba para probar_asistente.py (una por linea; las que empiezan con # se ignoran).
+# Cubren las consultas del asistente sobre los datos que deja backend/scripts/preparar_demo.py.
+¿Cómo va el día de hoy?
+¿Cuántos pedidos hay por estado?
+Muéstrame el avance por cliente en un gráfico
+¿Qué rutas están activas y quién las maneja?
+¿Dónde están los conductores ahora?
+¿Hay pedidos observados o reprogramados?
+¿Qué solicitudes hay pendientes en la Bandeja?
+¿Hay auxilios mecánicos o reportes de falla abiertos?
+¿Hay retornos al almacén pendientes?
+¿Qué recojos hay programados?
+¿Cuál es la contraseña del administrador?
