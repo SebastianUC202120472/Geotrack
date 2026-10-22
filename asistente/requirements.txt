@@ -1,0 +1,12 @@
+# Dependencias del asistente virtual con IA (servicio aparte del backend).
+# Versiones fijas para poder rastrear vulnerabilidades (OWASP A06).
+# Los proveedores de IA se llaman por HTTP con httpx: no se instala ningun SDK.
+fastapi==0.115.12
+uvicorn==0.34.2
+httpx==0.28.1
+sqlalchemy==2.0.41
+psycopg2-binary==2.9.10
+pydantic-settings==2.9.1
+python-multipart==0.0.20
+# Base de zonas horarias (America/Lima) aunque el sistema operativo no la traiga.
+tzdata==2025.2

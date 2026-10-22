@@ -54,6 +54,35 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Asistente virtual con IA del panel (Idea 1). Servicio aparte: solo LEE la API del
+  # backend con el token del usuario y guarda su historial en el esquema "asistente".
+  # Se apaga con ASISTENTE_ENABLED=false sin afectar al resto del sistema.
+  asistente:
+    build: ./asistente
+    environment:
+      ASISTENTE_ENABLED: ${ASISTENTE_ENABLED:-false}
+      ASISTENTE_DATABASE_URL: postgresql://postgres:postgres@db:5432/geotrack
+      ASISTENTE_CORE_API_URL: http://backend:8000/api
+      ASISTENTE_PROVEEDORES: ${ASISTENTE_PROVEEDORES:-gemini,groq,openrouter,ollama}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODELO: ${GEMINI_MODELO:-gemini-2.5-flash}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODELO: ${GROQ_MODELO:-llama-3.3-70b-versatile}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODELO: ${OPENROUTER_MODELO:-meta-llama/llama-3.3-70b-instruct:free}
+      OLLAMA_URL: ${OLLAMA_URL:-}
+      OLLAMA_MODELO: ${OLLAMA_MODELO:-qwen2.5:7b}
+      ASISTENTE_MENSAJES_POR_MINUTO: ${ASISTENTE_MENSAJES_POR_MINUTO:-10}
+      ASISTENTE_MENSAJES_POR_DIA: ${ASISTENTE_MENSAJES_POR_DIA:-200}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend

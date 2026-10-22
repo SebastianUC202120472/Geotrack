@@ -1,9 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import Sidebar from "./Sidebar";
 import Logo from "./ui/Logo";
 import Topbar from "./Topbar";
+
+// Asistente virtual con IA (modulo aparte, carga diferida): si su servicio esta apagado no se muestra.
+const AsistenteFlotante = lazy(() => import("../modulos/asistente/AsistenteFlotante"));
 
 // Layout principal del panel: sidebar fijo en escritorio, drawer en móvil, Outlet como contenido.
 export default function LayoutAdmin() {
@@ -61,6 +64,10 @@ export default function LayoutAdmin() {
           </div>
         </main>
       </div>
+
+      <Suspense fallback={null}>
+        <AsistenteFlotante />
+      </Suspense>
     </div>
   );
 }
