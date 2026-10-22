@@ -1,101 +1,88 @@
 import React, { useState, useEffect } from "react";
-import { Truck, Search, Filter, Plus, FileText, CheckCircle2 } from "lucide-react";
+import { Truck, Search, Filter, Plus, FileText, CheckCircle2, AlertCircle, History } from "lucide-react";
 
 export function ModuloCapacidadPage() {
   const [modelos, setModelos] = useState([]);
+  const [vinculaciones, setVinculaciones] = useState([]); // Guardará la lista de placas en BD
   const [busqueda, setBusqueda] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("todos");
   const [placa, setPlaca] = useState("");
   const [modeloSeleccionado, setModeloSeleccionado] = useState("");
   const [mensaje, setMensaje] = useState(null);
 
-  const datos60Modelos = [
-    // 1 - 15: Pick-ups
-    { id: 1, marca: "Toyota", modelo: "Hilux Pick-up", tipo: "pickup", largo: 1.52, ancho: 1.51, alto: 0.48, volumen: 1.10, carga: 1000, fuente: "Ficha técnica oficial Toyota Hilux" },
-    { id: 2, marca: "Ford", modelo: "Ranger", tipo: "pickup", largo: 1.56, ancho: 1.58, alto: 0.51, volumen: 1.26, carga: 1000, fuente: "Ficha técnica oficial Ford Ranger" },
-    { id: 3, marca: "Mitsubishi", modelo: "L200", tipo: "pickup", largo: 1.52, ancho: 1.47, alto: 0.46, volumen: 1.03, carga: 1000, fuente: "Ficha técnica oficial Mitsubishi L200" },
-    { id: 4, marca: "Nissan", modelo: "Frontier", tipo: "pickup", largo: 1.51, ancho: 1.56, alto: 0.47, volumen: 1.11, carga: 1000, fuente: "Ficha técnica oficial Nissan Frontier" },
-    { id: 5, marca: "Chevrolet", modelo: "D-Max", tipo: "pickup", largo: 1.48, ancho: 1.53, alto: 0.48, volumen: 1.09, carga: 1000, fuente: "Ficha técnica oficial Chevrolet D-Max" },
-    { id: 6, marca: "Volkswagen", modelo: "Amarok", tipo: "pickup", largo: 1.56, ancho: 1.62, alto: 0.51, volumen: 1.29, carga: 1000, fuente: "Ficha técnica oficial Volkswagen Amarok" },
-    { id: 7, marca: "Mazda", modelo: "BT-50", tipo: "pickup", largo: 1.57, ancho: 1.53, alto: 0.49, volumen: 1.18, carga: 1000, fuente: "Ficha técnica oficial Mazda BT-50" },
-    { id: 8, marca: "GWM", modelo: "Poer", tipo: "pickup", largo: 1.52, ancho: 1.52, alto: 0.47, volumen: 1.09, carga: 1000, fuente: "Ficha técnica oficial GWM Poer" },
-    { id: 9, marca: "JMC", modelo: "Vigus", tipo: "pickup", largo: 1.47, ancho: 1.47, alto: 0.46, volumen: 0.99, carga: 900, fuente: "Ficha técnica oficial JMC Vigus" },
-    { id: 10, marca: "Foton", modelo: "Tunland", tipo: "pickup", largo: 1.52, ancho: 1.58, alto: 0.44, volumen: 1.06, carga: 1000, fuente: "Ficha técnica oficial Foton Tunland" },
-    { id: 11, marca: "JAC", modelo: "T8", tipo: "pickup", largo: 1.52, ancho: 1.52, alto: 0.47, volumen: 1.09, carga: 900, fuente: "Ficha técnica oficial JAC T8" },
-    { id: 12, marca: "Isuku", modelo: "D-Max Crew", tipo: "pickup", largo: 1.48, ancho: 1.53, alto: 0.48, volumen: 1.09, carga: 1050, fuente: "Ficha técnica oficial Isuzu D-Max" },
-    { id: 13, marca: "RAM", modelo: "700", tipo: "pickup", largo: 1.35, ancho: 1.31, alto: 0.40, volumen: 0.71, carga: 650, fuente: "Ficha técnica oficial RAM 700" },
-    { id: 14, marca: "RAM", modelo: "1500", tipo: "pickup", largo: 1.71, ancho: 1.68, alto: 0.54, volumen: 1.55, carga: 800, fuente: "Ficha técnica oficial RAM 1500" },
-    { id: 15, marca: "Fiat", modelo: "Strada", tipo: "pickup", largo: 1.35, ancho: 1.31, alto: 0.40, volumen: 0.71, carga: 650, fuente: "Ficha técnica oficial Fiat Strada" },
-
-    // 16 - 30: Furgones y Vans
-    { id: 16, marca: "Hyundai", modelo: "H1 Van", tipo: "furgon", largo: 2.37, ancho: 1.62, alto: 1.34, volumen: 5.15, carga: 1200, fuente: "Ficha técnica oficial Hyundai H1" },
-    { id: 17, marca: "Peugeot", modelo: "Partner", tipo: "furgon", largo: 1.81, ancho: 1.23, alto: 1.25, volumen: 3.30, carga: 800, fuente: "Ficha técnica oficial Peugeot Partner" },
-    { id: 18, marca: "Peugeot", modelo: "Boxer", tipo: "furgon", largo: 3.12, ancho: 1.87, alto: 1.93, volumen: 11.50, carga: 1500, fuente: "Ficha técnica oficial Peugeot Boxer" },
-    { id: 19, marca: "Citroën", modelo: "Berlingo", tipo: "furgon", largo: 1.81, ancho: 1.23, alto: 1.25, volumen: 3.30, carga: 800, fuente: "Ficha técnica oficial Citroën Berlingo" },
-    { id: 20, marca: "Citroën", modelo: "Jumper", tipo: "furgon", largo: 3.12, ancho: 1.87, alto: 1.93, volumen: 11.50, carga: 1500, fuente: "Ficha técnica oficial Citroën Jumper" },
-    { id: 21, marca: "Renault", modelo: "Kangoo", tipo: "furgon", largo: 1.73, ancho: 1.22, alto: 1.17, volumen: 3.00, carga: 750, fuente: "Ficha técnica oficial Renault Kangoo" },
-    { id: 22, marca: "Renault", modelo: "Master", tipo: "furgon", largo: 3.08, ancho: 1.76, alto: 1.89, volumen: 10.80, carga: 1600, fuente: "Ficha técnica oficial Renault Master" },
-    { id: 23, marca: "Mercedes-Benz", modelo: "Sprinter 315", tipo: "furgon", largo: 3.27, ancho: 1.78, alto: 1.94, volumen: 11.00, carga: 1400, fuente: "Ficha técnica oficial MB Sprinter" },
-    { id: 24, marca: "Mercedes-Benz", modelo: "Vito", tipo: "furgon", largo: 2.53, ancho: 1.68, alto: 1.39, volumen: 6.00, carga: 1000, fuente: "Ficha técnica oficial MB Vito" },
-    { id: 25, marca: "Volkswagen", modelo: "Caddy", tipo: "furgon", largo: 1.78, ancho: 1.25, alto: 1.27, volumen: 3.20, carga: 700, fuente: "Ficha técnica oficial VW Caddy" },
-    { id: 26, marca: "Volkswagen", modelo: "Crafter", tipo: "furgon", largo: 3.45, ancho: 1.83, alto: 1.96, volumen: 12.00, carga: 1500, fuente: "Ficha técnica oficial VW Crafter" },
-    { id: 27, marca: "Ford", modelo: "Transit Van", tipo: "furgon", largo: 3.04, ancho: 1.78, alto: 1.88, volumen: 10.00, carga: 1400, fuente: "Ficha técnica oficial Ford Transit" },
-    { id: 28, marca: "Nissan", modelo: "NV350 Urvan", tipo: "furgon", largo: 2.86, ancho: 1.52, alto: 1.35, volumen: 5.80, carga: 1300, fuente: "Ficha técnica oficial Nissan NV350" },
-    { id: 29, marca: "Chevrolet", modelo: "N400 Max", tipo: "furgon", largo: 2.10, ancho: 1.40, alto: 1.30, volumen: 3.80, carga: 720, fuente: "Ficha técnica oficial Chevrolet N400" },
-    { id: 30, marca: "Changan", modelo: "Grand Supervan", tipo: "furgon", largo: 2.50, ancho: 1.48, alto: 1.35, volumen: 5.00, carga: 1000, fuente: "Ficha técnica oficial Changan Supervan" },
-
-    // 31 - 45: Camiones Ligeros y Medianos
-    { id: 31, marca: "Hyundai", modelo: "H100 Baranda", tipo: "camion_ligero", largo: 3.20, ancho: 1.80, alto: 0.40, volumen: 2.30, carga: 1500, fuente: "Ficha técnica oficial Hyundai H100" },
-    { id: 32, marca: "Hyundai", modelo: "EX8 Furgón", tipo: "camion_ligero", largo: 4.80, ancho: 2.10, alto: 2.10, volumen: 21.10, carga: 5000, fuente: "Ficha técnica oficial Hyundai EX8" },
-    { id: 33, marca: "Isuzu", modelo: "NLR 3.1", tipo: "camion_ligero", largo: 3.10, ancho: 1.85, alto: 1.90, volumen: 10.80, carga: 3000, fuente: "Ficha técnica oficial Isuzu NLR" },
-    { id: 34, marca: "Isuzu", modelo: "NPR 75", tipo: "camion_ligero", largo: 4.30, ancho: 2.05, alto: 2.00, volumen: 17.60, carga: 5000, fuente: "Ficha técnica oficial Isuzu NPR" },
-    { id: 35, marca: "Hino", modelo: "Dutro 300 (4t)", tipo: "camion_ligero", largo: 4.20, ancho: 2.00, alto: 2.00, volumen: 16.80, carga: 4000, fuente: "Ficha técnica oficial Hino Dutro 300" },
-    { id: 36, marca: "Hino", modelo: "500 (10t)", tipo: "camion_mediano", largo: 6.50, ancho: 2.40, alto: 2.40, volumen: 37.40, carga: 10000, fuente: "Ficha técnica oficial Hino 500" },
-    { id: 37, marca: "Foton", modelo: "Aumark 6t", tipo: "camion_ligero", largo: 5.20, ancho: 2.15, alto: 2.15, volumen: 24.00, carga: 6000, fuente: "Ficha técnica oficial Foton Aumark" },
-    { id: 38, marca: "JAC", modelo: "Urban HFC 1042", tipo: "camion_ligero", largo: 3.80, ancho: 1.90, alto: 1.90, volumen: 13.70, carga: 3500, fuente: "Ficha técnica oficial JAC Urban" },
-    { id: 39, marca: "Mitsubishi Fuso", modelo: "Canter 5t", tipo: "camion_ligero", largo: 4.50, ancho: 2.00, alto: 2.00, volumen: 18.00, carga: 5000, fuente: "Ficha técnica oficial Fuso Canter" },
-    { id: 40, marca: "Mitsubishi Fuso", modelo: "FI 12t", tipo: "camion_mediano", largo: 6.20, ancho: 2.35, alto: 2.30, volumen: 33.50, carga: 8500, fuente: "Ficha técnica oficial Fuso FI" },
-    { id: 41, marca: "Dongfeng", modelo: "Captain-E", tipo: "camion_ligero", largo: 4.20, ancho: 2.00, alto: 1.90, volumen: 15.90, carga: 4000, fuente: "Ficha técnica oficial Dongfeng Captain" },
-    { id: 42, marca: "Shacman", modelo: "L3000", tipo: "camion_mediano", largo: 6.80, ancho: 2.45, alto: 2.50, volumen: 41.60, carga: 12000, fuente: "Ficha técnica oficial Shacman L3000" },
-    { id: 43, marca: "Volvo", modelo: "FL 280", tipo: "camion_mediano", largo: 7.20, ancho: 2.48, alto: 2.55, volumen: 45.50, carga: 14000, fuente: "Ficha técnica oficial Volvo FL" },
-    { id: 44, marca: "Scania", modelo: "P280", tipo: "camion_mediano", largo: 7.50, ancho: 2.50, alto: 2.60, volumen: 48.70, carga: 15000, fuente: "Ficha técnica oficial Scania P280" },
-    { id: 45, marca: "International", modelo: "MV Series", tipo: "camion_mediano", largo: 7.00, ancho: 2.45, alto: 2.50, volumen: 42.80, carga: 13000, fuente: "Ficha técnica oficial International MV" },
-
-    // 46 - 60: Camiones Pesados, Tráileres y Remolques
-    { id: 46, marca: "Volvo", modelo: "FH 500 6x4", tipo: "pesado", largo: 13.60, ancho: 2.50, alto: 2.70, volumen: 91.80, carga: 30000, fuente: "Ficha técnica oficial Volvo FH" },
-    { id: 47, marca: "Volvo", modelo: "FM 420 4x2", tipo: "pesado", largo: 12.50, ancho: 2.50, alto: 2.60, volumen: 81.25, carga: 25000, fuente: "Ficha técnica oficial Volvo FM" },
-    { id: 48, marca: "Scania", modelo: "R500 6x2", tipo: "pesado", largo: 13.60, ancho: 2.50, alto: 2.70, volumen: 91.80, carga: 32000, fuente: "Ficha técnica oficial Scania R500" },
-    { id: 49, marca: "Scania", modelo: "G450 6x4", tipo: "pesado", largo: 13.00, ancho: 2.50, alto: 2.65, volumen: 86.10, carga: 28000, fuente: "Ficha técnica oficial Scania G450" },
-    { id: 50, marca: "Mercedes-Benz", modelo: "Actros 2651", tipo: "pesado", largo: 13.60, ancho: 2.50, alto: 2.70, volumen: 91.80, carga: 30000, fuente: "Ficha técnica oficial MB Actros" },
-    { id: 51, marca: "Mercedes-Benz", modelo: "Arocs 3345", tipo: "pesado", largo: 12.80, ancho: 2.50, alto: 2.60, volumen: 83.20, carga: 27000, fuente: "Ficha técnica oficial MB Arocs" },
-    { id: 52, marca: "International", modelo: "LT625", tipo: "pesado", largo: 13.60, ancho: 2.50, alto: 2.75, volumen: 93.50, carga: 30000, fuente: "Ficha técnica oficial International LT" },
-    { id: 53, marca: "Kenworth", modelo: "T680", tipo: "pesado", largo: 13.60, ancho: 2.50, alto: 2.75, volumen: 93.50, carga: 32000, fuente: "Ficha técnica oficial Kenworth T680" },
-    { id: 54, marca: "Freightliner", modelo: "Cascadia", tipo: "pesado", largo: 13.60, ancho: 2.50, alto: 2.75, volumen: 93.50, carga: 32000, fuente: "Ficha técnica oficial Freightliner Cascadia" },
-    { id: 55, marca: "Howo", modelo: "Sinotruk A7", tipo: "pesado", largo: 13.00, ancho: 2.50, alto: 2.60, volumen: 84.50, carga: 28000, fuente: "Ficha técnica oficial Howo A7" },
-    { id: 56, marca: "FAW", modelo: "Jiefang J6P", tipo: "pesado", largo: 12.80, ancho: 2.50, alto: 2.60, volumen: 83.20, carga: 26000, fuente: "Ficha técnica oficial FAW J6P" },
-    { id: 57, marca: "Shacman", modelo: "X3000", tipo: "pesado", largo: 13.50, ancho: 2.50, alto: 2.70, volumen: 91.10, carga: 30000, fuente: "Ficha técnica oficial Shacman X3000" },
-    { id: 58, marca: "CAMC", modelo: "Hanma H9", tipo: "pesado", largo: 13.00, ancho: 2.50, alto: 2.65, volumen: 86.10, carga: 28000, fuente: "Ficha técnica oficial CAMC H9" },
-    { id: 59, marca: "DAF", modelo: "XF 530", tipo: "pesado", largo: 13.60, ancho: 2.50, alto: 2.70, volumen: 91.80, carga: 30000, fuente: "Ficha técnica oficial DAF XF" },
-    { id: 60, marca: "IVECO", modelo: "Stralis Hi-Way", tipo: "pesado", largo: 13.60, ancho: 2.50, alto: 2.70, volumen: 91.80, carga: 30000, fuente: "Ficha técnica oficial IVECO Stralis" }
-  ];
-
+  // 1. Cargar catálogo y vinculaciones al montar el componente
   useEffect(() => {
-    fetch("/api/v1/capacidad/modelos")
+    cargarCatalogo();
+    cargarVinculaciones();
+  }, []);
+
+  const cargarCatalogo = () => {
+    fetch("http://localhost:8000/api/modulo-capacidad/catalogo")
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) setModelos(data);
+      })
+      .catch((err) => console.error("Error al cargar catálogo:", err));
+  };
+
+  const cargarVinculaciones = () => {
+    fetch("http://localhost:8000/api/modulo-capacidad/vincular")
       .then((res) => {
-        if (!res.ok) throw new Error("Endpoint no encontrado");
-        return res.json();
+        if (res.ok) return res.json();
+        return [];
       })
       .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setModelos(data);
-        } else {
-          setModelos(datos60Modelos);
-        }
+        if (Array.isArray(data)) setVinculaciones(data);
       })
-      .catch(() => {
-        setModelos(datos60Modelos);
+      .catch((err) => console.error("Error al obtener vinculaciones:", err));
+  };
+
+  const handleVincular = async (e) => {
+    e.preventDefault();
+    setMensaje(null);
+
+    if (!placa.trim() || !modeloSeleccionado) {
+      setMensaje({
+        tipo: "error",
+        texto: "Por favor, ingrese la placa y seleccione un modelo del catálogo.",
       });
-  }, []);
+      return;
+    }
+
+    try {
+      const response = await fetch("http://localhost:8000/api/modulo-capacidad/vincular", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          placa: placa.toUpperCase(),
+          modelo_id: modeloSeleccionado,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Error en la vinculación con el backend.");
+      }
+
+      const data = await response.json();
+
+      setMensaje({
+        tipo: "exito",
+        texto: `¡Vinculación exitosa! Placa ${data.placa} asociada a ${data.modelo.marca} ${data.modelo.modelo}.`,
+      });
+
+      // Agregar la nueva vinculación a la lista persistente local
+      setVinculaciones((prev) => [data, ...prev]);
+
+      setPlaca("");
+      setModeloSeleccionado("");
+    } catch (err) {
+      setMensaje({
+        tipo: "error",
+        texto: err.message || "Error al conectar con el servidor.",
+      });
+    }
+  };
 
   const listaSegura = Array.isArray(modelos) ? modelos : [];
 
@@ -106,15 +93,6 @@ export function ModuloCapacidadPage() {
     const coincideTipo = filtroTipo === "todos" || item.tipo === filtroTipo;
     return coincideTexto && coincideTipo;
   });
-
-  const handleVincular = (e) => {
-    e.preventDefault();
-    if (!placa || !modeloSeleccionado) return;
-    setMensaje(`Placa ${placa.toUpperCase()} vinculada correctamente al modelo.`);
-    setPlaca("");
-    setModeloSeleccionado("");
-    setTimeout(() => setMensaje(null), 4000);
-  };
 
   return (
     <div className="p-6 md:p-8 space-y-8 bg-slate-50 min-h-screen">
@@ -135,10 +113,21 @@ export function ModuloCapacidadPage() {
         </div>
       </div>
 
+      {/* Alerta de Respuesta */}
       {mensaje && (
-        <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl shadow-sm">
-          <CheckCircle2 size={20} className="text-emerald-600 flex-shrink-0" />
-          <p className="text-sm font-medium">{mensaje}</p>
+        <div
+          className={`flex items-center gap-3 p-4 rounded-xl shadow-sm border ${
+            mensaje.tipo === "exito"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-rose-50 border-rose-200 text-rose-800"
+          }`}
+        >
+          {mensaje.tipo === "exito" ? (
+            <CheckCircle2 size={20} className="text-emerald-600 flex-shrink-0" />
+          ) : (
+            <AlertCircle size={20} className="text-rose-600 flex-shrink-0" />
+          )}
+          <p className="text-sm font-medium">{mensaje.texto}</p>
         </div>
       )}
 
@@ -163,7 +152,7 @@ export function ModuloCapacidadPage() {
               value={placa}
               onChange={(e) => setPlaca(e.target.value)}
               placeholder="Ej. ABC-123"
-              className="w-full px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all uppercase placeholder:normal-case text-slate-800"
+              className="w-full px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all uppercase text-slate-800"
             />
           </div>
 
@@ -195,7 +184,41 @@ export function ModuloCapacidadPage() {
         </form>
       </div>
 
-      {/* Contenedor del Catálogo y Filtros */}
+      {/* NUEVA SECCIÓN: HISTORIAL DE PLACAS VINCULADAS EN BD */}
+      {vinculaciones.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+          <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+              <History size={18} />
+            </div>
+            <h2 className="text-base font-semibold text-slate-800">
+              Placas Vinculadas Registradas ({vinculaciones.length})
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {vinculaciones.map((v, i) => (
+              <div key={v.id || i} className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900 text-lg tracking-wider">{v.placa}</span>
+                  <span className="px-2 py-0.5 text-xs bg-emerald-100 text-emerald-800 font-semibold rounded-full">
+                    Activo
+                  </span>
+                </div>
+                <p className="text-sm font-medium text-slate-700">
+                  {v.modelo?.marca} {v.modelo?.modelo}
+                </p>
+                <p className="text-xs text-slate-500">
+                  Carga Útil: <strong className="text-slate-700">{v.modelo?.carga_util_kg} kg</strong> | Vol:{" "}
+                  <strong className="text-slate-700">{v.modelo?.volumen_util_m3} m³</strong>
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tabla del Catálogo Oficial */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -228,10 +251,9 @@ export function ModuloCapacidadPage() {
               >
                 <option value="todos">Todos los tipos</option>
                 <option value="pickup">Pick-up</option>
-                <option value="furgon">Furgón</option>
+                <option value="furgoneta">Furgoneta / Furgón</option>
                 <option value="camion_ligero">Camión Ligero</option>
                 <option value="camion_mediano">Camión Mediano</option>
-                <option value="pesado">Pesado / Tráiler</option>
               </select>
             </div>
           </div>
@@ -246,7 +268,7 @@ export function ModuloCapacidadPage() {
                 <th className="py-3.5 px-6">Tipo</th>
                 <th className="py-3.5 px-6">Dimensiones (L x A x H)</th>
                 <th className="py-3.5 px-6 text-center">Volumen (m³)</th>
-                <th className="py-3.5 px-6 text-center">Carga Máx (kg)</th>
+                <th className="py-3.5 px-6 text-center">Carga Útil (kg)</th>
                 <th className="py-3.5 px-6">Fuente</th>
               </tr>
             </thead>
@@ -261,16 +283,16 @@ export function ModuloCapacidadPage() {
                     </span>
                   </td>
                   <td className="py-4 px-6 font-mono text-xs text-slate-600">
-                    {item.largo} x {item.ancho} x {item.alto} m
+                    {item.largo_m ?? item.largo} x {item.ancho_m ?? item.ancho} x {item.alto_m ?? item.alto} m
                   </td>
                   <td className="py-4 px-6 text-center font-semibold text-blue-600">
-                    {item.volumen} m³
+                    {item.volumen_util_m3 ?? item.volumen} m³
                   </td>
                   <td className="py-4 px-6 text-center font-medium text-slate-800">
-                    {item.carga} kg
+                    {item.carga_util_kg ?? item.carga} kg
                   </td>
                   <td className="py-4 px-6 text-xs text-slate-400 flex items-center gap-1.5">
-                    <FileText size={14} className="text-slate-400" />
+                    <FileText size={14} className="text-slate-400 flex-shrink-0" />
                     {item.fuente}
                   </td>
                 </tr>

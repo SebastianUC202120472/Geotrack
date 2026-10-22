@@ -128,7 +128,7 @@ app.include_router(almacen_router, prefix="/api/almacen", tags=["Almacén (Ingre
 app.include_router(notificaciones_router, prefix="/api/notificaciones", tags=["Notificaciones"])
 app.include_router(portal_router, prefix="/api/portal", tags=["Portal Público"])
 app.include_router(reclamos_router, prefix="/api/reclamos", tags=["Libro de Reclamaciones"])
-app.include_router(modulo_capacidad_router, prefix="/api/modulo-capacidad", tags=["Catálogo y Capacidad"])
+app.include_router(modulo_capacidad_router, prefix="/api/modulo-capacidad")
 
 @app.get("/")
 def health_check():
