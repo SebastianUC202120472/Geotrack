@@ -157,11 +157,24 @@ def nombres_para_rol(rol: str) -> list[str]:
     return [nombre for nombre, d in DEFINICIONES.items() if rol in d["roles"]]
 
 
+def _anulable(regla: dict) -> dict:
+    """Copia de la regla que tambien admite null. Algunos modelos (gpt-oss en Groq) mandan null en
+    los filtros que no usan y Groq rechaza la llamada si el esquema no lo permite. Recibe la regla."""
+    copia = dict(regla)
+    if isinstance(copia.get("type"), str):
+        copia["type"] = [copia["type"], "null"]
+    if "enum" in copia:
+        copia["enum"] = [*copia["enum"], None]
+    return copia
+
+
 def herramientas_para_rol(rol: str) -> list[dict]:
-    """Definiciones en formato 'tools' (compatible OpenAI) para un rol. Recibe el rol."""
+    """Definiciones en formato 'tools' (compatible OpenAI) para un rol. Recibe el rol.
+    Los filtros opcionales se declaran anulables; validar_argumentos ignora los null."""
     salida = []
     for nombre in nombres_para_rol(rol):
         d = DEFINICIONES[nombre]
+        requeridos = d.get("requeridos", [])
         salida.append({
             "type": "function",
             "function": {
@@ -169,8 +182,11 @@ def herramientas_para_rol(rol: str) -> list[dict]:
                 "description": d["descripcion"],
                 "parameters": {
                     "type": "object",
-                    "properties": d["parametros"],
-                    "required": d.get("requeridos", []),
+                    "properties": {
+                        clave: regla if clave in requeridos else _anulable(regla)
+                        for clave, regla in d["parametros"].items()
+                    },
+                    "required": requeridos,
                 },
             },
         })

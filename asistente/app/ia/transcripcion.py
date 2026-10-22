@@ -4,6 +4,7 @@
 import httpx
 
 from app.core.config import settings
+from app.ia.proveedores import timeout_http_ia
 
 
 class ErrorAudio(ValueError):
@@ -65,7 +66,7 @@ async def transcribir(contenido: bytes, http: httpx.AsyncClient | None = None) -
         if http is not None:
             r = await http.post(url, data=datos, files=archivos, headers=cabeceras)
         else:
-            async with httpx.AsyncClient(timeout=settings.ASISTENTE_IA_TIMEOUT_SEG) as cliente:
+            async with httpx.AsyncClient(timeout=timeout_http_ia()) as cliente:
                 r = await cliente.post(url, data=datos, files=archivos, headers=cabeceras)
     except httpx.HTTPError as exc:
         raise ErrorTranscripcion("No se pudo conectar con el servicio de transcripción") from exc

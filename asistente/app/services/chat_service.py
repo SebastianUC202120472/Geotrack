@@ -30,6 +30,8 @@ from app.repositories import auditoria_repository, conversacion_repository
 from app.services.privacidad import RestituidorFlujo, Seudonimos, enmascarar_texto, sanear_datos
 
 _MAX_LLAMADAS_POR_RONDA = 4
+# Lo que ve el usuario cuando ningun proveedor de IA responde (el detalle tecnico va al log).
+MENSAJE_SATURADO = "El asistente está saturado, intenta en unos segundos."
 
 
 def _evento(tipo: str, **datos) -> dict:
@@ -211,7 +213,7 @@ async def conversar(
         yield _evento("error", codigo=401, texto="Tu sesión expiró. Vuelve a iniciar sesión.")
     except SinProveedores as exc:
         log.warning("Sin proveedores de IA: %s", exc)
-        yield _evento("error", codigo=503, texto="El asistente no está disponible en este momento. Inténtalo en unos minutos.")
+        yield _evento("error", codigo=503, texto=MENSAJE_SATURADO)
     except ErrorProveedor as exc:
         log.warning("La respuesta se corto a mitad: %s", exc)
         yield _evento("error", codigo=503, texto="La respuesta se interrumpió. Vuelve a preguntar, por favor.")

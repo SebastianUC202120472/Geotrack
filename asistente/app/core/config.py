@@ -20,8 +20,10 @@ class Settings(BaseSettings):
     # Origenes permitidos (solo para desarrollo con Vite; en Docker todo llega por Nginx).
     ASISTENTE_CORS_ORIGINS: str = ""
 
-    # Orden de respaldo de los proveedores de IA: si uno falla o llega a su limite, pasa al siguiente.
-    ASISTENTE_PROVEEDORES: str = "gemini,groq,openrouter,ollama"
+    # Orden de respaldo de los proveedores de IA: si uno falla, llega a su limite o no responde
+    # a tiempo, pasa al siguiente. Nombres validos: gemini, groq, groq_respaldo, openrouter,
+    # ollama, anthropic y openai (los que no tengan clave o modelo se omiten solos).
+    ASISTENTE_PROVEEDORES: str = "gemini,groq,groq_respaldo,openrouter,ollama"
 
     GEMINI_API_KEY: str = ""
     GEMINI_MODELO: str = "gemini-3.5-flash-lite"
@@ -29,6 +31,9 @@ class Settings(BaseSettings):
 
     GROQ_API_KEY: str = ""
     GROQ_MODELO: str = "openai/gpt-oss-120b"
+    # Segundo modelo de Groq con la misma clave: Groq pone los limites por modelo, asi que
+    # cuando el principal llega a su limite este suele seguir libre. Vacio = sin respaldo.
+    GROQ_MODELO_RESPALDO: str = "openai/gpt-oss-20b"
     GROQ_URL: str = "https://api.groq.com/openai/v1"
 
     OPENROUTER_API_KEY: str = ""
@@ -47,7 +52,12 @@ class Settings(BaseSettings):
     OPENAI_MODELO: str = "gpt-4o-mini"
     OPENAI_URL: str = "https://api.openai.com/v1"
 
-    ASISTENTE_IA_TIMEOUT_SEG: float = 45.0
+    # Tiempos de espera con los proveedores de IA. TIMEOUT_SEG es la espera maxima entre dos
+    # fragmentos de la respuesta; PRIMER_FRAGMENTO_SEG es el plazo para que empiece a llegar
+    # algo: si se vence, se pasa al siguiente proveedor sin que el usuario vea nada a medias.
+    ASISTENTE_IA_TIMEOUT_SEG: float = 20.0
+    ASISTENTE_IA_PRIMER_FRAGMENTO_SEG: float = 20.0
+    ASISTENTE_IA_CONEXION_SEG: float = 5.0
     ASISTENTE_MAX_TOKENS_RESPUESTA: int = 2048
     ASISTENTE_TEMPERATURA: float = 0.2
 

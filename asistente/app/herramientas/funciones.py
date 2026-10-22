@@ -119,7 +119,6 @@ async def resumen_del_dia(ctx: Contexto, a: dict) -> Resultado:
         "fecha": hoy.strftime("%d/%m/%Y"),
         "entregados_hoy": entregados_hoy,
         "fallidos_en_rutas_del_dia": sum(r.get("fallidas", 0) for r in rutas_del_dia),
-        "pendientes_en_rutas_del_dia": sum(r.get("pendientes", 0) for r in rutas_del_dia),
         "pedidos_en_ruta_ahora": por_estado.get("EN_RUTA", 0),
         "pedidos_asignados_sin_salir": por_estado.get("ASIGNADO", 0),
         "pedidos_listos_para_envio": por_estado.get("LISTO_PARA_ENVIO", 0),
@@ -146,7 +145,10 @@ async def resumen_del_dia(ctx: Contexto, a: dict) -> Resultado:
             for i in auxilios
         ],
         "reportes_de_falla_abiertos": len(reportes),
-        "nota": "Los fallidos del día se cuentan en las rutas de hoy: el pedido no guarda la hora exacta del fallo.",
+        # Los pendientes de las rutas activas son los mismos pedidos EN_RUTA: se envian una sola
+        # vez (pedidos_en_ruta_ahora) y, por ruta, en rutas_activas, para que no se repitan.
+        "nota": "Los fallidos del día se cuentan en las rutas de hoy: el pedido no guarda la hora exacta del fallo. "
+                "pedidos_en_ruta_ahora ya incluye las paradas pendientes de las rutas activas: no lo repitas como otra cifra.",
     }
     if truncado:
         datos["advertencia"] = "Había demasiados pedidos entregados para revisarlos todos; el número de entregados hoy puede ser mayor."

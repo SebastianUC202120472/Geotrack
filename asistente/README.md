@@ -6,13 +6,33 @@ consultando el backend con el token del usuario. Nginx lo publica en `/api/asist
 
 ## Modelos de IA por defecto
 
-Se usan en el orden de `ASISTENTE_PROVEEDORES`. Todos los modelos se llaman con function calling
-(herramientas) por la API compatible con OpenAI de cada proveedor.
+Todos los modelos se llaman con function calling (herramientas) por la API compatible con
+OpenAI de cada proveedor.
 
-| Proveedor | Variable          | Valor por defecto        | Nota |
-|-----------|-------------------|--------------------------|------|
-| Gemini    | `GEMINI_MODELO`   | `gemini-3.5-flash-lite`  | `gemini-2.5-flash` ya no se habilita en proyectos nuevos (404). `gemini-3.8-flash` también sirve, pero suele dar 503 por alta demanda. |
-| Groq      | `GROQ_MODELO`     | `openai/gpt-oss-120b`    | `llama-3.3-70b-versatile` puede no estar disponible en tu cuenta (404 `model_not_found`). Alternativa más rápida: `openai/gpt-oss-20b`. |
+| Nombre en `ASISTENTE_PROVEEDORES` | Variable del modelo     | Valor por defecto        | Nota |
+|-----------------------------------|-------------------------|--------------------------|------|
+| `gemini`                          | `GEMINI_MODELO`         | `gemini-3.5-flash-lite`  | `gemini-2.5-flash` ya no se habilita en proyectos nuevos (404). `gemini-3.8-flash` también sirve, pero suele dar 503 por alta demanda. |
+| `groq`                            | `GROQ_MODELO`           | `openai/gpt-oss-120b`    | `llama-3.3-70b-versatile` puede no estar disponible en tu cuenta (404 `model_not_found`). |
+| `groq_respaldo`                   | `GROQ_MODELO_RESPALDO`  | `openai/gpt-oss-20b`     | Misma `GROQ_API_KEY`. Groq pone los límites por modelo: cuando el 120b da 429, este suele seguir libre. Déjalo vacío para no usarlo. |
+| `openrouter`                      | `OPENROUTER_MODELO`     | `meta-llama/llama-3.3-70b-instruct:free` | Solo si hay `OPENROUTER_API_KEY`. |
+| `ollama`                          | `OLLAMA_MODELO`         | `qwen2.5:7b`             | Solo si hay `OLLAMA_URL`. |
+
+### Orden y respaldo
+
+`ASISTENTE_PROVEEDORES` define el orden; por defecto es
+`gemini,groq,groq_respaldo,openrouter,ollama`. Los que no tienen clave (o modelo) se omiten solos.
+Para que Groq sea el principal en una demo:
+
+```env
+ASISTENTE_PROVEEDORES=groq,groq_respaldo,gemini,openrouter,ollama
+```
+
+Un proveedor pasa al siguiente, y queda en pausa unos segundos, cuando responde 429 (límite), 5xx
+o no empieza a responder dentro de `ASISTENTE_IA_PRIMER_FRAGMENTO_SEG` (20 s por defecto). El
+plazo solo cuenta hasta el primer fragmento: una respuesta que ya empezó a mostrarse no se corta ni
+cambia de proveedor a mitad. Entre fragmentos se espera como máximo `ASISTENTE_IA_TIMEOUT_SEG`
+(20 s) y la conexión, 5 s. Si fallan todos, el usuario ve "El asistente está saturado, intenta en
+unos segundos." y el detalle técnico queda solo en `docker logs geotrack-asistente-1`.
 
 Los modelos que ve cada cuenta cambian con el tiempo. Para listar los tuyos sin imprimir las claves:
 
@@ -79,8 +99,12 @@ de otro `.env`).
 
 - **`no se pudo conectar`**: los contenedores no están levantados o Nginx usa otro puerto (`--url`).
 - **`demasiados intentos de login`**: el login admite 5 intentos por minuto; espera y repite.
-- **`ERROR 503: El asistente no está disponible`**: ningún proveedor de IA respondió. Revisa
-  `docker logs geotrack-asistente-1`: si dice que el modelo no existe o no está disponible,
-  actualiza `GEMINI_MODELO`, `GROQ_MODELO` u `OPENROUTER_MODELO` en el `.env` y reinicia con
-  `docker compose up -d asistente`.
+- **`ERROR 503: El asistente está saturado`**: ningún proveedor de IA respondió. Revisa
+  `docker logs geotrack-asistente-1`:
+  - Si dice `429` (límite de uso) o `503` (alta demanda), espera unos segundos o pon primero
+    otro proveedor en `ASISTENTE_PROVEEDORES`.
+  - Si dice que el modelo no existe o no está disponible (404), actualiza `GEMINI_MODELO`,
+    `GROQ_MODELO`, `GROQ_MODELO_RESPALDO` u `OPENROUTER_MODELO` en el `.env`.
+
+  En ambos casos aplica los cambios con `docker compose up -d asistente`.
 - **`falta el conductor ...` al correr `preparar_demo.py`**: vuelve a correr el paso 2.

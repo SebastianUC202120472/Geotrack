@@ -14,7 +14,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from comun import URL_BASE_POR_DEFECTO, ErrorApi, iniciar_sesion, peticion, preparar_consola  # noqa: E402
+from comun import URL_BASE_POR_DEFECTO, ErrorApi, url_base, iniciar_sesion, peticion, preparar_consola  # noqa: E402
 
 # Mismo orden que CORREOS_CONDUCTORES en backend/scripts/seed_portal_demo.py.
 CONDUCTORES = (
@@ -66,12 +66,12 @@ def main() -> int:
     """Crea los vehiculos y conductores de la demo. Devuelve el codigo de salida."""
     preparar_consola()
     parser = argparse.ArgumentParser(description="Crea los 4 conductores y vehículos que exige preparar_demo.py.")
-    parser.add_argument("--url", default=URL_BASE_POR_DEFECTO, help="URL de Nginx (por defecto %(default)s)")
+    parser.add_argument("--url", type=url_base, default=URL_BASE_POR_DEFECTO, help="URL de Nginx (por defecto %(default)s)")
     parser.add_argument("--env", default=None, help="Ruta del .env (por defecto el de la raíz del repo)")
     parser.add_argument("--clave-conductores", default=CLAVE_CONDUCTORES,
                         help="Contraseña de los conductores NUEVOS (por defecto %(default)s)")
     args = parser.parse_args()
-    url = args.url.rstrip("/")
+    url = args.url
 
     token = iniciar_sesion(url, args.env)
     vehiculos = {v["placa"]: v for v in peticion("GET", f"{url}/api/vehiculos/", token) or []}

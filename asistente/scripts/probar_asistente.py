@@ -18,7 +18,7 @@ import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from comun import URL_BASE_POR_DEFECTO, ErrorApi, iniciar_sesion, peticion, preparar_consola  # noqa: E402
+from comun import URL_BASE_POR_DEFECTO, ErrorApi, url_base, iniciar_sesion, peticion, preparar_consola  # noqa: E402
 
 CARPETA = os.path.dirname(os.path.abspath(__file__))
 SEPARADOR = "-" * 72
@@ -83,7 +83,8 @@ def preguntar(url: str, token: str, mensaje: str, conversacion_id: str | None, t
     inicio = time.monotonic()
     texto, bloques, hubo_error = [], [], False
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        # La URL base ya se valido con url_base() (solo http/https).
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310
             for evento in _eventos_sse(resp):
                 tipo = evento.get("tipo")
                 if tipo == "inicio":
@@ -127,7 +128,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Prueba el asistente del panel enviando preguntas por Nginx.")
     parser.add_argument("preguntas", nargs="*", help="Preguntas sueltas (si no se dan, se usa --archivo)")
     parser.add_argument("--archivo", default=os.path.join(CARPETA, "preguntas.txt"), help="Una pregunta por línea")
-    parser.add_argument("--url", default=URL_BASE_POR_DEFECTO, help="URL de Nginx (por defecto %(default)s)")
+    parser.add_argument("--url", type=url_base, default=URL_BASE_POR_DEFECTO, help="URL de Nginx (por defecto %(default)s)")
     parser.add_argument("--env", default=None, help="Ruta del .env (por defecto el de la raíz del repo)")
     parser.add_argument("--misma-conversacion", action="store_true",
                         help="Envía todas las preguntas en una sola conversación (para probar el contexto)")
@@ -135,7 +136,7 @@ def main() -> int:
                         help="Segundos entre preguntas, para no chocar con el límite por minuto (por defecto %(default)s)")
     parser.add_argument("--timeout", type=float, default=120.0, help="Segundos máximos por respuesta")
     args = parser.parse_args()
-    url = args.url.rstrip("/")
+    url = args.url
 
     preguntas = args.preguntas or leer_preguntas(args.archivo)
     if not preguntas:

@@ -1,7 +1,11 @@
 # Flujo completo del chat con el nucleo simulado y un proveedor de IA guionado.
 import json
 
+import httpx
+
 from app.core.config import settings
+from app.ia.proveedores import CadenaProveedores, Proveedor
+from app.services.chat_service import MENSAJE_SATURADO
 from app.db.database import SessionLocal
 from app.main import app
 from app.models import Auditoria, Mensaje
@@ -201,3 +205,25 @@ def test_limite_de_rondas_de_funciones(cliente, monkeypatch):
     texto = "".join(e["texto"] for e in eventos if e["tipo"] == "texto")
     assert "No pude completar" in texto
     assert len(app.state.cadena.recibido) == 3
+
+
+def test_todos_los_proveedores_caidos_muestra_mensaje_amable(cliente):
+    """Si ningun proveedor responde, el usuario ve un mensaje amable y no el error tecnico."""
+    def manejador(request: httpx.Request):
+        if "groq" in str(request.url):
+            return httpx.Response(429, headers={"retry-after": "30"}, json={"error": {"message": "Rate limit reached for model"}})
+        return httpx.Response(503, json={"error": {"message": "This model is currently experiencing high demand"}})
+
+    app.state.cadena = CadenaProveedores([
+        Proveedor("gemini", "http://gemini.test", "k", "m"),
+        Proveedor("groq", "http://groq.test", "k", "openai/gpt-oss-120b"),
+        Proveedor("groq_respaldo", "http://groq.test", "k", "openai/gpt-oss-20b"),
+    ])
+    app.state.http_ia = httpx.AsyncClient(transport=httpx.MockTransport(manejador))
+    r, eventos = _preguntar(cliente, "¿cómo va el día?")
+    assert r.status_code == 200
+    errores = [e for e in eventos if e["tipo"] == "error"]
+    assert errores == [{"tipo": "error", "codigo": 503, "texto": MENSAJE_SATURADO}]
+    assert "429" not in r.text and "Rate limit" not in r.text and "high demand" not in r.text
+    with SessionLocal() as db:
+        assert db.query(Auditoria).order_by(Auditoria.id.desc()).first().resultado == "error"

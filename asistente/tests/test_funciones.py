@@ -37,6 +37,18 @@ def test_buscar_por_rango_de_fechas_en_hora_de_lima():
     assert r.datos["total"] == 1 and r.datos["muestra"][0]["codigo"] == "PD-002"
 
 
+def test_filtros_opcionales_se_envian_anulables():
+    """Al modelo se le declaran los filtros opcionales como anulables (gpt-oss manda null) y el
+    validador los ignora; el esquema interno no cambia."""
+    from app.herramientas.catalogo import DEFINICIONES, herramientas_para_rol, validar_argumentos
+    recojos = next(h["function"] for h in herramientas_para_rol("admin") if h["function"]["name"] == "recojos_almacen")
+    props = recojos["parameters"]["properties"]
+    assert props["cliente"]["type"] == ["string", "null"]
+    assert props["presentar"]["enum"][-1] is None
+    assert DEFINICIONES["recojos_almacen"]["parametros"]["cliente"]["type"] == "string"
+    assert validar_argumentos("recojos_almacen", {"cliente": None, "estado": None, "presentar": None}) == {}
+
+
 def test_resumen_del_dia_cuenta_entregados_de_hoy():
     """Los entregados de hoy se cuentan por su fecha de entrega local."""
     nucleo = NucleoFalso()
@@ -61,6 +73,9 @@ def test_resumen_del_dia_cuenta_entregados_de_hoy():
     assert r.datos["entregados_hoy"] == 1
     assert r.datos["fallidos_en_rutas_del_dia"] == 3
     assert r.datos["pedidos_en_ruta_ahora"] == 4
+    # Los pendientes de las rutas no se envian como otra cifra global (se repetian con "en ruta").
+    assert "pendientes_en_rutas_del_dia" not in r.datos
+    assert r.datos["rutas_activas"][0]["pendientes"] == 2
     assert r.datos["auxilios_abiertos"][0]["ruta"] == "Ruta Miraflores"
 
 

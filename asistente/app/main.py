@@ -11,14 +11,14 @@ from app.api.conversaciones import router as conversaciones_router
 from app.core.config import settings
 from app.core.registro import log
 from app.db.database import preparar_tablas
-from app.ia.proveedores import CadenaProveedores, construir_proveedores
+from app.ia.proveedores import CadenaProveedores, construir_proveedores, timeout_http_ia
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Arranque: tablas propias, proveedores de IA y clientes HTTP compartidos."""
     app.state.cadena = CadenaProveedores(construir_proveedores())
-    app.state.http_ia = httpx.AsyncClient(timeout=settings.ASISTENTE_IA_TIMEOUT_SEG)
+    app.state.http_ia = httpx.AsyncClient(timeout=timeout_http_ia())
     app.state.http_core = httpx.AsyncClient(timeout=settings.ASISTENTE_CORE_TIMEOUT_SEG)
     if settings.ASISTENTE_ENABLED:
         try:

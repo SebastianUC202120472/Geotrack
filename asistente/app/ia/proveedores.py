@@ -5,8 +5,10 @@
 # OpenAI, con llamadas a funciones y respuesta en tiempo real (streaming). Por eso una
 # sola clase sirve para todos y cambiar de proveedor es solo configuracion.
 #
-# Si un proveedor llega a su limite (429), falla o no responde, se deja "en pausa" un
-# rato y la consulta pasa al siguiente de la lista sin que el usuario lo note.
+# Si un proveedor llega a su limite (429), falla o no empieza a responder dentro del plazo,
+# se deja "en pausa" un rato y la consulta pasa al siguiente de la lista sin que el usuario
+# lo note.
+import asyncio
 import json
 import time
 from dataclasses import dataclass, field
@@ -19,15 +21,38 @@ from app.core.registro import log
 
 
 class ErrorProveedor(Exception):
-    """Fallo de un proveedor de IA. Lleva cuantos segundos conviene no volver a usarlo."""
+    """Fallo de un proveedor de IA. Lleva cuantos segundos conviene no volver a usarlo y si vale
+    la pena reintentar con el mismo (fallo puntual del modelo, no del servicio)."""
 
-    def __init__(self, mensaje: str, pausa_seg: float = 20.0):
+    def __init__(self, mensaje: str, pausa_seg: float = 20.0, reintentar: bool = False):
         super().__init__(mensaje)
         self.pausa_seg = pausa_seg
+        self.reintentar = reintentar
+
+
+def _es_llamada_mal_formada(error) -> bool:
+    """True si el proveedor rechazo una llamada a funcion mal armada por el modelo (Groq:
+    'tool_use_failed', p. ej. un nombre de funcion inventado). Recibe el error (dict o texto)."""
+    return "tool_use_failed" in (json.dumps(error) if isinstance(error, dict) else str(error))
+
+
+def _error_llamada_mal_formada(nombre: str, detalle: str) -> ErrorProveedor:
+    """Error reintentable y sin pausa: el servicio funciona, fue un tropiezo del modelo. Recibe nombre y detalle."""
+    return ErrorProveedor(f"{nombre}: llamada a función mal formada ({detalle[:160]})", pausa_seg=0.0, reintentar=True)
 
 
 class SinProveedores(Exception):
     """Ningun proveedor de IA esta configurado o disponible en este momento."""
+
+
+def timeout_http_ia() -> httpx.Timeout:
+    """Tiempos de espera del cliente HTTP de IA: conexion corta y espera entre fragmentos. Sin input."""
+    return httpx.Timeout(
+        connect=settings.ASISTENTE_IA_CONEXION_SEG,
+        read=settings.ASISTENTE_IA_TIMEOUT_SEG,
+        write=10.0,
+        pool=5.0,
+    )
 
 
 @dataclass
@@ -56,29 +81,38 @@ class Proveedor:
         cabeceras = {"Authorization": f"Bearer {self.clave}", "Content-Type": "application/json", **self.cabeceras_extra}
 
         acumulador = _AcumuladorLlamadas()
+        plazo = settings.ASISTENTE_IA_PRIMER_FRAGMENTO_SEG
         try:
-            async with http.stream("POST", self.url.rstrip("/") + "/chat/completions", json=cuerpo, headers=cabeceras) as r:
-                if r.status_code != 200:
-                    await r.aread()
-                    raise _error_por_estado(self.nombre, r)
-                async for linea in r.aiter_lines():
-                    if not linea.startswith("data:"):
-                        continue
-                    dato = linea[5:].strip()
-                    if dato == "[DONE]":
-                        break
-                    try:
-                        trozo = json.loads(dato)
-                    except ValueError:
-                        continue
-                    if trozo.get("error"):
-                        raise ErrorProveedor(f"{self.nombre}: {str(trozo['error'])[:200]}")
-                    for opcion in trozo.get("choices") or []:
-                        delta = opcion.get("delta") or {}
-                        if delta.get("content"):
-                            yield "texto", delta["content"]
-                        for llamada in delta.get("tool_calls") or []:
-                            acumulador.agregar(llamada)
+            # El plazo cubre desde la conexion hasta el primer fragmento; se desactiva apenas
+            # llega algo, antes de emitir nada, para que el corte nunca deje una respuesta a medias.
+            async with asyncio.timeout(plazo) as limite:
+                async with http.stream("POST", self.url.rstrip("/") + "/chat/completions", json=cuerpo, headers=cabeceras) as r:
+                    if r.status_code != 200:
+                        await r.aread()
+                        raise _error_por_estado(self.nombre, r)
+                    async for linea in r.aiter_lines():
+                        if not linea.startswith("data:"):
+                            continue
+                        limite.reschedule(None)
+                        dato = linea[5:].strip()
+                        if dato == "[DONE]":
+                            break
+                        try:
+                            trozo = json.loads(dato)
+                        except ValueError:
+                            continue
+                        if trozo.get("error"):
+                            if _es_llamada_mal_formada(trozo["error"]):
+                                raise _error_llamada_mal_formada(self.nombre, str(trozo["error"]))
+                            raise ErrorProveedor(f"{self.nombre}: {str(trozo['error'])[:200]}")
+                        for opcion in trozo.get("choices") or []:
+                            delta = opcion.get("delta") or {}
+                            if delta.get("content"):
+                                yield "texto", delta["content"]
+                            for llamada in delta.get("tool_calls") or []:
+                                acumulador.agregar(llamada)
+        except TimeoutError as exc:
+            raise ErrorProveedor(f"{self.nombre}: no empezó a responder en {plazo:g} s", 30.0) from exc
         except httpx.TimeoutException as exc:
             raise ErrorProveedor(f"{self.nombre}: tiempo de espera agotado") from exc
         except httpx.HTTPError as exc:
@@ -141,6 +175,8 @@ def _error_por_estado(nombre: str, respuesta: httpx.Response) -> ErrorProveedor:
         return ErrorProveedor(f"{nombre}: clave rechazada ({estado})", 600.0)
     if estado >= 500:
         return ErrorProveedor(f"{nombre}: error del proveedor ({estado})", 30.0)
+    if estado == 400 and _es_llamada_mal_formada(respuesta.text):
+        return _error_llamada_mal_formada(nombre, respuesta.text)
     return ErrorProveedor(f"{nombre}: solicitud rechazada ({estado}) {respuesta.text[:200]}", 30.0)
 
 
@@ -150,6 +186,7 @@ def construir_proveedores() -> list[Proveedor]:
     disponibles = {
         "gemini": (s.GEMINI_URL, s.GEMINI_API_KEY, s.GEMINI_MODELO, {}),
         "groq": (s.GROQ_URL, s.GROQ_API_KEY, s.GROQ_MODELO, {}),
+        "groq_respaldo": (s.GROQ_URL, s.GROQ_API_KEY, s.GROQ_MODELO_RESPALDO, {}),
         "openrouter": (s.OPENROUTER_URL, s.OPENROUTER_API_KEY, s.OPENROUTER_MODELO,
                        {"X-Title": "GeoTrack Asistente"}),
         "ollama": (s.OLLAMA_URL.rstrip("/") + "/v1" if s.OLLAMA_URL else "", "ollama" if s.OLLAMA_URL else "",
@@ -198,19 +235,33 @@ class CadenaProveedores:
             raise SinProveedores("No hay proveedores de IA disponibles en este momento")
         ultimo_error = None
         for proveedor in candidatos:
-            emitio_texto = False
-            try:
-                yield "proveedor", proveedor.nombre
-                async for tipo, valor in proveedor.transmitir(mensajes, herramientas, http):
-                    if tipo == "texto":
-                        emitio_texto = True
-                    yield tipo, valor
-                return
-            except ErrorProveedor as exc:
-                self._pausados[proveedor.nombre] = self._reloj() + exc.pausa_seg
-                log.warning("Proveedor %s en pausa %ss: %s", proveedor.nombre, exc.pausa_seg, exc)
-                ultimo_error = exc
-                if emitio_texto:
-                    # Ya se mostro parte de la respuesta: no se puede cambiar de proveedor a mitad.
-                    raise
+            # Una llamada mal formada es un tropiezo del modelo: se reintenta una vez con el mismo.
+            for intento in (1, 2):
+                emitio_texto = False
+                try:
+                    yield "proveedor", proveedor.nombre
+                    async for tipo, valor in proveedor.transmitir(mensajes, herramientas, http):
+                        if tipo == "texto":
+                            emitio_texto = True
+                        yield tipo, valor
+                    return
+                except ErrorProveedor as exc:
+                    ultimo_error = exc
+                    if emitio_texto:
+                        # Ya se mostro parte de la respuesta: no se puede cambiar de proveedor a mitad.
+                        self._pausar(proveedor, exc)
+                        raise
+                    if exc.reintentar and intento == 1:
+                        log.warning("Proveedor %s: reintento tras %s", proveedor.nombre, exc)
+                        continue
+                    self._pausar(proveedor, exc)
+                    break
         raise SinProveedores(str(ultimo_error) if ultimo_error else "Sin proveedores")
+
+    def _pausar(self, proveedor: Proveedor, exc: ErrorProveedor) -> None:
+        """Deja al proveedor en pausa lo que indique el error (0 = sigue disponible). Recibe proveedor y error."""
+        self._pausados[proveedor.nombre] = self._reloj() + exc.pausa_seg
+        if exc.pausa_seg > 0:
+            log.warning("Proveedor %s en pausa %ss: %s", proveedor.nombre, exc.pausa_seg, exc)
+        else:
+            log.warning("Proveedor %s falló (sin pausa): %s", proveedor.nombre, exc)

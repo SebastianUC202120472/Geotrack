@@ -3,6 +3,7 @@
 # con Python 3.9+ sin instalar nada). Nunca imprime la contrasena ni el token.
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -13,6 +14,15 @@ import urllib.request
 RAIZ_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 URL_BASE_POR_DEFECTO = "http://localhost:8080"
 CLAVES_PERMITIDAS = ("ADMIN_EMAIL", "ADMIN_PASSWORD")
+
+
+def url_base(valor: str) -> str:
+    """Valida la URL base que se pasa con --url: solo http o https (nunca file:// u otros esquemas).
+    Recibe el texto; devuelve la URL sin la barra final. Pensada como 'type' de argparse."""
+    partes = urllib.parse.urlsplit(valor.strip())
+    if partes.scheme not in ("http", "https") or not partes.netloc:
+        raise argparse.ArgumentTypeError(f"URL inválida: {valor!r} (usa http://host:puerto)")
+    return valor.strip().rstrip("/")
 
 
 def preparar_consola() -> None:
@@ -89,7 +99,8 @@ def peticion(metodo: str, url: str, token: str | None = None, datos=None, formul
         cabeceras["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(url, data=cuerpo, headers=cabeceras, method=metodo)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        # La URL base se valida con url_base() (solo http/https), asi que urlopen no abre file://.
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310
             texto = resp.read().decode("utf-8")
             return json.loads(texto) if texto else None
     except urllib.error.HTTPError as exc:
