@@ -27,6 +27,7 @@ import Notificaciones from "./pages/Notificaciones";
 import LibroReclamaciones from "./pages/LibroReclamaciones";
 import { ModuloCapacidadPage } from './pages/ModuloCapacidadPage';
 
+
 // Landing público (carga diferida: no forma parte del bundle del panel admin).
 const Landing = lazy(() => import("./pages/landing/Landing"));
 // Portal de clientes (carga diferida, igual que el Landing).

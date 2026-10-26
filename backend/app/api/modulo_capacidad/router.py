@@ -9,7 +9,8 @@ from .schemas import (
     ModeloVehiculo, 
     CatalogoEstructuraJSON, 
     VinculacionPlacaRequest, 
-    VinculacionPlacaResponse
+    VinculacionPlacaResponse,
+    CalculadoraCapacidadRequest
 )
 
 router = APIRouter(
@@ -87,3 +88,48 @@ def vincular_placa(data: VinculacionPlacaRequest):
         creado_por="admin@geotrack.com",
         creado_en=datetime.now().isoformat()
     )
+
+# --- ENDPOINTS: CALCULADORA DE CAPACIDAD Y ALERTAS ---
+
+MEDIDAS_ESTANDAR = {
+    "S": {"m3": 0.05, "kg": 5.0},
+    "M": {"m3": 0.25, "kg": 20.0},
+    "L": {"m3": 1.00, "kg": 150.0}
+}
+
+@router.post("/calcular-capacidad")
+def calcular_capacidad(req: CalculadoraCapacidadRequest):
+    volumen_total = 0.0
+    peso_total = 0.0
+
+    for item in req.paquetes:
+        medida = MEDIDAS_ESTANDAR[item.tamanio.value]
+        volumen_total += medida["m3"] * item.cantidad
+        peso_total += medida["kg"] * item.cantidad
+
+    pct_m3 = round((volumen_total / req.capacidad_max_m3) * 100, 2)
+    pct_kg = round((peso_total / req.capacidad_max_kg) * 100, 2)
+    
+    excede = pct_m3 > 100.0 or pct_kg > 100.0
+
+    if excede:
+        nivel = "CRITICO"
+        msg = f"¡ALERTA CRÍTICA! Se sobrepasa la capacidad ({pct_m3}% vol / {pct_kg}% peso)."
+    elif pct_m3 >= 85.0 or pct_kg >= 85.0:
+        nivel = "ADVERTENCIA"
+        msg = f"Capacidad cercana al límite ({pct_m3}% vol / {pct_kg}% peso)."
+    else:
+        nivel = "OK"
+        msg = f"Carga óptima dentro de los límites ({pct_m3}% vol / {pct_kg}% peso)."
+
+    return {
+        "volumen_total_m3": round(volumen_total, 2),
+        "peso_total_kg": round(peso_total, 2),
+        "excede_limite": excede,
+        "alerta": {
+            "nivel": nivel,
+            "mensaje": msg,
+            "porcentaje_m3": pct_m3,
+            "porcentaje_kg": pct_kg
+        }
+    }

@@ -1,5 +1,7 @@
+// Ubicación: frontend/src/pages/ModuloCapacidadPage.jsx
+
 import React, { useState, useEffect } from "react";
-import { Truck, Search, Filter, Plus, FileText, CheckCircle2, AlertCircle, History } from "lucide-react";
+import { Truck, Search, Filter, Plus, FileText, CheckCircle2, AlertCircle, History, Calculator, ShieldAlert } from "lucide-react";
 
 export function ModuloCapacidadPage() {
   const [modelos, setModelos] = useState([]);
@@ -9,6 +11,12 @@ export function ModuloCapacidadPage() {
   const [placa, setPlaca] = useState("");
   const [modeloSeleccionado, setModeloSeleccionado] = useState("");
   const [mensaje, setMensaje] = useState(null);
+
+  // Estados de la Calculadora (Semana 10)
+  const [cantidades, setCantidades] = useState({ S: 0, M: 0, L: 0 });
+  const [vehiculoCalc, setVehiculoCalc] = useState("");
+  const [resultadoCalc, setResultadoCalc] = useState(null);
+  const [cargandoCalc, setCargandoCalc] = useState(false);
 
   // 1. Cargar catálogo y vinculaciones al montar el componente
   useEffect(() => {
@@ -84,6 +92,46 @@ export function ModuloCapacidadPage() {
     }
   };
 
+  // Función para procesar el cálculo en la API (Semana 10)
+  const handleCalcularCapacidad = async (e) => {
+    e.preventDefault();
+    if (!vehiculoCalc) {
+      alert("Por favor seleccione un modelo de vehículo para la prueba.");
+      return;
+    }
+
+    const modeloObj = listaSegura.find((m) => m.id === vehiculoCalc);
+    if (!modeloObj) return;
+
+    setCargandoCalc(true);
+    const paquetes = Object.entries(cantidades)
+      .filter(([_, cant]) => cant > 0)
+      .map(([tamanio, cantidad]) => ({ tamanio, cantidad: parseInt(cantidad) }));
+
+    try {
+      const res = await fetch("http://localhost:8000/api/modulo-capacidad/calcular-capacidad", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vehiculo_id: modeloObj.id,
+          capacidad_max_m3: modeloObj.volumen_util_m3,
+          capacidad_max_kg: modeloObj.carga_util_kg,
+          paquetes,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Error al consultar el servicio de capacidad.");
+
+      const data = await res.json();
+      setResultadoCalc(data);
+    } catch (err) {
+      console.error(err);
+      alert("Ocurrió un error al calcular la capacidad.");
+    } finally {
+      setCargandoCalc(false);
+    }
+  };
+
   const listaSegura = Array.isArray(modelos) ? modelos : [];
 
   const modelosFiltrados = listaSegura.filter((item) => {
@@ -101,14 +149,14 @@ export function ModuloCapacidadPage() {
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-1 text-xs font-semibold bg-blue-50 text-blue-700 rounded-md border border-blue-200">
-              Semana 9
+              Semana 10
             </span>
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-              Catálogo de Vehículos y Capacidad
+              Catálogo de Vehículos y Calculadora de Capacidad
             </h1>
           </div>
           <p className="text-sm text-slate-500 mt-1">
-            Gestión de especificaciones volumétricas, carga útil y asignación de placas a la flota GeoTrack.
+            Gestión de especificaciones volumétricas, carga útil, asignación de placas y calculadora de sobrecarga.
           </p>
         </div>
       </div>
@@ -130,6 +178,129 @@ export function ModuloCapacidadPage() {
           <p className="text-sm font-medium">{mensaje.texto}</p>
         </div>
       )}
+
+      {/* SECCIÓN NUEVA: CALCULADORA DE CAPACIDAD Y ALERTAS (SEMANA 10) */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
+        <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
+          <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+            <Calculator size={18} />
+          </div>
+          <h2 className="text-base font-semibold text-slate-800">
+            Calculadora de Capacidad y Alertas de Sobrecarga
+          </h2>
+        </div>
+
+        <form onSubmit={handleCalcularCapacidad} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">
+                Seleccionar Vehículo
+              </label>
+              <select
+                value={vehiculoCalc}
+                onChange={(e) => setVehiculoCalc(e.target.value)}
+                className="w-full px-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-slate-800"
+              >
+                <option value="">-- Seleccionar --</option>
+                {listaSegura.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.marca} {m.modelo} ({m.volumen_util_m3} m³ / {m.carga_util_kg} kg)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                Bultos Pequeños (S)
+              </label>
+              <span className="text-[11px] text-slate-400 block mb-1">0.05 m³ | 5 kg</span>
+              <input
+                type="number"
+                min="0"
+                value={cantidades.S}
+                onChange={(e) => setCantidades({ ...cantidades, S: e.target.value })}
+                className="w-full px-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-800"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                Bultos Medianos (M)
+              </label>
+              <span className="text-[11px] text-slate-400 block mb-1">0.25 m³ | 20 kg</span>
+              <input
+                type="number"
+                min="0"
+                value={cantidades.M}
+                onChange={(e) => setCantidades({ ...cantidades, M: e.target.value })}
+                className="w-full px-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-800"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                Bultos Grandes (L)
+              </label>
+              <span className="text-[11px] text-slate-400 block mb-1">1.00 m³ | 150 kg</span>
+              <input
+                type="number"
+                min="0"
+                value={cantidades.L}
+                onChange={(e) => setCantidades({ ...cantidades, L: e.target.value })}
+                className="w-full px-4 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-800"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={cargandoCalc}
+            className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-6 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 text-sm"
+          >
+            <ShieldAlert size={18} />
+            {cargandoCalc ? "Calculando Carga..." : "Calcular Ocupación y Alertas"}
+          </button>
+        </form>
+
+        {/* Resumen de Ocupación Visual */}
+        {resultadoCalc && (
+          <div className="mt-6 p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+            <h3 className="font-semibold text-slate-800 text-sm">Resumen de Evaluación</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+              <div>
+                <span className="text-slate-500 block">Volumen Ocupado</span>
+                <strong className="text-slate-900 text-sm">{resultadoCalc.volumen_total_m3} m³</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 block">Peso Total</span>
+                <strong className="text-slate-900 text-sm">{resultadoCalc.peso_total_kg} kg</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 block">% Volumen</span>
+                <strong className="text-slate-900 text-sm">{resultadoCalc.alerta.porcentaje_m3}%</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 block">% Peso</span>
+                <strong className="text-slate-900 text-sm">{resultadoCalc.alerta.porcentaje_kg}%</strong>
+              </div>
+            </div>
+
+            <div
+              className={`p-3 rounded-lg font-semibold text-xs text-white flex items-center gap-2 ${
+                resultadoCalc.alerta.nivel === "CRITICO"
+                  ? "bg-rose-600"
+                  : resultadoCalc.alerta.nivel === "ADVERTENCIA"
+                  ? "bg-amber-500"
+                  : "bg-emerald-600"
+              }`}
+            >
+              <AlertCircle size={16} />
+              {resultadoCalc.alerta.mensaje}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Tarjeta de Vinculación de Placa */}
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
@@ -184,7 +355,7 @@ export function ModuloCapacidadPage() {
         </form>
       </div>
 
-      {/* NUEVA SECCIÓN: HISTORIAL DE PLACAS VINCULADAS EN BD */}
+      {/* HISTORIAL DE PLACAS VINCULADAS EN BD */}
       {vinculaciones.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
           <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
