@@ -60,3 +60,19 @@ class VinculacionPlacaResponse(BaseModel):
     modelo: ModeloVehiculo
     creado_por: str
     creado_en: str
+
+class TamanioEstandarEnum(str, Enum):
+    S = "S"  # 0.05 m3 / 5 kg
+    M = "M"  # 0.25 m3 / 20 kg
+    L = "L"  # 1.00 m3 / 150 kg
+
+class PaqueteRequest(BaseModel):
+    tamanio: TamanioEstandarEnum
+    cantidad: int = Field(..., gt=0, description="Cantidad de bultos/paquetes")
+
+class CalculadoraCapacidadRequest(BaseModel):
+    vehiculo_id: str
+    capacidad_max_m3: float = Field(..., gt=0)
+    capacidad_max_kg: float = Field(..., gt=0)
+    paquetes: List[PaqueteRequest]
+
