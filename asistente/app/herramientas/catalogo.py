@@ -20,7 +20,7 @@ ESTADOS_PEDIDO = [
 _PRESENTAR = {
     "type": "string",
     "enum": ["texto", "tabla", "grafico"],
-    "description": "Cómo mostrar el resultado en el chat. Usa 'tabla' o 'grafico' solo si el usuario lo pide o ayuda a leer muchos datos.",
+    "description": "Cómo mostrar el resultado en el chat. Usa 'tabla' cuando el usuario pregunta qué o cuáles registros son (ej. '¿qué pedidos fallaron?', 'lista de...') o lo pide; 'grafico' si lo pide; 'texto' para preguntas de cuántos o resúmenes.",
 }
 _FECHA = {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "description": "Fecha AAAA-MM-DD (hora de Lima)."}
 _TEXTO_CORTO = {"type": "string", "maxLength": 80}
@@ -32,7 +32,7 @@ DEFINICIONES = {
         "roles": {"admin", "almacen"},
     },
     "buscar_pedidos": {
-        "descripcion": "Busca y cuenta pedidos con filtros (código, cliente, DNI del destinatario, distrito, estado y fechas). Devuelve el total, el conteo por estado, una agrupación opcional y una muestra de pedidos.",
+        "descripcion": "Busca y cuenta pedidos con filtros (código, cliente, DNI del destinatario, distrito, estado y fechas). Devuelve el total, el conteo por estado, una agrupación opcional y una muestra de pedidos. Para pedidos FALLIDO incluye el motivo de fallo que registró el conductor (motivos_de_fallo).",
         "parametros": {
             "codigo": {**_TEXTO_CORTO, "description": "Código del pedido, ej. PD-001, o referencia del cliente."},
             "cliente": {**_TEXTO_CORTO, "description": "Empresa cliente de origen, ej. Ripley."},
@@ -107,7 +107,7 @@ DEFINICIONES = {
         "roles": {"admin"},
     },
     "retornos_almacen": {
-        "descripcion": "Retornos al almacén: rutas con pedidos fallidos y cuántos paquetes ya volvieron o faltan. Con ruta_id trae el detalle.",
+        "descripcion": "Retornos al almacén: rutas con pedidos fallidos y cuántos paquetes ya volvieron o faltan. Con ruta_id trae el detalle. No incluye el motivo del fallo.",
         "parametros": {
             "ruta_id": {"type": "integer", "minimum": 1},
             "presentar": _PRESENTAR,

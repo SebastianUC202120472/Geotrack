@@ -125,3 +125,87 @@ def test_zonas_y_enlaces():
     assert zona_aproximada(-12.0464, -77.0428) == "Lima"
     assert enlace("x", "https://evil.com") is None
     assert enlace("Ver", "/panel/pedidos", {"estado": "FALLIDO", "distrito": None})["ruta"] == "/panel/pedidos?estado=FALLIDO"
+
+
+def test_pedidos_fallidos_muestran_su_motivo():
+    """El listado del nucleo no trae el motivo: se lee del historial de cada fallido y va a la tabla."""
+    nucleo = NucleoFalso()
+    original = nucleo._responder
+
+    def responder(ruta, request):
+        if ruta == "/api/dashboard/pedidos/PD-001/historial":
+            return httpx.Response(200, json={"codigo": "PD-001", "motivo_fallo": "Cliente ausente"})
+        return original(ruta, request)  # PD-002 responde 404: queda "Sin motivo registrado"
+
+    nucleo._responder = responder
+    r = asyncio.run(F.buscar_pedidos(_contexto(nucleo), {"estado": "FALLIDO", "presentar": "tabla"}))
+    assert r.datos["motivos_de_fallo"] == {"Cliente ausente": 1, "Sin motivo registrado": 1}
+    assert r.datos["muestra"][0]["motivo_fallo"] == "Cliente ausente"
+    tabla = next(b for b in r.bloques if b["tipo"] == "tabla")
+    assert tabla["columnas"][-1] == "Motivo de fallo" and tabla["filas"][0][-1] == "Cliente ausente"
+    # Solo se consulta el historial de los fallidos y solo con GET.
+    historiales = [ruta for m, ruta in nucleo.peticiones if "historial" in ruta]
+    assert sorted(historiales) == ["/api/dashboard/pedidos/PD-001/historial", "/api/dashboard/pedidos/PD-002/historial"]
+    assert all(m == "GET" for m, _ in nucleo.peticiones)
+
+
+def test_sin_fallidos_no_consulta_historiales():
+    """Si no hay pedidos FALLIDO no se hace ninguna consulta extra."""
+    nucleo = NucleoFalso()
+    r = asyncio.run(F.buscar_pedidos(_contexto(nucleo), {"estado": "ENTREGADO"}))
+    assert "motivos_de_fallo" not in r.datos
+    assert not any("historial" in ruta for _, ruta in nucleo.peticiones)
+
+
+def test_reportes_de_falla_muestran_motivo_y_detalle():
+    """La tabla de reportes incluye el motivo y la descripcion que escribio el conductor."""
+    nucleo = NucleoFalso()
+    original = nucleo._responder
+
+    def responder(ruta, request):
+        if ruta == "/api/reportes/":
+            return httpx.Response(200, json=[{
+                "pedido_codigo": "PD-001", "conductor_nombre": "Juan Pérez", "motivo": "Dirección incorrecta",
+                "descripcion": "El número 120 no existe", "estado": "ABIERTO", "creado_en": "2026-10-22T15:00:00",
+            }])
+        return original(ruta, request)
+
+    nucleo._responder = responder
+    r = asyncio.run(F.reportes_falla(_contexto(nucleo), {"presentar": "tabla"}))
+    tabla = next(b for b in r.bloques if b["tipo"] == "tabla")
+    assert tabla["columnas"][2:4] == ["Motivo", "Detalle"]
+    assert tabla["filas"][0][2:4] == ["Dirección incorrecta", "El número 120 no existe"]
+
+
+def test_periodo_explicito_sin_y_con_filtro_de_fecha():
+    """Sin fechas, los datos dicen que no hay filtro (el modelo no puede decir 'hoy'); con fechas, dan el rango."""
+    nucleo = NucleoFalso()
+    sin = asyncio.run(F.buscar_pedidos(_contexto(nucleo), {"estado": "FALLIDO"}))
+    assert sin.datos["periodo"].startswith("Sin filtro de fecha")
+    assert "no digas que fallaron 'hoy'" in sin.datos["nota_fecha"]
+    con = asyncio.run(F.buscar_pedidos(_contexto(nucleo), {"desde": "2026-10-20", "hasta": "2026-10-22"}))
+    assert con.datos["periodo"] == "Del 20/10/2026 al 22/10/2026, según la fecha de creación del pedido."
+    un_dia = asyncio.run(F.buscar_pedidos(_contexto(nucleo), {"estado": "ENTREGADO", "desde": "2026-10-22", "hasta": "2026-10-22"}))
+    assert un_dia.datos["periodo"] == "El 22/10/2026, según la fecha de entrega."
+
+
+def test_fallidos_con_motivo_muestran_tabla_aunque_el_modelo_pida_texto():
+    """Respaldo: la lista de fallidos con su motivo va en la tabla del servidor aunque presentar sea 'texto'."""
+    nucleo = NucleoFalso()
+    r = asyncio.run(F.buscar_pedidos(_contexto(nucleo), {"estado": "FALLIDO", "presentar": "texto", "agrupar_por": "estado"}))
+    tabla = next(b for b in r.bloques if b["tipo"] == "tabla")
+    assert tabla["columnas"][-1] == "Motivo de fallo" and tabla["total"] == 2
+    # Un pedido de otro estado no fuerza la tabla.
+    r2 = asyncio.run(F.buscar_pedidos(_contexto(nucleo), {"estado": "ENTREGADO"}))
+    assert not any(b["tipo"] == "tabla" for b in r2.bloques)
+
+
+def test_conteos_por_cliente_y_distrito_cubren_todos_los_pedidos():
+    """Con mas pedidos que la muestra, los conteos salen de TODOS (el modelo no debe contar la muestra)."""
+    nucleo = NucleoFalso()
+    nucleo.pedidos = [_pedido(i, cliente_origen="Ripley" if i % 3 else "Saga") for i in range(1, 13)]
+    r = asyncio.run(F.buscar_pedidos(_contexto(nucleo), {"estado": "FALLIDO"}))
+    assert len(r.datos["muestra"]) == 10
+    assert r.datos["conteo_por_cliente"] == {"Ripley": 8, "Saga": 4}
+    assert r.datos["conteo_por_distrito"] == {"Miraflores": 12}
+    assert "no cuentes sobre ella" in r.datos["nota_muestra"]

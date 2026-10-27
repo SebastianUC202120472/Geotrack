@@ -5,6 +5,7 @@ from urllib.parse import urlencode
 
 MAX_FILAS_TABLA = 20
 MAX_BARRAS_GRAFICO = 15
+MAX_CARACTERES_CELDA = 200
 
 
 def tabla(titulo: str, columnas: list[str], filas: list[list]) -> dict:
@@ -45,4 +46,5 @@ def _celda(valor):
         return "—"
     if isinstance(valor, (int, float)):
         return valor
-    return str(valor)[:80]
+    # Textos largos (motivo, detalle) se muestran en varias lineas en el panel: el tope es mas amplio.
+    return str(valor)[:MAX_CARACTERES_CELDA]

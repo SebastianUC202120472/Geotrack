@@ -167,6 +167,79 @@ class FiltroSalida:
         return self._reemplazar(resto)
 
 
+# Fila de una tabla Markdown: "| a | b |" o la linea separadora "---|:---:|---".
+_RE_FILA_TABLA = re.compile(r"^\|.*\|$")
+_RE_SEPARADOR_TABLA = re.compile(r"^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?$")
+# Inicio de linea que todavia podria ser parte de una tabla (solo |, -, : y espacios).
+_RE_QUIZA_TABLA = re.compile(r"^[|:\-\s]*$")
+
+
+def es_fila_tabla(linea: str) -> bool:
+    """Dice si una linea completa es una fila o separador de tabla Markdown. Recibe la linea."""
+    s = linea.strip()
+    return bool(s) and (bool(_RE_FILA_TABLA.match(s)) and s.count("|") >= 2 or bool(_RE_SEPARADOR_TABLA.match(s)))
+
+
+class FiltroTablas:
+    """Quita las tablas Markdown que el modelo escriba en el texto, aunque lleguen partidas en el
+    streaming: el detalle va en la tabla que arma el servidor con los datos reales.
+    Solo retiene la linea en curso si empieza como una tabla; el resto pasa al instante."""
+
+    def __init__(self):
+        self._linea = ""      # inicio de la linea en curso, retenido hasta saber si es tabla
+        self._libre = False   # la linea en curso ya se sabe que no es tabla: pasa directo
+        self._previa_tabla = False
+        self.quito_tabla = False
+
+    def _soltar_linea(self, linea: str) -> str:
+        """Decide sobre una linea completa (con su salto). Recibe la linea sin el salto."""
+        if es_fila_tabla(linea):
+            self.quito_tabla = True
+            self._previa_tabla = True
+            return ""
+        # La linea vacia que sigue a una tabla quitada tambien se omite (no deja huecos dobles).
+        if self._previa_tabla and not linea.strip():
+            return ""
+        self._previa_tabla = False
+        return linea + "\n"
+
+    def agregar(self, fragmento: str) -> str:
+        """Agrega un fragmento y devuelve lo que ya se puede mostrar. Recibe el fragmento."""
+        salida = []
+        partes = fragmento.split("\n")
+        for i, parte in enumerate(partes):
+            fin_de_linea = i < len(partes) - 1
+            if self._libre:
+                salida.append(parte + ("\n" if fin_de_linea else ""))
+                if fin_de_linea:
+                    self._libre = False
+                continue
+            self._linea += parte
+            if fin_de_linea:
+                salida.append(self._soltar_linea(self._linea))
+                self._linea = ""
+            elif self._linea.strip() and not self._linea.lstrip().startswith("|") and not _RE_QUIZA_TABLA.match(self._linea):
+                self._previa_tabla = False
+                salida.append(self._linea)
+                self._linea = ""
+                self._libre = True
+        return "".join(salida)
+
+    def cerrar(self) -> str:
+        """Devuelve lo retenido al terminar el flujo. Sin input."""
+        resto, self._linea, self._libre = self._linea, "", False
+        if not resto or es_fila_tabla(resto):
+            self.quito_tabla = self.quito_tabla or bool(resto)
+            return ""
+        return resto
+
+
+def quitar_tablas(texto: str) -> str:
+    """Quita las tablas Markdown de un texto completo. Recibe el texto."""
+    filtro = FiltroTablas()
+    return (filtro.agregar(texto) + filtro.cerrar()).rstrip("\n") if texto else texto
+
+
 class RestituidorFlujo:
     """Restituye marcas en un texto que llega por partes (streaming) sin cortar una marca a la mitad."""
 

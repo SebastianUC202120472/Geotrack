@@ -14,12 +14,15 @@ from app.core.config import settings
 from app.core.fechas import ahora_local, fecha_local_core, hoy_local, leer_fecha_core, texto_fecha_hora
 from app.herramientas import bloques as B
 from app.herramientas.catalogo import sin_tildes
-from app.herramientas.cliente_core import ClienteCore
+from app.herramientas.cliente_core import ClienteCore, ErrorCore, SesionInvalida
 from app.herramientas.zonas import zona_aproximada
 from app.services.privacidad import enmascarar_correo
 
 _PAGINA = 500
 _MAX_MUESTRA = 10
+_MAX_MOTIVOS = 20          # fallidos a los que se les busca el motivo (lo que cabe en una tabla)
+_CONCURRENCIA_MOTIVOS = 5  # consultas de historial en paralelo hacia el nucleo
+_SIN_MOTIVO = "Sin motivo registrado"
 _RUTA_ACTIVA = ("CREADA", "EN_PROGRESO")
 _RE_CODIGO = re.compile(r"^[A-Za-z0-9._-]{1,40}$")
 
@@ -206,6 +209,47 @@ def _en_rango(dia: date | None, desde: str | None, hasta: str | None) -> bool:
     return True
 
 
+def _texto_periodo(desde: str | None, hasta: str | None, campo: str | None = None) -> str:
+    """Describe el periodo consultado para que el modelo no invente uno ("hoy"). Recibe limites ISO y campo."""
+    if not desde and not hasta:
+        return "Sin filtro de fecha: incluye todos los registros que hoy están en ese estado, de cualquier día."
+
+    def fmt(iso: str) -> str:
+        """Fecha ISO a dd/mm/aaaa. Recibe la fecha."""
+        return date.fromisoformat(iso).strftime("%d/%m/%Y")
+
+    if desde and hasta:
+        rango = f"del {fmt(desde)} al {fmt(hasta)}" if desde != hasta else f"el {fmt(desde)}"
+    else:
+        rango = f"desde el {fmt(desde)}" if desde else f"hasta el {fmt(hasta)}"
+    return f"{rango.capitalize()}" + (f", según la {campo}." if campo else ".")
+
+
+async def _motivos_fallo(core: ClienteCore, pedidos: list) -> dict:
+    """Motivo de fallo de los primeros pedidos FALLIDO. Recibe el cliente y los pedidos.
+
+    El listado de pedidos del nucleo no trae el motivo: solo el historial de cada pedido.
+    Por eso se consulta un numero acotado de pedidos, con pocas consultas a la vez.
+    """
+    codigos = [
+        p["codigo"] for p in pedidos
+        if p.get("estado") == "FALLIDO" and isinstance(p.get("codigo"), str) and _RE_CODIGO.match(p["codigo"])
+    ][:_MAX_MOTIVOS]
+    semaforo = asyncio.Semaphore(_CONCURRENCIA_MOTIVOS)
+
+    async def uno(codigo: str):
+        async with semaforo:
+            try:
+                h = await core.get(f"/dashboard/pedidos/{quote(codigo, safe='')}/historial")
+            except SesionInvalida:
+                raise
+            except ErrorCore:
+                return codigo, None
+            return codigo, (h or {}).get("motivo_fallo")
+
+    return dict(await asyncio.gather(*(uno(c) for c in codigos)))
+
+
 async def buscar_pedidos(ctx: Contexto, a: dict) -> Resultado:
     """Busca, filtra y cuenta pedidos. Recibe contexto y filtros validados."""
     codigo, cliente, texto = a.get("codigo"), a.get("cliente"), a.get("texto")
@@ -238,16 +282,39 @@ async def buscar_pedidos(ctx: Contexto, a: dict) -> Resultado:
         pedidos = [p for p in pedidos if _en_rango(fecha_local_core(p.get(clave_fecha)), a.get("desde"), a.get("hasta"))]
 
     conteo = Counter(p.get("estado") for p in pedidos)
+    motivos = await _motivos_fallo(ctx.core, pedidos) if conteo.get("FALLIDO") else {}
+
+    def fila(p: dict) -> dict:
+        f = _fila_pedido(p)
+        if p.get("codigo") in motivos:
+            f["motivo_fallo"] = motivos[p["codigo"]] or _SIN_MOTIVO
+        return f
+
     datos = {
         "total": len(pedidos),
         "filtros_aplicados": {k: v for k, v in a.items() if k not in ("presentar", "agrupar_por")},
         "conteo_por_estado": dict(conteo),
-        "muestra": [_fila_pedido(p) for p in pedidos[:_MAX_MUESTRA]],
+        # Conteos sobre TODOS los pedidos encontrados: el modelo debe usar estos y nunca contar la muestra.
+        "conteo_por_cliente": dict(Counter((p.get("cliente_origen") or "Sin dato") for p in pedidos).most_common(_MAX_MUESTRA)),
+        "conteo_por_distrito": dict(Counter((p.get("distrito") or "Sin dato") for p in pedidos).most_common(_MAX_MUESTRA)),
+        "muestra": [fila(p) for p in pedidos[:_MAX_MUESTRA]],
     }
-    if a.get("desde") or a.get("hasta"):
-        datos["fecha_filtrada_por"] = "fecha de entrega" if campo == "entrega" else "fecha de creación del pedido"
+    if motivos:
+        datos["motivos_de_fallo"] = dict(Counter(m or _SIN_MOTIVO for m in motivos.values()).most_common())
+        if conteo["FALLIDO"] > len(motivos):
+            datos["nota_motivos"] = (
+                f"Motivos revisados en {len(motivos)} de {conteo['FALLIDO']} pedidos fallidos (los más recientes)."
+            )
+    datos["periodo"] = _texto_periodo(
+        a.get("desde"), a.get("hasta"), "fecha de entrega" if campo == "entrega" else "fecha de creación del pedido"
+    )
+    if estado == "FALLIDO":
+        datos["nota_fecha"] = "El sistema no guarda el día exacto del fallo: no digas que fallaron 'hoy' salvo que el periodo lo indique."
     if len(pedidos) > _MAX_MUESTRA:
-        datos["nota_muestra"] = f"Se muestran {_MAX_MUESTRA} de {len(pedidos)} pedidos (los más recientes)."
+        datos["nota_muestra"] = (
+            f"La muestra trae solo {_MAX_MUESTRA} de {len(pedidos)} pedidos (los más recientes): "
+            "no cuentes sobre ella; para totales usa total y los campos conteo_*."
+        )
     if truncado:
         datos["advertencia"] = f"La consulta llegó al tope de {settings.ASISTENTE_MAX_PEDIDOS_CONSULTA} pedidos revisados; los totales pueden ser mayores."
 
@@ -258,17 +325,26 @@ async def buscar_pedidos(ctx: Contexto, a: dict) -> Resultado:
 
     bloques = []
     presentar = _presentar(a)
+    # Respaldo: si se consultan fallidos con su motivo, la lista va en la tabla del servidor
+    # aunque el modelo pida solo texto (el texto debe ser un resumen breve, sin tablas).
+    if presentar == "texto" and motivos and estado == "FALLIDO":
+        presentar = "tabla"
     if presentar == "tabla":
-        bloques.append(B.tabla(
-            "Pedidos encontrados",
-            ["Código", "Cliente", "Distrito", "Estado", "Creado", "Conductor"],
-            [[p.get("codigo"), p.get("cliente_origen"), p.get("distrito"), p.get("estado"),
-              texto_fecha_hora(p.get("fecha_creacion")), p.get("conductor_nombre")] for p in pedidos],
-        ))
+        columnas = ["Código", "Cliente", "Distrito", "Estado", "Creado", "Conductor"]
+        filas = [[p.get("codigo"), p.get("cliente_origen"), p.get("distrito"), p.get("estado"),
+                  texto_fecha_hora(p.get("fecha_creacion")), p.get("conductor_nombre")] for p in pedidos]
+        if motivos:
+            columnas.append("Motivo de fallo")
+            for f, p in zip(filas, pedidos):
+                f.append((motivos.get(p.get("codigo")) or _SIN_MOTIVO) if p.get("estado") == "FALLIDO" else None)
+        bloques.append(B.tabla("Pedidos encontrados", columnas, filas))
     elif presentar == "grafico":
-        serie = agrupacion or dict(conteo)
-        por = a.get("agrupar_por") or "estado"
-        bloques.append(B.grafico(f"Pedidos por {por}", list(serie.items()), "barras"))
+        if motivos and estado == "FALLIDO" and not a.get("agrupar_por"):
+            bloques.append(B.grafico("Pedidos fallidos por motivo", list(datos["motivos_de_fallo"].items()), "torta"))
+        else:
+            serie = agrupacion or dict(conteo)
+            por = a.get("agrupar_por") or "estado"
+            bloques.append(B.grafico(f"Pedidos por {por}", list(serie.items()), "barras"))
 
     distritos = {p.get("distrito") for p in pedidos if p.get("distrito")}
     bloques.append(B.enlace(
@@ -507,6 +583,7 @@ async def reportes_falla(ctx: Contexto, a: dict) -> Resultado:
     ]
     datos = {
         "estado_consultado": estado,
+        "periodo": _texto_periodo(None, None),
         "total": len(filas),
         "por_motivo": dict(Counter(f["motivo"] for f in filas).most_common()),
         "reportes": filas[:15],
@@ -516,8 +593,8 @@ async def reportes_falla(ctx: Contexto, a: dict) -> Resultado:
     if presentar == "tabla":
         bloques.append(B.tabla(
             "Reportes de falla",
-            ["Pedido", "Conductor", "Motivo", "Estado", "Creado"],
-            [[f["pedido"], f["conductor"], f["motivo"], f["estado"], f["creado"]] for f in filas],
+            ["Pedido", "Conductor", "Motivo", "Detalle", "Estado", "Creado"],
+            [[f["pedido"], f["conductor"], f["motivo"], f["descripcion"], f["estado"], f["creado"]] for f in filas],
         ))
     elif presentar == "grafico":
         bloques.append(B.grafico("Reportes por motivo", list(datos["por_motivo"].items()), "torta"))

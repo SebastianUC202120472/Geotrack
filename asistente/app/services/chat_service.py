@@ -29,7 +29,7 @@ from app.ia.prompt import envolver_datos, instrucciones_sistema
 from app.ia.proveedores import CadenaProveedores, ErrorProveedor, SinProveedores
 from app.repositories import auditoria_repository, conversacion_repository
 from app.services.defensa import AVISO_DATOS, AVISO_USUARIO, intenta_cambiar_reglas, neutralizar_datos
-from app.services.privacidad import FiltroSalida, RestituidorFlujo, Seudonimos, enmascarar_texto, sanear_datos
+from app.services.privacidad import FiltroSalida, FiltroTablas, RestituidorFlujo, Seudonimos, enmascarar_texto, sanear_datos
 
 _MAX_LLAMADAS_POR_RONDA = 4
 # Lo que ve el usuario cuando ningun proveedor de IA responde (el detalle tecnico va al log).
@@ -157,6 +157,8 @@ async def conversar(
             texto_ronda = ""
             restituidor = RestituidorFlujo(seud)
             filtro = FiltroSalida(NOMBRES_VISIBLES)
+            # Respaldo de la regla del prompt: las tablas Markdown del texto se quitan (el detalle va en la tabla del servidor).
+            tablas = FiltroTablas()
             # Si una ronda anterior ya escribio texto, la siguiente empieza en otro parrafo.
             separador_pendiente = bool(texto_visible) and not texto_visible.endswith("\n")
 
@@ -165,7 +167,7 @@ async def conversar(
                     proveedor_usado = valor
                 elif tipo == "texto":
                     texto_ronda += valor
-                    visible = filtro.agregar(restituidor.agregar(valor))
+                    visible = tablas.agregar(filtro.agregar(restituidor.agregar(valor)))
                     if visible:
                         if separador_pendiente:
                             visible = "\n\n" + visible
@@ -174,7 +176,9 @@ async def conversar(
                         yield _evento("texto", texto=visible)
                 elif tipo == "llamadas":
                     llamadas = valor
-            resto = filtro.agregar(restituidor.cerrar()) + filtro.cerrar()
+            resto = tablas.agregar(filtro.agregar(restituidor.cerrar()) + filtro.cerrar()) + tablas.cerrar()
+            if tablas.quito_tabla:
+                log.info("Se quitó una tabla Markdown del texto del modelo")
             if resto:
                 if separador_pendiente:
                     resto = "\n\n" + resto
