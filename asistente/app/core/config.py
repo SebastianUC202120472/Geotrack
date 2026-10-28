@@ -37,12 +37,14 @@ class Settings(BaseSettings):
     GROQ_URL: str = "https://api.groq.com/openai/v1"
 
     OPENROUTER_API_KEY: str = ""
-    OPENROUTER_MODELO: str = "meta-llama/llama-3.3-70b-instruct:free"
+    OPENROUTER_MODELO: str = "nvidia/nemotron-3.5-super-vl:free"
     OPENROUTER_URL: str = "https://openrouter.ai/api/v1"
 
     # Ollama corre en la propia PC: no necesita clave. Vacio = desactivado.
     OLLAMA_URL: str = ""
     OLLAMA_MODELO: str = "qwen2.5:7b"
+    # Ollama en una PC sin tarjeta de video tarda mucho mas en empezar: tiene su propio plazo.
+    OLLAMA_TIMEOUT_SEG: float = 120.0
 
     # Proveedores de pago (solo si el gerente lo aprueba para produccion).
     ANTHROPIC_API_KEY: str = ""

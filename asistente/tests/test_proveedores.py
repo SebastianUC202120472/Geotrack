@@ -269,3 +269,25 @@ def test_timeouts_separados_del_cliente_http():
     """Conexion corta y espera entre fragmentos de 20 s, en vez de un unico timeout de 45 s."""
     t = timeout_http_ia()
     assert (t.connect, t.read, t.write, t.pool) == (5.0, 20.0, 10.0, 5.0)
+
+
+def test_ollama_tiene_plazo_propio(monkeypatch):
+    """Ollama local (lento sin tarjeta de video) espera mas; los de la nube siguen con el plazo corto."""
+    monkeypatch.setattr(settings, "ASISTENTE_PROVEEDORES", "gemini,ollama")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "g")
+    monkeypatch.setattr(settings, "OLLAMA_URL", "http://host.docker.internal:11434")
+    monkeypatch.setattr(settings, "OLLAMA_TIMEOUT_SEG", 120.0)
+    gemini, ollama = construir_proveedores()
+    assert gemini.plazo_seg is None and ollama.plazo_seg == 120.0
+    assert ollama.url == "http://host.docker.internal:11434/v1"
+
+    # Con plazo propio, una respuesta que tarda mas que el plazo general igual llega.
+    monkeypatch.setattr(settings, "ASISTENTE_IA_PRIMER_FRAGMENTO_SEG", 0.05)
+
+    async def manejador(request: httpx.Request):
+        await asyncio.sleep(0.2)
+        return httpx.Response(200, content=_sse({"choices": [{"delta": {"content": "Hola"}}]}))
+
+    http = httpx.AsyncClient(transport=httpx.MockTransport(manejador))
+    cadena = CadenaProveedores([Proveedor("ollama", "http://ollama.test", "ollama", "m", {}, 5.0)])
+    assert ("texto", "Hola") in _recolectar(cadena, http)

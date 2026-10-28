@@ -63,6 +63,7 @@ class Proveedor:
     clave: str
     modelo: str
     cabeceras_extra: dict = field(default_factory=dict)
+    plazo_seg: float | None = None   # plazo propio (modelos locales lentos); None usa el general
 
     async def transmitir(
         self, mensajes: list[dict], herramientas: list[dict], http: httpx.AsyncClient
@@ -81,12 +82,14 @@ class Proveedor:
         cabeceras = {"Authorization": f"Bearer {self.clave}", "Content-Type": "application/json", **self.cabeceras_extra}
 
         acumulador = _AcumuladorLlamadas()
-        plazo = settings.ASISTENTE_IA_PRIMER_FRAGMENTO_SEG
+        plazo = self.plazo_seg or settings.ASISTENTE_IA_PRIMER_FRAGMENTO_SEG
+        # Con plazo propio, la espera entre fragmentos del cliente HTTP tambien se amplia.
+        extra = {"timeout": httpx.Timeout(connect=settings.ASISTENTE_IA_CONEXION_SEG, read=plazo, write=10.0, pool=5.0)}             if self.plazo_seg else {}
         try:
             # El plazo cubre desde la conexion hasta el primer fragmento; se desactiva apenas
             # llega algo, antes de emitir nada, para que el corte nunca deje una respuesta a medias.
             async with asyncio.timeout(plazo) as limite:
-                async with http.stream("POST", self.url.rstrip("/") + "/chat/completions", json=cuerpo, headers=cabeceras) as r:
+                async with http.stream("POST", self.url.rstrip("/") + "/chat/completions", json=cuerpo, headers=cabeceras, **extra) as r:
                     if r.status_code != 200:
                         await r.aread()
                         raise _error_por_estado(self.nombre, r)
@@ -201,7 +204,8 @@ def construir_proveedores() -> list[Proveedor]:
             continue
         url, clave, modelo, extra = disponibles[nombre]
         if url and clave and modelo:
-            lista.append(Proveedor(nombre, url, clave, modelo, extra))
+            plazo = s.OLLAMA_TIMEOUT_SEG if nombre == "ollama" else None
+            lista.append(Proveedor(nombre, url, clave, modelo, extra, plazo))
     return lista
 
 

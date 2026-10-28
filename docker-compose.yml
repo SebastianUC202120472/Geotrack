@@ -71,7 +71,7 @@ services:
       GROQ_MODELO: ${GROQ_MODELO:-openai/gpt-oss-120b}
       GROQ_MODELO_RESPALDO: ${GROQ_MODELO_RESPALDO-openai/gpt-oss-20b}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_MODELO: ${OPENROUTER_MODELO:-meta-llama/llama-3.3-70b-instruct:free}
+      OPENROUTER_MODELO: ${OPENROUTER_MODELO:-nvidia/nemotron-3.5-super-vl:free}
       OLLAMA_URL: ${OLLAMA_URL:-}
       OLLAMA_MODELO: ${OLLAMA_MODELO:-qwen2.5:7b}
       ASISTENTE_IA_TIMEOUT_SEG: ${ASISTENTE_IA_TIMEOUT_SEG:-20}

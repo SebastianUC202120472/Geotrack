@@ -14,7 +14,7 @@ OpenAI de cada proveedor.
 | `gemini`                          | `GEMINI_MODELO`         | `gemini-3.5-flash-lite`  | `gemini-2.5-flash` ya no se habilita en proyectos nuevos (404). `gemini-3.8-flash` también sirve, pero suele dar 503 por alta demanda. |
 | `groq`                            | `GROQ_MODELO`           | `openai/gpt-oss-120b`    | `llama-3.3-70b-versatile` puede no estar disponible en tu cuenta (404 `model_not_found`). |
 | `groq_respaldo`                   | `GROQ_MODELO_RESPALDO`  | `openai/gpt-oss-20b`     | Misma `GROQ_API_KEY`. Groq pone los límites por modelo: cuando el 120b da 429, este suele seguir libre. Déjalo vacío para no usarlo. |
-| `openrouter`                      | `OPENROUTER_MODELO`     | `meta-llama/llama-3.3-70b-instruct:free` | Solo si hay `OPENROUTER_API_KEY`. |
+| `openrouter`                      | `OPENROUTER_MODELO`     | `nvidia/nemotron-3.5-super-vl:free` | Solo si hay `OPENROUTER_API_KEY`. Los `:free` cambian seguido: si da 404 o 429 constante, elige otro con soporte de funciones en openrouter.ai/models. |
 | `ollama`                          | `OLLAMA_MODELO`         | `qwen2.5:7b`             | Solo si hay `OLLAMA_URL`. |
 
 ### Orden y respaldo
