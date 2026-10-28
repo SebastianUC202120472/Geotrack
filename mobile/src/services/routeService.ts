@@ -1,13 +1,33 @@
-import type { Coordenadas, ParadaManifiesto } from "@/types/api";
+import type { Coordenadas, OptimizacionResultado, ParadaManifiesto } from "@/types/api";
 import { optimizarRuta } from "@/api/rutas";
 
 // Llama al servidor para optimizar el orden de paradas. Recibe rutaId y coords del conductor.
 export async function optimizarDesdeUbicacion(
   rutaId: number,
   coords: Coordenadas
-): Promise<number> {
-  const resultado = await optimizarRuta(rutaId, coords);
-  return resultado.total_paradas;
+): Promise<OptimizacionResultado> {
+  return optimizarRuta(rutaId, coords);
+}
+
+// Texto del aviso tras optimizar: paradas ordenadas, km y ahorro (C20-01) y las paradas que
+// quedaron fuera por no tener ubicación (C20-03). Recibe el resultado y cómo llamar a las paradas.
+export function mensajeOptimizacion(r: OptimizacionResultado, nombre = "paradas"): string {
+  const lineas = [`Se ordenaron ${r.total_paradas} ${nombre} desde tu ubicación.`];
+  if (r.km_estimado != null) {
+    const ahorro = r.km_ahorrado && r.km_ahorrado > 0
+      ? ` Ahorras ${r.km_ahorrado.toFixed(1)} km frente al orden de carga.`
+      : "";
+    lineas.push(`Recorrido estimado: ${r.km_estimado.toFixed(1)} km.${ahorro}`);
+  }
+  const sinUbicacion = r.paradas_sin_ubicacion ?? 0;
+  if (sinUbicacion > 0) {
+    const codigos = (r.codigos_sin_ubicacion ?? []).join(", ");
+    lineas.push(
+      `⚠️ ${sinUbicacion} ${sinUbicacion === 1 ? "parada no tiene" : "paradas no tienen"} ubicación en el mapa` +
+      `${codigos ? ` (${codigos})` : ""} y quedaron al final de la lista. Avisa a la central.`
+    );
+  }
+  return lineas.join("\n\n");
 }
 
 // Ordena paradas localmente por vecino más cercano. Recibe paradas con lat/lng y origen.

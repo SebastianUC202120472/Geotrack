@@ -25,6 +25,8 @@ export interface RutaActiva {
   ayuda_enviada_en?: string | null;
   ayuda_detalle?: string | null;
   tipo?: string; // "ENTREGA" | "RECOJO"
+  km_estimado?: number | null;   // se llena al optimizar
+  km_ahorrado?: number | null;
 }
 
 // Una parada del manifiesto de entrega.
@@ -83,6 +85,10 @@ export interface GestionParada {
 export interface OptimizacionResultado {
   mensaje: string;
   total_paradas: number;
+  km_estimado?: number | null;      // recorrido calculado desde tu ubicación
+  km_ahorrado?: number | null;      // frente al orden en que se cargaron las paradas
+  paradas_sin_ubicacion?: number;   // pendientes sin coordenadas: quedan fuera del orden
+  codigos_sin_ubicacion?: string[];
 }
 
 export interface CierreRuta {
