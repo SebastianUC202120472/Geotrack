@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Search, X, Package, MapPin, Eye, ChevronLeft, ChevronRight, Loader2, RotateCcw, User, Truck, Filter, List, Building2, AlertTriangle, Ban } from "lucide-react";
+import { Search, X, Package, MapPin, Eye, ChevronLeft, ChevronRight, Loader2, RotateCcw, User, Truck, Filter, List, Building2, AlertTriangle, Ban, RefreshCw, CheckCircle2 } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -13,7 +13,7 @@ import ResolverDireccionModal from "../components/ResolverDireccionModal";
 import VistaPorRuta from "../components/seguimiento/VistaPorRuta";
 import VistaPorCliente from "../components/seguimiento/VistaPorCliente";
 import TabTrazabilidad from "../components/TabTrazabilidad";
-import { listarTodosLosPedidos, listarZonas, obtenerHistorial, reprogramarPedido, cancelarPedido, listarReportes } from "../services/api";
+import { listarTodosLosPedidos, listarZonas, obtenerHistorial, reprogramarPedido, cancelarPedido, listarReportes, reprocesarDirecciones } from "../services/api";
 
 const POR_PAGINA = 12;
 const fmt = (f) => (f ? new Date(f).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—");
@@ -36,6 +36,11 @@ const VISTAS = [
   { id: "trazabilidad", label: "Trazabilidad", icon: Search },
 ];
 
+// Estados que el servidor reprocesa al pulsar «Reprocesar direcciones pendientes».
+const ESTADOS_REPROCESABLES = ["LISTO_PARA_ENVIO", "GEOCODIFICACION_FALLIDA"];
+// Un pedido entregado o cancelado ya no admite corregir su ubicación.
+const ESTADOS_CERRADOS = ["ENTREGADO", "CANCELADO"];
+
 // Página de pedidos con filtros, KPIs, tabla paginada y detalle lateral.
 export default function Pedidos() {
   const navigate = useNavigate();
@@ -53,6 +58,8 @@ export default function Pedidos() {
   const [sinUbicar, setSinUbicar] = useState(false);
   const [pagina, setPagina] = useState(1);
   const [seleccionado, setSeleccionado] = useState(null);
+  const [reprocesando, setReprocesando] = useState(false);
+  const [avisoReproceso, setAvisoReproceso] = useState(null);
 
   // Carga reportes abiertos y construye mapa pedido_id → reporte.
   const cargarReportes = () => {
@@ -117,6 +124,30 @@ export default function Pedidos() {
         .some((v) => (v || "").toLowerCase().includes(q));
     });
   }, [pedidos, busqueda, distrito, estado, fecha, sinUbicar]);
+
+  // Pedidos que esperan ser despachados y aún no tienen ubicación (los que reprocesa el servidor).
+  const porUbicar = useMemo(
+    () => pedidos.filter((p) => (p.latitud == null || p.longitud == null) && ESTADOS_REPROCESABLES.includes(p.estado)).length,
+    [pedidos]
+  );
+
+  // Pide al servidor que vuelva a geocodificar una tanda de direcciones pendientes (C16-03).
+  const reprocesar = () => {
+    setReprocesando(true);
+    setAvisoReproceso(null);
+    reprocesarDirecciones()
+      .then((r) => {
+        const ubicados = r.pedidos_exitosos || 0;
+        const sinUbicar = r.pedidos_fallidos || 0;
+        const partes = [`${ubicados} pedido(s) ubicado(s)`];
+        if (sinUbicar) partes.push(`${sinUbicar} siguen sin ubicar: ábrelos y usa «Resolver dirección»`);
+        if (r.pedidos_restantes) partes.push(`quedan ${r.pedidos_restantes} para la siguiente tanda`);
+        setAvisoReproceso({ ok: sinUbicar === 0, texto: `${partes.join("; ")}.` });
+        cargar();
+      })
+      .catch((err) => setAvisoReproceso({ ok: false, texto: err.message }))
+      .finally(() => setReprocesando(false));
+  };
 
   const aplicarBusqueda = (v) => { setBusqueda(v); setPagina(1); };
   const aplicarFecha = (v) => { setFecha(v); setPagina(1); };
@@ -199,7 +230,33 @@ export default function Pedidos() {
       <PageHeader
         titulo="Pedidos"
         subtitulo="Busca, filtra por zona/estado/fecha y abre la trazabilidad de cada pedido."
-      />
+      >
+        {vista === "lista" && (
+          <Button variant="secondary" icon={reprocesando ? Loader2 : RefreshCw} onClick={reprocesar}
+            disabled={reprocesando || porUbicar === 0}
+            className={`shrink-0 whitespace-nowrap ${reprocesando ? "[&>svg]:animate-spin" : ""}`}
+            title={porUbicar === 0 ? "No hay direcciones pendientes de ubicar" : undefined}>
+            {reprocesando ? "Reprocesando…" : "Reprocesar direcciones pendientes"}
+            {!reprocesando && porUbicar > 0 && (
+              <span className="rounded-full bg-warning-soft px-2 py-0.5 text-xs font-bold text-warning-strong nums">{porUbicar}</span>
+            )}
+          </Button>
+        )}
+      </PageHeader>
+
+      {vista === "lista" && avisoReproceso && (
+        <div className={`flex items-start gap-3 rounded-xl px-4 py-3 text-sm animate-fade-up ${
+          avisoReproceso.ok
+            ? "bg-success-soft text-success-strong border border-success/20"
+            : "bg-warning-soft text-warning-strong border border-warning/30"
+        }`}>
+          {avisoReproceso.ok ? <CheckCircle2 size={18} className="mt-0.5 shrink-0" /> : <AlertTriangle size={18} className="mt-0.5 shrink-0" />}
+          <span className="flex-1">{avisoReproceso.texto}</span>
+          <button onClick={() => setAvisoReproceso(null)} aria-label="Cerrar aviso" className="rounded p-0.5 opacity-70 hover:opacity-100">
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       <div className="animate-fade-up">
         <div className="inline-flex items-center gap-1 rounded-2xl border border-warm-200 bg-white p-1 shadow-card">
@@ -344,6 +401,8 @@ function DetallePedido({ pedido, reporte, onCerrar, onIrARuta, onAccion, onDirec
   const [error, setError] = useState("");
   const [accionando, setAccionando] = useState(false);
   const [mostrarResolver, setMostrarResolver] = useState(false);
+  const sinUbicacion = pedido.latitud == null || pedido.longitud == null;
+  const corregible = !ESTADOS_CERRADOS.includes(pedido.estado);
 
   useEffect(() => {
     let activo = true;
@@ -437,7 +496,7 @@ function DetallePedido({ pedido, reporte, onCerrar, onIrARuta, onAccion, onDirec
           </div>
         )}
 
-        {(pedido.latitud == null || pedido.longitud == null) && (
+        {sinUbicacion ? (
           <div className="rounded-xl border border-brand-200 bg-brand-50 p-4">
             <p className="text-sm text-brand-800">Este pedido no tiene ubicación geocodificada.</p>
             <div className="mt-3">
@@ -445,6 +504,13 @@ function DetallePedido({ pedido, reporte, onCerrar, onIrARuta, onAccion, onDirec
                 Resolver dirección
               </Button>
             </div>
+          </div>
+        ) : corregible && (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-sm text-slate-600">¿El punto en el mapa está mal?</p>
+            <Button size="sm" variant="secondary" icon={MapPin} className="shrink-0 whitespace-nowrap" onClick={() => setMostrarResolver(true)}>
+              Corregir ubicación
+            </Button>
           </div>
         )}
 

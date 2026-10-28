@@ -10,10 +10,14 @@ from app.repositories import (
     pedido_repository, cliente_repository, historial_repository, ruta_repository, usuario_repository,
     reporte_repository, geocoding_cache_repository,
 )
-from app.services.geocoder import obtener_coordenadas
+from app.services.geocoder import geocodificar, buscar_lugares, distrito_de_punto, usando_google
 from app.core.codigos import asignar_codigo, generar_codigo, PREFIJO_PEDIDO
+from app.core.distritos import resolver_distrito
 
 COLUMNAS_REQUERIDAS = ["direccion_destino"]
+
+# Un pedido ya cerrado no admite que se cambie su ubicacion (C17-01).
+ESTADOS_SIN_CORRECCION = ("ENTREGADO", "CANCELADO")
 
 
 def _valor(fila, df, *nombres):
@@ -67,7 +71,7 @@ def crear_pedido_desde_fila(
     recojo_id: int | None,
     estado: str,
     usuario_id: int | None,
-    geocodificar: bool = True,
+    geocodificar_ahora: bool = True,
 ) -> Pedido:
     """Crea y persiste un Pedido a partir de una fila normalizada y el cliente ya resuelto."""
     pedido = Pedido(
@@ -88,13 +92,10 @@ def crear_pedido_desde_fila(
     asignar_codigo(db, pedido, PREFIJO_PEDIDO)
     historial_repository.registrar(db, pedido.id, None, estado, usuario_id)
 
-    if geocodificar:
-        lat, lng = obtener_coordenadas(pedido.direccion_destino, db)
-        if lat and lng:
-            pedido.latitud = lat
-            pedido.longitud = lng
-            partes = pedido.direccion_destino.split(",")
-            pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
+    if geocodificar_ahora:
+        resultado = geocodificar(pedido.direccion_destino, db)
+        if resultado is not None:
+            _ubicar(pedido, resultado.latitud, resultado.longitud, resultado.distrito)
 
     return pedido
 
@@ -180,13 +181,29 @@ def _str_o_none(valor):
     return str(valor) if valor is not None else None
 
 
-def procesar_geocodificacion(db: Session, usuario_id: int | None = None) -> dict:
+def _ubicar(pedido, latitud: float, longitud: float, distrito_geo: str | None) -> None:
+    """Fija las coordenadas del pedido y su zona: el distrito que dio el mapa o, si no, el que
+    aparezca en la direccion (C16-01). Recibe el pedido, lat/lng y el distrito del geocodificador."""
+    pedido.latitud = latitud
+    pedido.longitud = longitud
+    pedido.distrito = resolver_distrito(distrito_geo, pedido.direccion_destino)
+
+
+def limite_por_tanda() -> int:
+    """Cuantos pedidos se geocodifican por clic en «Reprocesar»: OpenStreetMap atiende uno por
+    segundo, asi que sin clave de Google la tanda es menor para no exceder el tiempo de espera."""
+    return 100 if usando_google() else 30
+
+
+def procesar_geocodificacion(db: Session, usuario_id: int | None = None, limite: int | None = None) -> dict:
     """Geocodifica los pedidos sin coordenadas usando el caché de direcciones (una sola
-    consulta trae las ya cacheadas, para no repetir llamadas al proveedor); marca
-    GEOCODIFICACION_FALLIDA si no se encuentra la dirección."""
-    pendientes = pedido_repository.obtener_sin_coordenadas(db)
-    if not pendientes:
+    consulta trae las ya cacheadas, para no repetir llamadas al proveedor). Un pedido que se
+    ubica sale de GEOCODIFICACION_FALLIDA; uno listo para envío que no se encuentra pasa a ese
+    estado. Recibe la sesión, el usuario y un tope opcional de pedidos por tanda (C16-03)."""
+    todos = pedido_repository.obtener_sin_coordenadas(db)
+    if not todos:
         return {"mensaje": "Todos los pedidos ya están geocodificados"}
+    pendientes = todos[:limite] if limite else todos
 
     # Una sola consulta: coordenadas ya cacheadas de todas las direcciones del lote.
     cacheadas = geocoding_cache_repository.obtener_muchas(db, [p.direccion_destino for p in pendientes])
@@ -197,24 +214,23 @@ def procesar_geocodificacion(db: Session, usuario_id: int | None = None) -> dict
     for pedido in pendientes:
         norm = geocoding_cache_repository.normalizar(pedido.direccion_destino)
         hit = cacheadas.get(norm)
-        if hit:
-            lat, lng = hit
-        else:
-            # No estaba en caché: geocodifica (Google/Nominatim) y lo guarda para la próxima.
-            lat, lng = obtener_coordenadas(pedido.direccion_destino, db)
-            if lat and lng:
-                cacheadas[norm] = (lat, lng)  # reutiliza si el mismo lote repite la dirección
+        if not (hit and hit[2]):
+            # Sin caché (o caché antiguo sin distrito): geocodifica y lo guarda para la próxima.
+            resultado = geocodificar(pedido.direccion_destino, db)
+            hit = (resultado.latitud, resultado.longitud, resultado.distrito) if resultado else None
+            if hit:
+                cacheadas[norm] = hit  # reutiliza si el mismo lote repite la dirección
 
-        if lat and lng:
-            pedido.latitud = lat
-            pedido.longitud = lng
-            partes = pedido.direccion_destino.split(",")
-            pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
+        if hit:
+            _ubicar(pedido, *hit)
+            if pedido.estado == "GEOCODIFICACION_FALLIDA":
+                historial_repository.registrar(db, pedido.id, pedido.estado, "LISTO_PARA_ENVIO", usuario_id)
+                pedido.estado = "LISTO_PARA_ENVIO"
             exitosos += 1
-        elif pedido.estado != "POR_RECOGER":
-            estado_anterior = pedido.estado
-            pedido.estado = "GEOCODIFICACION_FALLIDA"
-            historial_repository.registrar(db, pedido.id, estado_anterior, "GEOCODIFICACION_FALLIDA", usuario_id)
+        else:
+            if pedido.estado == "LISTO_PARA_ENVIO":
+                historial_repository.registrar(db, pedido.id, pedido.estado, "GEOCODIFICACION_FALLIDA", usuario_id)
+                pedido.estado = "GEOCODIFICACION_FALLIDA"
             fallidos += 1
 
     pedido_repository.guardar_cambios(db)
@@ -223,6 +239,7 @@ def procesar_geocodificacion(db: Session, usuario_id: int | None = None) -> dict
         "mensaje": "Proceso de geocodificación finalizado",
         "pedidos_exitosos": exitosos,
         "pedidos_fallidos": fallidos,
+        "pedidos_restantes": len(todos) - len(pendientes),
     }
 
 
@@ -331,27 +348,34 @@ def listar_para_ubicar(db: Session):
     return pedido_repository.listar_sin_ubicacion_resoluble(db)
 
 
-def buscar_direccion(direccion: str) -> dict:
-    """Geocodifica un texto de dirección. Devuelve {encontrado, latitud, longitud}."""
-    lat, lng = obtener_coordenadas((direccion or "").strip())
-    if lat is None or lng is None:
-        return {"encontrado": False, "latitud": None, "longitud": None}
-    return {"encontrado": True, "latitud": lat, "longitud": lng}
+def buscar_direccion(direccion: str, maximo: int = 5) -> dict:
+    """Geocodifica un texto y devuelve hasta `maximo` coincidencias para que el admin elija la
+    correcta (C17-02). Recibe el texto. Devuelve {encontrado, latitud, longitud, coincidencias}."""
+    coincidencias = [
+        {"direccion": r.direccion or direccion, "latitud": r.latitud, "longitud": r.longitud, "distrito": r.distrito}
+        for r in buscar_lugares(direccion, maximo)
+    ]
+    if not coincidencias:
+        return {"encontrado": False, "latitud": None, "longitud": None, "coincidencias": []}
+    primera = coincidencias[0]
+    return {"encontrado": True, "latitud": primera["latitud"], "longitud": primera["longitud"],
+            "coincidencias": coincidencias}
 
 
 def fijar_ubicacion(db: Session, pedido_id: int, latitud: float, longitud: float,
                     direccion: str | None = None, usuario_id: int | None = None) -> dict:
-    """Fija manualmente las coordenadas de un pedido; si estaba en GEOCODIFICACION_FALLIDA lo pasa a LISTO_PARA_ENVIO."""
+    """Fija o corrige a mano la ubicación de un pedido no entregado (C17-01) y recalcula su zona
+    con el distrito del punto marcado; si estaba en GEOCODIFICACION_FALLIDA lo pasa a
+    LISTO_PARA_ENVIO. Recibe el id, lat/lng, la dirección opcional y el usuario."""
     pedido = pedido_repository.obtener_por_id(db, pedido_id)
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    if pedido.estado in ESTADOS_SIN_CORRECCION:
+        raise HTTPException(status_code=400, detail="No se puede cambiar la ubicación de un pedido entregado o cancelado")
 
-    pedido.latitud = latitud
-    pedido.longitud = longitud
     if direccion and direccion.strip():
         pedido.direccion_destino = direccion.strip()
-    partes = (pedido.direccion_destino or "").split(",")
-    pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
+    _ubicar(pedido, latitud, longitud, distrito_de_punto(latitud, longitud))
 
     if pedido.estado == "GEOCODIFICACION_FALLIDA":
         historial_repository.registrar(db, pedido.id, pedido.estado, "LISTO_PARA_ENVIO", usuario_id)

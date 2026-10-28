@@ -109,3 +109,142 @@ def test_no_realizado_cuenta_como_gestionado_y_exige_motivo():
     assert "NO_REALIZADO" in ESTADOS_GESTIONADOS
     with pytest.raises(ValueError):
         NoRealizadoRequest(motivo=" a ")
+
+
+# --- F4: geocodificacion (C16-01, C16-02, C16-03, C17-01) ---
+
+from types import SimpleNamespace  # noqa: E402
+
+from app.core.distritos import normalizar_distrito, distrito_desde_texto, resolver_distrito, ZONA_DESCONOCIDA  # noqa: E402
+from app.services import geocoder, pedido_service  # noqa: E402
+
+
+@pytest.mark.parametrize("texto, esperado", [
+    ("Miraflores 15074", "Miraflores"),
+    ("jesus maria", "Jesús María"),
+    ("Distrito de Ate", "Ate"),
+    ("Surco", "Santiago de Surco"),
+    ("SJL", "San Juan de Lurigancho"),
+    ("Provincia Constitucional del Callao", "Callao"),
+    ("Arequipa", None),
+])
+def test_distrito_se_normaliza_con_la_lista_de_lima(texto, esperado):
+    """Tildes, codigo postal, prefijos y abreviaturas llevan al nombre oficial; fuera de Lima, None."""
+    assert normalizar_distrito(texto) == esperado
+
+
+def test_distrito_desde_texto_mira_todos_los_tramos():
+    """El distrito puede venir en cualquier tramo; "Lima" solo cuenta si no hay otro distrito."""
+    assert distrito_desde_texto("Av. Aviación 1030, San Borja, Lima, Perú") == "San Borja"
+    assert distrito_desde_texto("Urb. Las Flores Mz A Lt 5, Lima, San Juan de Lurigancho") == "San Juan de Lurigancho"
+    assert distrito_desde_texto("Jr. Ucayali 200, Lima") == "Cercado de Lima"
+    assert distrito_desde_texto("Av. Miraflores 300") is None
+
+
+def test_resolver_distrito_prefiere_el_del_mapa():
+    """Manda el distrito del geocodificador; si no hay, el del texto; si no, zona desconocida."""
+    assert resolver_distrito("Surquillo", "Av. Angamos 1200, Miraflores") == "Surquillo"
+    assert resolver_distrito(None, "Av. Angamos 1200, Miraflores") == "Miraflores"
+    assert resolver_distrito("Cercado de Lima", "Calle 5, Breña") == "Breña"
+    assert resolver_distrito(None, "Calle sin distrito 123") == ZONA_DESCONOCIDA
+
+
+def test_distrito_de_google_y_de_osm():
+    """Se lee el distrito de los componentes del resultado; la provincia ("Lima") no cuenta en OSM."""
+    google = {"address_components": [
+        {"long_name": "Provincia de Lima", "types": ["administrative_area_level_2"]},
+        {"long_name": "Santiago de Surco", "types": ["locality", "political"]},
+    ]}
+    assert geocoder._distrito_google(google) == "Santiago de Surco"
+    assert geocoder._distrito_osm({"address": {"suburb": "Lince", "city": "Lima"}}) == "Lince"
+    assert geocoder._distrito_osm({"address": {"city": "Lima"}}) is None
+
+
+def test_si_google_falla_se_usa_openstreetmap(monkeypatch):
+    """Ante un error de Google (o sin resultados) se intenta con OpenStreetMap (C16-02)."""
+    punto = geocoder.ResultadoGeo(-12.1, -77.0, "Lince", "Lince, Lima", "nominatim")
+
+    class GoogleCaido:
+        def geocode(self, *a, **k):
+            raise RuntimeError("OVER_QUERY_LIMIT")
+
+    monkeypatch.setattr(geocoder, "_google", GoogleCaido())
+    monkeypatch.setattr(geocoder, "_buscar_osm", lambda texto, maximo: [punto])
+    assert geocoder.buscar_coincidencias("Av. Arequipa 2000, Lince") == [punto]
+
+    monkeypatch.setattr(geocoder, "_buscar_google", lambda texto, maximo: [])
+    assert geocoder.buscar_coincidencias("Av. Arequipa 2000, Lince") == [punto]
+
+
+def _preparar_reproceso(monkeypatch, pedidos, encontrados):
+    """Simula repositorios y geocodificador para procesar_geocodificacion. Recibe los pedidos y
+    las direcciones que el mapa si encuentra. Devuelve la lista de cambios de estado registrados."""
+    cambios = []
+    monkeypatch.setattr(pedido_service.pedido_repository, "obtener_sin_coordenadas", lambda db: pedidos)
+    monkeypatch.setattr(pedido_service.pedido_repository, "guardar_cambios", lambda db: None)
+    monkeypatch.setattr(pedido_service.geocoding_cache_repository, "obtener_muchas", lambda db, d: {})
+    monkeypatch.setattr(pedido_service.historial_repository, "registrar",
+                        lambda db, pid, antes, despues, uid: cambios.append((pid, antes, despues)))
+    monkeypatch.setattr(pedido_service, "geocodificar", lambda d, db: (
+        geocoder.ResultadoGeo(-12.12, -77.03, "Miraflores") if d in encontrados else None))
+    return cambios
+
+
+def test_reprocesar_saca_de_fallida_y_marca_las_no_ubicadas(monkeypatch):
+    """Un pedido fallido que ahora se ubica vuelve a Listo; uno listo que no se ubica pasa a fallido (C16-03)."""
+    fallido = SimpleNamespace(id=1, estado="GEOCODIFICACION_FALLIDA", direccion_destino="Av. Larco 100",
+                              latitud=None, longitud=None, distrito=None)
+    listo = SimpleNamespace(id=2, estado="LISTO_PARA_ENVIO", direccion_destino="Calle Inexistente 9",
+                            latitud=None, longitud=None, distrito=None)
+    cambios = _preparar_reproceso(monkeypatch, [fallido, listo], {"Av. Larco 100"})
+
+    r = pedido_service.procesar_geocodificacion(db=None)
+
+    assert (r["pedidos_exitosos"], r["pedidos_fallidos"], r["pedidos_restantes"]) == (1, 1, 0)
+    assert fallido.estado == "LISTO_PARA_ENVIO" and fallido.distrito == "Miraflores"
+    assert listo.estado == "GEOCODIFICACION_FALLIDA"
+    assert cambios == [(1, "GEOCODIFICACION_FALLIDA", "LISTO_PARA_ENVIO"), (2, "LISTO_PARA_ENVIO", "GEOCODIFICACION_FALLIDA")]
+
+
+def test_reprocesar_por_tandas_informa_lo_que_queda(monkeypatch):
+    """Con tope por tanda solo se procesan los primeros y se informa cuantos quedan."""
+    pedidos = [SimpleNamespace(id=i, estado="GEOCODIFICACION_FALLIDA", direccion_destino=f"Dir {i}",
+                               latitud=None, longitud=None, distrito=None) for i in range(5)]
+    cambios = _preparar_reproceso(monkeypatch, pedidos, set())
+
+    r = pedido_service.procesar_geocodificacion(db=None, limite=2)
+
+    assert (r["pedidos_fallidos"], r["pedidos_restantes"]) == (2, 3)
+    assert cambios == []  # un fallido que sigue sin ubicarse no repite el historial
+
+
+def test_no_se_corrige_la_ubicacion_de_un_pedido_entregado(monkeypatch):
+    """Solo se puede corregir la ubicacion de pedidos no entregados ni cancelados (C17-01)."""
+    entregado = SimpleNamespace(id=1, estado="ENTREGADO")
+    monkeypatch.setattr(pedido_service.pedido_repository, "obtener_por_id", lambda db, pid: entregado)
+    with pytest.raises(HTTPException) as e:
+        pedido_service.fijar_ubicacion(None, 1, -12.1, -77.0)
+    assert e.value.status_code == 400
+
+
+def test_un_resultado_que_solo_ubica_el_pais_no_cuenta(monkeypatch):
+    """Si Google solo reconoce "Perú" (o la region), la direccion se trata como no encontrada."""
+    pais = SimpleNamespace(latitude=-9.19, longitude=-75.0, address="Perú", raw={"types": ["country", "political"]})
+
+    class GoogleVago:
+        def geocode(self, *a, **k):
+            return [pais]
+
+    monkeypatch.setattr(geocoder, "_google", GoogleVago())
+    assert geocoder._buscar_google("qqzz 999", 1) == []
+
+
+def test_busqueda_manual_suma_lugares_de_osm_sin_repetir(monkeypatch):
+    """La busqueda del admin junta Google y OpenStreetMap y descarta el mismo lugar repetido (C17-02)."""
+    g = geocoder.ResultadoGeo(-12.0464, -77.0300, "Cercado de Lima", "Plaza Mayor, Lima", "google")
+    mismo = geocoder.ResultadoGeo(-12.0465, -77.0301, "Cercado de Lima", "Plaza de Armas de Lima", "nominatim")
+    otro = geocoder.ResultadoGeo(-12.0700, -77.0000, "La Victoria", "Plaza de Armas, La Victoria", "nominatim")
+    monkeypatch.setattr(geocoder, "_google", object())
+    monkeypatch.setattr(geocoder, "_buscar_google", lambda texto, maximo: [g])
+    monkeypatch.setattr(geocoder, "_buscar_osm", lambda texto, maximo: [mismo, otro])
+    assert geocoder.buscar_lugares("Plaza de Armas") == [g, otro]
