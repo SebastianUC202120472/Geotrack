@@ -93,6 +93,18 @@ export async function enviarMensaje(pregunta, { origen = "texto", leerVoz = fals
   }
 }
 
+// Cambia el estado de una tarjeta de accion en todos los mensajes (widget y vista completa ven lo mismo).
+// Recibe el id de la propuesta y los campos a cambiar.
+export function actualizarAccion(idAccion, cambios) {
+  cambiar((e) => ({
+    mensajes: e.mensajes.map((m) =>
+      m.bloques?.some((b) => b.tipo === "accion" && b.id === idAccion)
+        ? { ...m, bloques: m.bloques.map((b) => (b.tipo === "accion" && b.id === idAccion ? { ...b, ...cambios } : b)) }
+        : m
+    ),
+  }));
+}
+
 // Empieza una conversacion nueva y corta la respuesta en curso. Sin input.
 export function reiniciarChat() {
   cancelador?.abort();

@@ -48,8 +48,21 @@ class NucleoFalso:
 
     def __init__(self):
         self.peticiones: list[tuple[str, str]] = []
+        self.escrituras: list[dict] = []   # POST recibidos: ruta, token y cuerpo
         self.denegar: set[str] = set()   # rutas que responden 403 aunque el rol las vea
         self.pedidos = [_pedido(1), _pedido(2, dni_destinatario="11223344"), _pedido(3, estado="ENTREGADO", cliente_origen="Saga")]
+        self.observados = [{"pedido_id": 9, "codigo": "PD-009", "cliente": "Ripley", "direccion_destino": "x", "dias": 2, "lote": "RC-001"}]
+        self.retornos = {
+            4: {
+                "ruta_id": 4, "codigo": "RT-004", "nombre": "Ruta Miraflores", "estado": "FINALIZADA",
+                "conteo": {"esperados": 2, "retornados": 1, "faltantes": 1},
+                "fallidos": [
+                    {"pedido_id": 1, "codigo": "PD-001", "cliente_origen": "Ripley", "direccion_destino": "x", "nombre_destinatario": "Cliente 1", "retornado_en": None},
+                    {"pedido_id": 2, "codigo": "PD-002", "cliente_origen": "Ripley", "direccion_destino": "y", "nombre_destinatario": "Cliente 2", "retornado_en": "2026-10-22T15:00:00"},
+                ],
+            }
+        }
+        self.reportes: list[dict] = []   # reportes de falla (vacio salvo que la prueba agregue)
         self.conversaciones = {
             7: {
                 "id": 7, "contraparte_email": "compras@tienda.pe", "contraparte_nombre": None,
@@ -77,7 +90,38 @@ class NucleoFalso:
             return httpx.Response(401, json={"detail": "token"})
         if ruta in self.denegar or (usuario["rol"] != "admin" and ruta.startswith(SOLO_ADMIN)):
             return httpx.Response(403, json={"detail": "Esta operación es exclusiva para administradores"})
+        if request.method == "POST":
+            return self._escribir(ruta, token, request)
         return self._responder(ruta, request)
+
+    def _escribir(self, ruta: str, token: str, request: httpx.Request) -> httpx.Response:
+        """Simula las 3 escrituras que el asistente puede pedir tras el clic. Recibe ruta, token y peticion."""
+        cuerpo = json.loads(request.content or b"null")
+        self.escrituras.append({"ruta": ruta, "token": token, "cuerpo": cuerpo})
+        partes = ruta.strip("/").split("/")
+        if ruta.endswith("/reprogramar"):
+            pedido = next((p for p in self.pedidos if p["id"] == int(partes[2])), None)
+            if not pedido:
+                return httpx.Response(404, json={"detail": "Pedido no encontrado"})
+            if pedido["estado"] != "FALLIDO":
+                return httpx.Response(400, json={"detail": "Solo se puede reprogramar un pedido FALLIDO"})
+            pedido["estado"] = "LISTO_PARA_ENVIO"
+            return httpx.Response(200, json={"mensaje": "Pedido reprogramado. Volvió a su zona para reasignarlo.", "codigo": pedido["codigo"]})
+        if ruta.endswith("/resolver-observado"):
+            if all(o["pedido_id"] != int(partes[3]) for o in self.observados):
+                return httpx.Response(400, json={"detail": "Solo se puede resolver un pedido en estado OBSERVADO"})
+            self.observados = [o for o in self.observados if o["pedido_id"] != int(partes[3])]
+            return httpx.Response(200, json={"mensaje": "Pedido resuelto: Listo para envío.", "codigo": "PD-009"})
+        if ruta.endswith("/escanear"):
+            ruta_ret = self.retornos.get(int(partes[4]))
+            fallido = next((f for f in (ruta_ret or {}).get("fallidos", []) if f["codigo"] == cuerpo["codigo"]), None)
+            if fallido is None:
+                return httpx.Response(200, json={"resultado": "DESCONOCIDO", "codigo": cuerpo["codigo"], "mensaje": "El código no es un paquete fallido de esta ruta", "conteo": {}})
+            if fallido["retornado_en"]:
+                return httpx.Response(200, json={"resultado": "DUPLICADO", "codigo": cuerpo["codigo"], "mensaje": "Este paquete ya fue registrado como retornado", "conteo": {}})
+            fallido["retornado_en"] = "2026-10-22T16:00:00"
+            return httpx.Response(200, json={"resultado": "RETORNADO", "codigo": cuerpo["codigo"], "mensaje": "Paquete retornado correctamente", "conteo": {}})
+        return httpx.Response(404, json={"detail": "Ruta no simulada"})
 
     def _responder(self, ruta: str, request: httpx.Request) -> httpx.Response:
         """Devuelve los datos simulados de cada ruta. Recibe ruta y peticion."""
@@ -111,8 +155,25 @@ class NucleoFalso:
                 "usuario_id": 5, "correo": "juan@siol.com", "estado": True, "en_ruta": True, "nombre": "Juan Pérez",
                 "telefono": "998877665", "dni": "40404040", "licencia_numero": "Q12345678", "vehiculo": {"id": 1, "placa": "ABC-123"},
             }])
+        if ruta == "/api/reportes/":
+            return httpx.Response(200, json=self.reportes)
+        if ruta.startswith("/api/dashboard/pedidos/") and ruta.endswith("/historial"):
+            codigo = ruta.split("/")[4]
+            p = next((p for p in self.pedidos if p["codigo"] == codigo), None)
+            if not p:
+                return httpx.Response(404, json={"detail": "Pedido no encontrado"})
+            return httpx.Response(200, json={
+                "codigo": p["codigo"], "cliente_origen": p["cliente_origen"], "distrito": p["distrito"],
+                "estado_actual": p["estado"], "eventos": [{"fecha": "2026-10-22T15:00:00", "evento": "FALLIDO",
+                                                        "descripcion": "Entrega fallida", "realizado_por": "Juan"}],
+            })
         if ruta == "/api/almacen/observados":
-            return httpx.Response(200, json=[{"pedido_id": 9, "codigo": "PD-009", "cliente": "Ripley", "direccion_destino": "x", "dias": 2}])
+            return httpx.Response(200, json=self.observados)
+        if ruta == "/api/almacen/retornos/rutas":
+            return httpx.Response(200, json=[{k: v for k, v in r.items() if k != "fallidos"} for r in self.retornos.values()])
+        if ruta.startswith("/api/almacen/retornos/rutas/"):
+            r = self.retornos.get(int(ruta.rsplit("/", 1)[1]))
+            return httpx.Response(200, json=r) if r else httpx.Response(404, json={"detail": "Ruta no encontrada"})
         return httpx.Response(404, json={"detail": "Ruta no simulada"})
 
 

@@ -6,6 +6,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.acciones import CABECERA as CABECERA_ACCION
+from app.api.acciones import router as acciones_router
 from app.api.chat import router as chat_router
 from app.api.conversaciones import router as conversaciones_router
 from app.core.config import settings
@@ -27,6 +29,7 @@ async def lifespan(app: FastAPI):
             log.exception("No se pudieron preparar las tablas del asistente")
         nombres = [p.nombre for p in app.state.cadena.proveedores] or ["ninguno"]
         log.info("Asistente activo. Proveedores de IA en orden: %s", ", ".join(nombres))
+        log.info("Acciones con confirmación: %s", "activas" if settings.ASISTENTE_ACCIONES_ENABLED else "apagadas")
     else:
         log.info("Asistente desactivado (ASISTENTE_ENABLED=false)")
     yield
@@ -49,7 +52,7 @@ if settings.cors_origins_list:
         allow_origins=settings.cors_origins_list,
         allow_credentials=False,
         allow_methods=["GET", "POST", "DELETE"],
-        allow_headers=["Authorization", "Content-Type"],
+        allow_headers=["Authorization", "Content-Type", CABECERA_ACCION],
     )
 
 
@@ -63,6 +66,7 @@ async def error_no_controlado(request: Request, exc: Exception):
 
 app.include_router(chat_router, prefix="/api/asistente", tags=["Asistente"])
 app.include_router(conversaciones_router, prefix="/api/asistente/conversaciones", tags=["Historial"])
+app.include_router(acciones_router, prefix="/api/asistente/acciones", tags=["Acciones con confirmación"])
 
 
 @app.get("/api/asistente/salud")

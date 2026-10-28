@@ -209,3 +209,44 @@ def test_conteos_por_cliente_y_distrito_cubren_todos_los_pedidos():
     assert r.datos["conteo_por_cliente"] == {"Ripley": 8, "Saga": 4}
     assert r.datos["conteo_por_distrito"] == {"Miraflores": 12}
     assert "no cuentes sobre ella" in r.datos["nota_muestra"]
+
+
+def test_enlaces_de_almacen_segun_rol():
+    """El admin no tiene las pantallas de almacen en su menu: se le abre Pedidos ya filtrado.
+    El personal de almacen sigue yendo a sus pantallas."""
+    nucleo = NucleoFalso()
+    ruta = lambda r: next(b for b in r.bloques if b["tipo"] == "enlace")["ruta"]
+    admin = _contexto(nucleo)
+    almacen = _contexto(nucleo, "tok-almacen", "almacen")
+    assert ruta(asyncio.run(F.pedidos_observados(admin, {}))) == "/panel/pedidos?estado=OBSERVADO"
+    assert ruta(asyncio.run(F.retornos_almacen(admin, {}))) == "/panel/pedidos?estado=FALLIDO"
+    assert ruta(asyncio.run(F.pedidos_observados(almacen, {}))) == "/panel/almacen/observados"
+    assert ruta(asyncio.run(F.retornos_almacen(almacen, {}))) == "/panel/almacen/retornos"
+
+
+def test_trazabilidad_enlaza_reportes_solo_si_hay():
+    """Sin reportes del pedido, el boton abre Pedidos filtrado (no una lista de reportes vacia)."""
+    nucleo = NucleoFalso()
+    ruta = lambda r: next(b for b in r.bloques if b["tipo"] == "enlace")["ruta"]
+    r = asyncio.run(F.trazabilidad_pedido(_contexto(nucleo), {"codigo": "PD-001"}))
+    assert ruta(r) == "/panel/pedidos?estado=FALLIDO&distrito=Miraflores"
+    nucleo.reportes = [{"pedido_codigo": "PD-001", "estado": "ABIERTO"}]
+    r = asyncio.run(F.trazabilidad_pedido(_contexto(nucleo), {"codigo": "PD-001"}))
+    assert ruta(r) == "/panel/reportes?pedido=PD-001"
+
+
+def test_retornos_detalle_por_nombre_de_ruta():
+    """'detalle de Ruta Miraflores' trae los codigos de sus paquetes sin que el modelo sepa el id."""
+    nucleo = NucleoFalso()
+    r = asyncio.run(F.retornos_almacen(_contexto(nucleo), {"ruta": "miraflores"}))
+    assert [f["codigo"] for f in r.datos["fallidos"]] == ["PD-001", "PD-002"]
+    tabla = next(b for b in r.bloques if b["tipo"] == "tabla")
+    assert tabla["filas"][0][0] == "PD-001"
+    r = asyncio.run(F.retornos_almacen(_contexto(nucleo), {"ruta": "Cusco"}))
+    assert "error" in r.datos
+
+
+def test_tabla_vacia_no_se_muestra():
+    """Una consulta sin resultados no pinta una tabla con solo encabezados."""
+    from app.herramientas.bloques import tabla
+    assert tabla("Rutas", ["Ruta"], []) is None

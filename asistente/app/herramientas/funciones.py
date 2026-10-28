@@ -370,7 +370,15 @@ async def trazabilidad_pedido(ctx: Contexto, a: dict) -> Resultado:
     codigo = a["codigo"].strip().upper().replace(" ", "")
     if not _RE_CODIGO.match(codigo):
         return Resultado({"error": "El código de pedido no tiene un formato válido."})
-    h = await ctx.core.get(f"/dashboard/pedidos/{quote(codigo, safe='')}/historial")
+    h, reportes = await asyncio.gather(
+        ctx.core.get(f"/dashboard/pedidos/{quote(codigo, safe='')}/historial"),
+        ctx.core.get("/reportes/", {"estado": None}),
+        return_exceptions=True,
+    )
+    if isinstance(h, BaseException):
+        raise h
+    # Sin la lista de reportes la trazabilidad igual sirve: solo cambia el boton.
+    reportes = [] if isinstance(reportes, BaseException) else reportes
     eventos = [
         {
             "fecha": texto_fecha_hora(e.get("fecha")),
@@ -400,7 +408,12 @@ async def trazabilidad_pedido(ctx: Contexto, a: dict) -> Resultado:
             ["Fecha", "Evento", "Detalle", "Por"],
             [[e["fecha"], e["evento"], e["descripcion"], e["realizado_por"]] for e in eventos],
         ))
-    bloques.append(B.enlace("Ver reportes del pedido", "/panel/reportes", {"pedido": h.get("codigo") or codigo}))
+    # El boton de reportes solo si el pedido tiene alguno (si no, abre una lista vacia).
+    if any(_normal(r.get("pedido_codigo")) == _normal(codigo) for r in reportes or []):
+        bloques.append(B.enlace("Ver reportes del pedido", "/panel/reportes", {"pedido": h.get("codigo") or codigo}))
+    else:
+        bloques.append(B.enlace("Ver en Pedidos", "/panel/pedidos",
+                                {"estado": h.get("estado_actual"), "distrito": h.get("distrito")}))
     return Resultado(datos, _sin_vacios(bloques))
 
 
@@ -410,7 +423,10 @@ async def estado_rutas(ctx: Contexto, a: dict) -> Resultado:
     """Rutas con su avance, filtradas por nombre, conductor o solo activas. Recibe contexto y filtros."""
     flota = await ctx.core.get("/dashboard/flota")
     rutas = flota.get("rutas", [])
-    if a.get("solo_activas", True):
+    # Si se pide una ruta o un conductor concreto se busca en todas (una ruta finalizada tambien vale);
+    # sin filtros, por defecto solo las que estan en curso.
+    solo_activas = a.get("solo_activas", not (a.get("nombre") or a.get("conductor")))
+    if solo_activas:
         rutas = [r for r in rutas if r.get("estado") in _RUTA_ACTIVA]
     if a.get("nombre"):
         rutas = [r for r in rutas if _contiene(r.get("nombre"), a["nombre"])]
@@ -432,7 +448,7 @@ async def estado_rutas(ctx: Contexto, a: dict) -> Resultado:
         }
         for r in rutas
     ]
-    datos = {"total": len(filas), "solo_activas": a.get("solo_activas", True), "rutas": filas[:25]}
+    datos = {"total": len(filas), "solo_activas": solo_activas, "rutas": filas[:25]}
     bloques = []
     presentar = _presentar(a)
     if presentar == "tabla":
@@ -664,9 +680,25 @@ async def solicitudes_bandeja(ctx: Contexto, a: dict) -> Resultado:
 
 async def retornos_almacen(ctx: Contexto, a: dict) -> Resultado:
     """Rutas con pedidos fallidos por retornar, o el detalle de una. Recibe contexto y {ruta_id}."""
-    enlace = B.enlace("Abrir Retornos de ruta", "/panel/almacen/retornos")
-    if a.get("ruta_id"):
-        r = await ctx.core.get(f"/almacen/retornos/rutas/{a['ruta_id']}")
+    # El admin no tiene las pantallas de almacen en su menu: se le abre Pedidos ya filtrado.
+    if ctx.rol == "almacen":
+        enlace = B.enlace("Abrir Retornos de ruta", "/panel/almacen/retornos")
+    else:
+        enlace = B.enlace("Ver fallidos en Pedidos", "/panel/pedidos", {"estado": "FALLIDO"})
+    ruta_id = a.get("ruta_id")
+    if not ruta_id and a.get("ruta"):
+        # El usuario suele decir el nombre ("Ruta Surquillo"): se busca su id en la lista.
+        lista = await ctx.core.get("/almacen/retornos/rutas") or []
+        coinciden = [r for r in lista if _contiene(r.get("nombre"), a["ruta"]) or _normal(r.get("codigo")) == _normal(a["ruta"])]
+        if len(coinciden) != 1:
+            return Resultado({
+                "error": "No hay una ruta con retornos con ese nombre." if not coinciden
+                else "Hay varias rutas con ese nombre; pide al usuario que elija una.",
+                "rutas": [r.get("nombre") for r in coinciden[:10]],
+            }, _sin_vacios([enlace]))
+        ruta_id = coinciden[0].get("ruta_id")
+    if ruta_id:
+        r = await ctx.core.get(f"/almacen/retornos/rutas/{int(ruta_id)}")
         datos = {
             "ruta": r.get("nombre"),
             "codigo": r.get("codigo"),
@@ -681,7 +713,15 @@ async def retornos_almacen(ctx: Contexto, a: dict) -> Resultado:
                 for f in r.get("fallidos", [])
             ][:25],
         }
-        return Resultado(datos, _sin_vacios([enlace]))
+        bloques = []
+        if _presentar(a, "tabla") != "texto" and datos["fallidos"]:
+            bloques.append(B.tabla(
+                f"Paquetes de {r.get('nombre') or 'la ruta'}",
+                ["Código", "Cliente", "Destinatario", "Retornado"],
+                [[f["codigo"], f["cliente"], f["destinatario"], f["retornado"]] for f in datos["fallidos"]],
+            ))
+        bloques.append(enlace)
+        return Resultado(datos, _sin_vacios(bloques))
 
     lista = await ctx.core.get("/almacen/retornos/rutas")
     filas = [
@@ -731,7 +771,10 @@ async def pedidos_observados(ctx: Contexto, a: dict) -> Resultado:
         ))
     elif presentar == "grafico":
         bloques.append(B.grafico("Observados por cliente", list(datos["por_cliente"].items())))
-    bloques.append(B.enlace("Abrir Pedidos observados", "/panel/almacen/observados"))
+    if ctx.rol == "almacen":
+        bloques.append(B.enlace("Abrir Pedidos observados", "/panel/almacen/observados"))
+    else:
+        bloques.append(B.enlace("Ver observados en Pedidos", "/panel/pedidos", {"estado": "OBSERVADO"}))
     return Resultado(datos, _sin_vacios(bloques))
 
 

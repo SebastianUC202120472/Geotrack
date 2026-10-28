@@ -9,7 +9,9 @@ MAX_CARACTERES_CELDA = 200
 
 
 def tabla(titulo: str, columnas: list[str], filas: list[list]) -> dict:
-    """Arma un bloque de tabla corta. Recibe titulo, columnas y filas."""
+    """Arma un bloque de tabla corta; sin filas no se muestra (None). Recibe titulo, columnas y filas."""
+    if not filas:
+        return None
     filas_cortas = [[_celda(v) for v in fila] for fila in filas[:MAX_FILAS_TABLA]]
     return {
         "tipo": "tabla",

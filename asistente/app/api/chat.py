@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.core.fechas import ahora_local
 from app.core.limites import limitador
 from app.db.database import SessionLocal, get_db
+from app.herramientas import acciones
 from app.ia import transcripcion
 from app.ia.transcripcion import ErrorAudio, ErrorTranscripcion
 from app.repositories import auditoria_repository
@@ -35,6 +36,7 @@ def estado(request: Request):
         voz_servidor=transcripcion.voz_en_servidor_disponible(),
         max_caracteres=settings.ASISTENTE_MAX_CARACTERES,
         max_seg_voz=settings.ASISTENTE_VOZ_MAX_SEG,
+        acciones=acciones.activas(),
     )
 
 

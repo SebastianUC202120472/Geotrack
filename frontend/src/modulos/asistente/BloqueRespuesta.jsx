@@ -1,5 +1,6 @@
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowUpRight, Link2 } from "lucide-react";
+import { ArrowUpRight, Check, CircleCheck, CircleX, Clock, Link2, LoaderCircle, ShieldCheck, X } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -11,6 +12,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { actualizarAccion } from "./estadoChat";
+import { cancelarAccion, confirmarAccion } from "./servicioAsistente";
 
 const COLORES = ["#2563eb", "#16a34a", "#f59e0b", "#dc2626", "#0ea5e9", "#7c3aed", "#64748b", "#db2777"];
 
@@ -144,7 +147,113 @@ function Enlace({ bloque, onNavegar, discreto = false }) {
   );
 }
 
-// Pinta los bloques de una respuesta: primero tablas y graficos, luego los enlaces.
+// Segundos que le quedan a una propuesta pendiente. Recibe el bloque.
+const segundosRestantes = (bloque) => {
+  const vence = Date.parse(bloque.vence_en || "");
+  return Number.isNaN(vence) ? 0 : Math.max(0, Math.round((vence - Date.now()) / 1000));
+};
+
+const ESTADOS_ACCION = {
+  EJECUTADA: { texto: "Hecho", clase: "border-success/30 bg-success-soft text-success-strong", Icono: CircleCheck },
+  ERROR: { texto: "No se aplicó", clase: "border-danger/30 bg-danger-soft text-danger-strong", Icono: CircleX },
+  CANCELADA: { texto: "Cancelada: no se hizo ningún cambio", clase: "border-slate-200 bg-slate-50 text-slate-500", Icono: CircleX },
+  VENCIDA: { texto: "Venció sin confirmar: no se hizo ningún cambio", clase: "border-slate-200 bg-slate-50 text-slate-500", Icono: Clock },
+  INVALIDADA: { texto: "Sin efecto: no se hizo ningún cambio", clase: "border-slate-200 bg-slate-50 text-slate-500", Icono: Clock },
+  EN_CURSO: { texto: "Ejecutando…", clase: "border-brand-200 bg-brand-50 text-brand-700", Icono: LoaderCircle },
+  RECHAZADA: { texto: "No se ejecutó", clase: "border-warning/40 bg-warning-soft text-warning-strong", Icono: CircleX },
+};
+
+// Estados en los que se muestra el mensaje del servidor o del nucleo.
+const CON_MENSAJE = new Set(["EJECUTADA", "ERROR", "RECHAZADA"]);
+
+// Tarjeta de una accion que PROPUSO el asistente. Los textos los arma el servidor; el cambio solo
+// ocurre con el clic en Confirmar (una vez: el boton se bloquea y el servidor tambien lo garantiza).
+// Recibe el bloque {id, titulo, detalle, estado, vence_en, resultado}.
+function TarjetaAccion({ bloque }) {
+  const enviando = useRef(false);
+  const [ocupado, setOcupado] = useState(false);
+  const [restantes, setRestantes] = useState(() => segundosRestantes(bloque));
+  const pendiente = bloque.estado === "PENDIENTE";
+
+  useEffect(() => {
+    if (!pendiente) return undefined;
+    const reloj = setInterval(() => setRestantes(segundosRestantes(bloque)), 1000);
+    return () => clearInterval(reloj);
+  }, [pendiente, bloque]);
+
+  const vencida = pendiente && restantes <= 0;
+  const estado = vencida ? "VENCIDA" : bloque.estado;
+
+  // Envia la decision del usuario y guarda el resultado en la tarjeta. Recibe la operacion.
+  const decidir = async (operacion) => {
+    if (enviando.current) return;
+    enviando.current = true;
+    setOcupado(true);
+    if (operacion === "confirmar") actualizarAccion(bloque.id, { estado: "EN_CURSO" });
+    try {
+      const r = await (operacion === "confirmar" ? confirmarAccion(bloque.id) : cancelarAccion(bloque.id));
+      actualizarAccion(bloque.id, { estado: r.estado, resultado: r.mensaje });
+    } catch (e) {
+      // El servidor no la ejecuto. 429: sigue pendiente (puede reintentar); 410: vencio;
+      // otro (ya confirmada en otra pestaña, sin permiso...): queda rechazada con su mensaje.
+      if (e.status === 429) actualizarAccion(bloque.id, { estado: "PENDIENTE", aviso: e.message });
+      else actualizarAccion(bloque.id, { estado: e.status === 410 ? "VENCIDA" : "RECHAZADA", resultado: e.message });
+    } finally {
+      enviando.current = false;
+      setOcupado(false);
+    }
+  };
+
+  const info = ESTADOS_ACCION[estado];
+  const minutos = Math.floor(restantes / 60);
+  return (
+    <div className="rounded-lg border border-brand-200 bg-white p-3 shadow-sm">
+      <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-brand-700">
+        <ShieldCheck size={13} /> Acción propuesta · requiere tu confirmación
+      </p>
+      <p className="mt-1 text-sm font-semibold text-slate-800">{String(bloque.titulo || "")}</p>
+      {bloque.detalle && <p className="mt-0.5 text-xs leading-relaxed text-slate-600">{String(bloque.detalle)}</p>}
+
+      {pendiente && !vencida ? (
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={ocupado}
+            onClick={() => decidir("confirmar")}
+            className="inline-flex items-center gap-1 rounded-md bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
+          >
+            {ocupado ? <LoaderCircle size={13} className="animate-spin" /> : <Check size={13} />} Confirmar
+          </button>
+          <button
+            type="button"
+            disabled={ocupado}
+            onClick={() => decidir("cancelar")}
+            className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
+          >
+            <X size={13} /> Cancelar
+          </button>
+          <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-slate-400">
+            <Clock size={12} /> vence en {minutos}:{String(restantes % 60).padStart(2, "0")}
+          </span>
+        </div>
+      ) : null}
+      {pendiente && !vencida && bloque.aviso ? (
+        <p className="mt-1.5 text-[11px] text-warning-strong">{String(bloque.aviso)}</p>
+      ) : null}
+      {!(pendiente && !vencida) && info && (
+        <div className={`mt-2.5 flex items-start gap-1.5 rounded-md border px-2.5 py-1.5 text-xs ${info.clase}`}>
+          <info.Icono size={14} className={`mt-px shrink-0 ${estado === "EN_CURSO" ? "animate-spin" : ""}`} />
+          <span>
+            <span className="font-semibold">{info.texto}</span>
+            {bloque.resultado && CON_MENSAJE.has(estado) && <span>. {String(bloque.resultado)}</span>}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Pinta los bloques de una respuesta: primero tablas y graficos, luego la accion propuesta y los enlaces.
 // En la vista grande (grande=true) cada tabla o grafico muestra "Ver fuente" cuando la
 // respuesta tiene una sola pantalla de origen, y los enlaces van bajo "Fuente de los datos".
 // Recibe bloques, onNavegar y grande.
@@ -152,6 +261,7 @@ export default function BloquesRespuesta({ bloques, onNavegar, grande = false })
   if (!bloques?.length) return null;
   const visuales = bloques.filter((b) => b.tipo === "tabla" || b.tipo === "grafico");
   const enlaces = bloques.filter((b) => b.tipo === "enlace");
+  const propuestas = bloques.filter((b) => b.tipo === "accion" && typeof b.id === "string");
   const fuente = grande && enlaces.length === 1 ? enlaces[0] : null;
   return (
     <div className={`mt-2 ${grande ? "space-y-3" : "space-y-2"}`}>
@@ -162,6 +272,9 @@ export default function BloquesRespuesta({ bloques, onNavegar, grande = false })
           <Grafico key={i} bloque={b} grande={grande} fuente={fuente} onNavegar={onNavegar} />
         )
       )}
+      {propuestas.map((b) => (
+        <TarjetaAccion key={b.id} bloque={b} />
+      ))}
       {enlaces.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
           {grande && (

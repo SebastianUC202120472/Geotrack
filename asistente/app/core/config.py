@@ -75,6 +75,12 @@ class Settings(BaseSettings):
     ASISTENTE_MAX_RONDAS_FUNCIONES: int = 5
     ASISTENTE_TURNOS_MEMORIA: int = 12
 
+    # Acciones con confirmacion (OWASP LLM06). El modelo solo PROPONE; el cambio lo hace el clic del
+    # usuario en "Confirmar", con su propio token. En false las funciones de accion ni se ofrecen.
+    ASISTENTE_ACCIONES_ENABLED: bool = False
+    ASISTENTE_ACCION_VENCE_SEG: int = 300
+    ASISTENTE_ACCIONES_POR_MINUTO: int = 5
+
     # Tope de pedidos que una consulta puede recorrer (paginas de 500 del nucleo).
     ASISTENTE_MAX_PEDIDOS_CONSULTA: int = 5000
 

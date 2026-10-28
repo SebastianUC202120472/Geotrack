@@ -1,8 +1,10 @@
-# Cliente de SOLO LECTURA hacia la API del nucleo.
+# Cliente hacia la API del nucleo.
 #
-# - Solo hace GET, y solo a una lista cerrada de rutas de consulta que ya existen.
+# - get: solo GET, y solo a una lista cerrada de rutas de consulta que ya existen.
+# - post_accion: solo POST, a OTRA lista cerrada (las 3 acciones con confirmacion). Solo lo
+#   llama el endpoint de confirmar, despues del clic del usuario: nunca el modelo ni el chat.
 # - Cada peticion viaja con el token del usuario conectado: el nucleo aplica sus
-#   propios permisos, asi que por el chat nadie ve mas de lo que ve en el panel.
+#   propios permisos, asi que por el chat nadie ve ni hace mas de lo que puede en el panel.
 import re
 
 import httpx
@@ -35,6 +37,17 @@ _RUTAS_PERMITIDAS = [
 ]
 
 
+# Rutas de escritura permitidas (relativas a /api): una por accion de acciones.ACCIONES.
+_ESCRITURAS_PERMITIDAS = [
+    re.compile(p)
+    for p in (
+        r"^/pedidos/\d{1,9}/reprogramar$",
+        r"^/almacen/pedidos/\d{1,9}/resolver-observado$",
+        r"^/almacen/retornos/rutas/\d{1,9}/escanear$",
+    )
+]
+
+
 class ErrorCore(Exception):
     """Error al consultar el nucleo (caido, respuesta invalida, etc.)."""
 
@@ -51,9 +64,18 @@ class NoEncontrado(ErrorCore):
     """El dato consultado no existe (404)."""
 
 
+class Rechazado(ErrorCore):
+    """El nucleo rechazo la escritura por una regla de negocio (400/409/422); trae su mensaje."""
+
+
 def ruta_permitida(ruta: str) -> bool:
     """Dice si una ruta esta en la lista cerrada de consultas. Recibe la ruta relativa a /api."""
     return any(p.match(ruta) for p in _RUTAS_PERMITIDAS)
+
+
+def escritura_permitida(ruta: str) -> bool:
+    """Dice si una ruta esta en la lista cerrada de escrituras. Recibe la ruta relativa a /api."""
+    return any(p.match(ruta) for p in _ESCRITURAS_PERMITIDAS)
 
 
 class ClienteCore:
@@ -69,15 +91,29 @@ class ClienteCore:
         if not ruta_permitida(ruta):
             raise ErrorCore(f"Ruta no permitida para el asistente: {ruta}")
         params = {k: v for k, v in (params or {}).items() if v not in (None, "")}
+        return await self._enviar("GET", ruta, params=params)
+
+    async def post_accion(self, ruta: str, cuerpo: dict | None = None):
+        """Hace un POST a una ruta de la lista cerrada de acciones (sin reintentos). Recibe ruta y cuerpo.
+        Si el nucleo rechaza la operacion lanza Rechazado con su mensaje."""
+        if not escritura_permitida(ruta):
+            raise ErrorCore(f"Escritura no permitida para el asistente: {ruta}")
+        return await self._enviar("POST", ruta, cuerpo=cuerpo)
+
+    async def _enviar(self, metodo: str, ruta: str, params: dict | None = None, cuerpo: dict | None = None):
+        """Envia la peticion con el token del usuario y traduce los errores. Recibe metodo, ruta, params y cuerpo."""
         cabeceras = {"Authorization": f"Bearer {self._token}", "Accept": "application/json"}
         url = settings.ASISTENTE_CORE_API_URL.rstrip("/") + ruta
+        opciones = {"params": params, "headers": cabeceras}
+        if cuerpo is not None:
+            opciones["json"] = cuerpo
         self.consultas += 1
         try:
             if self._http is not None:
-                respuesta = await self._http.get(url, params=params, headers=cabeceras)
+                respuesta = await self._http.request(metodo, url, **opciones)
             else:
                 async with httpx.AsyncClient(timeout=settings.ASISTENTE_CORE_TIMEOUT_SEG) as http:
-                    respuesta = await http.get(url, params=params, headers=cabeceras)
+                    respuesta = await http.request(metodo, url, **opciones)
         except httpx.HTTPError as exc:
             raise ErrorCore("El sistema GeoTrack no respondió") from exc
 
@@ -87,6 +123,8 @@ class ClienteCore:
             raise SinPermiso("Tu rol no tiene acceso a este dato")
         if respuesta.status_code == 404:
             raise NoEncontrado(_detalle(respuesta) or "No encontrado")
+        if metodo != "GET" and respuesta.status_code in (400, 409, 422):
+            raise Rechazado(_detalle(respuesta) or "El sistema rechazó la operación")
         if respuesta.status_code >= 400:
             raise ErrorCore(f"El sistema respondió con error {respuesta.status_code}")
         try:

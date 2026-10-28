@@ -61,6 +61,7 @@ services:
     build: ./asistente
     environment:
       ASISTENTE_ENABLED: ${ASISTENTE_ENABLED:-false}
+      ASISTENTE_ACCIONES_ENABLED: ${ASISTENTE_ACCIONES_ENABLED:-false}
       ASISTENTE_DATABASE_URL: postgresql://postgres:postgres@db:5432/geotrack
       ASISTENTE_CORE_API_URL: http://backend:8000/api
       ASISTENTE_PROVEEDORES: ${ASISTENTE_PROVEEDORES:-gemini,groq,groq_respaldo,openrouter,ollama}

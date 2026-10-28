@@ -62,11 +62,11 @@ DEFINICIONES = {
         "roles": {"admin"},
     },
     "estado_rutas": {
-        "descripcion": "Rutas de reparto con su conductor, vehículo y avance (entregadas, fallidas, pendientes).",
+        "descripcion": "Rutas de reparto con su estado, conductor, vehículo y avance (entregadas, fallidas, pendientes). Con nombre o conductor busca también las finalizadas. Para los paquetes que faltan volver al almacén de una ruta usa retornos_almacen.",
         "parametros": {
             "nombre": {**_TEXTO_CORTO, "description": "Parte del nombre de la ruta, ej. Miraflores."},
             "conductor": {**_TEXTO_CORTO, "description": "Nombre del conductor."},
-            "solo_activas": {"type": "boolean", "description": "true (por defecto) para ver solo rutas en curso."},
+            "solo_activas": {"type": "boolean", "description": "true para ver solo rutas en curso (por defecto cuando no se filtra por nombre ni conductor)."},
             "presentar": _PRESENTAR,
         },
         "roles": {"admin"},
@@ -107,9 +107,10 @@ DEFINICIONES = {
         "roles": {"admin"},
     },
     "retornos_almacen": {
-        "descripcion": "Retornos al almacén: rutas con pedidos fallidos y cuántos paquetes ya volvieron o faltan. Con ruta_id trae el detalle. No incluye el motivo del fallo.",
+        "descripcion": "Retornos al almacén: rutas con pedidos fallidos y cuántos paquetes ya volvieron o faltan. Para el detalle de UNA ruta (códigos de sus paquetes) pasa ruta (su nombre, p. ej. 'Surquillo') o ruta_id. No incluye el motivo del fallo.",
         "parametros": {
             "ruta_id": {"type": "integer", "minimum": 1},
+            "ruta": _TEXTO_CORTO,
             "presentar": _PRESENTAR,
         },
         "roles": {"admin", "almacen"},

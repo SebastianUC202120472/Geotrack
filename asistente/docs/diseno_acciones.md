@@ -1,7 +1,15 @@
 # Diseño: acciones con confirmación en el asistente (OWASP LLM06)
 
-> **Estado: SOLO DISEÑO — pendiente de aprobación del gerente.** No hay código de esto en el repositorio.
-> Hoy el asistente es de solo lectura: `cliente_core.py` solo hace `GET` a una lista cerrada de rutas.
+> **Estado: APROBADO E IMPLEMENTADO** (las 3 acciones de la sección 4), detrás de
+> `ASISTENTE_ACCIONES_ENABLED=false` por defecto. Resumen de uso en el [README](../README.md#acciones-con-confirmación-owasp-llm06).
+> Piezas: `herramientas/acciones.py`, `api/acciones.py`, `models/propuesta_accion.py`,
+> `repositories/accion_repository.py`, `cliente_core.post_accion` y la tarjeta de `BloqueRespuesta.jsx`.
+> Pruebas en `tests/test_acciones.py`; ataques LLM06 en la fase `acciones` de la batería de seguridad.
+>
+> Diferencias con el diseño original: la auditoría de acciones es una tabla aparte (`auditoria_acciones`)
+> para no alterar la existente; la propuesta queda ligada a la sesión (huella del token), así que al cerrar
+> sesión deja de poder confirmarse; y no se propone ninguna acción en una respuesta que leyó texto de
+> terceros con instrucciones sospechosas. La cabecera anti-CSRF es `X-Asistente-Confirmacion: si`.
 
 ## 1. Objetivo
 

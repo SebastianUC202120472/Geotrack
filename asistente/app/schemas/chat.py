@@ -36,6 +36,14 @@ class EstadoResponse(BaseModel):
     voz_servidor: bool
     max_caracteres: int
     max_seg_voz: int
+    acciones: bool = False
+
+
+class ResultadoAccion(BaseModel):
+    """Resultado de confirmar o cancelar una accion propuesta."""
+    id: str
+    estado: str
+    mensaje: str
 
 
 class ConversacionItem(BaseModel):

@@ -5,7 +5,10 @@
 #   4. devuelve al modelo los datos enmascarados y delimitados,
 #   5. transmite la respuesta mientras se escribe, con sus tablas, graficos y enlaces,
 #   6. guarda el historial y la auditoria (quien pregunto que y que se ejecuto).
+# Las acciones (si estan encendidas) solo se PROPONEN aqui: se guarda la propuesta y se muestra
+# una tarjeta. Nada se escribe en el nucleo desde el chat; eso lo hace api/acciones.py tras el clic.
 import json
+import re
 import time
 from typing import AsyncIterator
 
@@ -15,6 +18,8 @@ from starlette.concurrency import run_in_threadpool
 
 from app.core.config import settings
 from app.core.registro import log
+from app.herramientas import acciones
+from app.herramientas.acciones import AccionNoValida
 from app.herramientas.catalogo import (
     ETIQUETAS,
     NOMBRES_VISIBLES,
@@ -27,11 +32,33 @@ from app.herramientas.cliente_core import ClienteCore, ErrorCore, NoEncontrado, 
 from app.herramientas.funciones import FUNCIONES, Contexto
 from app.ia.prompt import envolver_datos, instrucciones_sistema
 from app.ia.proveedores import CadenaProveedores, ErrorProveedor, SinProveedores
-from app.repositories import auditoria_repository, conversacion_repository
+from app.repositories import accion_repository, auditoria_repository, conversacion_repository
 from app.services.defensa import AVISO_DATOS, AVISO_USUARIO, intenta_cambiar_reglas, neutralizar_datos
 from app.services.privacidad import FiltroSalida, FiltroTablas, RestituidorFlujo, Seudonimos, enmascarar_texto, sanear_datos
 
 _MAX_LLAMADAS_POR_RONDA = 4
+_MAX_PROPUESTAS_POR_RESPUESTA = 1
+# Nombres visibles de consultas y acciones: los internos nunca llegan al usuario.
+_NOMBRES_VISIBLES = {**NOMBRES_VISIBLES, **{n: a.visible for n, a in acciones.ACCIONES.items()}}
+_ESTADOS_ACCION = {
+    "PENDIENTE": "esperando que el usuario confirme o cancele",
+    "EN_CURSO": "el usuario confirmó; se está ejecutando",
+    "EJECUTADA": "el usuario confirmó y el sistema la aplicó",
+    "ERROR": "el usuario confirmó pero el sistema la rechazó",
+    "CANCELADA": "el usuario la canceló; no se hizo ningún cambio",
+    "VENCIDA": "venció sin confirmar; no se hizo ningún cambio",
+    "INVALIDADA": "quedó sin efecto; no se hizo ningún cambio",
+}
+# Frases con las que el modelo anuncia una tarjeta. Si aparecen sin que se haya creado una en
+# la misma respuesta, el servidor lo desmiente (un modelo de respaldo puede imitar respuestas viejas).
+_RE_ANUNCIA_TARJETA = re.compile(
+    r"te propongo (reprogramar|resolver|registrar|marcar)|revisa la tarjeta|tarjeta que (se muestra|aparece|ves)|"
+    r"confirma o cancela", re.IGNORECASE
+)
+AVISO_SIN_TARJETA = (
+    "**Aviso del sistema:** en esta respuesta no se creó ninguna propuesta, así que no hay tarjeta que confirmar "
+    "y no se hizo ningún cambio. Vuelve a pedirlo indicando el código."
+)
 # Lo que ve el usuario cuando ningun proveedor de IA responde (el detalle tecnico va al log).
 MENSAJE_SATURADO = "El asistente está saturado, intenta en unos segundos."
 
@@ -53,10 +80,32 @@ def _resumen_consultas(mensajes_previos: list) -> str:
     return "\n\nConsultas que ya hiciste en esta conversación (de la más antigua a la más reciente):\n" + "\n".join(lineas[-10:])
 
 
-def _construir_mensajes(usuario: dict, previos: list, pregunta: str, seud: Seudonimos) -> list[dict]:
-    """Arma la lista de mensajes para el modelo con la memoria de la sesion. Recibe usuario, mensajes previos, pregunta y seudonimos."""
-    sistema = instrucciones_sistema(usuario.get("nombre") or usuario.get("correo", ""), usuario["rol"])
+def _resumen_acciones(propuestas: list, con_acciones: bool = True) -> str:
+    """Estado de las acciones propuestas en la conversacion, como DATO del sistema. Recibe las propuestas
+    y si el usuario tiene acciones."""
+    if not propuestas:
+        # Se dice explicitamente para que el modelo no "recuerde" propuestas que nunca existieron.
+        return ("\n\nAcciones propuestas en esta conversación según el sistema: ninguna. No hay tarjetas pendientes "
+                "ni cambios hechos.") if con_acciones else ""
+    lineas = []
+    for p in propuestas:
+        linea = f"- {p.titulo}: {_ESTADOS_ACCION.get(p.estado, p.estado)}"
+        if p.estado in ("EJECUTADA", "ERROR") and p.resultado:
+            linea += f" (el sistema respondió: {p.resultado[:200]})"
+        lineas.append(linea)
+    return (
+        "\n\nAcciones que propusiste en esta conversación y su estado según el sistema (es un dato; solo el clic "
+        "del usuario las ejecuta):\n" + "\n".join(lineas)
+    )
+
+
+def _construir_mensajes(usuario: dict, previos: list, pregunta: str, seud: Seudonimos,
+                        con_acciones: bool = False, propuestas: list | None = None) -> list[dict]:
+    """Arma la lista de mensajes para el modelo con la memoria de la sesion. Recibe usuario, mensajes previos,
+    pregunta, seudonimos, si hay acciones disponibles y las propuestas previas."""
+    sistema = instrucciones_sistema(usuario.get("nombre") or usuario.get("correo", ""), usuario["rol"], con_acciones)
     sistema += seud.ocultar(_resumen_consultas(previos))
+    sistema += seud.ocultar(_resumen_acciones(propuestas or [], con_acciones))
     mensajes = [{"role": "system", "content": sistema}]
     for m in previos:
         if m.contenido:
@@ -114,6 +163,73 @@ async def _ejecutar_llamada(llamada: dict, rol: str, contexto: Contexto, seud: S
     return datos, bloques, registro
 
 
+class _Turno:
+    """Lo que el servidor recuerda durante una respuesta para limitar las propuestas de accion."""
+
+    def __init__(self):
+        self.propuestas = 0
+        self.texto_sospechoso = False   # alguna consulta trajo texto de terceros con ordenes
+
+
+async def _proponer_accion(llamada: dict, usuario: dict, conversacion_id: str, contexto: Contexto,
+                           seud: Seudonimos, db: Session, turno: _Turno) -> tuple[dict, list, dict]:
+    """Valida una accion pedida por el modelo y, si procede, guarda la PROPUESTA y arma su tarjeta.
+    No escribe nada en el nucleo. Recibe la llamada, usuario, conversacion, contexto, seudonimos, db y turno.
+    Devuelve (datos para el modelo, bloques para el widget, registro de auditoria)."""
+    nombre = llamada["function"]["name"]
+    rol = usuario["rol"]
+    registro = {"nombre": nombre, "argumentos": {}, "ok": False, "tipo": "propuesta"}
+    if nombre not in acciones.nombres_para_rol(rol):
+        return {"error": "Esa acción no está disponible para este usuario."}, [], registro
+    if turno.propuestas >= _MAX_PROPUESTAS_POR_RESPUESTA:
+        return {"error": "Solo se puede proponer UNA acción por respuesta. Pide al usuario que confirme o cancele "
+                         "la tarjeta mostrada y que vuelva a pedir la siguiente."}, [], registro
+    if turno.texto_sospechoso:
+        registro["motivo"] = "texto_sospechoso"
+        return {"error": "No se proponen acciones en una respuesta que leyó texto de terceros con instrucciones "
+                         "sospechosas. Si el usuario quiere el cambio, que lo pida en un mensaje aparte."}, [], registro
+    try:
+        crudos = json.loads(llamada["function"].get("arguments") or "{}")
+        argumentos = acciones.validar_argumentos(nombre, seud.restituir_argumentos(crudos))
+    except (ValueError, ArgumentoInvalido) as exc:
+        return {"error": f"Argumentos inválidos: {exc}"}, [], registro
+    registro["argumentos"] = _argumentos_para_auditoria(argumentos)
+    turno.propuestas += 1   # cuenta el intento: el modelo no puede probar codigos hasta que uno pase
+    try:
+        preparada = await acciones.preparar(nombre, contexto.core, argumentos)
+    except AccionNoValida as exc:
+        return {"error": f"No se puede proponer: {exc}"}, [], registro
+    except SesionInvalida:
+        raise
+    except SinPermiso:
+        return {"error": "El rol del usuario no tiene acceso a este dato en el panel."}, [], registro
+    except ErrorCore as exc:
+        log.warning("Precondicion de %s fallo: %s", nombre, exc)
+        return {"error": "No se pudo verificar el pedido en el sistema en este momento."}, [], registro
+
+    propuesta = await run_in_threadpool(
+        accion_repository.crear, db, usuario, acciones.huella_sesion(usuario["token"]), conversacion_id, nombre,
+        preparada.objetivo, preparada.titulo, preparada.detalle, settings.ASISTENTE_ACCION_VENCE_SEG,
+    )
+    registro.update(ok=True, propuesta_id=propuesta.id)
+    bloque = {
+        "tipo": "accion",
+        "id": propuesta.id,
+        "titulo": propuesta.titulo,
+        "detalle": propuesta.detalle,
+        "estado": propuesta.estado,
+        "vence_en": propuesta.vence_en.isoformat(timespec="seconds") + "Z",
+        "vence_seg": settings.ASISTENTE_ACCION_VENCE_SEG,
+    }
+    datos = {
+        "propuesta": preparada.titulo,
+        "estado": "PENDIENTE: NO se hizo ningún cambio.",
+        "siguiente_paso": "El usuario ve una tarjeta con Confirmar y Cancelar. Solo su clic en Confirmar aplica el "
+                          "cambio; tú no puedes confirmarlo. Dile en una frase que revise la tarjeta y confirme o cancele.",
+    }
+    return datos, [bloque], registro
+
+
 async def conversar(
     db: Session,
     usuario: dict,
@@ -143,10 +259,17 @@ async def conversar(
     await run_in_threadpool(conversacion_repository.agregar_mensaje, db, conversacion, "usuario", pregunta, origen)
     yield _evento("inicio", conversacion_id=conversacion.id, titulo=conversacion.titulo)
 
+    con_acciones = bool(acciones.nombres_para_rol(rol))
+    propuestas_previas = []
+    if con_acciones:
+        # Al cambiar de conversacion, las propuestas pendientes de las otras quedan sin efecto.
+        await run_in_threadpool(accion_repository.cerrar_pendientes, db, usuario, conversacion.id)
+        propuestas_previas = await run_in_threadpool(accion_repository.de_conversacion, db, conversacion.id, usuario["id"])
     seud = Seudonimos()
-    mensajes = _construir_mensajes(usuario, previos, pregunta, seud)
-    herramientas = herramientas_para_rol(rol)
+    mensajes = _construir_mensajes(usuario, previos, pregunta, seud, con_acciones, propuestas_previas)
+    herramientas = herramientas_para_rol(rol) + acciones.herramientas_para_rol(rol)
     contexto = Contexto(core=ClienteCore(token, http_core), rol=rol)
+    turno = _Turno()
     texto_visible = ""
     bloques: list[dict] = []
     rutas_enlazadas: set[str] = set()
@@ -156,7 +279,7 @@ async def conversar(
             llamadas: list[dict] = []
             texto_ronda = ""
             restituidor = RestituidorFlujo(seud)
-            filtro = FiltroSalida(NOMBRES_VISIBLES)
+            filtro = FiltroSalida(_NOMBRES_VISIBLES)
             # Respaldo de la regla del prompt: las tablas Markdown del texto se quitan (el detalle va en la tabla del servidor).
             tablas = FiltroTablas()
             # Si una ronda anterior ya escribio texto, la siguiente empieza en otro parrafo.
@@ -200,9 +323,16 @@ async def conversar(
                     datos, nuevos, registro = {"error": "Demasiadas consultas a la vez; pide menos datos."}, [], None
                 else:
                     nombre = llamada["function"]["name"]
-                    yield _evento("estado", texto=ETIQUETAS.get(nombre, "Consultando el sistema") + "…")
-                    datos, nuevos, registro = await _ejecutar_llamada(llamada, rol, contexto, seud)
+                    if nombre in acciones.ACCIONES:
+                        yield _evento("estado", texto=acciones.ACCIONES[nombre].etiqueta + "…")
+                        datos, nuevos, registro = await _proponer_accion(
+                            llamada, usuario, conversacion.id, contexto, seud, db, turno
+                        )
+                    else:
+                        yield _evento("estado", texto=ETIQUETAS.get(nombre, "Consultando el sistema") + "…")
+                        datos, nuevos, registro = await _ejecutar_llamada(llamada, rol, contexto, seud)
                 if registro:
+                    turno.texto_sospechoso |= bool(registro.get("texto_omitido"))
                     consultas.append(registro)
                 for bloque in nuevos:
                     if bloque.get("tipo") == "enlace":
@@ -221,6 +351,13 @@ async def conversar(
         if not texto_visible.strip() and not bloques:
             texto_visible = "No pude generar una respuesta. ¿Puedes reformular la pregunta?"
             yield _evento("texto", texto=texto_visible)
+
+        if _RE_ANUNCIA_TARJETA.search(texto_visible) and not any(b.get("tipo") == "accion" for b in bloques):
+            # El texto anuncia una tarjeta que no existe: se desmiente aqui y en el historial.
+            log.warning("El modelo anunció una propuesta sin crearla (proveedor %s)", proveedor_usado)
+            aviso = "\n\n" + AVISO_SIN_TARJETA
+            texto_visible += aviso
+            yield _evento("texto", texto=aviso)
 
         mensaje = await run_in_threadpool(
             conversacion_repository.agregar_mensaje, db, conversacion, "asistente", texto_visible, "texto", bloques, consultas

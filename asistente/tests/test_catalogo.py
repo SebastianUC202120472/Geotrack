@@ -1,5 +1,6 @@
 # Lista cerrada de funciones: solo lectura, validada y filtrada por rol.
 import inspect
+import pathlib
 
 import pytest
 
@@ -105,10 +106,17 @@ def test_rutas_fuera_de_la_lista_cerrada(ruta):
     assert not ruta_permitida(ruta)
 
 
-def test_cliente_core_solo_tiene_get():
-    """El cliente del nucleo no expone metodos que escriban."""
+def test_cliente_core_solo_tiene_get_y_post_accion():
+    """El cliente del nucleo solo lee, salvo post_accion (lista cerrada aparte de las acciones con
+    confirmacion), y solo el endpoint de confirmar llega a esa escritura: nunca el chat ni el modelo."""
     metodos = {n for n, _ in inspect.getmembers(ClienteCore, inspect.isfunction) if not n.startswith("_")}
-    assert metodos == {"get"}
+    assert metodos == {"get", "post_accion"}
     fuente = inspect.getsource(cliente_core)
     for verbo in (".post(", ".put(", ".patch(", ".delete("):
         assert verbo not in fuente
+    raiz = pathlib.Path(cliente_core.__file__).resolve().parents[1]
+    usan_escritura = sorted(
+        str(f.relative_to(raiz)).replace("\\", "/") for f in raiz.rglob("*.py")
+        if f.name != "cliente_core.py" and ("post_accion" in f.read_text(encoding="utf-8") or "acciones.ejecutar(" in f.read_text(encoding="utf-8"))
+    )
+    assert usan_escritura == ["api/acciones.py", "herramientas/acciones.py"]

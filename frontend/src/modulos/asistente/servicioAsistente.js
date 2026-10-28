@@ -28,7 +28,11 @@ async function leerError(respuesta) {
 // Pide JSON al servicio. Recibe ruta y opciones de fetch.
 async function pedirJson(ruta, opciones = {}) {
   const respuesta = await fetch(`${BASE}${ruta}`, { ...opciones, headers: cabeceras(opciones.headers) });
-  if (!respuesta.ok) throw new Error(await leerError(respuesta));
+  if (!respuesta.ok) {
+    const error = new Error(await leerError(respuesta));
+    error.status = respuesta.status;
+    throw error;
+  }
   return respuesta.status === 204 ? null : respuesta.json();
 }
 
@@ -83,6 +87,14 @@ export async function transcribirAudio(audio) {
   const datos = await pedirJson("/voz", { method: "POST", body: formulario });
   return datos.texto;
 }
+
+// Confirma o cancela una accion propuesta por el asistente. Solo se llama desde el clic en la
+// tarjeta; la cabecera propia del widget la exige el servidor. Recibe el id de la propuesta.
+const CABECERA_ACCION = { "X-Asistente-Confirmacion": "si" };
+export const confirmarAccion = (id) =>
+  pedirJson(`/acciones/${encodeURIComponent(id)}/confirmar`, { method: "POST", headers: CABECERA_ACCION });
+export const cancelarAccion = (id) =>
+  pedirJson(`/acciones/${encodeURIComponent(id)}/cancelar`, { method: "POST", headers: CABECERA_ACCION });
 
 export const listarConversaciones = () => pedirJson("/conversaciones");
 
