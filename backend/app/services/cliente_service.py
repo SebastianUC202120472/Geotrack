@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 from app.core.security import get_password_hash
 from app.repositories import cliente_repository
 from app.schemas.cliente import ClienteCreate, ClienteUpdate, UbicacionClienteIn, digito_ruc_valido
-from app.services.geocoder import obtener_coordenadas
+from app.services.geocoder import geocodificar, distrito_de_punto
+from app.core.distritos import resolver_distrito
 
 
 def _slug_codigo(razon_social: str, cliente_id: int) -> str:
@@ -18,17 +19,13 @@ def _slug_codigo(razon_social: str, cliente_id: int) -> str:
     return f"{base}-{cliente_id}"
 
 
-def _distrito_de(direccion: str) -> str:
-    """Extrae el distrito de la direccion (texto tras la primera coma). Recibe: cadena de direccion."""
-    partes = (direccion or "").split(",", 1)
-    return partes[1].strip() if len(partes) > 1 else "ZONA_DESCONOCIDA"
-
-
 def _geocodificar_origen(direccion: str):
-    """Geocodifica la direccion de recojo. Recibe: string de direccion. Devuelve (lat, lng, distrito)."""
-    lat, lng = obtener_coordenadas(direccion)
-    distrito = _distrito_de(direccion) if lat is not None else None
-    return lat, lng, distrito
+    """Geocodifica la direccion de recojo y toma el distrito del mapa (C16-01). Recibe: string de
+    direccion. Devuelve (lat, lng, distrito), o (None, None, None) si no se ubica."""
+    resultado = geocodificar(direccion)
+    if resultado is None:
+        return None, None, None
+    return resultado.latitud, resultado.longitud, resolver_distrito(resultado.distrito, direccion)
 
 
 def _exigir_digito_ruc(ruc) -> None:
@@ -147,7 +144,7 @@ def fijar_ubicacion(db: Session, cliente_id: int, datos: UbicacionClienteIn):
     cliente = _cliente_o_404(db, cliente_id)
     return cliente_repository.actualizar(
         db, cliente, latitud=datos.latitud, longitud=datos.longitud,
-        distrito=cliente.distrito or _distrito_de(cliente.direccion_origen),
+        distrito=resolver_distrito(distrito_de_punto(datos.latitud, datos.longitud), cliente.direccion_origen),
     )
 
 

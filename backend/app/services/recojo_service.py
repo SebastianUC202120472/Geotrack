@@ -12,7 +12,8 @@ from app.models.pedido import Pedido
 from app.models.cliente import ClienteCorporativo
 from app.models.ruta import Ruta
 from app.repositories import recojo_repository, ruta_repository, incidencia_repository, pedido_repository
-from app.services.geocoder import obtener_coordenadas
+from app.services.geocoder import geocodificar
+from app.core.distritos import resolver_distrito
 from app.services import notificaciones_service
 from app.services.router import optimizar_secuencia_pedidos, distancia_total
 from app.schemas.recojo import (
@@ -35,10 +36,13 @@ from app.schemas.ruta import OptimizacionRequest, CierreRutaResponse
 DIR_GUIAS = os.path.join("uploads", "guias")
 
 
-def _distrito_de(direccion: str) -> str:
-    """Extrae el distrito de una dirección tomando el texto tras la primera coma. Recibe: direccion."""
-    partes = (direccion or "").split(",")
-    return partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
+def _ubicar_origen(direccion: str):
+    """Geocodifica la dirección de recojo y deduce su distrito con el mapa (C16-01). Recibe la
+    dirección. Devuelve (lat, lng, distrito), o (None, None, None) si no se ubica."""
+    resultado = geocodificar(direccion)
+    if resultado is None:
+        return None, None, None
+    return resultado.latitud, resultado.longitud, resolver_distrito(resultado.distrito, direccion)
 
 
 def crear_solicitud(db: Session, datos: SolicitudRecojoCreate, usuario_id: int | None = None) -> SolicitudRecojo:
@@ -54,12 +58,12 @@ def crear_solicitud(db: Session, datos: SolicitudRecojoCreate, usuario_id: int |
         raise HTTPException(status_code=400, detail="El volumen estimado no puede ser negativo")
     _validar_fecha_programada(datos.fecha_programada)
 
-    lat, lng = obtener_coordenadas(direccion)
+    lat, lng, distrito = _ubicar_origen(direccion)
     recojo = SolicitudRecojo(
         cliente_id=cliente.id,
         cliente_origen=cliente.razon_social,
         direccion_origen=direccion,
-        distrito=_distrito_de(direccion) if (lat and lng) else None,
+        distrito=distrito,
         latitud=lat,
         longitud=lng,
         volumen_estimado_m3=datos.volumen_estimado_m3,
@@ -115,10 +119,7 @@ def editar_solicitud(db: Session, recojo_id: int, datos: SolicitudRecojoUpdate) 
         if not direccion:
             raise HTTPException(status_code=400, detail="La dirección de origen es obligatoria")
         recojo.direccion_origen = direccion
-        lat, lng = obtener_coordenadas(direccion)
-        recojo.latitud = lat
-        recojo.longitud = lng
-        recojo.distrito = _distrito_de(direccion) if (lat and lng) else None
+        recojo.latitud, recojo.longitud, recojo.distrito = _ubicar_origen(direccion)
     if datos.volumen_estimado_m3 is not None:
         if datos.volumen_estimado_m3 < 0:
             raise HTTPException(status_code=400, detail="El volumen estimado no puede ser negativo")
@@ -319,12 +320,11 @@ def geocodificar_pedidos_recojo(recojo_id: int) -> None:
         )
         pendientes_commit = 0
         for pedido in pedidos:
-            lat, lng = obtener_coordenadas(pedido.direccion_destino, db)  # con caché de direcciones
-            if lat and lng:
-                pedido.latitud = lat
-                pedido.longitud = lng
-                partes = pedido.direccion_destino.split(",")
-                pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
+            resultado = geocodificar(pedido.direccion_destino, db)  # con caché de direcciones
+            if resultado is not None:
+                pedido.latitud = resultado.latitud
+                pedido.longitud = resultado.longitud
+                pedido.distrito = resolver_distrito(resultado.distrito, pedido.direccion_destino)
                 pendientes_commit += 1
                 if pendientes_commit >= 20:
                     db.commit()

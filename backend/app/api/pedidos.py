@@ -33,8 +33,8 @@ def listar_pedidos(
 
 @router.post("/geocodificar", response_model=GeocodificacionResponse)
 def procesar_geocodificacion(db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
-    """Convierte direcciones en coordenadas y deduce el distrito."""
-    return pedido_service.procesar_geocodificacion(db, usuario_id=admin.id)
+    """Reprocesa una tanda de direcciones pendientes: las convierte en coordenadas y deduce el distrito."""
+    return pedido_service.procesar_geocodificacion(db, usuario_id=admin.id, limite=pedido_service.limite_por_tanda())
 
 
 @router.get("/zonas", response_model=ZonasResponse, dependencies=[Depends(get_current_admin)])
@@ -57,13 +57,13 @@ def listar_por_ubicar(db: Session = Depends(get_db)):
 
 @router.get("/buscar-direccion", response_model=BuscarDireccionResponse, dependencies=[Depends(get_current_admin)])
 def buscar_direccion(q: str, db: Session = Depends(get_db)):
-    """Geocodifica un texto de búsqueda para ubicar el pin en el mapa. Recibe q (texto)."""
+    """Geocodifica un texto de búsqueda y devuelve hasta 5 lugares posibles para el pin. Recibe q (texto)."""
     return pedido_service.buscar_direccion(q)
 
 
 @router.patch("/{pedido_id}/ubicacion")
 def fijar_ubicacion(pedido_id: int, datos: UbicacionManualRequest, db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
-    """Fija manualmente la ubicación de un pedido y lo deja listo para rutear. Recibe pedido_id y lat/lng."""
+    """Fija o corrige a mano la ubicación de un pedido no entregado. Recibe pedido_id y lat/lng."""
     return pedido_service.fijar_ubicacion(db, pedido_id, datos.latitud, datos.longitud, datos.direccion, usuario_id=admin.id)
 
 

@@ -25,7 +25,7 @@ def obtener(db: Session, direccion: str) -> Optional[GeocodificacionCache]:
 
 def obtener_muchas(db: Session, direcciones: list[str]) -> dict:
     """Trae en UNA sola consulta las coordenadas cacheadas de varias direcciones.
-    Recibe: sesión y lista de direcciones. Devuelve: {direccion_normalizada: (lat, lng)}."""
+    Recibe: sesión y lista de direcciones. Devuelve: {direccion_normalizada: (lat, lng, distrito)}."""
     normas = list({normalizar(d) for d in direcciones if normalizar(d)})
     if not normas:
         return {}
@@ -34,11 +34,12 @@ def obtener_muchas(db: Session, direcciones: list[str]) -> dict:
         .filter(GeocodificacionCache.direccion_normalizada.in_(normas))
         .all()
     )
-    return {f.direccion_normalizada: (f.latitud, f.longitud) for f in filas}
+    return {f.direccion_normalizada: (f.latitud, f.longitud, f.distrito) for f in filas}
 
 
-def guardar(db: Session, direccion: str, latitud: float, longitud: float, proveedor: Optional[str]) -> None:
-    """Inserta o actualiza la coordenada cacheada y hace flush. Recibe: sesión, dirección, lat/lng y proveedor."""
+def guardar(db: Session, direccion: str, latitud: float, longitud: float, proveedor: Optional[str],
+            distrito: Optional[str] = None) -> None:
+    """Inserta o actualiza la coordenada cacheada y hace flush. Recibe: sesión, dirección, lat/lng, proveedor y distrito."""
     norm = normalizar(direccion)
     if not norm:
         return
@@ -47,8 +48,10 @@ def guardar(db: Session, direccion: str, latitud: float, longitud: float, provee
         existente.latitud = latitud
         existente.longitud = longitud
         existente.proveedor = proveedor
+        existente.distrito = distrito
     else:
         db.add(GeocodificacionCache(
             direccion_normalizada=norm, latitud=latitud, longitud=longitud, proveedor=proveedor,
+            distrito=distrito,
         ))
     db.flush()

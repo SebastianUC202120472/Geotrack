@@ -47,6 +47,7 @@ class GeocodificacionResponse(BaseModel):
     mensaje: str
     pedidos_exitosos: int = 0
     pedidos_fallidos: int = 0
+    pedidos_restantes: int = 0  # quedan para la siguiente tanda (C16-03)
 
 
 class ZonaItem(BaseModel):
@@ -81,8 +82,17 @@ class UbicacionManualRequest(BaseModel):
     direccion: Optional[str] = None
 
 
+class CoincidenciaDireccion(BaseModel):
+    """Un lugar posible para el texto buscado (C17-02)."""
+    direccion: str
+    latitud: float
+    longitud: float
+    distrito: Optional[str] = None
+
+
 class BuscarDireccionResponse(BaseModel):
-    """Resultado de geocodificar un texto de busqueda."""
+    """Resultado de geocodificar un texto de busqueda: la primera coincidencia y la lista completa."""
     encontrado: bool
     latitud: Optional[float] = None
     longitud: Optional[float] = None
+    coincidencias: List[CoincidenciaDireccion] = []

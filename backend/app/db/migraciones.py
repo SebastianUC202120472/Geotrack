@@ -28,6 +28,8 @@ SENTENCIAS = [
     "ALTER TABLE solicitudes_recojo ADD COLUMN IF NOT EXISTS intentos_no_realizados INTEGER DEFAULT 0",
     # Ubicacion de captura de las fotos del recojo (C13-01).
     "ALTER TABLE evidencias_recojo ADD COLUMN IF NOT EXISTS latitud_longitud_captura VARCHAR(60)",
+    # Distrito que devuelve el geocodificador, guardado junto a la coordenada (C16-01).
+    "ALTER TABLE geocodificaciones_cache ADD COLUMN IF NOT EXISTS distrito VARCHAR(100)",
 ]
 
 

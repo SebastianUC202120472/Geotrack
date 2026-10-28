@@ -69,6 +69,7 @@ def obtener_sin_coordenadas(db: Session) -> List[Pedido]:
             Pedido.latitud == None,  # noqa: E711 (SQLAlchemy exige '== None')
             Pedido.estado.in_(("LISTO_PARA_ENVIO", "GEOCODIFICACION_FALLIDA")),
         )
+        .order_by(Pedido.id)
         .all()
     )
 

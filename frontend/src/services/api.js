@@ -218,6 +218,9 @@ export const listarZonasPorEnrutar = () => request("/pedidos/zonas/por-enrutar")
 // Lista pedidos sin geocodificacion valida (para ubicar a mano).
 export const listarPorUbicar = () => request("/pedidos/por-ubicar");
 
+// Vuelve a geocodificar una tanda de pedidos sin ubicacion. No recibe nada.
+export const reprocesarDirecciones = () => request("/pedidos/geocodificar", { method: "POST" });
+
 // Geocodifica un texto de busqueda. Recibe q (string).
 export const buscarDireccion = (q) => request(`/pedidos/buscar-direccion?q=${encodeURIComponent(q)}`);
 
