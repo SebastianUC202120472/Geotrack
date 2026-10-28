@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 # Waypoint para el mapa de navegación.
@@ -48,6 +48,8 @@ class RutaActivaResponse(BaseModel):
     ayuda_enviada_en: Optional[datetime] = None
     ayuda_detalle: Optional[str] = None
     tipo: str = "ENTREGA"  # ENTREGA (outbound) | RECOJO (inbound)
+    km_estimado: Optional[float] = None  # recorrido calculado al optimizar (C20-01)
+    km_ahorrado: Optional[float] = None
 
 
 # Manifiesto completo y ordenado de la ruta.
@@ -111,7 +113,7 @@ class CierreRutaResponse(BaseModel):
 # Solicitud para asignar un bloque de pedidos a una ruta. Recibe distrito y conductor.
 class AsignacionBloqueRequest(BaseModel):
     """Arma una ruta con pedidos de un distrito. nombre_ruta opcional; si se omite se genera desde la zona."""
-    nombre_ruta: Optional[str] = None
+    nombre_ruta: Optional[str] = Field(None, max_length=100)
     distrito: str
     conductor_id: int
 
@@ -131,9 +133,14 @@ class OptimizacionRequest(BaseModel):
 
 
 class OptimizacionResponse(BaseModel):
-    """Confirmacion de optimizacion con el total de paradas reordenadas."""
+    """Confirmacion de optimizacion: paradas reordenadas, km del recorrido y ahorro (C20-01) y las
+    paradas que quedaron fuera por no tener ubicacion (C20-03)."""
     mensaje: str
     total_paradas: int
+    km_estimado: Optional[float] = None
+    km_ahorrado: Optional[float] = None
+    paradas_sin_ubicacion: int = 0
+    codigos_sin_ubicacion: List[str] = []
 
 
 # Parada de la ruta vista por el admin para reordenar o quitar.

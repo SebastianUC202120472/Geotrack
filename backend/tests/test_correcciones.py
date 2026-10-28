@@ -248,3 +248,87 @@ def test_busqueda_manual_suma_lugares_de_osm_sin_repetir(monkeypatch):
     monkeypatch.setattr(geocoder, "_buscar_google", lambda texto, maximo: [g])
     monkeypatch.setattr(geocoder, "_buscar_osm", lambda texto, maximo: [mismo, otro])
     assert geocoder.buscar_lugares("Plaza de Armas") == [g, otro]
+
+
+# --- F5: despacho y rutas (C19-01, C19-02, C20-01, C20-03) ---
+
+from pydantic import ValidationError  # noqa: E402
+
+from app.schemas.ruta import AsignacionBloqueRequest, OptimizacionRequest  # noqa: E402
+from app.services import ruta_service  # noqa: E402
+
+
+def _despacho(monkeypatch, pedidos, validar=None):
+    """Simula los repositorios de asignar_bloque. Recibe los pedidos de la zona y un validador
+    opcional del conductor. Devuelve la lista de pasos en el orden en que ocurrieron."""
+    pasos = []
+    monkeypatch.setattr(ruta_service.usuario_repository, "bloquear", lambda db, cid: pasos.append("bloquear_conductor"))
+
+    def validar_ok(db, cid):
+        pasos.append("validar_conductor")
+        return SimpleNamespace(id=cid), SimpleNamespace(placa="ABC-123")
+    monkeypatch.setattr(ruta_service.conductor_service, "validar_para_ruta", validar or validar_ok)
+    monkeypatch.setattr(ruta_service.ruta_repository, "obtener_ruta_activa_por_conductor", lambda db, cid: None)
+
+    def pendientes(db, distrito, bloquear=False):
+        pasos.append(f"pedidos_bloqueados={bloquear}")
+        return pedidos
+    monkeypatch.setattr(ruta_service.pedido_repository, "obtener_pendientes_por_distrito", pendientes)
+    return pasos
+
+
+def test_despacho_bloquea_conductor_y_pedidos_antes_de_asignar(monkeypatch):
+    """Primero se bloquea y valida al conductor y luego se toman los pedidos con candado (C19-01)."""
+    pasos = _despacho(monkeypatch, [])
+    with pytest.raises(HTTPException) as e:
+        ruta_service.asignar_bloque(None, AsignacionBloqueRequest(distrito="Miraflores", conductor_id=7))
+    assert pasos == ["bloquear_conductor", "validar_conductor", "pedidos_bloqueados=True"]
+    assert e.value.status_code == 400 and "despacharla" in e.value.detail
+
+
+def test_despacho_a_conductor_sin_vehiculo_se_rechaza(monkeypatch):
+    """Si el conductor no pasa la validacion (sin vehiculo, de baja...) no se toca ningun pedido."""
+    def sin_vehiculo(db, cid):
+        raise HTTPException(status_code=400, detail="El conductor no tiene un vehículo asignado.")
+    pasos = _despacho(monkeypatch, [SimpleNamespace(id=1)], validar=sin_vehiculo)
+    with pytest.raises(HTTPException):
+        ruta_service.asignar_bloque(None, AsignacionBloqueRequest(distrito="Miraflores", conductor_id=7))
+    assert pasos == ["bloquear_conductor"]
+
+
+def test_nombre_de_ruta_largo_se_rechaza():
+    """El nombre personalizado de la ruta admite hasta 100 caracteres (C19-02)."""
+    with pytest.raises(ValidationError):
+        AsignacionBloqueRequest(nombre_ruta="R" * 101, distrito="Miraflores", conductor_id=1)
+
+
+def _detalle(estado, pid, lat=-12.1, codigo=None):
+    """Tupla (detalle, pedido) de una parada para las pruebas de optimizacion."""
+    return (SimpleNamespace(estado_entrega=estado, secuencia=0),
+            SimpleNamespace(id=pid, codigo=codigo or f"PD-{pid:03d}", latitud=lat, longitud=None if lat is None else -77.0))
+
+
+def test_paradas_sin_ubicacion_solo_cuenta_pendientes():
+    """Solo avisa de las paradas pendientes sin coordenadas; las ya cerradas no importan (C20-03)."""
+    detalles = [_detalle("PENDIENTE", 1, lat=None), _detalle("ENTREGADO", 2, lat=None), _detalle("PENDIENTE", 3)]
+    assert [p.id for p in ruta_service.paradas_sin_ubicacion(detalles)] == [1]
+
+
+def test_resumen_de_optimizacion_trae_km_y_sin_ubicacion():
+    """La respuesta al conductor incluye km, ahorro y los codigos sin ubicacion (C20-01, C20-03)."""
+    ruta = SimpleNamespace(km_estimado=12.4, km_ahorrado=3.1)
+    r = ruta_service.resumen_optimizacion("ok", [1, 2, 3], ruta, [SimpleNamespace(id=9, codigo="PD-009")])
+    assert r == {"mensaje": "ok", "total_paradas": 3, "km_estimado": 12.4, "km_ahorrado": 3.1,
+                 "paradas_sin_ubicacion": 1, "codigos_sin_ubicacion": ["PD-009"]}
+
+
+def test_optimizar_con_todas_las_paradas_sin_ubicacion_lo_explica(monkeypatch):
+    """Si ninguna parada pendiente tiene ubicacion, el error lo dice con sus codigos (C20-03)."""
+    ruta = SimpleNamespace(id=1, conductor_id=5)
+    monkeypatch.setattr(ruta_service.ruta_repository, "obtener_ruta_por_id", lambda db, rid: ruta)
+    monkeypatch.setattr(ruta_service.ruta_repository, "obtener_detalles_con_pedido",
+                        lambda db, rid: [_detalle("PENDIENTE", 4, lat=None), _detalle("ENTREGADO", 2)])
+    with pytest.raises(HTTPException) as e:
+        ruta_service.optimizar_ruta(None, OptimizacionRequest(ruta_id=1, latitud_actual_conductor=-12.1,
+                                                               longitud_actual_conductor=-77.0), conductor_id=5)
+    assert e.value.status_code == 400 and "PD-004" in e.value.detail

@@ -8,6 +8,9 @@ import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import { asignarBloque, listarZonas, listarVehiculos, listarConductores } from "../services/api";
 
+// Largo máximo del nombre de la ruta (columna rutas.nombre).
+const MAX_NOMBRE = 100;
+
 // Asigna un bloque de pedidos de una zona a un conductor. Envía conductor_id (no vehiculo_id).
 export default function AsignacionBloque() {
   const [zonas, setZonas] = useState([]);
@@ -15,6 +18,7 @@ export default function AsignacionBloque() {
   const [nombrePorId, setNombrePorId] = useState({});
   const [distrito, setDistrito] = useState("");
   const [vehiculoId, setVehiculoId] = useState("");
+  const [nombreRuta, setNombreRuta] = useState("");
   const [cargando, setCargando] = useState(false);
   const [aviso, setAviso] = useState(null);
 
@@ -35,6 +39,14 @@ export default function AsignacionBloque() {
   const vehiculosConConductor = vehiculos.filter((v) => v.conductor_id);
   const zonaSel = zonas.find((z) => z.distrito === distrito);
   const vehiculoSel = vehiculos.find((v) => String(v.id) === String(vehiculoId));
+  const nombreAuto = distrito ? `Ruta ${distrito}` : "";
+  const nombreFinal = nombreRuta.trim() || nombreAuto;
+
+  // Vuelve a pedir las zonas para que la recién despachada ya no aparezca con pedidos.
+  const recargarZonas = () =>
+    listarZonas()
+      .then((z) => setZonas(z.zonas_operativas || []))
+      .catch((err) => console.error("Error al recargar zonas:", err.message));
 
   const asignar = async () => {
     if (!distrito || !vehiculoId) {
@@ -45,13 +57,16 @@ export default function AsignacionBloque() {
     setAviso(null);
     try {
       const res = await asignarBloque({
+        nombre_ruta: nombreRuta.trim() || null,
         distrito,
         conductor_id: vehiculoSel.conductor_id,
       });
       setAviso({ ok: true, texto: `${res.mensaje} (ruta ${res.codigo || res.ruta_id}).` });
-      setDistrito(""); setVehiculoId("");
+      setDistrito(""); setVehiculoId(""); setNombreRuta("");
+      recargarZonas();
     } catch (err) {
       setAviso({ ok: false, texto: err.message });
+      recargarZonas();
     } finally {
       setCargando(false);
     }
@@ -66,7 +81,7 @@ export default function AsignacionBloque() {
       <div className="animate-fade-up">
         <PageHeader
           titulo="Asignación de Rutas"
-          subtitulo="Arma un bloque logístico y asígnalo a un conductor (CUS-18)."
+          subtitulo="Arma un bloque logístico y asígnalo a un conductor."
         />
       </div>
 
@@ -130,14 +145,14 @@ export default function AsignacionBloque() {
                 ))}
               </Input>
 
-              {distrito && (
-                <div className="flex items-center gap-2 rounded-xl bg-brand-50 border border-brand-100 px-4 py-3">
-                  <Route size={16} className="text-brand-600 shrink-0" />
-                  <p className="text-sm text-brand-700">
-                    Nombre automático: <b>Ruta {distrito}</b>
-                  </p>
-                </div>
-              )}
+              <Input
+                label="Nombre de la ruta (opcional)"
+                value={nombreRuta}
+                maxLength={MAX_NOMBRE}
+                onChange={(e) => setNombreRuta(e.target.value)}
+                placeholder={nombreAuto || "Ruta Miraflores mañana"}
+                hint={nombreAuto ? `Si lo dejas vacío se llamará «${nombreAuto}».` : "Si lo dejas vacío se usa el nombre de la zona."}
+              />
 
               <Input
                 as="select"
@@ -184,6 +199,11 @@ export default function AsignacionBloque() {
           >
             {zonaSel && vehiculoSel ? (
               <div className="space-y-3">
+                <div className="flex items-center gap-3 rounded-xl bg-slate-50 border border-warm-200 px-4 py-3 text-sm text-slate-700">
+                  <Route className="text-brand-600 shrink-0" size={18} />
+                  <span className="min-w-0 truncate">Ruta:&nbsp;<b>{nombreFinal}</b></span>
+                </div>
+
                 <div className="flex items-center gap-3 rounded-xl bg-slate-50 border border-warm-200 px-4 py-3 text-sm text-slate-700">
                   <MapPin className="text-brand-600 shrink-0" size={18} />
                   <span>Zona:&nbsp;<b>{zonaSel.distrito}</b></span>

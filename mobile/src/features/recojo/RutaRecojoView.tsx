@@ -9,6 +9,8 @@ import { Button } from "@/components/Button";
 import { Mapa } from "@/components/Mapa";
 import { Cargando, ErrorVista, Vacio } from "@/components/Estados";
 import { GradientHeader } from "@/components/GradientHeader";
+import { KmRuta } from "@/components/KmRuta";
+import { mensajeOptimizacion } from "@/services/routeService";
 import { Cabecera } from "@/components/Cabecera";
 import { Aparecer, ItemLista, BarraProgreso, Contador, IndicadorEnVivo } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
@@ -79,7 +81,7 @@ export function RutaRecojoView() {
     const coords = await ubicacion.obtener();
     if (!coords) { if (ubicacion.error) Alert.alert("Ubicación", ubicacion.error); return; }
     iniciar.mutate({ rutaId: ruta.data.ruta_id, coords }, {
-      onSuccess: (r) => Alert.alert("Ruta lista", `Se ordenaron ${r.total_paradas} puntos de recojo desde tu ubicación.`),
+      onSuccess: (r) => Alert.alert("Ruta lista", mensajeOptimizacion(r, "puntos de recojo")),
       onError: (e) => Alert.alert("Error", mensajeDeError(e)),
     });
   };
@@ -118,6 +120,7 @@ export function RutaRecojoView() {
           <Texto variante="body" color={colors.white} style={{ opacity: 0.9, textTransform: "lowercase" }}>
             {(ruta.data.codigo ?? "—")} · {(ruta.data.estado ?? "").replace("_", " ").toLowerCase()}
           </Texto>
+          <KmRuta kmEstimado={ruta.data.km_estimado} kmAhorrado={ruta.data.km_ahorrado} />
           <View style={{ marginTop: spacing.lg }}>
             <BarraProgreso valor={recogidas + noRealizadas} total={total} porEstado />
           </View>

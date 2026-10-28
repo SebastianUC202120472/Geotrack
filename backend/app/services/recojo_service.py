@@ -16,6 +16,7 @@ from app.services.geocoder import geocodificar
 from app.core.distritos import resolver_distrito
 from app.services import notificaciones_service
 from app.services.router import optimizar_secuencia_pedidos, distancia_total
+from app.services.ruta_service import resumen_optimizacion
 from app.schemas.recojo import (
     SolicitudRecojoCreate,
     SolicitudRecojoUpdate,
@@ -464,6 +465,7 @@ def optimizar_recojo(db: Session, datos: OptimizacionRequest, conductor_id: int)
 
     recojos = recojo_repository.obtener_por_ruta(db, ruta.id)
     validos = [r for r in recojos if r.latitud is not None]
+    sin_ubicacion = [r for r in recojos if r.latitud is None and r.estado not in ESTADOS_GESTIONADOS]
     if not validos:
         raise HTTPException(status_code=400, detail="La ruta no tiene puntos válidos para optimizar")
 
@@ -489,7 +491,7 @@ def optimizar_recojo(db: Session, datos: OptimizacionRequest, conductor_id: int)
         ruta.estado = "EN_PROGRESO"
 
     ruta_repository.guardar_cambios(db)
-    return {"mensaje": "Ruta de recojo optimizada", "total_paradas": len(ordenados)}
+    return resumen_optimizacion("Ruta de recojo optimizada", ordenados, ruta, sin_ubicacion)
 
 
 def registrar_recepcion(db: Session, conductor_id: int, recojo_id: int, cantidad_declarada: int,

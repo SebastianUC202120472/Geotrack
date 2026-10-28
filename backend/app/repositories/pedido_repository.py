@@ -100,13 +100,16 @@ def listar_sin_ubicacion_resoluble(db: Session) -> List[Pedido]:
     )
 
 
-def obtener_pendientes_por_distrito(db: Session, distrito: str) -> List[Pedido]:
-    """Devuelve pedidos LISTO_PARA_ENVIO de un distrito. Recibe db y distrito."""
-    return (
+def obtener_pendientes_por_distrito(db: Session, distrito: str, bloquear: bool = False) -> List[Pedido]:
+    """Devuelve pedidos LISTO_PARA_ENVIO de un distrito. Recibe db, distrito y bloquear: si es True
+    las filas quedan bloqueadas hasta el commit (un despacho simultaneo de la misma zona espera y
+    luego ya no las ve, porque dejaron de estar LISTO_PARA_ENVIO)."""
+    consulta = (
         db.query(Pedido)
         .filter(Pedido.distrito == distrito, Pedido.estado == "LISTO_PARA_ENVIO")
-        .all()
+        .order_by(Pedido.id)  # mismo orden de bloqueo en todos los despachos: evita interbloqueos
     )
+    return consulta.with_for_update().all() if bloquear else consulta.all()
 
 
 def agrupar_por_zona(db: Session):
