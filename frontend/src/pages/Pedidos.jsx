@@ -13,6 +13,8 @@ import ResolverDireccionModal from "../components/ResolverDireccionModal";
 import VistaPorRuta from "../components/seguimiento/VistaPorRuta";
 import VistaPorCliente from "../components/seguimiento/VistaPorCliente";
 import TabTrazabilidad from "../components/TabTrazabilidad";
+import SolicitudesReprogramacion from "../components/SolicitudesReprogramacion";
+import ConfirmDialog from "../components/ui/ConfirmDialog";
 import { listarTodosLosPedidos, listarZonas, obtenerHistorial, reprogramarPedido, cancelarPedido, listarReportes, reprocesarDirecciones } from "../services/api";
 
 const POR_PAGINA = 12;
@@ -60,6 +62,24 @@ export default function Pedidos() {
   const [seleccionado, setSeleccionado] = useState(null);
   const [reprocesando, setReprocesando] = useState(false);
   const [avisoReproceso, setAvisoReproceso] = useState(null);
+
+  // Pedido a abrir desde la URL (?codigo=PD-001), p. ej. al pulsar el aviso de una reprogramación (C37-02).
+  const codigoUrl = (params.get("codigo") || "").toUpperCase();
+  const pedidoDeUrl = useMemo(
+    () => (codigoUrl ? pedidos.find((p) => (p.codigo || "").toUpperCase() === codigoUrl) || null : null),
+    [codigoUrl, pedidos]
+  );
+  const abierto = seleccionado || pedidoDeUrl;
+
+  // Cierra el detalle y quita el código de la URL para no volver a abrirlo. Sin parámetros.
+  const cerrarDetalle = () => {
+    setSeleccionado(null);
+    if (codigoUrl) {
+      const siguientes = new URLSearchParams(params);
+      siguientes.delete("codigo");
+      setParams(siguientes, { replace: true });
+    }
+  };
 
   // Carga reportes abiertos y construye mapa pedido_id → reporte.
   const cargarReportes = () => {
@@ -376,15 +396,16 @@ export default function Pedidos() {
         </div>
       )}
 
-      <Modal open={!!seleccionado} onClose={() => setSeleccionado(null)} variant="right">
-        {seleccionado && (
+      <Modal open={!!abierto} onClose={cerrarDetalle} variant="right">
+        {abierto && (
           <DetallePedido
-            pedido={seleccionado}
-            reporte={reportePorPedido[seleccionado.id] || null}
-            onCerrar={() => setSeleccionado(null)}
-            onIrARuta={() => { setSeleccionado(null); setVista("ruta"); }}
-            onAccion={() => { setSeleccionado(null); cargarTodo(); }}
-            onDireccionResuelta={() => { setSeleccionado(null); cargar(); }}
+            key={abierto.id}
+            pedido={abierto}
+            reporte={reportePorPedido[abierto.id] || null}
+            onCerrar={cerrarDetalle}
+            onIrARuta={() => { cerrarDetalle(); setVista("ruta"); }}
+            onAccion={() => { cerrarDetalle(); cargarTodo(); }}
+            onDireccionResuelta={() => { cerrarDetalle(); cargar(); }}
             onVerReporte={(codigo) => navigate(`/panel/reportes?pedido=${encodeURIComponent(codigo)}`)}
           />
         )}
@@ -401,6 +422,8 @@ function DetallePedido({ pedido, reporte, onCerrar, onIrARuta, onAccion, onDirec
   const [error, setError] = useState("");
   const [accionando, setAccionando] = useState(false);
   const [mostrarResolver, setMostrarResolver] = useState(false);
+  const [confirmarCancelar, setConfirmarCancelar] = useState(false);
+  const [motivo, setMotivo] = useState("");
   const sinUbicacion = pedido.latitud == null || pedido.longitud == null;
   const corregible = !ESTADOS_CERRADOS.includes(pedido.estado);
 
@@ -422,12 +445,12 @@ function DetallePedido({ pedido, reporte, onCerrar, onIrARuta, onAccion, onDirec
       .catch((e) => { setError(e.message); setAccionando(false); });
   };
 
-  // Cancela el pedido y resuelve el reporte asociado.
+  // Cancela el pedido con el motivo escrito (C31-02) y resuelve el reporte asociado.
   const cancelar = () => {
     setAccionando(true);
-    cancelarPedido(pedido.id)
+    cancelarPedido(pedido.id, motivo.trim())
       .then(() => onAccion())
-      .catch((e) => { setError(e.message); setAccionando(false); });
+      .catch((e) => { setError(e.message); setAccionando(false); setConfirmarCancelar(false); });
   };
 
   return (
@@ -473,7 +496,7 @@ function DetallePedido({ pedido, reporte, onCerrar, onIrARuta, onAccion, onDirec
               <Button size="sm" icon={RotateCcw} onClick={reprogramar} disabled={accionando}>
                 {accionando ? "Procesando…" : "Reprogramar"}
               </Button>
-              <Button size="sm" variant="danger" icon={Ban} onClick={cancelar} disabled={accionando}>
+              <Button size="sm" variant="danger" icon={Ban} onClick={() => setConfirmarCancelar(true)} disabled={accionando}>
                 Cancelar pedido
               </Button>
               <Button size="sm" variant="secondary" icon={Eye}
@@ -486,15 +509,29 @@ function DetallePedido({ pedido, reporte, onCerrar, onIrARuta, onAccion, onDirec
 
         {pedido.estado === "FALLIDO" && !reporte && (
           <div className="rounded-xl border border-warning/30 bg-warning-soft p-4">
-            <p className="text-sm text-warning-strong">Este pedido está fallido. Puedes reprogramarlo para reasignarlo.</p>
+            <p className="text-sm text-warning-strong">Este pedido está fallido. Puedes reprogramarlo para reasignarlo o cancelarlo.</p>
             {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
-            <div className="mt-3">
+            <div className="mt-3 flex flex-wrap gap-2">
               <Button variant="secondary" icon={RotateCcw} onClick={reprogramar} disabled={accionando}>
                 {accionando ? "Procesando…" : "Reprogramar → Listo p/envío"}
+              </Button>
+              <Button variant="danger" icon={Ban} onClick={() => setConfirmarCancelar(true)} disabled={accionando}>
+                Cancelar pedido
               </Button>
             </div>
           </div>
         )}
+
+        {pedido.estado === "CANCELADO" && pedido.motivo_cancelacion && (
+          <Dato etiqueta="Motivo de la cancelación" valor={pedido.motivo_cancelacion} icono={Ban} />
+        )}
+
+        <SolicitudesReprogramacion
+          pedidoId={pedido.id}
+          pedidoEstado={pedido.estado}
+          permitirAtender={pedido.estado !== "FALLIDO" && corregible}
+          onAtendida={() => onAccion()}
+        />
 
         {sinUbicacion ? (
           <div className="rounded-xl border border-brand-200 bg-brand-50 p-4">
@@ -536,6 +573,29 @@ function DetallePedido({ pedido, reporte, onCerrar, onIrARuta, onAccion, onDirec
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmarCancelar}
+        titulo={`¿Cancelar el pedido ${pedido.codigo}?`}
+        mensaje="El pedido queda cancelado de forma definitiva y sale de su ruta. Indica el motivo: quedará en su historial."
+        textoConfirmar="Cancelar pedido"
+        tono="danger"
+        cargando={accionando}
+        deshabilitado={motivo.trim().length < 5}
+        onConfirmar={cancelar}
+        onCancelar={() => setConfirmarCancelar(false)}
+      >
+        <Input
+          as="textarea"
+          label="Motivo de la cancelación"
+          rows={3}
+          maxLength={255}
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value)}
+          placeholder="Ej. El cliente desistió de la compra"
+          hint="Mínimo 5 caracteres."
+        />
+      </ConfirmDialog>
 
       <Modal open={mostrarResolver} onClose={() => setMostrarResolver(false)} variant="center">
         {mostrarResolver && (

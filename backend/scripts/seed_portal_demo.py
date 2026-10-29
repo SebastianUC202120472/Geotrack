@@ -50,7 +50,7 @@ CORREOS_CONDUCTORES = (
 # parametros_sistema ni correo_*.
 TABLAS_A_VACIAR = (
     "ruta_detalles", "evidencias_entrega", "evidencias_recojo", "historial_pedidos",
-    "incidencias", "incidencia_ayudas", "reportes", "liquidaciones", "ubicaciones_conductor",
+    "incidencias", "incidencia_ayudas", "solicitudes_reprogramacion", "reportes", "liquidaciones", "ubicaciones_conductor",
     "notificaciones", "verificaciones_portal", "solicitudes_restablecimiento",
     "pedidos", "rutas", "solicitudes_recojo", "clientes_corporativos",
 )

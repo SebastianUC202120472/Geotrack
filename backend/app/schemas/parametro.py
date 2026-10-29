@@ -1,5 +1,5 @@
 import re
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, field_validator
 
@@ -45,3 +45,22 @@ class ContactoConfig(BaseModel):
         if not re.fullmatch(r"\+?[\d ]+", v) or not 7 <= len(digitos) <= 15:
             raise ValueError("Escribe un teléfono válido (solo números, con + y código de país si quieres)")
         return v
+
+
+class FranjasConfig(BaseModel):
+    """Franjas horarias que el portal ofrece para reprogramar una entrega (C43-03)."""
+    franjas: List[str]
+
+    @field_validator("franjas")
+    @classmethod
+    def _v_franjas(cls, v: List[str]) -> List[str]:
+        limpias = []
+        for franja in v or []:
+            franja = " ".join((franja or "").split())
+            if franja and franja not in limpias:
+                limpias.append(franja)
+        if not 1 <= len(limpias) <= 6:
+            raise ValueError("Define entre 1 y 6 franjas")
+        if any(not 3 <= len(f) <= 60 for f in limpias):
+            raise ValueError("Cada franja debe tener entre 3 y 60 caracteres")
+        return limpias

@@ -35,6 +35,8 @@ SENTENCIAS = [
     "ALTER TABLE evidencias_entrega ADD COLUMN IF NOT EXISTS receptor_documento VARCHAR(12)",
     "ALTER TABLE reportes ADD COLUMN IF NOT EXISTS url_evidencia VARCHAR(255)",
     "ALTER TABLE reportes ADD COLUMN IF NOT EXISTS latitud_longitud_captura VARCHAR(60)",
+    # Motivo obligatorio al cancelar un pedido (C31-02).
+    "ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS motivo_cancelacion VARCHAR(255)",
 ]
 
 

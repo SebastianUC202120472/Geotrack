@@ -323,6 +323,12 @@ export const obtenerEficienciaConductores = () => request("/dashboard/eficiencia
 
 export const obtenerCombustible = () => request("/parametros/combustible");
 
+// Franjas que el portal ofrece para reprogramar una entrega (C43-03). Sin parametros.
+export const obtenerFranjas = () => request("/parametros/franjas");
+
+// Guarda las franjas de reprogramacion del portal. Recibe la lista de franjas.
+export const actualizarFranjas = (franjas) => request("/parametros/franjas", { method: "PUT", body: { franjas } });
+
 // Telefono de coordinacion que ve el conductor en la app (EX-13). Sin parametros.
 export const obtenerContacto = () => request("/parametros/contacto");
 
@@ -337,8 +343,15 @@ export const actualizarCombustible = (consumo_l_100km, precio_soles_litro) =>
 // Reprograma un pedido fallido (vuelve a LISTO_PARA_ENVIO). Recibe id.
 export const reprogramarPedido = (id) => request(`/pedidos/${id}/reprogramar`, { method: "POST" });
 
-// Cancela un pedido. Recibe id.
-export const cancelarPedido = (id) => request(`/pedidos/${id}/cancelar`, { method: "POST" });
+// Cancela un pedido fallido con su motivo (obligatorio, C31-02). Recibe id y motivo.
+export const cancelarPedido = (id, motivo) => request(`/pedidos/${id}/cancelar`, { method: "POST", body: { motivo } });
+
+// Solicitudes de reprogramación que hizo el cliente desde el portal (C43-01). Recibe el id del pedido.
+export const listarReprogramaciones = (pedidoId) => request(`/pedidos/${pedidoId}/reprogramaciones`);
+
+// Acepta o rechaza una solicitud de reprogramación. Recibe su id y { aceptar, nota }.
+export const atenderReprogramacion = (id, datos) =>
+  request(`/pedidos/reprogramaciones/${id}/atender`, { method: "POST", body: datos });
 
 // Acepta una solicitud de recojo y crea pedidos en POR_RECOGER. Recibe clienteId, archivo y extras.
 export const aceptarSolicitud = (clienteId, archivo, extras = {}) => {

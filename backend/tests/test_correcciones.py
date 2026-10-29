@@ -486,3 +486,148 @@ def test_portal_muestra_quien_recibio_de_verdad():
     pod = SimpleNamespace(receptor_nombre="Luis Rojas", receptor_documento="45678912")
     assert portal_service._texto_recibido(pod) == "Recibido por Luis Rojas · Doc. ****912."
     assert portal_service._texto_recibido(None) == "Entregado en la dirección de destino."
+
+
+# ---------------- F7: fallidos y reprogramacion ----------------
+from app.schemas.parametro import FranjasConfig  # noqa: E402
+from app.schemas.reporte import ResponderReporte  # noqa: E402
+
+
+def test_cancelar_sin_motivo_se_rechaza_antes_de_tocar_el_pedido():
+    """Cancelar exige un motivo de al menos 5 caracteres (C31-02); sin el no se consulta nada."""
+    for motivo in (None, "   ", "no"):
+        with pytest.raises(HTTPException) as e:
+            pedido_service.cancelar(None, 1, 1, motivo)
+        assert e.value.status_code == 400 and "motivo" in e.value.detail
+
+
+@pytest.mark.parametrize("accion, esperada", [("reprogramar", "REPROGRAMAR"), (None, "NINGUNA"), (" cancelar ", "CANCELAR")])
+def test_accion_de_la_respuesta_es_una_decision(accion, esperada):
+    """La accion ya no es texto libre: REPROGRAMAR, CANCELAR o NINGUNA (C31-01)."""
+    assert ResponderReporte(respuesta="ok", accion=accion).accion == esperada
+
+
+def test_accion_desconocida_se_rechaza():
+    with pytest.raises(ValidationError):
+        ResponderReporte(respuesta="ok", accion="Traer a base")
+
+
+def _reporte_abierto(monkeypatch, estado_pedido):
+    """Prepara un reporte abierto de un pedido con el estado dado. Devuelve (bd, reporte, llamadas)."""
+    reporte = SimpleNamespace(id=1, pedido_id=9, pedido_codigo="PD-009", conductor_id=5, motivo="Cliente ausente",
+                              descripcion=None, estado="ABIERTO", respuesta=None, accion=None, creado_en=None,
+                              respondido_en=None, respondido_por=None, url_evidencia=None, latitud_longitud_captura=None)
+    pedido = SimpleNamespace(id=9, estado=estado_pedido, direccion_destino="Calle 1")
+    llamadas = []
+    monkeypatch.setattr(reporte_service.reporte_repository, "obtener", lambda db, i: reporte)
+    monkeypatch.setattr(reporte_service.reporte_repository, "guardar", lambda db: llamadas.append("guardar"))
+    monkeypatch.setattr(reporte_service.pedido_service, "reprogramar", lambda db, pid, uid: llamadas.append(("reprogramar", pid)))
+    monkeypatch.setattr(reporte_service.pedido_service, "cancelar", lambda db, pid, uid, m: llamadas.append(("cancelar", m)))
+    monkeypatch.setattr(reporte_service, "_a_respuesta", lambda db, r: r)
+    bd = _BDParada(pedido)
+    return bd, reporte, llamadas
+
+
+def test_responder_y_reprogramar_en_un_paso(monkeypatch):
+    """Responder con REPROGRAMAR reprograma el pedido fallido y guarda la respuesta (C31-01)."""
+    bd, reporte, llamadas = _reporte_abierto(monkeypatch, "FALLIDO")
+    r = reporte_service.responder(bd, 1, 7, ResponderReporte(respuesta="Se reintenta mañana", accion="REPROGRAMAR"))
+    assert ("reprogramar", 9) in llamadas and r.accion == "Reprogramado" and r.respuesta == "Se reintenta mañana"
+
+
+def test_responder_y_cancelar_pasa_el_motivo(monkeypatch):
+    bd, _, llamadas = _reporte_abierto(monkeypatch, "FALLIDO")
+    reporte_service.responder(bd, 1, 7, ResponderReporte(respuesta="Se cancela", accion="CANCELAR",
+                                                         motivo_cancelacion="Dirección inexistente"))
+    assert ("cancelar", "Dirección inexistente") in llamadas
+
+
+def test_no_se_decide_sobre_un_pedido_que_ya_no_esta_fallido(monkeypatch):
+    """Si el pedido ya se reprogramo (p. ej. desde Pedidos), solo se puede responder."""
+    bd, _, llamadas = _reporte_abierto(monkeypatch, "LISTO_PARA_ENVIO")
+    with pytest.raises(HTTPException) as e:
+        reporte_service.responder(bd, 1, 7, ResponderReporte(respuesta="x", accion="REPROGRAMAR"))
+    assert e.value.status_code == 409 and llamadas == []
+    reporte_service.responder(bd, 1, 7, ResponderReporte(respuesta="Visto", accion="NINGUNA"))
+    assert llamadas == ["guardar"]
+
+
+def _portal_reprog(monkeypatch, estado):
+    """Prepara registrar_reprogramacion con un pedido en el estado dado. Devuelve (avisos, guardadas)."""
+    pedido = SimpleNamespace(id=9, codigo="PD-009", estado=estado)
+    avisos, guardadas = [], []
+    monkeypatch.setattr(portal_service.repo, "pedido_por_codigo", lambda db, c: pedido)
+    monkeypatch.setattr(portal_service.reprogramacion_repository, "registrar",
+                        lambda db, pid, f: guardadas.append(f) or SimpleNamespace(franja=f, estado="PENDIENTE"))
+    from app.services import notificaciones_service, parametro_service
+    monkeypatch.setattr(parametro_service, "obtener_franjas", lambda db: ["Mañana · 9 am – 1 pm", "Sábado · 9 am – 1 pm"])
+    monkeypatch.setattr(notificaciones_service, "registrar", lambda db, tipo, titulo, msg, ruta, eid: avisos.append(ruta))
+    return avisos, guardadas
+
+
+def test_reprogramacion_antes_de_la_visita_se_guarda_y_enlaza_al_pedido(monkeypatch):
+    """Un pedido aun no entregado puede pedir otra franja (C43-02); queda guardada (C43-01)
+    y el aviso al admin lleva al pedido, no a Reportes (C37-02)."""
+    avisos, guardadas = _portal_reprog(monkeypatch, "ASIGNADO")
+    bd = SimpleNamespace(commit=lambda: None)
+    r = portal_service.registrar_reprogramacion(bd, "PD-009", "Mañana · 9 am – 1 pm")
+    assert guardadas == ["Mañana · 9 am – 1 pm"] and avisos == ["/pedidos?codigo=PD-009"]
+    assert r["reprogramacion"] == {"franja": "Mañana · 9 am – 1 pm", "estado": "PENDIENTE"}
+
+
+def test_reprogramacion_con_franja_inventada_o_pedido_entregado_se_rechaza(monkeypatch):
+    """Solo valen las franjas configuradas (C43-03) y nunca un pedido ya entregado."""
+    _portal_reprog(monkeypatch, "LISTO_PARA_ENVIO")
+    with pytest.raises(HTTPException) as e:
+        portal_service.registrar_reprogramacion(None, "PD-009", "A las 3 am")
+    assert e.value.status_code == 400
+    _portal_reprog(monkeypatch, "ENTREGADO")
+    with pytest.raises(HTTPException) as e:
+        portal_service.registrar_reprogramacion(None, "PD-009", "Mañana · 9 am – 1 pm")
+    assert e.value.status_code == 409
+
+
+def _solicitud(monkeypatch, estado_pedido, estado_solicitud="PENDIENTE"):
+    """Prepara atender_reprogramacion. Devuelve (bd, solicitud, pedido, pasos)."""
+    solicitud = SimpleNamespace(id=3, pedido_id=9, franja="Sábado · 9 am – 1 pm", estado=estado_solicitud,
+                                creado_en=None, respuesta=None, atendida_en=None, atendida_por=None)
+    pedido = SimpleNamespace(id=9, codigo="PD-009", estado=estado_pedido)
+    pasos = []
+    monkeypatch.setattr(pedido_service.reprogramacion_repository, "obtener", lambda db, i, bloquear=False: solicitud)
+    monkeypatch.setattr(pedido_service.ruta_repository, "bloquear_detalles_de_pedido", lambda db, pid: pasos.append("bloquear"))
+    monkeypatch.setattr(pedido_service.ruta_repository, "eliminar_detalles_de_pedido", lambda db, pid: pasos.append("sacar_de_ruta"))
+    monkeypatch.setattr(pedido_service.historial_repository, "registrar", lambda *a: pasos.append("historial"))
+    return _BDParada(pedido), solicitud, pedido, pasos
+
+
+def test_aceptar_antes_de_la_visita_saca_el_pedido_de_su_ruta(monkeypatch):
+    """Aceptar la franja de un pedido ya asignado lo devuelve a su zona (C43-02)."""
+    bd, solicitud, pedido, pasos = _solicitud(monkeypatch, "ASIGNADO")
+    r = pedido_service.atender_reprogramacion(bd, 3, True, None, 1)
+    assert pasos == ["bloquear", "sacar_de_ruta", "historial"] and pedido.estado == "LISTO_PARA_ENVIO"
+    assert solicitud.estado == "ACEPTADA" and "salió de su ruta" in r["mensaje"]
+
+
+def test_aceptar_un_pedido_que_se_acaba_de_entregar_se_rechaza(monkeypatch):
+    """Con la parada bloqueada se relee el estado: si el conductor ya entrego, no se reprograma."""
+    bd, solicitud, _, pasos = _solicitud(monkeypatch, "ENTREGADO")
+    with pytest.raises(HTTPException) as e:
+        pedido_service.atender_reprogramacion(bd, 3, True, None, 1)
+    assert e.value.status_code == 409 and pasos == ["bloquear"] and solicitud.estado == "PENDIENTE"
+
+
+def test_rechazar_y_no_atender_dos_veces(monkeypatch):
+    bd, solicitud, pedido, pasos = _solicitud(monkeypatch, "LISTO_PARA_ENVIO")
+    pedido_service.atender_reprogramacion(bd, 3, False, "  Sin cupo el sábado ", 1)
+    assert solicitud.estado == "RECHAZADA" and solicitud.respuesta == "Sin cupo el sábado" and pasos == []
+    with pytest.raises(HTTPException) as e:
+        pedido_service.atender_reprogramacion(bd, 3, True, None, 1)
+    assert e.value.status_code == 409
+
+
+def test_franjas_configurables():
+    """Las franjas se limpian y deduplican; entre 1 y 6, de 3 a 60 caracteres (C43-03)."""
+    assert FranjasConfig(franjas=[" Lunes  9-13 ", "Lunes 9-13", "", "Martes 14-18"]).franjas == ["Lunes 9-13", "Martes 14-18"]
+    for malas in ([], ["ok"], [f"F{i} mañana" for i in range(7)]):
+        with pytest.raises(ValidationError):
+            FranjasConfig(franjas=malas)

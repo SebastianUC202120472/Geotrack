@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ESTADOS, OPCIONES } from "../datos/portalUi.js";
-import { buscarPedido, verificarPedido, reprogramar, urlPod, detallePedido } from "../servicios/portal.js";
+import { buscarPedido, verificarPedido, reprogramar, urlPod, detallePedido, obtenerFranjas } from "../servicios/portal.js";
 import { AyudaPedidos } from "./AyudaDemo";
 
 // Verificación guardada en la pestaña (sessionStorage): sobrevive a recargar la página y
@@ -62,7 +62,8 @@ export default function RastreoPersonal({ avisar, demo }) {
   const [intentos, setIntentos] = useState(0); // intentos restantes antes del bloqueo (los informa el backend)
   const [bloqueoHasta, setBloqueoHasta] = useState(0); // timestamp fin del bloqueo temporal
   const [reprog, setReprog] = useState(-1); // índice de franja elegida al reprogramar (-1 = ninguna)
-  const [reprogOk, setReprogOk] = useState(false); // reprogramación ya confirmada
+  const [reprogOk, setReprogOk] = useState(false); // solicitud de reprogramación recién enviada
+  const [franjas, setFranjas] = useState(OPCIONES); // franjas configuradas en el panel (C43-03); OPCIONES de respaldo
   const [ahora, setAhora] = useState(() => Date.now()); // reloj para el countdown del bloqueo
 
   const timerBuscar = useRef(null); // timeout de la búsqueda (900 ms)
@@ -80,6 +81,16 @@ export default function RastreoPersonal({ avisar, demo }) {
     }, 1000);
     return () => clearInterval(id);
   }, [bloqueoHasta]);
+
+  // Pide las franjas configuradas para reprogramar; si falla quedan las de respaldo.
+  // El setState va dentro del .then (regla de lint).
+  useEffect(() => {
+    let activo = true;
+    obtenerFranjas()
+      .then((r) => { if (activo && r.franjas?.length) setFranjas(r.franjas); })
+      .catch(() => {});
+    return () => { activo = false; };
+  }, []);
 
   // Limpia el timeout de la búsqueda al desmontar (evita setState tras unmount).
   useEffect(() => () => clearTimeout(timerBuscar.current), []);
@@ -209,16 +220,18 @@ export default function RastreoPersonal({ avisar, demo }) {
     setReprogOk(false);
   };
 
-  // confirmarReprog: registra la franja elegida en el backend y avisa por toast.
-  // Port de confirmarReprog (fuente 1245-1248), ahora contra /api/portal.
+  // confirmarReprog: envía la SOLICITUD de reprogramación con la franja elegida; la central
+  // la revisa (C43-03). Guarda en el detalle la solicitud que devuelve el backend.
   const confirmarReprog = () => {
-    reprogramar(encontrado, OPCIONES[reprog], token)
-      .then(() => {
+    reprogramar(encontrado, franjas[reprog], token)
+      .then((r) => {
         setReprogOk(true);
-        avisar("Reprogramación confirmada — le avisaremos cuando salga en ruta");
+        setDetalle((d) => (d ? { ...d, reprogramacion: r.reprogramacion } : d));
+        avisar("Solicitud recibida — le confirmaremos la nueva visita");
       })
-      .catch(() => {
-        avisar("No se pudo registrar la reprogramación — intente de nuevo", 4000);
+      .catch((e) => {
+        const detalle = e?.data?.detail;
+        avisar(typeof detalle === "string" ? detalle : "No se pudo registrar la solicitud — intente de nuevo", 4000);
       });
   };
 
@@ -372,10 +385,11 @@ export default function RastreoPersonal({ avisar, demo }) {
           {/* Evidencia (entregado) */}
           {ped.estado === "ENTREGADO" && <Evidencia ped={ped} codigo={encontrado} token={token} />}
 
-          {/* Reprogramación (reprogramado) */}
-          {ped.estado === "REPROGRAMADO" && (
+          {/* Reprogramación: tras un intento fallido o antes de la visita (C43-02) */}
+          {(ped.puedeReprogramar ?? ped.estado === "REPROGRAMADO") && (
             <Reprogramacion
               ped={ped}
+              franjas={franjas}
               reprog={reprog}
               reprogOk={reprogOk}
               onElegir={setReprog}
@@ -688,22 +702,63 @@ function Evidencia({ ped, codigo, token }) {
 }
 
 // ----------------------------------------------------------------------------
-// Reprogramacion: panel para elegir una franja horaria (OPCIONES) y confirmar la
-// nueva visita, o el aviso de éxito si ya se confirmó. Solo se muestra en estado
-// REPROGRAMADO. Input: pedido `ped`, índice elegido `reprog`, bandera `reprogOk`,
-// el selector `onElegir` y el confirmador `confirmarReprog`.
+// Reprogramacion: panel para pedir otra franja de entrega. Se ofrece tras un
+// intento fallido (REPROGRAMADO) y también ANTES de la visita (C43-02); lo que se
+// envía es una SOLICITUD que la central revisa (C43-03), y su estado se muestra
+// aquí (C43-01). Input: pedido `ped`, franjas configuradas `franjas`, índice
+// elegido `reprog`, bandera `reprogOk` (recién enviada), el selector `onElegir`
+// y el confirmador `confirmarReprog`.
 // ----------------------------------------------------------------------------
-function Reprogramacion({ ped, reprog, reprogOk, onElegir, confirmarReprog }) {
-  const reprogTxt = reprog >= 0 ? OPCIONES[reprog].toLowerCase() : "";
-  return (
-    <div data-ppanel="1" style={{ margin: "16px 0 0", background: "#fff", border: "1.5px solid rgba(217,122,31,.35)", borderRadius: 20, padding: 22, animation: "aparecer .5s ease .26s both" }}>
-      <p style={{ margin: 0, fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 18, color: "#b35c12" }}>Necesitamos una nueva fecha</p>
-      <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.6, color: "#4f6580" }}>{ped.motivo}. Elija cuándo volvemos a tocar su puerta:</p>
+function Reprogramacion({ ped, franjas, reprog, reprogOk, onElegir, confirmarReprog }) {
+  const [cambiando, setCambiando] = useState(false); // el cliente quiere cambiar su solicitud pendiente
+  const reprogTxt = reprog >= 0 && franjas[reprog] ? franjas[reprog].toLowerCase() : "";
+  const fallido = ped.estado === "REPROGRAMADO";
+  const sol = ped.reprogramacion; // { franja, estado } de la última solicitud, o null
+  const pendiente = sol && sol.estado === "PENDIENTE";
+  const aceptada = sol && sol.estado === "ACEPTADA";
+  const rechazada = sol && sol.estado === "RECHAZADA";
+  const mostrarSelector = !reprogOk && !aceptada && (!pendiente || cambiando);
+  const caja = { margin: "14px 0 0", borderRadius: 12, padding: "14px 18px", fontSize: 14, lineHeight: 1.55, animation: "aparecer .35s ease both" };
 
-      {!reprogOk && (
+  return (
+    <div data-ppanel="1" style={{ margin: "16px 0 0", background: "#fff", border: `1.5px solid ${fallido ? "rgba(217,122,31,.35)" : "rgba(38,121,216,.25)"}`, borderRadius: 20, padding: 22, animation: "aparecer .5s ease .26s both" }}>
+      <p style={{ margin: 0, fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 18, color: fallido ? "#b35c12" : "#1b5fb3" }}>
+        {fallido ? "Necesitamos una nueva fecha" : "¿No estará para recibirlo?"}
+      </p>
+      <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.6, color: "#4f6580" }}>
+        {fallido
+          ? `${ped.motivo}. Elija cuándo prefiere que volvamos; la central revisará su solicitud.`
+          : "Puede pedir otra franja de entrega antes de la visita. La central revisará su solicitud y le confirmaremos."}
+      </p>
+
+      {reprogOk && (
+        <div style={{ ...caja, background: "#e4effc", fontWeight: 600, color: "#1b5fb3" }}>
+          ✓ Solicitud recibida — pidió {reprogTxt}. La revisaremos y le confirmaremos la nueva visita.
+        </div>
+      )}
+      {!reprogOk && pendiente && !cambiando && (
+        <div style={{ ...caja, background: "#e4effc", color: "#1b5fb3" }}>
+          <b>Solicitud recibida:</b> {sol.franja}. Está en revisión por la central.{" "}
+          <button type="button" onClick={() => setCambiando(true)} style={{ border: 0, background: "none", padding: 0, color: "#1b5fb3", fontWeight: 600, textDecoration: "underline", cursor: "pointer", fontSize: 14 }}>
+            Elegir otra franja
+          </button>
+        </div>
+      )}
+      {!reprogOk && aceptada && (
+        <div style={{ ...caja, background: "#e3f2e8", fontWeight: 600, color: "#1e7a43" }}>
+          ✓ Solicitud aceptada — su pedido saldrá {sol.franja.toLowerCase()}.
+        </div>
+      )}
+      {!reprogOk && rechazada && (
+        <div style={{ ...caja, background: "#fdeedd", color: "#b35c12" }}>
+          No pudimos atender la franja «{sol.franja}». Elija otra o comuníquese con su tienda.
+        </div>
+      )}
+
+      {mostrarSelector && (
         <>
           <div style={{ margin: "14px 0 0", display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {OPCIONES.map((n, i) => (
+            {franjas.map((n, i) => (
               <button
                 key={n}
                 type="button"
@@ -717,20 +772,14 @@ function Reprogramacion({ ped, reprog, reprogOk, onElegir, confirmarReprog }) {
           {reprog >= 0 && (
             <button
               type="button"
-              onClick={confirmarReprog}
+              onClick={() => { setCambiando(false); confirmarReprog(); }}
               className="ptl-btn-confirmar-reprog"
               style={{ margin: "14px 0 0", border: 0, cursor: "pointer", background: "#2679d8", color: "#fff", fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 14, padding: "13px 24px", borderRadius: 99, animation: "aparecer .3s ease both", transition: "background .2s ease" }}
             >
-              Confirmar visita: {reprogTxt}
+              Enviar solicitud: {reprogTxt}
             </button>
           )}
         </>
-      )}
-
-      {reprogOk && (
-        <div style={{ margin: "14px 0 0", background: "#e3f2e8", borderRadius: 12, padding: "14px 18px", fontSize: 14, fontWeight: 600, color: "#1e7a43", animation: "aparecer .35s ease both" }}>
-          ✓ Listo — su pedido saldrá {reprogTxt}. Le avisaremos por SMS cuando esté en ruta.
-        </div>
       )}
     </div>
   );
