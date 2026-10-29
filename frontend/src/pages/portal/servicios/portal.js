@@ -38,6 +38,9 @@ export const reprogramar = (codigo, franja, token) =>
     body: JSON.stringify({ franja }),
   });
 
+// Razón social, RUC y dirección de SAVA para el Libro de Reclamaciones (C40-02). Sin parametros.
+export const datosLibro = () => pedir(`${BASE}/libro`);
+
 // Franjas que se pueden elegir al reprogramar (C43-03). Sin parametros.
 export const obtenerFranjas = () => pedir(`${BASE}/franjas`);
 

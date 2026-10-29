@@ -136,8 +136,33 @@ export const generarAccesoPortal = (id, correoPortal) =>
 export const revocarAccesoPortal = (id) =>
   request(`/clientes/${id}/acceso-portal`, { method: "DELETE" });
 
-// Lista los reclamos del Libro de Reclamaciones. Sin parametros.
+// Lista los reclamos del Libro de Reclamaciones con su plazo legal. Sin parametros.
 export const listarReclamos = () => request("/reclamos/");
+
+// Registra la respuesta al consumidor (C41-02). Recibe id y respuesta.
+export const responderReclamo = (id, respuesta) =>
+  request(`/reclamos/${id}/responder`, { method: "POST", body: { respuesta } });
+
+// Lista los contactos comerciales del landing (C39-01). Sin parametros.
+export const listarContactos = () => request("/contactos/");
+
+// Descarga los contactos comerciales en Excel (autenticado). Sin parametros.
+export async function descargarContactos() {
+  const token = getToken();
+  const resp = await fetch(`${API_URL}/contactos/excel`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!resp.ok) throw new Error("No se pudo descargar el Excel de contactos");
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = "contactos_comerciales.xlsx";
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  URL.revokeObjectURL(url);
+}
 
 export const listarUsuarios = () => request("/usuarios/");
 

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.repositories import reclamo_repository as repo
-from app.services import correo_service
+from app.services import correo_service, notificaciones_service, reclamo_service
 from app.schemas.portal import ContactoIn, ReclamoIn
 
 
@@ -12,10 +12,14 @@ def registrar_contacto(db: Session, datos: ContactoIn) -> dict:
     Honeypot: si 'hp' trae texto, se ignora (probable bot) devolviendo ok."""
     if datos.hp:
         return {"ok": True}
-    repo.crear_contacto(db, {
+    lead = repo.crear_contacto(db, {
         "nombre": datos.nombre, "empresa": datos.empresa, "email": datos.email,
         "telefono": datos.telefono, "volumen_estimado": datos.volumen, "mensaje": datos.mensaje,
     })
+    # Aviso en la campana del panel: con el correo apagado es la unica forma de enterarse (C37-01).
+    notificaciones_service.registrar(
+        db, "contactos", "Nuevo contacto comercial",
+        f"{datos.nombre}{f' · {datos.empresa}' if datos.empresa else ''}", "/contactos", lead.id)
     correo_service.enviar_simple(
         settings.correo_ventas, "Nuevo lead de contacto — sava.pe",
         f"Nombre: {datos.nombre}\nEmpresa: {datos.empresa}\nEmail: {datos.email}\n"
@@ -30,32 +34,32 @@ def registrar_reclamo(db: Session, datos: ReclamoIn) -> dict:
         return {"codigo": "LR-0000-0000"}
     if datos.tipo not in ("RECLAMO", "QUEJA"):
         raise HTTPException(status_code=400, detail="Tipo invalido (RECLAMO|QUEJA)")
-    bien = datos.bien
+    bien, consumidor = datos.bien, datos.consumidor
     reclamo = repo.crear_reclamo(db, {
         "tipo": datos.tipo,
-        "consumidor_nombre": datos.consumidor.nombre,
-        "consumidor_dni": datos.consumidor.dni,
-        "consumidor_domicilio": datos.consumidor.domicilio,
-        "consumidor_email": datos.consumidor.email,
-        "consumidor_telefono": datos.consumidor.telefono,
-        "es_menor": datos.consumidor.esMenor,
-        "bien_tipo": bien.tipo if bien else None,
-        "bien_descripcion": bien.descripcion if bien else None,
-        "monto_reclamado": bien.monto if bien else None,
+        "consumidor_nombre": consumidor.nombre,
+        "consumidor_dni": consumidor.dni,
+        "consumidor_domicilio": consumidor.domicilio,
+        "consumidor_email": str(consumidor.email),
+        "consumidor_telefono": consumidor.telefono,
+        "es_menor": consumidor.esMenor,
+        "apoderado_nombre": consumidor.apoderadoNombre,
+        "apoderado_dni": consumidor.apoderadoDni,
+        "bien_tipo": bien.tipo,
+        "bien_descripcion": bien.descripcion,
+        "monto_reclamado": bien.monto,
         "detalle": datos.detalle,
-        "pedido_codigo": datos.pedido,
+        "pedido_consumidor": datos.pedidoConsumidor,
+        "pedido_codigo": (datos.pedido or "").strip().upper() or None,
     })
-    # correo a la empresa
+    copia = reclamo_service.texto_constancia(reclamo)
+    # Aviso en la campana: el plazo legal corre desde hoy (C37-01).
+    notificaciones_service.registrar(
+        db, "reclamos", f"Nuevo {datos.tipo.lower()} {reclamo.codigo}",
+        f"{consumidor.nombre} · responder antes del {reclamo_service.vence_el(reclamo).strftime('%d/%m/%Y')}",
+        f"/reclamos?codigo={reclamo.codigo}", reclamo.id)
+    correo_service.enviar_simple(settings.correo_reclamos, f"Nuevo {datos.tipo.lower()} {reclamo.codigo}", copia)
+    # Constancia al consumidor con copia completa de su hoja de reclamacion (C40-02).
     correo_service.enviar_simple(
-        settings.correo_reclamos, f"Nuevo {datos.tipo.lower()} {reclamo.codigo}",
-        f"Codigo: {reclamo.codigo}\nTipo: {datos.tipo}\nConsumidor: {datos.consumidor.nombre}\n"
-        f"DNI: {datos.consumidor.dni}\nDetalle: {datos.detalle}",
-    )
-    # acuse al consumidor
-    if datos.consumidor.email:
-        correo_service.enviar_simple(
-            datos.consumidor.email, f"Registramos su {datos.tipo.lower()} — {reclamo.codigo}",
-            f"Hemos registrado su {datos.tipo.lower()} con codigo {reclamo.codigo}. "
-            "Le responderemos en el plazo de ley (15 dias habiles).",
-        )
-    return {"codigo": reclamo.codigo}
+        str(consumidor.email), f"Constancia de su {datos.tipo.lower()} — {reclamo.codigo}", copia)
+    return {"codigo": reclamo.codigo, "constancia": reclamo_service.constancia(reclamo)}
