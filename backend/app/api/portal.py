@@ -12,7 +12,7 @@ from app.core.rate_limit import limite_publico
 from app.core import portal_token, fechas
 from app.core.security import verify_password
 from app.services import portal_service, verificacion_portal_service as verif, parametro_service
-from app.services import correo_service, enmascarado, publico_forms_service
+from app.services import correo_service, enmascarado, publico_forms_service, reclamo_service
 from app.repositories import portal_repository as repo
 from app.schemas.portal import VerificarDni, Reprogramar, EmpresaLogin, EmpresaVerificar, ContactoIn, ReclamoIn
 
@@ -171,6 +171,12 @@ def empresa_pedidos_excel(
 def contacto(datos: ContactoIn, db: Session = Depends(get_db)):
     """Registra un lead de contacto del landing. Recibe ContactoIn."""
     return publico_forms_service.registrar_contacto(db, datos)
+
+
+@router.get("/libro", dependencies=[Depends(limite_publico(30, 60))])
+def datos_libro():
+    """Razon social, RUC y direccion de SAVA para el Libro de Reclamaciones (C40-02)."""
+    return reclamo_service.datos_proveedor()
 
 
 @router.post("/reclamos", dependencies=[Depends(limite_publico(5, 60))])

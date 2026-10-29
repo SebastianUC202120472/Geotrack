@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     MAIL_FOLDER: str = "INBOX"
 
+    # Datos del proveedor que exige el Libro de Reclamaciones (D.S. 011-2011-PCM, C40-02).
+    EMPRESA_RAZON_SOCIAL: str = "SAVA S.A.C."
+    EMPRESA_RUC: str = ""
+    EMPRESA_DIRECCION: str = "Calle Los Sinchis Nro. 166, Urb. Tahuantinsuyo Zona III, Independencia, Lima"
+
     MAIL_FROM_NAME: str = "SAVA S.A.C."
     MAIL_SIGNATURE: str = "Atentamente,\nEquipo de Logística\nSAVA S.A.C."
 

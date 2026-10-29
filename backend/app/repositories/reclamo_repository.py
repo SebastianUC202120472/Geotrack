@@ -42,3 +42,13 @@ def listar_reclamos(db: Session) -> List[Reclamo]:
 def listar_contactos(db: Session) -> List[ContactoComercial]:
     """Lista los leads de contacto mas recientes primero."""
     return db.query(ContactoComercial).order_by(ContactoComercial.id.desc()).all()
+
+
+def obtener_reclamo(db: Session, reclamo_id: int) -> Reclamo | None:
+    """Reclamo por id. Recibe reclamo_id."""
+    return db.query(Reclamo).filter(Reclamo.id == reclamo_id).first()
+
+
+def guardar(db: Session) -> None:
+    """Confirma los cambios pendientes."""
+    db.commit()

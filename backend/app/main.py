@@ -34,6 +34,7 @@ from app.api.almacen import router as almacen_router
 from app.api.notificaciones import router as notificaciones_router
 from app.api.portal import router as portal_router
 from app.api.reclamos import router as reclamos_router
+from app.api.contactos import router as contactos_router
 
 log = configurar_registro()
 
@@ -127,6 +128,7 @@ app.include_router(almacen_router, prefix="/api/almacen", tags=["Almacén (Ingre
 app.include_router(notificaciones_router, prefix="/api/notificaciones", tags=["Notificaciones"])
 app.include_router(portal_router, prefix="/api/portal", tags=["Portal Público"])
 app.include_router(reclamos_router, prefix="/api/reclamos", tags=["Libro de Reclamaciones"])
+app.include_router(contactos_router, prefix="/api/contactos", tags=["Contactos comerciales"])
 
 
 @app.get("/")
