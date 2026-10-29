@@ -113,17 +113,13 @@ export default function AgrupacionZonas() {
   const [zonas, setZonas] = useState([]);
   const [cargando, setCargando] = useState(true);
 
-  const cargar = async () => {
-    setCargando(true);
-    try {
-      const { zonas: lista } = await listarZonasPorEnrutar();
-      setZonas(lista || []);
-    } catch (err) {
-      console.error("Error al cargar zonas:", err.message);
-    } finally {
-      setCargando(false);
-    }
-  };
+  // Carga los datos; las recargas tras una accion son silenciosas (la tabla no parpadea).
+  // El estado se fija dentro de los callbacks de la promesa (regla de lint "setState en effect").
+  const cargar = () =>
+    listarZonasPorEnrutar()
+      .then(({ zonas: lista }) => setZonas(lista || []))
+      .catch((err) => console.error("Error al cargar zonas:", err.message))
+      .finally(() => setCargando(false));
 
   useEffect(() => {
     cargar();

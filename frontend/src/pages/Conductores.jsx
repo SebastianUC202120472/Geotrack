@@ -34,29 +34,26 @@ export default function Conductores() {
   const [guardando, setGuardando] = useState(false);
 
   // Recarga conductores, eficiencia e incidencias abiertas.
-  const cargar = async () => {
-    setCargando(true);
-    try {
-      setConductores(await listarConductores());
-      try {
-        const efs = await obtenerEficienciaConductores();
-        setEficiencia(Object.fromEntries(efs.map((e) => [e.conductor_id, e])));
-      } catch { /* si falla el endpoint de eficiencia, la tabla sigue mostrando "—" */ }
-      listarIncidencias("ABIERTA")
-        .then((lista) => {
-          const mapa = {};
-          lista.forEach((inc) => { mapa[inc.conductor_id] = inc; });
-          setIncidenciasAbiertas(mapa);
-        })
-        .catch(() => { /* si falla, no se muestra el botón de auxilio */ });
-      listarVehiculos()
-        .then((vs) => setVehiculosLibres(vs.filter((v) => !v.conductor_id)))
-        .catch(() => { /* sin la lista, el alta sigue sin vehículo */ });
-    } catch (err) {
-      console.error("No se pudo cargar conductores:", err.message);
-    } finally {
-      setCargando(false);
-    }
+  // Carga los datos; las recargas tras una accion son silenciosas (la tabla no parpadea).
+  // El estado se fija dentro de los callbacks de la promesa (regla de lint "setState en effect").
+  const cargar = () => {
+    obtenerEficienciaConductores()
+      .then((efs) => setEficiencia(Object.fromEntries(efs.map((e) => [e.conductor_id, e]))))
+      .catch(() => { /* si falla el endpoint de eficiencia, la tabla sigue mostrando "—" */ });
+    listarIncidencias("ABIERTA")
+      .then((lista) => {
+        const mapa = {};
+        lista.forEach((inc) => { mapa[inc.conductor_id] = inc; });
+        setIncidenciasAbiertas(mapa);
+      })
+      .catch(() => { /* si falla, no se muestra el botón de auxilio */ });
+    listarVehiculos()
+      .then((vs) => setVehiculosLibres(vs.filter((v) => !v.conductor_id)))
+      .catch(() => { /* sin la lista, el alta sigue sin vehículo */ });
+    return listarConductores()
+      .then((lista) => setConductores(lista))
+      .catch((err) => console.error("No se pudo cargar conductores:", err.message))
+      .finally(() => setCargando(false));
   };
 
   useEffect(() => {

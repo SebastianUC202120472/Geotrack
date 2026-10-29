@@ -3,19 +3,13 @@ import { useEffect, useRef, useState } from "react";
 // Anima un número de 0 hasta `valor` en `duracion` ms; si no es número o hay prefers-reduced-motion, devuelve el valor directo.
 export default function useCountUp(valor, duracion = 700) {
   const esNumero = typeof valor === "number" && Number.isFinite(valor);
-  const [actual, setActual] = useState(esNumero ? 0 : valor);
+  const sinMovimiento = typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const animar = esNumero && !sinMovimiento;
+  const [actual, setActual] = useState(0);
   const rafRef = useRef(0);
 
   useEffect(() => {
-    if (!esNumero) {
-      setActual(valor);
-      return;
-    }
-    const sinMovimiento = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (sinMovimiento) {
-      setActual(valor);
-      return;
-    }
+    if (!animar) return undefined;
     let inicio = null;
     const paso = (t) => {
       if (inicio === null) inicio = t;
@@ -26,7 +20,7 @@ export default function useCountUp(valor, duracion = 700) {
     };
     rafRef.current = requestAnimationFrame(paso);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [valor, duracion, esNumero]);
+  }, [valor, duracion, animar]);
 
-  return actual;
+  return animar ? actual : valor;
 }

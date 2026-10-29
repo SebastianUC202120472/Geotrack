@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Loader2 } from "lucide-react";
 import Sidebar from "./Sidebar";
 import Logo from "./ui/Logo";
 import Topbar from "./Topbar";
@@ -57,7 +57,10 @@ export default function LayoutAdmin() {
 
         <main className="flex-1 overflow-y-auto bg-canvas">
           <div key={pathname} className="animate-fade-up">
-            <Outlet />
+            {/* Las pantallas se descargan al abrirlas (EX-19): mientras, un indicador discreto. */}
+            <Suspense fallback={<div className="flex justify-center py-24 text-slate-400"><Loader2 className="animate-spin" size={26} /></div>}>
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </div>

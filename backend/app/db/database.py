@@ -3,7 +3,18 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 from app.core.config import settings
 
-SQLALCHEMY_DATABASE_URL = settings.DATABASE_URL
+
+
+def url_con_driver(url: str) -> str:
+    """Fija el driver psycopg2 (el de requirements.txt) en las URL "postgresql://": desde SQLAlchemy 2.1
+    esa forma usa psycopg 3 por defecto y el backend no arrancaria. Recibe la URL de la BD."""
+    for prefijo in ("postgresql://", "postgres://"):
+        if url.startswith(prefijo):
+            return "postgresql+psycopg2://" + url[len(prefijo):]
+    return url
+
+
+SQLALCHEMY_DATABASE_URL = url_con_driver(settings.DATABASE_URL)
 
 # pool_pre_ping y pool_recycle evitan fallos con el pooler de Supabase que cierra conexiones ociosas.
 engine = create_engine(
