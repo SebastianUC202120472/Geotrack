@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core import fechas
+from app.core.excel import fila_segura
 from app.repositories import portal_repository as repo, reprogramacion_repository
 from app.services import estado_portal, enmascarado
 
@@ -260,10 +261,10 @@ def excel_empresa(db: Session, cliente, dia=None) -> tuple[bytes, str]:
     for celda in hoja[4]:
         celda.font = Font(bold=True)
     for f in filas:
-        hoja.append([
+        hoja.append(fila_segura([
             f["cod"], f["ref"], f["cliente"], f["dir"], f["dist"],
             _ESTADO_LEGIBLE.get(f["estado"], f["estado"]), "" if f["h"] == "—" else f["h"], f["extra"],
-        ])
+        ]))
     for letra, ancho in zip("ABCDEFGH", (14, 16, 26, 42, 18, 14, 16, 30)):
         hoja.column_dimensions[letra].width = ancho
 

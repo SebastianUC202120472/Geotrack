@@ -180,9 +180,12 @@ export default function SeguimientoConductores() {
                           style={{ backgroundColor: c._color, opacity: c.en_linea ? 1 : 0.5 }}
                           aria-hidden="true"
                         />
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-slate-900">
-                            {c.conductor || "Conductor"}
+                        <div className="min-w-0 flex-1">
+                          <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                            <span className="truncate">{c.conductor || "Conductor"}</span>
+                            {c.placa && (
+                              <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 nums">{c.placa}</span>
+                            )}
                           </p>
                           {c.pausado && (
                             <span className="inline-block rounded-full bg-danger-soft px-2 py-0.5 text-[11px] font-semibold text-danger-strong">🛠️ Pausado</span>
@@ -192,6 +195,14 @@ export default function SeguimientoConductores() {
                             {pendientesDe(c)} parada{pendientesDe(c) !== 1 ? "s" : ""} pendiente{pendientesDe(c) !== 1 ? "s" : ""} ·{" "}
                             {c.en_linea ? "en línea" : "sin señal"}
                           </p>
+                          {c.total_paradas > 0 && (
+                            <div className="mt-1.5 flex items-center gap-2" title={`${c.gestionadas} de ${c.total_paradas} gestionadas`}>
+                              <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                                <span className="block h-full rounded-full bg-success" style={{ width: `${c.avance_porcentaje}%` }} />
+                              </span>
+                              <span className="text-[11px] font-semibold text-slate-600 nums">{c.gestionadas}/{c.total_paradas}</span>
+                            </div>
+                          )}
                           {c.actualizado_en && (
                             <p className="text-[11px] text-slate-400">Última señal {haceCuanto(c.actualizado_en)}</p>
                           )}

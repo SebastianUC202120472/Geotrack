@@ -9,6 +9,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font
 from sqlalchemy.orm import Session
 
+from app.core.excel import fila_segura
 from app.repositories import pedido_repository, ruta_repository, cliente_repository, liquidacion_repository
 
 # Carpeta privada para .xlsx; no bajo /media para evitar acceso público.
@@ -51,7 +52,7 @@ def generar(db: Session, cliente: str, periodo_inicio: Optional[date], periodo_f
             detalle, _ = par
             motivo = detalle.motivo_fallo
         fecha_entrega = pedido.fecha_entrega.strftime("%Y-%m-%d %H:%M") if pedido.fecha_entrega else ""
-        hoja.append([
+        hoja.append(fila_segura([
             pedido.codigo or "",
             pedido.referencia_externa or "",
             pedido.cliente_origen or "",
@@ -61,7 +62,7 @@ def generar(db: Session, cliente: str, periodo_inicio: Optional[date], periodo_f
             pedido.estado or "",
             fecha_entrega,
             motivo or "",
-        ])
+        ]))
 
     os.makedirs(DIR_LIQUIDACIONES, exist_ok=True)
     nombre_final = f"liquidacion_{_slug(cliente)}_{secrets.token_hex(16)}.xlsx"
@@ -72,6 +73,9 @@ def generar(db: Session, cliente: str, periodo_inicio: Optional[date], periodo_f
     cliente_id = registro.id if registro else None
 
     liquidacion = liquidacion_repository.crear(db, cliente_id, periodo_inicio, periodo_fin, ruta_fisica)
+    liquidacion.cliente_nombre = cliente
+    liquidacion.total_pedidos = len(pedidos)
+    db.commit()
 
     return {
         "mensaje": "Liquidación generada correctamente",
@@ -81,6 +85,19 @@ def generar(db: Session, cliente: str, periodo_inicio: Optional[date], periodo_f
         "descarga_url": f"/dashboard/liquidaciones/{liquidacion.id}/descarga",
         "archivo": nombre_final,
     }
+
+
+def historial(db: Session) -> list:
+    """Liquidaciones ya generadas para volver a descargarlas (C36-02). Recibe la sesion."""
+    return [
+        {
+            "id": l.id, "cliente": l.cliente_nombre or "—", "total_pedidos": l.total_pedidos,
+            "periodo_inicio": l.periodo_inicio, "periodo_fin": l.periodo_fin, "generada_en": l.fecha_generacion,
+            "descarga_url": f"/dashboard/liquidaciones/{l.id}/descarga",
+            "disponible": bool(l.url_documento) and os.path.exists(l.url_documento),
+        }
+        for l in liquidacion_repository.listar(db)  # noqa: E741
+    ]
 
 
 def ruta_archivo(db: Session, liquidacion_id: int) -> tuple[str, str]:

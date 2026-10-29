@@ -726,3 +726,33 @@ def test_un_reclamo_respondido_no_se_vuelve_a_responder(monkeypatch):
     with pytest.raises(HTTPException) as e:
         reclamo_service.responder(None, 1, "Otra respuesta más", 1)
     assert e.value.status_code == 409 and r.respuesta == "Ya respondido"
+
+
+# ---------------- F9: tablero, KPIs y liquidaciones ----------------
+from app.core.excel import celda_segura  # noqa: E402
+from app.services import indicadores_service  # noqa: E402
+
+
+@pytest.mark.parametrize("periodo, esperado", [
+    ("dia", (date(2026, 10, 29), date(2026, 10, 29))),
+    ("semana", (date(2026, 10, 26), date(2026, 10, 29))),   # lunes a hoy (jueves)
+    ("mes", (date(2026, 10, 1), date(2026, 10, 29))),
+])
+def test_periodo_del_tablero(monkeypatch, periodo, esperado):
+    """El tablero se filtra por hoy, semana (lunes a hoy) o mes (dia 1 a hoy) (C34-01)."""
+    monkeypatch.setattr(indicadores_service.fechas, "hoy_local", lambda: date(2026, 10, 29))
+    assert indicadores_service.rango(periodo) == esperado
+
+
+def test_periodo_invalido_o_rango_al_reves():
+    with pytest.raises(HTTPException):
+        indicadores_service.rango("anio")
+    with pytest.raises(HTTPException):
+        indicadores_service.rango(desde=date(2026, 10, 5), hasta=date(2026, 10, 1))
+
+
+@pytest.mark.parametrize("valor, esperado", [("=HYPERLINK(\"x\")", "'=HYPERLINK(\"x\")"), ("+51 987", "'+51 987"),
+                                             ("-2", "'-2"), ("@SUM(A1)", "'@SUM(A1)"), ("Ana", "Ana"), (120, 120), (None, None)])
+def test_excel_no_ejecuta_formulas_de_terceros(valor, esperado):
+    """Lo que escriben terceros (formularios, Excel del cliente) se exporta como texto, nunca como formula."""
+    assert celda_segura(valor) == esperado

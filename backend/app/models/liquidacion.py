@@ -13,4 +13,6 @@ class Liquidacion(Base):
     periodo_inicio = Column(Date, nullable=True)
     periodo_fin = Column(Date, nullable=True)
     url_documento = Column(String(255), nullable=False)
+    cliente_nombre = Column(String(150), nullable=True)   # snapshot para el historial (C36-02)
+    total_pedidos = Column(Integer, nullable=True)
     fecha_generacion = Column(DateTime, default=datetime.utcnow)

@@ -44,6 +44,9 @@ SENTENCIAS = [
     "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS respuesta TEXT",
     "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS respondido_en TIMESTAMP",
     "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS respondido_por INTEGER",
+    # Historial de liquidaciones (C36-02).
+    "ALTER TABLE liquidaciones ADD COLUMN IF NOT EXISTS cliente_nombre VARCHAR(150)",
+    "ALTER TABLE liquidaciones ADD COLUMN IF NOT EXISTS total_pedidos INTEGER",
 ]
 
 

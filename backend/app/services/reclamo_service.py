@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core import fechas
 from app.core.config import settings
+from app.core.excel import fila_segura
 from app.core.plazos import PLAZO_RECLAMO_DIAS_HABILES, sumar_dias_habiles, dias_habiles_entre
 from app.repositories import reclamo_repository as repo
 from app.services import correo_service
@@ -160,7 +161,7 @@ def excel_contactos(db: Session) -> bytes:
         celda.font = Font(bold=True)
     for c in filas:
         fecha = fechas.fecha_local_de(c.creado_en).strftime("%d/%m/%Y") if c.creado_en else ""
-        hoja.append([fecha, c.nombre, c.empresa or "", c.email, c.telefono or "", c.volumen_estimado, c.mensaje or ""])
+        hoja.append(fila_segura([fecha, c.nombre, c.empresa or "", c.email, c.telefono or "", c.volumen_estimado, c.mensaje or ""]))
     for letra, ancho in zip("ABCDEFG", (12, 26, 26, 30, 16, 14, 60)):
         hoja.column_dimensions[letra].width = ancho
     buffer = io.BytesIO()

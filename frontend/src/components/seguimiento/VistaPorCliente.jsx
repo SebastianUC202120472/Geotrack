@@ -1,15 +1,31 @@
 import { useEffect, useState } from "react";
-import { Building2, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Building2, FileSpreadsheet, Loader2, Download, History } from "lucide-react";
 import Card from "../ui/Card";
 import SectionCard from "../ui/SectionCard";
 import EmptyState from "../ui/EmptyState";
 import Button from "../ui/Button";
-import { obtenerSeguimientoClientes, generarLiquidacion, descargarLiquidacion } from "../../services/api";
+import Input from "../ui/Input";
+import { obtenerSeguimientoClientes, generarLiquidacion, descargarLiquidacion, historialLiquidaciones } from "../../services/api";
+
+// Fecha corta dd/mm/aaaa de una fecha ISO (sin desfase de zona). Recibe la fecha.
+const dia = (f) => (f ? new Date(f.length === 10 ? `${f}T12:00:00` : f).toLocaleDateString("es-PE") : "—");
 
 // Muestra repartos agrupados por empresa. Sin props; carga datos al montar.
 export default function VistaPorCliente() {
   const [clientes, setClientes] = useState(null);
   const [cargando, setCargando] = useState(true);
+  const [desde, setDesde] = useState("");
+  const [hasta, setHasta] = useState("");
+  const [historial, setHistorial] = useState([]);
+
+  // Recarga el historial de liquidaciones (C36-02). Sin parámetros.
+  const cargarHistorial = () => historialLiquidaciones().then((h) => setHistorial(h || [])).catch(() => {});
+
+  useEffect(() => {
+    let activo = true;
+    historialLiquidaciones().then((h) => activo && setHistorial(h || [])).catch(() => {});
+    return () => { activo = false; };
+  }, []);
 
   useEffect(() => {
     let activo = true;
@@ -45,19 +61,62 @@ export default function VistaPorCliente() {
     );
   }
 
+  const rangoInvalido = desde && hasta && desde > hasta;
+
   return (
-    <SectionCard
-      title="Por cliente"
-      subtitle={`${clientes.length} empresa${clientes.length !== 1 ? "s" : ""} con pedidos activos`}
-    >
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {clientes.map((c, i) => (
-          <div key={c.cliente} style={{ animationDelay: `${i * 40}ms` }} className="animate-fade-up">
-            <ClienteCard c={c} />
+    <div className="space-y-6">
+      <SectionCard
+        title="Por cliente"
+        subtitle={`${clientes.length} empresa${clientes.length !== 1 ? "s" : ""} con pedidos activos`}
+        action={
+          <div className="flex flex-wrap items-end gap-2">
+            <Input type="date" label="Liquidar desde" value={desde} max={hasta || undefined} onChange={(e) => setDesde(e.target.value)} />
+            <Input type="date" label="Hasta" value={hasta} min={desde || undefined} onChange={(e) => setHasta(e.target.value)} />
           </div>
-        ))}
-      </div>
-    </SectionCard>
+        }
+      >
+        <p className="mb-4 text-xs text-slate-500">
+          {desde || hasta
+            ? `La liquidación incluirá los pedidos entregados o fallidos ${desde ? `desde el ${dia(desde)}` : ""} ${hasta ? `hasta el ${dia(hasta)}` : ""}.`
+            : "Sin fechas, la liquidación incluye todo el histórico del cliente."}
+          {rangoInvalido && <span className="ml-1 font-semibold text-danger-strong">La fecha inicial es posterior a la final.</span>}
+        </p>
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {clientes.map((c, i) => (
+            <div key={c.cliente} style={{ animationDelay: `${i * 40}ms` }} className="animate-fade-up">
+              <ClienteCard c={c} desde={desde} hasta={hasta} bloqueado={rangoInvalido} onGenerada={cargarHistorial} />
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Liquidaciones generadas" subtitle="Vuelve a descargar las anteriores">
+        {historial.length === 0 ? (
+          <EmptyState icon={History} title="Sin liquidaciones" description="Las que generes aparecerán aquí." />
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {historial.map((l) => (
+              <li key={l.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-800">{l.cliente}</p>
+                  <p className="text-xs text-slate-500 nums">
+                    {l.periodo_inicio || l.periodo_fin ? `${dia(l.periodo_inicio)} – ${dia(l.periodo_fin)}` : "Todo el histórico"}
+                    {l.total_pedidos != null && ` · ${l.total_pedidos} pedidos`} · generada {new Date(l.generada_en).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" })}
+                  </p>
+                </div>
+                {l.disponible ? (
+                  <Button size="sm" variant="secondary" icon={Download} onClick={() => descargarLiquidacion(l.descarga_url, `liquidacion_${l.id}.xlsx`)}>
+                    Descargar
+                  </Button>
+                ) : (
+                  <span className="text-xs text-slate-400">Archivo no disponible</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </SectionCard>
+    </div>
   );
 }
 
@@ -74,8 +133,9 @@ function Mini({ tono, valor, etiqueta }) {
   );
 }
 
-// Tarjeta de empresa con barra de progreso y desglose de estados. Recibe objeto cliente c.
-function ClienteCard({ c }) {
+// Tarjeta de empresa con barra de progreso y desglose de estados. Recibe el cliente c, el rango
+// de fechas de la liquidación (C36-01), si está bloqueada y onGenerada (refresca el historial).
+function ClienteCard({ c, desde, hasta, bloqueado, onGenerada }) {
   const avance = c.total ? Math.round((c.entregados / c.total) * 100) : 0;
   const [generando, setGenerando] = useState(false);
   const [error, setError] = useState(null);
@@ -84,8 +144,8 @@ function ClienteCard({ c }) {
   const descargar = () => {
     setGenerando(true);
     setError(null);
-    generarLiquidacion({ cliente: c.cliente })
-      .then((res) => descargarLiquidacion(res.descarga_url, res.archivo))
+    generarLiquidacion({ cliente: c.cliente, periodo_inicio: desde || null, periodo_fin: hasta || null })
+      .then((res) => descargarLiquidacion(res.descarga_url, res.archivo).then(() => onGenerada && onGenerada()))
       .catch((err) => setError(err.message))
       .finally(() => setGenerando(false));
   };
@@ -134,7 +194,7 @@ function ClienteCard({ c }) {
         className="mt-4"
         icon={generando ? Loader2 : FileSpreadsheet}
         onClick={descargar}
-        disabled={generando}
+        disabled={generando || bloqueado}
       >
         {generando ? "Generando…" : "Descargar liquidación (Excel)"}
       </Button>
