@@ -17,7 +17,6 @@ import {
   Wrench,
   BookText,
   AlertOctagon,
-  Scale, 
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -44,7 +43,6 @@ const secciones = [
     roles: ["admin"],
     items: [
       { icon: Truck, label: "Flota de Vehículos", path: "/panel/flota" },
-      { icon: Scale, label: "Capacidad de Vehículos", path: "/panel/capacidad" }, // 2. Opción agregada aquí
       { icon: Users, label: "Conductores", path: "/panel/conductores" },
       { icon: Building2, label: "Clientes", path: "/panel/clientes" },
       { icon: MapPin, label: "Seguimiento de Conductores", path: "/panel/seguimiento-conductores" },
