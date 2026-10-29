@@ -73,6 +73,23 @@ def actualizar_combustible(db: Session, consumo_l_100km: float, precio_soles_lit
     return obtener_combustible(db)
 
 
+CATEGORIA_CONTACTO = "contacto"
+CLAVE_TELEFONO = "telefono_coordinacion"
+
+
+def obtener_contacto(db: Session) -> dict:
+    """Devuelve el telefono de coordinacion que ve el conductor en la app (o None). Recibe: sesión de BD."""
+    filas = {p.clave: p.valor_json for p in parametro_repository.listar_por_categoria(db, CATEGORIA_CONTACTO)}
+    telefono = filas.get(CLAVE_TELEFONO)
+    return {"telefono_coordinacion": telefono if isinstance(telefono, str) and telefono else None}
+
+
+def actualizar_contacto(db: Session, telefono: str | None) -> dict:
+    """Guarda el telefono de coordinacion (vacio lo borra). Recibe: sesión y telefono ya validado."""
+    parametro_repository.fijar_valor(db, CATEGORIA_CONTACTO, CLAVE_TELEFONO, telefono or None)
+    return obtener_contacto(db)
+
+
 def asegurar_motivos_iniciales(db: Session) -> None:
     """Siembra los motivos por defecto SOLO si el catálogo está vacío (al arrancar)."""
     if parametro_repository.listar_por_categoria(db, CATEGORIA_MOTIVO):

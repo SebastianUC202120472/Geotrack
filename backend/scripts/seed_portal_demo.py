@@ -50,7 +50,7 @@ CORREOS_CONDUCTORES = (
 # parametros_sistema ni correo_*.
 TABLAS_A_VACIAR = (
     "ruta_detalles", "evidencias_entrega", "evidencias_recojo", "historial_pedidos",
-    "incidencias", "reportes", "liquidaciones", "ubicaciones_conductor",
+    "incidencias", "incidencia_ayudas", "reportes", "liquidaciones", "ubicaciones_conductor",
     "notificaciones", "verificaciones_portal", "solicitudes_restablecimiento",
     "pedidos", "rutas", "solicitudes_recojo", "clientes_corporativos",
 )
@@ -332,7 +332,8 @@ def crear_evidencias(db, pedidos, detalles, cierres):
         url = f"/media/evidencias/{archivo}"
         db.add(EvidenciaEntrega(
             pedido_id=p.id, url_foto=url,
-            latitud_longitud_captura=f"{p.latitud},{p.longitud}", fecha_hora=momento))
+            latitud_longitud_captura=f"{p.latitud},{p.longitud}", fecha_hora=momento,
+            receptor_nombre=p.nombre_destinatario, receptor_documento=p.dni_destinatario))
         p.fecha_entrega = momento
         if p.id in detalles:
             detalles[p.id].url_evidencia = url

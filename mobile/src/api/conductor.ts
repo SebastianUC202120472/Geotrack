@@ -13,11 +13,26 @@ import type {
   Recepcion,
   OptimizacionResultado,
   Coordenadas,
+  Receptor,
+  Contacto,
 } from "@/types/api";
+
+// Agrega al formulario la posición donde se tomó una foto, si la hay. Recibe el form y las coords.
+function adjuntarGps(form: FormData, coords?: Coordenadas | null): void {
+  if (!coords) return;
+  form.append("latitud", String(coords.latitud));
+  form.append("longitud", String(coords.longitud));
+}
 
 // Perfil del propio conductor (nombre, teléfono, DNI, vehículo). GET /conductor/perfil.
 export async function obtenerPerfil(): Promise<PerfilConductor> {
   const { data } = await api.get<PerfilConductor>("/conductor/perfil");
+  return data;
+}
+
+// Teléfono de coordinación que configuró el administrador (EX-13).
+export async function obtenerContacto(): Promise<Contacto> {
+  const { data } = await api.get<Contacto>("/conductor/contacto");
   return data;
 }
 
@@ -32,6 +47,20 @@ export async function crearReporte(
     motivo,
     descripcion: descripcion ?? null,
   });
+  return data;
+}
+
+// Adjunta al reporte la foto que respalda la falla, con su GPS (C29-01). Recibe reporteId, uri y coords.
+export async function subirEvidenciaReporte(reporteId: number, uriFoto: string, coords?: Coordenadas | null): Promise<Reporte> {
+  const nombre = uriFoto.split("/").pop() ?? `rep_${reporteId}.jpg`;
+  const form = new FormData();
+  form.append("file", { uri: uriFoto, name: nombre, type: "image/jpeg" } as unknown as Blob);
+  adjuntarGps(form, coords);
+  const { data } = await api.post<Reporte>(
+    `/conductor/reportes/${reporteId}/evidencia`,
+    form,
+    { headers: { "Content-Type": "multipart/form-data" } }
+  );
   return data;
 }
 
@@ -65,24 +94,30 @@ export async function obtenerNavegacion(): Promise<Navegacion> {
   return data;
 }
 
-// Marca una parada como ENTREGADO o FALLIDO. Recibe pedidoId, estado y motivoFallo opcional.
+// Marca una parada como ENTREGADO o FALLIDO. Recibe pedidoId, estado, motivoFallo opcional
+// y, al entregar, quién recibe el paquete.
 export async function marcarEstadoParada(
   pedidoId: number,
   estado: "ENTREGADO" | "FALLIDO",
-  motivoFallo?: string
+  motivoFallo?: string,
+  receptor?: Receptor
 ): Promise<GestionParada> {
   const { data } = await api.patch<GestionParada>(`/conductor/paradas/${pedidoId}/estado`, {
     estado,
     motivo_fallo: motivoFallo ?? null,
+    receptor_nombre: receptor?.nombre ?? null,
+    receptor_documento: receptor?.documento ?? null,
   });
   return data;
 }
 
-// Sube la foto de evidencia (POD) por multipart. Recibe pedidoId y uri local de la imagen.
-export async function subirEvidencia(pedidoId: number, uriFoto: string): Promise<GestionParada> {
+// Sube la foto de evidencia (POD) por multipart con el lugar donde se tomó (C26-01).
+// Recibe pedidoId, uri local de la imagen y coords opcionales.
+export async function subirEvidencia(pedidoId: number, uriFoto: string, coords?: Coordenadas | null): Promise<GestionParada> {
   const nombre = uriFoto.split("/").pop() ?? `pod_${pedidoId}.jpg`;
   const form = new FormData();
   form.append("file", { uri: uriFoto, name: nombre, type: "image/jpeg" } as unknown as Blob);
+  adjuntarGps(form, coords);
 
   const { data } = await api.post<GestionParada>(
     `/conductor/paradas/${pedidoId}/evidencia`,

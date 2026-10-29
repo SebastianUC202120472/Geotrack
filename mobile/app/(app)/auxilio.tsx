@@ -38,7 +38,7 @@ export default function AuxilioScreen() {
       { descripcion: descripcion.trim() || undefined, coords, uriFoto: foto ?? undefined, puedeSolucionarSolo },
       {
         onSuccess: () => {
-          Alert.alert("Auxilio enviado", "Tu ruta quedó pausada y se avisó al almacén.");
+          Alert.alert("Auxilio enviado", "Tu ruta quedó pausada y se avisó al administrador.");
           router.back();
         },
         onError: (e) => Alert.alert("No se pudo enviar", mensajeDeError(e)),
@@ -75,8 +75,8 @@ export default function AuxilioScreen() {
               <Texto variante="bodyMedium" color={colors.ink}>Puedo solucionarlo yo solo</Texto>
               <Texto variante="caption" color={colors.muted} style={{ marginTop: 2 }}>
                 {puedeSolucionarSolo
-                  ? "No necesitas ayuda; el almacén solo quedará informado."
-                  : "El almacén podrá enviarte ayuda (grúa, mecánico, etc.)."}
+                  ? "No necesitas ayuda; el administrador solo quedará informado (igual puede enviarte ayuda si luego la pides)."
+                  : "El administrador podrá enviarte ayuda (grúa, mecánico, etc.)."}
               </Texto>
             </View>
             <Switch

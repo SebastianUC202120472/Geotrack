@@ -323,6 +323,13 @@ export const obtenerEficienciaConductores = () => request("/dashboard/eficiencia
 
 export const obtenerCombustible = () => request("/parametros/combustible");
 
+// Telefono de coordinacion que ve el conductor en la app (EX-13). Sin parametros.
+export const obtenerContacto = () => request("/parametros/contacto");
+
+// Guarda el telefono de coordinacion (vacio lo borra). Recibe telefono_coordinacion.
+export const actualizarContacto = (telefono_coordinacion) =>
+  request("/parametros/contacto", { method: "PUT", body: { telefono_coordinacion } });
+
 // Actualiza parametros de combustible. Recibe consumo_l_100km y precio_soles_litro.
 export const actualizarCombustible = (consumo_l_100km, precio_soles_litro) =>
   request("/parametros/combustible", { method: "PUT", body: { consumo_l_100km, precio_soles_litro } });

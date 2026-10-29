@@ -1,12 +1,18 @@
+import os
+import secrets
 from datetime import datetime
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.repositories import reporte_repository, conductor_repository
+from app.core.imagenes import validar_imagen, gps_de_captura
+from app.repositories import reporte_repository, conductor_repository, ruta_repository
 from app.models.pedido import Pedido
 from app.models.conductor import PerfilConductor
 from app.schemas.reporte import ReporteCreate, ResponderReporte
 from app.services import notificaciones_service
+
+# Directorio de fotos de los reportes de falla, servido en /media.
+DIR_REPORTES = os.path.join("uploads", "reportes")
 
 
 def _a_respuesta(db: Session, r) -> dict:
@@ -27,6 +33,8 @@ def _a_respuesta(db: Session, r) -> dict:
         "accion": r.accion,
         "creado_en": r.creado_en,
         "respondido_en": r.respondido_en,
+        "url_evidencia": r.url_evidencia,
+        "latitud_longitud_captura": r.latitud_longitud_captura,
     }
 
 
@@ -37,6 +45,10 @@ def crear(db: Session, conductor_id: int, datos: ReporteCreate) -> dict:
     pedido = db.query(Pedido).filter(Pedido.id == datos.pedido_id).first()
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    # Solo se reportan pedidos de la ruta que el conductor tiene en curso (C29-02).
+    ruta = ruta_repository.obtener_ruta_activa_por_conductor(db, conductor_id)
+    if not ruta or not ruta_repository.obtener_detalle_de_ruta(db, ruta.id, pedido.id):
+        raise HTTPException(status_code=403, detail="Este pedido no pertenece a tu ruta activa")
     reporte = reporte_repository.crear(
         db,
         pedido_id=datos.pedido_id,
@@ -51,6 +63,29 @@ def crear(db: Session, conductor_id: int, datos: ReporteCreate) -> dict:
             f"Pedido {pedido.codigo}: {datos.motivo.strip()}", "/reportes?pendientes=1", reporte.id)
     except Exception:
         pass
+    return _a_respuesta(db, reporte)
+
+
+def guardar_evidencia(db: Session, reporte_id: int, conductor_id: int, contenido: bytes,
+                      latitud: float | None = None, longitud: float | None = None) -> dict:
+    """CONDUCTOR: adjunta la foto que respalda la falla (domicilio cerrado, etc.) con su GPS (C29-01).
+    Recibe el id del reporte, el conductor, los bytes de la imagen y la posicion de la captura."""
+    reporte = reporte_repository.obtener(db, reporte_id)
+    if not reporte or reporte.conductor_id != conductor_id:
+        raise HTTPException(status_code=404, detail="Reporte no encontrado")
+    if reporte.estado != "ABIERTO":
+        raise HTTPException(status_code=409, detail="El reporte ya fue respondido; no se puede cambiar su foto")
+
+    # La extension sale del contenido real, no del nombre que manda el cliente.
+    extension = validar_imagen(contenido)
+    os.makedirs(DIR_REPORTES, exist_ok=True)
+    # Sufijo aleatorio: /media es estatico y el nombre no debe ser adivinable.
+    nombre_final = f"rep_{reporte.id}_{secrets.token_hex(8)}{extension}"
+    with open(os.path.join(DIR_REPORTES, nombre_final), "wb") as f:
+        f.write(contenido)
+    reporte.url_evidencia = f"/media/reportes/{nombre_final}"
+    reporte.latitud_longitud_captura = gps_de_captura(latitud, longitud)
+    reporte_repository.guardar(db)
     return _a_respuesta(db, reporte)
 
 

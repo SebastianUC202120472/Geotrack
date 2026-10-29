@@ -30,6 +30,11 @@ SENTENCIAS = [
     "ALTER TABLE evidencias_recojo ADD COLUMN IF NOT EXISTS latitud_longitud_captura VARCHAR(60)",
     # Distrito que devuelve el geocodificador, guardado junto a la coordenada (C16-01).
     "ALTER TABLE geocodificaciones_cache ADD COLUMN IF NOT EXISTS distrito VARCHAR(100)",
+    # Quien recibio la entrega (C26-02) y foto que respalda un reporte de falla (C29-01).
+    "ALTER TABLE evidencias_entrega ADD COLUMN IF NOT EXISTS receptor_nombre VARCHAR(120)",
+    "ALTER TABLE evidencias_entrega ADD COLUMN IF NOT EXISTS receptor_documento VARCHAR(12)",
+    "ALTER TABLE reportes ADD COLUMN IF NOT EXISTS url_evidencia VARCHAR(255)",
+    "ALTER TABLE reportes ADD COLUMN IF NOT EXISTS latitud_longitud_captura VARCHAR(60)",
 ]
 
 

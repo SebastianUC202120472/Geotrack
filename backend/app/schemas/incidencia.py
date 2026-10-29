@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel
 
 
@@ -23,6 +23,12 @@ class MandarAyudaRequest(BaseModel):
     nota: Optional[str] = None
 
 
+class AyudaEnviada(BaseModel):
+    """Una ayuda del historial de la incidencia."""
+    detalle: str
+    enviada_en: Optional[datetime] = None
+
+
 class IncidenciaResponse(BaseModel):
     """Incidencia serializada para la app y el panel."""
     id: int
@@ -44,3 +50,4 @@ class IncidenciaResponse(BaseModel):
     puede_solucionar_solo: bool = False
     ayuda_enviada_en: Optional[datetime] = None
     ayuda_detalle: Optional[str] = None
+    ayudas: List[AyudaEnviada] = []  # todas las ayudas enviadas, de la primera a la ultima (C30-01)

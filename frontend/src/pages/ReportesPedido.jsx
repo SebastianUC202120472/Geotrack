@@ -175,6 +175,20 @@ function DetalleReporte({ reporte: r, onCerrar, onResuelto }) {
         <Dato etiqueta="Motivo" valor={r.motivo || "—"} />
         {r.descripcion && <Dato etiqueta="Descripción" valor={r.descripcion} />}
         <Dato etiqueta="Reportado" valor={fmt(r.creado_en)} />
+        {r.url_evidencia && (
+          <div>
+            <p className="mb-1.5 text-xs text-slate-400">Foto del conductor</p>
+            <a href={r.url_evidencia} target="_blank" rel="noreferrer">
+              <img src={r.url_evidencia} alt="Foto que respalda la entrega fallida" className="max-h-56 w-full rounded-xl object-cover" />
+            </a>
+            {r.latitud_longitud_captura && (
+              <a href={`https://www.google.com/maps?q=${r.latitud_longitud_captura}`} target="_blank" rel="noreferrer"
+                className="mt-1.5 inline-block text-xs font-medium text-brand-600 hover:underline">
+                Ver dónde se tomó la foto
+              </a>
+            )}
+          </div>
+        )}
 
         {error && (
           <p className="rounded-xl bg-danger-soft px-4 py-2.5 text-sm text-danger-strong">{error}</p>

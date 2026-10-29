@@ -20,3 +20,5 @@ class Reporte(Base):
     creado_en = Column(DateTime, default=datetime.utcnow, index=True)
     respondido_en = Column(DateTime, nullable=True)
     respondido_por = Column(Integer, nullable=True)        # id del admin que respondió
+    url_evidencia = Column(String(255), nullable=True)     # foto que respalda la falla (C29-01)
+    latitud_longitud_captura = Column(String(60), nullable=True)  # "lat,lng" donde se tomo la foto

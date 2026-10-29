@@ -1,7 +1,7 @@
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
-from app.models.incidencia import Incidencia
+from app.models.incidencia import Incidencia, IncidenciaAyuda
 from app.core.codigos import asignar_codigo, PREFIJO_INCIDENCIA
 
 
@@ -57,3 +57,20 @@ def contar_abiertas(db: Session) -> int:
 def guardar(db: Session) -> None:
     """Confirma los cambios pendientes."""
     db.commit()
+
+
+def agregar_ayuda(db: Session, incidencia_id: int, detalle: str, admin_id: int) -> IncidenciaAyuda:
+    """Agrega una ayuda al historial de la incidencia (sin commit). Recibe incidencia_id, detalle y admin_id."""
+    ayuda = IncidenciaAyuda(incidencia_id=incidencia_id, detalle=detalle, enviada_por=admin_id)
+    db.add(ayuda)
+    return ayuda
+
+
+def listar_ayudas(db: Session, incidencia_id: int) -> List[IncidenciaAyuda]:
+    """Ayudas enviadas a una incidencia, de la primera a la ultima. Recibe incidencia_id."""
+    return (
+        db.query(IncidenciaAyuda)
+        .filter(IncidenciaAyuda.incidencia_id == incidencia_id)
+        .order_by(IncidenciaAyuda.enviada_en, IncidenciaAyuda.id)
+        .all()
+    )

@@ -32,3 +32,5 @@ class ReporteResponse(BaseModel):
     accion: Optional[str] = None
     creado_en: Optional[datetime] = None
     respondido_en: Optional[datetime] = None
+    url_evidencia: Optional[str] = None             # foto que respalda la falla (C29-01)
+    latitud_longitud_captura: Optional[str] = None  # "lat,lng" donde se tomo
