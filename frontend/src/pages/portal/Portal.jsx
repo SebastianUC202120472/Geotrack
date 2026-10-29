@@ -4,13 +4,23 @@ import { useEfectosScroll } from "../../hooks/useEfectosScroll";
 import RastreoPersonal from "./vistas/RastreoPersonal";
 import PanelEmpresa from "./vistas/PanelEmpresa";
 import { ayudaDemo } from "./servicios/portal";
+import { IdiomaPortal, crearT } from "./i18n";
 import logo from "../../assets/logo.png";
 import "./portal.css";
 
 // Página del portal de clientes: header sticky + hero + selector de perfil
 // (persona natural / empresa) + hueco de la vista elegida +
-// footer. Sin i18n (el mockup del portal es solo español).
+// footer. Bilingüe ES/EN (EX-18): el idioma elegido se recuerda en este navegador.
 export default function Portal() {
+  const [lang, setLang] = useState(() => {
+    try { return localStorage.getItem("ptl_idioma") === "en" ? "en" : "es"; } catch { return "es"; }
+  });
+  const t = crearT(lang);
+  // Cambia el idioma del portal y lo recuerda. Recibe "es" o "en".
+  const cambiarIdioma = (nuevo) => {
+    setLang(nuevo);
+    try { localStorage.setItem("ptl_idioma", nuevo); } catch { /* sin almacenamiento: solo esta visita */ }
+  };
   // null | "personal" | "empresa". Si la pestaña ya verificó un pedido (sessionStorage),
   // abre directo el rastreo para recuperarlo al recargar (C42-01).
   const [modo, setModo] = useState(() => {
@@ -22,10 +32,11 @@ export default function Portal() {
   const timerToast = useRef(null);
   useEfectosScroll(contRef);
 
-  // Título de la pestaña al entrar al portal.
+  // Título de la pestaña al entrar al portal (en el idioma elegido).
   useEffect(() => {
-    document.title = "Portal de clientes — SAVA";
-  }, []);
+    document.title = lang === "en" ? "Customer portal — SAVA" : "Portal de clientes — SAVA";
+    document.documentElement.lang = lang;
+  }, [lang]);
 
   // Pide una sola vez los datos de ayuda de la demostración. Si el backend no está en
   // modo demostración responde {activo:false} y no se muestra nada.
@@ -56,6 +67,7 @@ export default function Portal() {
   const irEmpresa = () => setModo("empresa");
 
   return (
+    <IdiomaPortal.Provider value={{ lang, t }}>
     <div ref={contRef} className="ptl-pagina">
       {/* TOPBAR */}
       <header
@@ -74,16 +86,25 @@ export default function Portal() {
             <span style={{ fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 17 }}>SAVA</span>
           </Link>
           <span style={{ background: "#eaf3fc", color: "#1b5fb3", fontSize: 10.5, fontWeight: 700, letterSpacing: ".08em", padding: "5px 11px", borderRadius: 99, whiteSpace: "nowrap" }}>
-            PORTAL DE CLIENTES
+            {t("PORTAL DE CLIENTES")}
           </span>
           <div style={{ marginLeft: "auto", display: "flex", gap: 12, alignItems: "center" }}>
+            <div role="group" aria-label="Idioma / Language" style={{ display: "flex", background: "#eaf3fc", borderRadius: 99, padding: 3 }}>
+              {["es", "en"].map((l) => (
+                <button key={l} type="button" onClick={() => cambiarIdioma(l)} aria-pressed={lang === l}
+                  style={{ border: 0, cursor: "pointer", borderRadius: 99, padding: "5px 10px", fontSize: 12, fontWeight: 700,
+                    background: lang === l ? "#2679d8" : "transparent", color: lang === l ? "#fff" : "#1b5fb3" }}>
+                  {l.toUpperCase()}
+                </button>
+              ))}
+            </div>
             <Link
               data-hide-m="1"
               to="/"
               className="ptl-link-volver"
               style={{ textDecoration: "none", color: "#3d5570", fontSize: 13.5, fontWeight: 500, whiteSpace: "nowrap", transition: "color .2s ease" }}
             >
-              ← Volver a sava.pe
+              {t("← Volver a sava.pe")}
             </Link>
             <Link
               to="/panel/login"
@@ -104,7 +125,7 @@ export default function Portal() {
               }}
             >
               <span style={{ width: 7, height: 7, borderRadius: 99, background: "#5db1f0", flex: "none", animation: "latido 2.2s ease-in-out infinite" }} />
-              Soy trabajador · GeoTrack ↗
+              {t("Soy trabajador · GeoTrack ↗")}
             </Link>
           </div>
         </div>
@@ -117,13 +138,13 @@ export default function Portal() {
         <div style={{ maxWidth: 1140, margin: "0 auto", position: "relative" }}>
           <p style={{ margin: "0 0 14px", display: "inline-flex", alignItems: "center", gap: 10, fontSize: 12.5, fontWeight: 600, letterSpacing: ".14em", textTransform: "uppercase", color: "#7cc0f5", animation: "aparecer .6s ease both" }}>
             <span style={{ width: 8, height: 8, borderRadius: 99, background: "#22a35e", animation: "latido 1.8s ease-in-out infinite" }} />
-            Seguimiento en vivo · datos de GeoTrack
+            {t("Seguimiento en vivo · datos de GeoTrack")}
           </p>
           <h1 style={{ margin: 0, fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: "clamp(30px,4.5vw,48px)", lineHeight: 1.06, letterSpacing: "-.015em", animation: "aparecer .6s ease .08s both" }}>
-            ¿Dónde está mi pedido?
+            {t("¿Dónde está mi pedido?")}
           </h1>
           <p style={{ margin: "16px 0 0", maxWidth: 620, fontSize: "clamp(15px,1.3vw,17px)", lineHeight: 1.6, color: "#c3d6ea", animation: "aparecer .6s ease .16s both" }}>
-            Elija su perfil para seguir sus entregas en tiempo real. Sus datos están protegidos: cada consulta se verifica y cada acceso queda registrado.
+            {t("Elija su perfil para seguir sus entregas en tiempo real. Sus datos están protegidos: cada consulta se verifica y cada acceso queda registrado.")}
           </p>
         </div>
       </section>
@@ -155,9 +176,9 @@ export default function Portal() {
               <span style={{ width: 15, height: 15, borderRadius: 99, background: "#2679d8" }} />
             </span>
             <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: "block", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", color: "#7288a0" }}>PERSONA NATURAL</span>
-              <span style={{ display: "block", marginTop: 3, fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 18, color: "#0f2b4a" }}>Sigo mi pedido</span>
-              <span style={{ display: "block", marginTop: 3, fontSize: 13, color: "#4f6580" }}>Trazabilidad con su código + verificación de identidad</span>
+              <span style={{ display: "block", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", color: "#7288a0" }}>{t("PERSONA NATURAL")}</span>
+              <span style={{ display: "block", marginTop: 3, fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 18, color: "#0f2b4a" }}>{t("Sigo mi pedido")}</span>
+              <span style={{ display: "block", marginTop: 3, fontSize: 13, color: "#4f6580" }}>{t("Trazabilidad con su código + verificación de identidad")}</span>
             </span>
             <span style={{ flex: "none", width: 22, height: 22, borderRadius: 99, border: `2px solid ${modo === "personal" ? "#2679d8" : "#c7d5e3"}`, display: "grid", placeItems: "center", transition: "border-color .3s ease" }}>
               <span style={{ width: 10, height: 10, borderRadius: 99, background: modo === "personal" ? "#2679d8" : "transparent", transition: "background .3s ease" }} />
@@ -187,9 +208,9 @@ export default function Portal() {
               <span style={{ width: 15, height: 15, borderRadius: 4, background: "#0f2b4a" }} />
             </span>
             <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: "block", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", color: "#7288a0" }}>EMPRESA / RETAIL</span>
-              <span style={{ display: "block", marginTop: 3, fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 18, color: "#0f2b4a" }}>Estado de mis pedidos</span>
-              <span style={{ display: "block", marginTop: 3, fontSize: 13, color: "#4f6580" }}>Acceso con credenciales y verificación en dos pasos</span>
+              <span style={{ display: "block", fontSize: 11, fontWeight: 700, letterSpacing: ".1em", color: "#7288a0" }}>{t("EMPRESA / RETAIL")}</span>
+              <span style={{ display: "block", marginTop: 3, fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 18, color: "#0f2b4a" }}>{t("Estado de mis pedidos")}</span>
+              <span style={{ display: "block", marginTop: 3, fontSize: 13, color: "#4f6580" }}>{t("Acceso con credenciales y verificación en dos pasos")}</span>
             </span>
             <span style={{ flex: "none", width: 22, height: 22, borderRadius: 99, border: `2px solid ${modo === "empresa" ? "#2679d8" : "#c7d5e3"}`, display: "grid", placeItems: "center", transition: "border-color .3s ease" }}>
               <span style={{ width: 10, height: 10, borderRadius: 99, background: modo === "empresa" ? "#2679d8" : "transparent", transition: "background .3s ease" }} />
@@ -200,6 +221,11 @@ export default function Portal() {
 
       {/* Vista según el perfil elegido */}
       {modo === "personal" && <RastreoPersonal avisar={avisar} demo={demo} />}
+      {modo === "empresa" && lang === "en" && (
+        <p style={{ maxWidth: 920, margin: "0 auto", padding: "14px 24px 0", fontSize: 13, color: "#4f6580", boxSizing: "border-box", width: "100%" }}>
+          The business panel is available in Spanish only (RNF-033 covers the public site and order tracking).
+        </p>
+      )}
       {modo === "empresa" && <PanelEmpresa avisar={avisar} demo={demo} />}
 
       {/* FOOTER */}
@@ -207,13 +233,13 @@ export default function Portal() {
         <div style={{ maxWidth: 1140, margin: "0 auto", padding: 24, display: "flex", alignItems: "center", gap: "14px 22px", flexWrap: "wrap" }}>
           <img src={logo} alt="SAVA" style={{ width: 22, height: 24, objectFit: "contain" }} />
           <span style={{ fontFamily: "Archivo, sans-serif", fontWeight: 700, fontSize: 14, color: "#0f2b4a" }}>SAVA S.A.C.</span>
-          <span style={{ fontSize: 12.5, color: "#7288a0" }}>Portal de clientes · datos en vivo desde GeoTrack</span>
+          <span style={{ fontSize: 12.5, color: "#7288a0" }}>{t("Portal de clientes · datos en vivo desde GeoTrack")}</span>
           <div style={{ marginLeft: "auto", display: "flex", gap: 18, flexWrap: "wrap" }}>
             <Link to="/#reclamos" className="ptl-ft-link" style={{ fontSize: 13, fontWeight: 600, color: "#3d5570", textDecoration: "none", transition: "color .2s ease" }}>
-              Reclamos
+              {t("Reclamos")}
             </Link>
             <Link to="/" className="ptl-ft-volver" style={{ fontSize: 13, fontWeight: 600, color: "#2679d8", textDecoration: "none", transition: "color .2s ease" }}>
-              ← Volver a sava.pe
+              {t("← Volver a sava.pe")}
             </Link>
           </div>
         </div>
@@ -248,5 +274,6 @@ export default function Portal() {
         </div>
       )}
     </div>
+    </IdiomaPortal.Provider>
   );
 }
