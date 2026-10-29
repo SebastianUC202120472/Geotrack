@@ -228,7 +228,7 @@ export default function Conductores() {
         <KpiCard label="Inactivos" value={kpis.inactivos} icon={Users} tone="danger" />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
         <SectionCard title="Registrar conductor" className="lg:col-span-1">
           <form onSubmit={registrar} noValidate className="space-y-4">
             <Input label="Nombre completo" required value={form.nombre} onChange={set("nombre")}

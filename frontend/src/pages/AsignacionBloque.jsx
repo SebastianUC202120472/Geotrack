@@ -123,7 +123,7 @@ export default function AsignacionBloque() {
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
 
         <div className="animate-fade-up" style={{ animationDelay: "120ms" }}>
           <SectionCard

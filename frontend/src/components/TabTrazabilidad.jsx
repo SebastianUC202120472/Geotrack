@@ -78,7 +78,7 @@ export default function TabTrazabilidad() {
       )}
 
       {historial && (
-        <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
           <SectionCard title="Ficha del pedido">
             <div className="mb-4 flex items-center gap-3">
               <span className="rounded-xl bg-brand-600 p-3 text-white"><Package size={22} /></span>

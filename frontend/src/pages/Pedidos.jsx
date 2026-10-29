@@ -269,7 +269,7 @@ export default function Pedidos() {
       )}
 
       <div className="animate-fade-up">
-        <div className="inline-flex items-center gap-1 rounded-2xl border border-warm-200 bg-white p-1 shadow-card">
+        <div className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-2xl border border-warm-200 bg-white p-1 shadow-card">
           {VISTAS.map((v) => {
             const Ico = v.icon;
             const activo = vista === v.id;

@@ -149,7 +149,7 @@ export default function Flota() {
         <KpiCard label="En ruta" value={kpis.enRuta} icon={Truck} tone="warning" />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
         <SectionCard title="Registrar vehículo" subtitle="El conductor es opcional (vacío = de la empresa)." className="lg:col-span-1">
           <form onSubmit={altaVehiculo} noValidate className="space-y-4">
             <Input label="Placa" required value={placa}

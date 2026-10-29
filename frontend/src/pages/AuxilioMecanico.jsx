@@ -120,7 +120,7 @@ export default function AuxilioMecanico() {
     <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
       <PageHeader titulo="Auxilio mecánico" subtitulo="Incidencias mecánicas reportadas por los conductores en ruta. Ábrelas para mandar ayuda." />
 
-      <div className="grid grid-cols-3 gap-4 animate-fade-up">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 animate-fade-up">
         <KpiCard label="Total" value={kpis.total} icon={Wrench} tone="brand" />
         <KpiCard label="Abiertas" value={kpis.abiertas} icon={Wrench} tone="danger" />
         <KpiCard label="Resueltas" value={kpis.resueltas} icon={CheckCircle2} tone="success" />
