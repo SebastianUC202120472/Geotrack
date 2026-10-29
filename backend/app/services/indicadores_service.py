@@ -228,7 +228,7 @@ def excel_indicadores(db: Session, periodo: str | None = None, desde: date | Non
         ("In.OE.1", "Tiempo de registro de un lote", vacio(o1["minutos_promedio"]), "min",
          f"Promedio de {o1['lotes_por_correo']} lotes llegados por correo: desde el correo hasta el registro. Lotes del periodo: {o1['lotes']} ({o1['pedidos']} pedidos)."),
         ("In.OE.2", "Distancia promedio por ruta", vacio(o2["km_promedio_por_ruta"]), "km",
-         f"{o2['rutas']} rutas cerradas; ahorro {o2['km_ahorrados']} km ({vacio(o2['ahorro_porcentaje'])} %) frente al orden de carga."),
+         f"{o2['rutas']} rutas cerradas; ahorro {o2['km_ahorrados']} km ({vacio(o2['ahorro_porcentaje'])} %) frente al plan manual del conductor (distrito, vía y numeración)."),
         ("In.OE.3", "Pedidos perdidos", o3["pedidos_perdidos"], "pedidos",
          f"Observados por faltante en almacén ({o3['observados_en_almacen']}) + cancelados ({o3['cancelados']})."),
         ("In.OE.3", "Entregas con foto", vacio(o3["entregas_con_foto_porcentaje"]), "%",

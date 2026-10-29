@@ -16,7 +16,8 @@ class Ruta(Base):
     fecha_salida = Column(DateTime, nullable=True)
     fecha_fin = Column(DateTime, nullable=True)
     km_estimado = Column(Float, nullable=True)   # distancia total de la secuencia optimizada
-    km_ahorrado = Column(Float, nullable=True)   # km ahorrados vs orden empirico
+    km_ahorrado = Column(Float, nullable=True)   # km ahorrados vs el plan empirico del conductor
+    km_linea_base = Column(Float, nullable=True)  # km del plan empirico, fijados al optimizar por primera vez (C20-02)
 
     vehiculo_placa = Column(String(20), nullable=True)
     conductor_id = Column(Integer, nullable=True)
