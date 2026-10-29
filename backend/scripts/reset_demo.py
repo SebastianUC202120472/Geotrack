@@ -19,7 +19,7 @@ from app.models.correo import Conversacion, MensajeCorreo, MensajeAdjunto  # noq
 from app.models.parametro import ParametroSistema  # noqa: E402
 
 TABLAS_OPERATIVAS = (
-    "pedidos", "ruta_detalles", "rutas", "solicitudes_recojo", "reportes", "incidencias", "incidencia_ayudas",
+    "pedidos", "ruta_detalles", "rutas", "solicitudes_recojo", "reportes", "incidencias", "incidencia_ayudas", "solicitudes_reprogramacion",
     "notificaciones", "historial_pedidos", "evidencias_entrega", "evidencias_recojo",
     "liquidaciones", "ubicaciones_conductor", "verificaciones_portal",
 )

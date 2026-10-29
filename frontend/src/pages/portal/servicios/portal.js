@@ -3,11 +3,13 @@
 
 const BASE = "/api/portal";
 
-// pedir: hace un fetch JSON y normaliza el error como { status, data }.
+// pedir: hace un fetch JSON y normaliza el error como { status, data }. Las cabeceras se
+// combinan DESPUÉS de las opciones: si no, un Authorization borraba el Content-Type y el
+// backend recibía el cuerpo como texto (422 al reprogramar).
 async function pedir(url, opciones = {}) {
   const res = await fetch(url, {
-    headers: { "Content-Type": "application/json", ...(opciones.headers || {}) },
     ...opciones,
+    headers: { "Content-Type": "application/json", ...(opciones.headers || {}) },
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) return Promise.reject({ status: res.status, data });
@@ -35,6 +37,9 @@ export const reprogramar = (codigo, franja, token) =>
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ franja }),
   });
+
+// Franjas que se pueden elegir al reprogramar (C43-03). Sin parametros.
+export const obtenerFranjas = () => pedir(`${BASE}/franjas`);
 
 export const urlPod = (codigo) => `${BASE}/pedidos/${encodeURIComponent(codigo)}/pod`;
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ClipboardList, Search, CheckCircle2, MessageSquare, X, AlertTriangle } from "lucide-react";
+import { ClipboardList, Search, CheckCircle2, MessageSquare, X, AlertTriangle, RotateCcw, Ban } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import SectionCard from "../components/ui/SectionCard";
@@ -9,10 +9,20 @@ import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
+import ConfirmDialog from "../components/ui/ConfirmDialog";
+import SolicitudesReprogramacion from "../components/SolicitudesReprogramacion";
+import { etiquetaEstado } from "../utils/estados";
 import { listarReportes, responderReporte } from "../services/api";
 
 // Fecha legible corta (es-PE). Entrada: fecha ISO. Salida: "dd/mm/aa hh:mm" o "—".
 const fmt = (f) => (f ? new Date(f).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—");
+
+// Decisiones posibles sobre el pedido al responder el reporte (C31-01).
+const DECISIONES = [
+  { id: "REPROGRAMAR", titulo: "Reprogramar", detalle: "Vuelve a Listo para envío", icono: RotateCcw, boton: "Responder y reprogramar" },
+  { id: "CANCELAR", titulo: "Cancelar pedido", detalle: "Definitivo, con motivo", icono: Ban, boton: "Responder y cancelar" },
+  { id: "NINGUNA", titulo: "Solo responder", detalle: "El pedido no cambia", icono: MessageSquare, boton: "Marcar resuelto" },
+];
 
 // Badge de estado del reporte. Recibe: estado ("ABIERTO" | "RESUELTO").
 function BadgeEstado({ estado }) {
@@ -140,19 +150,28 @@ export default function ReportesPedido() {
 
 // Panel lateral de detalle y resolucion de un reporte. Recibe: reporte, onCerrar, onResuelto.
 function DetalleReporte({ reporte: r, onCerrar, onResuelto }) {
+  const decidible = r.pedido_estado === "FALLIDO";
   const [respuesta, setRespuesta] = useState("");
-  const [accion, setAccion] = useState("");
+  const [accion, setAccion] = useState(decidible ? "REPROGRAMAR" : "NINGUNA");
+  const [motivoCancelacion, setMotivoCancelacion] = useState("");
+  const [confirmar, setConfirmar] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
+  const decision = DECISIONES.find((d) => d.id === accion) || DECISIONES[2];
+  const listo = respuesta.trim() && (accion !== "CANCELAR" || motivoCancelacion.trim().length >= 5);
 
-  // Marca el reporte resuelto con la respuesta (obligatoria) y la acción (opcional).
-  const marcarResuelto = () => {
-    if (!respuesta.trim()) return;
+  // Responde el reporte y aplica la decisión sobre el pedido en el mismo paso (C31-01). Sin parámetros.
+  const enviar = () => {
+    if (!listo) return;
     setGuardando(true);
     setError("");
-    responderReporte(r.id, { respuesta: respuesta.trim(), accion: accion.trim() || undefined })
+    responderReporte(r.id, {
+      respuesta: respuesta.trim(),
+      accion,
+      motivo_cancelacion: accion === "CANCELAR" ? motivoCancelacion.trim() : undefined,
+    })
       .then(() => onResuelto())
-      .catch((e) => { setError(e.message); setGuardando(false); });
+      .catch((e) => { setError(e.message); setGuardando(false); setConfirmar(false); });
   };
 
   return (
@@ -190,13 +209,44 @@ function DetalleReporte({ reporte: r, onCerrar, onResuelto }) {
           </div>
         )}
 
+        <SolicitudesReprogramacion pedidoId={r.pedido_id} pedidoEstado={r.pedido_estado} />
+
         {error && (
           <p className="rounded-xl bg-danger-soft px-4 py-2.5 text-sm text-danger-strong">{error}</p>
         )}
 
         {r.estado === "ABIERTO" && (
           <div className="space-y-3 rounded-xl border border-warning/40 bg-warning-soft p-4">
-            <p className="text-sm font-semibold text-warning-strong">Responder y resolver</p>
+            <p className="text-sm font-semibold text-warning-strong">Responder y decidir</p>
+            {decidible ? (
+              <div role="radiogroup" aria-label="Decisión sobre el pedido" className="grid grid-cols-3 gap-2">
+                {DECISIONES.map((d) => {
+                  const activa = accion === d.id;
+                  const Icono = d.icono;
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={activa}
+                      onClick={() => setAccion(d.id)}
+                      className={`rounded-xl border px-2.5 py-2 text-left transition ${activa
+                        ? (d.id === "CANCELAR" ? "border-danger bg-white ring-2 ring-danger/20" : "border-brand-500 bg-white ring-2 ring-brand-500/20")
+                        : "border-slate-200 bg-white/60 hover:bg-white"}`}
+                    >
+                      <span className={`flex items-center gap-1.5 text-xs font-semibold ${activa && d.id === "CANCELAR" ? "text-danger-strong" : "text-slate-800"}`}>
+                        <Icono size={14} className="shrink-0" /> {d.titulo}
+                      </span>
+                      <span className="mt-0.5 block text-[11px] leading-tight text-slate-500">{d.detalle}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-600">
+                El pedido está {etiquetaEstado(r.pedido_estado || "").toLowerCase() || "sin estado"}: solo puedes responder al conductor.
+              </p>
+            )}
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-500">Respuesta <span className="text-danger">*</span></label>
               <textarea
@@ -207,13 +257,40 @@ function DetalleReporte({ reporte: r, onCerrar, onResuelto }) {
                 className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 resize-none"
               />
             </div>
-            <Input label="Acción tomada (opcional)" value={accion} onChange={(e) => setAccion(e.target.value)}
-              placeholder="Ej. Reprogramado para mañana" />
-            <Button icon={CheckCircle2} block onClick={marcarResuelto} disabled={guardando || !respuesta.trim()}>
-              {guardando ? "Guardando…" : "Marcar resuelto"}
+            {accion === "CANCELAR" && (
+              <Input
+                as="textarea"
+                label="Motivo de la cancelación"
+                rows={2}
+                maxLength={255}
+                value={motivoCancelacion}
+                onChange={(e) => setMotivoCancelacion(e.target.value)}
+                placeholder="Ej. Dirección inexistente confirmada con la tienda"
+                hint="Obligatorio (mínimo 5 caracteres). Queda en el historial del pedido."
+              />
+            )}
+            <Button
+              icon={decision.icono === MessageSquare ? CheckCircle2 : decision.icono}
+              variant={accion === "CANCELAR" ? "danger" : "primary"}
+              block
+              onClick={() => (accion === "CANCELAR" ? setConfirmar(true) : enviar())}
+              disabled={guardando || !listo}
+            >
+              {guardando ? "Guardando…" : decision.boton}
             </Button>
           </div>
         )}
+
+        <ConfirmDialog
+          open={confirmar}
+          titulo={`¿Cancelar el pedido ${r.pedido_codigo || ""}?`}
+          mensaje="El pedido queda cancelado de forma definitiva y el reporte se marca resuelto con tu respuesta."
+          textoConfirmar="Sí, cancelar pedido"
+          tono="danger"
+          cargando={guardando}
+          onConfirmar={enviar}
+          onCancelar={() => setConfirmar(false)}
+        />
 
         {r.estado === "RESUELTO" && (
           <div className="space-y-2 rounded-xl border border-success/30 bg-success-soft p-4">

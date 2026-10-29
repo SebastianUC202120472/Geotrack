@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.api.deps import get_current_admin
 from app.services import parametro_service
-from app.schemas.parametro import MotivoCreate, MotivoResponse, CombustibleConfig, ContactoConfig
+from app.schemas.parametro import MotivoCreate, MotivoResponse, CombustibleConfig, ContactoConfig, FranjasConfig
 
 router = APIRouter()
 
@@ -51,3 +51,15 @@ def obtener_contacto(db: Session = Depends(get_db)):
 def actualizar_contacto(datos: ContactoConfig, db: Session = Depends(get_db)):
     """Actualiza el telefono de coordinacion. Recibe el telefono (vacio lo borra)."""
     return parametro_service.actualizar_contacto(db, datos.telefono_coordinacion)
+
+
+@router.get("/franjas", response_model=FranjasConfig, dependencies=[Depends(get_current_admin)])
+def obtener_franjas(db: Session = Depends(get_db)):
+    """Lee las franjas de reprogramacion que ofrece el portal."""
+    return {"franjas": parametro_service.obtener_franjas(db)}
+
+
+@router.put("/franjas", response_model=FranjasConfig, dependencies=[Depends(get_current_admin)])
+def actualizar_franjas(datos: FranjasConfig, db: Session = Depends(get_db)):
+    """Actualiza las franjas de reprogramacion del portal. Recibe la lista de franjas."""
+    return {"franjas": parametro_service.actualizar_franjas(db, datos.franjas)}

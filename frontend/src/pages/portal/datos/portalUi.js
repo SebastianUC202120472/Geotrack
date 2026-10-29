@@ -1,4 +1,4 @@
-// Catálogos de PRESENTACIÓN del portal (colores/textos/franjas). No son datos:
+// Catálogos de PRESENTACIÓN del portal (colores/textos). No son datos:
 // se quedan en el frontend aunque los datos vengan del backend.
 
 export const ESTADOS = {
@@ -10,4 +10,5 @@ export const ESTADOS = {
   CANCELADO: { tx: "CANCELADO", bg: "#f1f0f2", fg: "#6b6470", trazo: "#9a92a3", barra: "#c9c2d0" },
 };
 
+// Franjas de respaldo: las reales se configuran en el panel (Parámetros) y llegan por /api/portal/franjas.
 export const OPCIONES = ["Mañana · 9 am – 1 pm", "Mañana · 2 pm – 6 pm", "Sábado · 9 am – 1 pm"];

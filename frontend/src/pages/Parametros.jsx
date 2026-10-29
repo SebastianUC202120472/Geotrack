@@ -6,7 +6,7 @@ import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import {
   listarMotivos, crearMotivo, eliminarMotivo, obtenerCombustible, actualizarCombustible,
-  obtenerContacto, actualizarContacto,
+  obtenerContacto, actualizarContacto, obtenerFranjas, actualizarFranjas,
 } from "../services/api";
 
 // Pagina de parametros del sistema: motivos de rechazo y parametros de combustible.
@@ -23,6 +23,33 @@ export default function Parametros() {
   const [telefono, setTelefono] = useState("");
   const [guardandoTel, setGuardandoTel] = useState(false);
   const [avisoTel, setAvisoTel] = useState(null);
+
+  const [franjas, setFranjas] = useState("");
+  const [guardandoFranjas, setGuardandoFranjas] = useState(false);
+  const [avisoFranjas, setAvisoFranjas] = useState(null);
+
+  // Carga las franjas de reprogramacion del portal al montar (una por linea).
+  useEffect(() => {
+    let activo = true;
+    obtenerFranjas()
+      .then((r) => activo && setFranjas((r.franjas || []).join("\n")))
+      .catch(() => {});
+    return () => { activo = false; };
+  }, []);
+
+  // Guarda las franjas escritas (una por linea). Recibe el evento del formulario.
+  const guardarFranjas = (e) => {
+    e.preventDefault();
+    setGuardandoFranjas(true);
+    setAvisoFranjas(null);
+    actualizarFranjas(franjas.split("\n").map((f) => f.trim()).filter(Boolean))
+      .then((r) => {
+        setFranjas((r.franjas || []).join("\n"));
+        setAvisoFranjas({ ok: true, texto: "Franjas guardadas: el portal ya las ofrece." });
+      })
+      .catch((err) => setAvisoFranjas({ ok: false, texto: err.message }))
+      .finally(() => setGuardandoFranjas(false));
+  };
 
   // Carga el telefono de coordinacion al montar.
   useEffect(() => {
@@ -197,6 +224,31 @@ export default function Parametros() {
             {avisoTel && (
               <p className={`rounded-xl px-3.5 py-2.5 text-sm ${avisoTel.ok ? "bg-success-soft text-success-strong" : "bg-danger-soft text-danger-strong"}`}>
                 {avisoTel.texto}
+              </p>
+            )}
+          </form>
+        </SectionCard>
+
+        <SectionCard
+          title="Franjas de reprogramación"
+          subtitle="Las que el cliente puede elegir en el portal al pedir otra fecha de entrega."
+        >
+          <form onSubmit={guardarFranjas} noValidate className="space-y-4">
+            <Input
+              as="textarea"
+              label="Franjas (una por línea)"
+              rows={4}
+              value={franjas}
+              onChange={(e) => { setFranjas(e.target.value); setAvisoFranjas(null); }}
+              placeholder={"Mañana · 9 am – 1 pm\nMañana · 2 pm – 6 pm"}
+              hint="Entre 1 y 6 franjas, de 3 a 60 caracteres cada una."
+            />
+            <Button type="submit" icon={Save} block disabled={guardandoFranjas}>
+              {guardandoFranjas ? "Guardando…" : "Guardar franjas"}
+            </Button>
+            {avisoFranjas && (
+              <p className={`rounded-xl px-3.5 py-2.5 text-sm ${avisoFranjas.ok ? "bg-success-soft text-success-strong" : "bg-danger-soft text-danger-strong"}`}>
+                {avisoFranjas.texto}
               </p>
             )}
           </form>

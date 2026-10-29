@@ -29,6 +29,7 @@ class Pedido(Base):
     estado = Column(String(50), default="LISTO_PARA_ENVIO")  # ciclo: POR_RECOGER -> ... -> ENTREGADO / FALLIDO
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
     fecha_entrega = Column(DateTime, nullable=True)  # se sella al marcar ENTREGADO
+    motivo_cancelacion = Column(String(255), nullable=True)  # obligatorio al cancelar (C31-02)
 
     recojo_id = Column(Integer, ForeignKey("solicitudes_recojo.id"), nullable=True, index=True)
     validado_en = Column(DateTime, nullable=True)   # sello al validar en almacen

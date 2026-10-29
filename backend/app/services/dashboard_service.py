@@ -287,6 +287,7 @@ def obtener_historial(db: Session, codigo: str) -> HistorialPedidoResponse:
         motivo_fallo=motivo_fallo,
         recibido_por=recibido_por,
         ubicacion_evidencia=ubicacion_evidencia,
+        motivo_cancelacion=pedido.motivo_cancelacion,
         eventos=eventos,
     )
 

@@ -9,7 +9,10 @@ from app.repositories import reporte_repository, conductor_repository, ruta_repo
 from app.models.pedido import Pedido
 from app.models.conductor import PerfilConductor
 from app.schemas.reporte import ReporteCreate, ResponderReporte
-from app.services import notificaciones_service
+from app.services import notificaciones_service, pedido_service
+
+# Decision que acompana la respuesta al reporte (C31-01) -> texto guardado en "accion".
+ACCIONES = {"NINGUNA": None, "REPROGRAMAR": "Reprogramado", "CANCELAR": "Cancelado"}
 
 # Directorio de fotos de los reportes de falla, servido en /media.
 DIR_REPORTES = os.path.join("uploads", "reportes")
@@ -24,6 +27,7 @@ def _a_respuesta(db: Session, r) -> dict:
         "pedido_id": r.pedido_id,
         "pedido_codigo": r.pedido_codigo,
         "direccion_destino": pedido.direccion_destino if pedido else None,
+        "pedido_estado": pedido.estado if pedido else None,
         "conductor_id": r.conductor_id,
         "conductor_nombre": perfil.nombre if perfil else None,
         "motivo": r.motivo,
@@ -100,14 +104,25 @@ def listar_mios(db: Session, conductor_id: int) -> list:
 
 
 def responder(db: Session, reporte_id: int, admin_id: int, datos: ResponderReporte) -> dict:
-    """ADMIN: responde un reporte con la solución y lo marca resuelto."""
+    """ADMIN: responde el reporte y, en el mismo paso, decide sobre el pedido fallido (C31-01):
+    REPROGRAMAR (vuelve a reparto), CANCELAR (con motivo) o NINGUNA (solo responder)."""
     reporte = reporte_repository.obtener(db, reporte_id)
     if not reporte:
         raise HTTPException(status_code=404, detail="Reporte no encontrado")
     if not datos.respuesta.strip():
         raise HTTPException(status_code=400, detail="Escribe una respuesta")
+    accion = datos.accion
+    if accion != "NINGUNA":
+        pedido = db.query(Pedido).filter(Pedido.id == reporte.pedido_id).first()
+        if not pedido or pedido.estado != "FALLIDO":
+            raise HTTPException(status_code=409, detail="El pedido ya no está fallido: responde sin cambiarlo.")
+        if accion == "REPROGRAMAR":
+            pedido_service.reprogramar(db, pedido.id, admin_id)
+        else:
+            pedido_service.cancelar(db, pedido.id, admin_id, datos.motivo_cancelacion)
+        db.refresh(reporte)  # el servicio del pedido ya lo dejo resuelto
     reporte.respuesta = datos.respuesta.strip()
-    reporte.accion = datos.accion
+    reporte.accion = ACCIONES[accion]
     reporte.estado = (datos.estado or "RESUELTO").upper()
     reporte.respondido_en = datetime.utcnow()
     reporte.respondido_por = admin_id
