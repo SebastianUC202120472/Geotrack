@@ -245,7 +245,13 @@ export default function VisorCarga3D({
   }
 
   if (estado === "error") {
-    return <VistaLateral modelo={modelo} utilizacionPct={utilizacionPct} />;
+    return (
+      <VistaLateral
+        modelo={modelo}
+        utilizacionPct={utilizacionPct}
+        mensaje={`Vista 2D de respaldo: este navegador no tiene WebGL activo. Activa la aceleracion por hardware (o usa Chrome/Edge) para ver el modelo 3D.${placa ? ` Placa ${placa}.` : ""}`}
+      />
+    );
   }
 
   return (

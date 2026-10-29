@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   AlertTriangle,
@@ -74,6 +74,22 @@ const ETIQUETA_MODO = {
 
 // Convierte un valor de input en numero o undefined (para no enviar campos vacios).
 const aNumero = (valor) => (valor === "" || valor === null ? undefined : Number(valor));
+
+// Los vehiculos de la demo no tienen ficha en el catalogo. Se construye un
+// modelo referencial con proporcion de furgon para que el visor 3D los muestre.
+const modeloReferencial = (viaje) => {
+  if (!viaje) return null;
+  const volumen = Math.max(0.5, Number(viaje.capacidad_m3) || 7.5);
+  const escala = Math.cbrt(volumen / (2.6 * 1.6 * 1.0));
+  return {
+    marca: viaje.marca || "Vehiculo",
+    modelo: viaje.modelo || "sin ficha",
+    largo_m: Number((2.6 * escala).toFixed(2)),
+    ancho_m: Number((1.6 * escala).toFixed(2)),
+    alto_m: Number((1.0 * escala).toFixed(2)),
+    referencial: true,
+  };
+};
 
 // Mensaje de exito o error con boton para cerrarlo.
 function Aviso({ aviso, onCerrar }) {
@@ -195,15 +211,20 @@ function TablaViajes({ viajes, maxParadas, seleccionado, onSeleccionar }) {
     {
       key: "acciones",
       header: "",
-      render: (v) => (
-        <Button
-          size="sm"
-          variant={seleccionado === viajes.indexOf(v) ? "primary" : "secondary"}
-          onClick={() => onSeleccionar(viajes.indexOf(v))}
-        >
-          Ver 3D
-        </Button>
-      ),
+      render: (v) => {
+        const activo = seleccionado === viajes.indexOf(v);
+        return (
+          <Button
+            size="sm"
+            variant={activo ? "primary" : "secondary"}
+            onClick={() => onSeleccionar(viajes.indexOf(v))}
+            aria-pressed={activo}
+            title="Carga este viaje en el visor 3D"
+          >
+            {activo ? "Viendo 3D" : "Ver 3D"}
+          </Button>
+        );
+      },
     },
   ];
 
@@ -275,6 +296,11 @@ export function ModuloCapacidadPage() {
   const [planFactor, setPlanFactor] = useState("");
   const [planificando, setPlanificando] = useState(false);
   const [planResultado, setPlanResultado] = useState(null);
+  const [planViajeSeleccionado, setPlanViajeSeleccionado] = useState(0);
+
+  // Referencias al panel 3D para desplazar la vista al pulsar "Ver 3D".
+  const visorCalculoRef = useRef(null);
+  const visorPlanRef = useRef(null);
 
   // --- Configuracion y auditoria ---
   const [formConfig, setFormConfig] = useState(null);
@@ -390,7 +416,32 @@ export function ModuloCapacidadPage() {
 
   const modeloCalculado = calcModelo ? modelosPorId[calcModelo] : null;
   const viajeActual = resultado?.viajes?.[viajeSeleccionado] || null;
-  const modeloViaje = viajeActual ? modelosPorId[viajeActual.modelo_id] : null;
+  const modeloViaje = viajeActual
+    ? modelosPorId[viajeActual.modelo_id] || modeloReferencial(viajeActual)
+    : null;
+
+  const planViajeActual = planResultado?.viajes?.[planViajeSeleccionado] || null;
+  const planModeloViaje = planViajeActual
+    ? modelosPorId[planViajeActual.modelo_id] || modeloReferencial(planViajeActual)
+    : null;
+
+  // Lleva la vista al visor 3D sin recargar la pagina.
+  const desplazarAlVisor = (referencia) => {
+    const nodo = referencia?.current;
+    if (nodo && typeof nodo.scrollIntoView === "function") {
+      nodo.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
+
+  const seleccionarViajeCalculo = (indice) => {
+    setViajeSeleccionado(indice);
+    desplazarAlVisor(visorCalculoRef);
+  };
+
+  const seleccionarViajePlan = (indice) => {
+    setPlanViajeSeleccionado(indice);
+    desplazarAlVisor(visorPlanRef);
+  };
 
   const mostrarAviso = (ok, texto) => setAviso({ ok, texto });
 
@@ -576,6 +627,7 @@ export function ModuloCapacidadPage() {
     try {
       const plan = await obtenerPlanificacionCapacidad(datos);
       setPlanResultado(plan);
+      setPlanViajeSeleccionado(0);
       mostrarAviso(
         true,
         `${demo ? "Demo" : "Plan real"}: ${plan.resumen.total_pedidos} pedidos en ${plan.resumen.viajes_necesarios} viajes.`,
@@ -1426,7 +1478,7 @@ export function ModuloCapacidadPage() {
                     viajes={resultado.viajes}
                     maxParadas={resultado.configuracion.max_paradas_por_viaje}
                     seleccionado={viajeSeleccionado}
-                    onSeleccionar={setViajeSeleccionado}
+                    onSeleccionar={seleccionarViajeCalculo}
                   />
                   <p className="mt-3 text-xs text-slate-400">
                     {resultado.resumen.pedidos_estimados
@@ -1435,37 +1487,39 @@ export function ModuloCapacidadPage() {
                   </p>
                 </SectionCard>
 
-                <SectionCard title="Vista de carga 3D" subtitle="Representacion referencial del volumen ocupado.">
-                  <Suspense fallback={<Skeleton className="h-[280px] w-full" />}>
-                    <VisorCarga3D
-                      modelo={modeloViaje}
-                      utilizacionPct={viajeActual?.utilizacion_pct || 0}
-                      placa={
-                        viajeActual?.vehiculo_placa === "CATALOGO"
-                          ? ""
-                          : viajeActual?.vehiculo_placa || ""
-                      }
-                      pedidos={viajeActual?.paradas || 0}
-                    />
-                  </Suspense>
-                  {viajeActual && (
-                    <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-slate-400">Peso</p>
-                        <p className="nums mt-1 font-semibold text-slate-700">
-                          {viajeActual.peso_kg.toLocaleString("es-PE")} /{" "}
-                          {viajeActual.capacidad_kg.toLocaleString("es-PE")} kg
-                        </p>
+                <div ref={visorCalculoRef}>
+                  <SectionCard title="Vista de carga 3D" subtitle="Representacion referencial del volumen ocupado.">
+                    <Suspense fallback={<Skeleton className="h-[280px] w-full" />}>
+                      <VisorCarga3D
+                        modelo={modeloViaje}
+                        utilizacionPct={viajeActual?.utilizacion_pct || 0}
+                        placa={
+                          viajeActual?.vehiculo_placa === "CATALOGO"
+                            ? ""
+                            : viajeActual?.vehiculo_placa || ""
+                        }
+                        pedidos={viajeActual?.paradas || 0}
+                      />
+                    </Suspense>
+                    {viajeActual && (
+                      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs uppercase tracking-wide text-slate-400">Peso</p>
+                          <p className="nums mt-1 font-semibold text-slate-700">
+                            {viajeActual.peso_kg.toLocaleString("es-PE")} /{" "}
+                            {viajeActual.capacidad_kg.toLocaleString("es-PE")} kg
+                          </p>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs uppercase tracking-wide text-slate-400">Volumen</p>
+                          <p className="nums mt-1 font-semibold text-slate-700">
+                            {viajeActual.volumen_m3} / {viajeActual.capacidad_m3} m3
+                          </p>
+                        </div>
                       </div>
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <p className="text-xs uppercase tracking-wide text-slate-400">Volumen</p>
-                        <p className="nums mt-1 font-semibold text-slate-700">
-                          {viajeActual.volumen_m3} / {viajeActual.capacidad_m3} m3
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </SectionCard>
+                    )}
+                  </SectionCard>
+                </div>
               </div>
             </div>
           )}
@@ -1627,17 +1681,59 @@ export function ModuloCapacidadPage() {
                 />
               </SectionCard>
 
-              <SectionCard
-                title="Detalle de viajes"
-                subtitle={`Plan generado en modo ${ETIQUETA_MODO[planResultado.modo] || planResultado.modo}.`}
-              >
-                <TablaViajes
-                  viajes={planResultado.viajes}
-                  maxParadas={planResultado.configuracion.max_paradas_por_viaje}
-                  seleccionado={-1}
-                  onSeleccionar={() => {}}
-                />
-              </SectionCard>
+              <div className="grid gap-6 xl:grid-cols-[1.4fr,1fr]">
+                <SectionCard
+                  title="Detalle de viajes"
+                  subtitle={`Plan generado en modo ${ETIQUETA_MODO[planResultado.modo] || planResultado.modo}.`}
+                >
+                  <TablaViajes
+                    viajes={planResultado.viajes}
+                    maxParadas={planResultado.configuracion.max_paradas_por_viaje}
+                    seleccionado={planViajeSeleccionado}
+                    onSeleccionar={seleccionarViajePlan}
+                  />
+                  <p className="mt-3 text-xs text-slate-400">
+                    Pulsa Ver 3D en un viaje para cargarlo en el visor de la derecha.
+                  </p>
+                </SectionCard>
+
+                <div ref={visorPlanRef}>
+                  <SectionCard
+                    title="Vista de carga 3D"
+                    subtitle="Carga del viaje seleccionado en el plan del dia."
+                  >
+                    <Suspense fallback={<Skeleton className="h-[280px] w-full" />}>
+                      <VisorCarga3D
+                        modelo={planModeloViaje}
+                        utilizacionPct={planViajeActual?.utilizacion_pct || 0}
+                        placa={
+                          planViajeActual?.vehiculo_placa === "CATALOGO"
+                            ? ""
+                            : planViajeActual?.vehiculo_placa || ""
+                        }
+                        pedidos={planViajeActual?.paradas || 0}
+                      />
+                    </Suspense>
+                    {planViajeActual && (
+                      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs uppercase tracking-wide text-slate-400">Peso</p>
+                          <p className="nums mt-1 font-semibold text-slate-700">
+                            {planViajeActual.peso_kg.toLocaleString("es-PE")} /{" "}
+                            {planViajeActual.capacidad_kg.toLocaleString("es-PE")} kg
+                          </p>
+                        </div>
+                        <div className="rounded-xl bg-slate-50 p-3">
+                          <p className="text-xs uppercase tracking-wide text-slate-400">Volumen</p>
+                          <p className="nums mt-1 font-semibold text-slate-700">
+                            {planViajeActual.volumen_m3} / {planViajeActual.capacidad_m3} m3
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </SectionCard>
+                </div>
+              </div>
             </div>
           )}
         </div>
