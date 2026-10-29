@@ -105,6 +105,7 @@ def obtener_ubicaciones_flota(db: Session, tipo: str | None = None) -> list[Cond
         clientes: list[ClienteMapa] = []
         if (ruta.tipo or "ENTREGA") == "RECOJO":
             recojos = recojo_repository.obtener_por_ruta(db, ruta.id)
+            total, gestionadas = len(recojos), sum(1 for r in recojos if r.estado in ESTADOS_GESTIONADOS)
             clientes = [
                 ClienteMapa(
                     latitud=r.latitud,
@@ -122,6 +123,8 @@ def obtener_ubicaciones_flota(db: Session, tipo: str | None = None) -> list[Cond
                 .filter(RutaDetalle.ruta_id == ruta.id)
                 .all()
             )
+            total = len(detalles)
+            gestionadas = sum(1 for detalle, _ in detalles if detalle.estado_entrega != "PENDIENTE")
             paradas = [
                 ParadaMapa(
                     latitud=pedido.latitud,
@@ -139,6 +142,9 @@ def obtener_ubicaciones_flota(db: Session, tipo: str | None = None) -> list[Cond
             existente.paradas.extend(paradas)
             existente.clientes.extend(clientes)
             existente.pausado = existente.pausado or (ruta.id in rutas_pausadas)
+            existente.total_paradas += total
+            existente.gestionadas += gestionadas
+            existente.placa = existente.placa or ruta.vehiculo_placa
         else:
             salida[ruta.conductor_id] = ConductorUbicacion(
                 conductor_id=ruta.conductor_id,
@@ -149,12 +155,16 @@ def obtener_ubicaciones_flota(db: Session, tipo: str | None = None) -> list[Cond
                 actualizado_en=ubicacion.actualizado_en if ubicacion else None,
                 en_linea=en_linea,
                 pausado=ruta.id in rutas_pausadas,
+                placa=ruta.vehiculo_placa,
+                total_paradas=total,
+                gestionadas=gestionadas,
                 paradas=paradas,
                 clientes=clientes,
             )
 
     for cu in salida.values():
         cu.paradas.sort(key=lambda p: p.secuencia if p.secuencia is not None else 0)
+        cu.avance_porcentaje = round(cu.gestionadas / cu.total_paradas * 100, 1) if cu.total_paradas else 0.0
     return list(salida.values())
 
 

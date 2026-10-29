@@ -62,6 +62,10 @@ class ConductorUbicacion(BaseModel):
     actualizado_en: Optional[datetime] = None
     en_linea: bool = False  # True si la ultima senal es reciente (< 2 min)
     pausado: bool = False  # tiene una incidencia (auxilio mecanico) abierta
+    placa: Optional[str] = None             # vehiculo de la ruta (C33-01)
+    total_paradas: int = 0                  # paradas o puntos de recojo de sus rutas activas
+    gestionadas: int = 0                    # ya entregadas/fallidas (o recogidas/no realizadas)
+    avance_porcentaje: float = 0.0
     paradas: List[ParadaMapa] = []
     clientes: List[ClienteMapa] = []
 

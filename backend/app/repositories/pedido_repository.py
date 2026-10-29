@@ -142,15 +142,17 @@ def contar_por_estado(db: Session):
 
 
 def listar_por_cliente(db: Session, cliente: str, desde=None, hasta=None, estados=None) -> List[Pedido]:
-    """Pedidos de un cliente filtrados por rango de fechas y estados. Recibe db, cliente, desde, hasta y estados."""
-    from datetime import datetime, time
+    """Pedidos de un cliente filtrados por rango de fechas y estados. Los dias son de la zona horaria
+    de la operacion (no UTC): un pedido de las 23:00 de Lima cuenta en ese dia. Recibe db, cliente,
+    desde, hasta y estados."""
+    from app.core.fechas import rango_utc_del_dia
     consulta = db.query(Pedido).filter(Pedido.cliente_origen == cliente)
     if estados:
         consulta = consulta.filter(Pedido.estado.in_(tuple(estados)))
     if desde is not None:
-        consulta = consulta.filter(Pedido.fecha_creacion >= datetime.combine(desde, time.min))
+        consulta = consulta.filter(Pedido.fecha_creacion >= rango_utc_del_dia(desde)[0])
     if hasta is not None:
-        consulta = consulta.filter(Pedido.fecha_creacion <= datetime.combine(hasta, time.max))
+        consulta = consulta.filter(Pedido.fecha_creacion <= rango_utc_del_dia(hasta)[1])
     return consulta.order_by(Pedido.codigo.asc()).all()
 
 

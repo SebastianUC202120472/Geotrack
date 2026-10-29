@@ -299,6 +299,33 @@ export async function descargarManifiesto(rutaId, nombre) {
 
 export const obtenerResumen = () => request("/dashboard/resumen");
 
+// KPIs del tablero por periodo: "dia", "semana" o "mes" (C34-01, C34-02).
+export const obtenerKpis = (periodo) => request(`/dashboard/kpis?periodo=${encodeURIComponent(periodo)}`);
+
+// Indicadores del proyecto In.OE.1-4 en el periodo (C34-03).
+export const obtenerIndicadores = (periodo) => request(`/dashboard/indicadores?periodo=${encodeURIComponent(periodo)}`);
+
+// Liquidaciones generadas antes, para volver a descargarlas (C36-02). Sin parametros.
+export const historialLiquidaciones = () => request("/dashboard/liquidaciones");
+
+// Descarga el reporte de indicadores en Excel (autenticado). Recibe el periodo.
+export async function descargarIndicadores(periodo) {
+  const token = getToken();
+  const resp = await fetch(`${API_URL}/dashboard/indicadores/excel?periodo=${encodeURIComponent(periodo)}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!resp.ok) throw new Error("No se pudo descargar el reporte de indicadores");
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = `indicadores_${periodo}.xlsx`;
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  URL.revokeObjectURL(url);
+}
+
 export const obtenerFlota = () => request("/dashboard/flota");
 
 // Historial de un pedido por su codigo. Recibe codigo (string).
