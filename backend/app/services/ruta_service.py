@@ -12,7 +12,7 @@ from app.models.pedido import Pedido
 from app.models.solicitud_recojo import ESTADOS_RECOGIDO
 from app.repositories import ruta_repository, pedido_repository, historial_repository, evidencia_repository, incidencia_repository, recojo_repository, usuario_repository
 from app.services import conductor_service
-from app.services.router import optimizar_secuencia_pedidos, distancia_total
+from app.services.router import optimizar_secuencia_pedidos, registrar_km, km_sin_optimizar
 from app.schemas.ruta import (
     RutaActivaResponse,
     ManifiestoResponse,
@@ -298,11 +298,7 @@ def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
 
     # Estima km si la ruta nunca se optimizó.
     if ruta.km_estimado is None and detalles:
-        pedidos_ordenados = [pedido for _, pedido in detalles]
-        primero = next((p for p in pedidos_ordenados if p.latitud is not None and p.longitud is not None), None)
-        if primero is not None:
-            ruta.km_estimado = round(distancia_total(primero.latitud, primero.longitud, pedidos_ordenados), 2)
-            ruta.km_ahorrado = 0.0
+        km_sin_optimizar(ruta, [pedido for _, pedido in detalles])
 
     hora_inicio = ruta.fecha_salida or ruta.fecha_creacion
     duracion_minutos = None
@@ -434,11 +430,7 @@ def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -
         datos.longitud_actual_conductor,
     )
 
-    origen = (datos.latitud_actual_conductor, datos.longitud_actual_conductor)
-    km_base = distancia_total(origen[0], origen[1], pedidos_validos)
-    km_opt = distancia_total(origen[0], origen[1], ordenados)
-    ruta.km_estimado = round(km_opt, 2)
-    ruta.km_ahorrado = round(max(0.0, km_base - km_opt), 2)
+    registrar_km(ruta, datos.latitud_actual_conductor, datos.longitud_actual_conductor, pedidos_validos, ordenados)
 
     # Las paradas ya cerradas conservan su lugar al inicio; las pendientes se
     # renumeran a continuacion, para que "parada X de Y" siga siendo coherente.

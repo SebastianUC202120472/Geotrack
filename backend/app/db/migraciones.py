@@ -54,6 +54,8 @@ SENTENCIAS = [
     "ALTER TABLE rutas ADD COLUMN IF NOT EXISTS bateria_inicio_en TIMESTAMP",
     "ALTER TABLE rutas ADD COLUMN IF NOT EXISTS bateria_fin DOUBLE PRECISION",
     "ALTER TABLE rutas ADD COLUMN IF NOT EXISTS bateria_fin_en TIMESTAMP",
+    # Linea base del ahorro de rutas: plan empirico del conductor (C20-02).
+    "ALTER TABLE rutas ADD COLUMN IF NOT EXISTS km_linea_base DOUBLE PRECISION",
 ]
 
 

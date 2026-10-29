@@ -16,7 +16,7 @@ from app.repositories import recojo_repository, ruta_repository, incidencia_repo
 from app.services.geocoder import geocodificar
 from app.core.distritos import resolver_distrito
 from app.services import notificaciones_service
-from app.services.router import optimizar_secuencia_pedidos, distancia_total
+from app.services.router import optimizar_secuencia_pedidos, registrar_km, km_sin_optimizar
 from app.services.ruta_service import resumen_optimizacion
 from app.schemas.recojo import (
     SolicitudRecojoCreate,
@@ -464,22 +464,19 @@ def optimizar_recojo(db: Session, datos: OptimizacionRequest, conductor_id: int)
         raise HTTPException(status_code=400, detail="Esta ruta no es de recojo")
 
     recojos = recojo_repository.obtener_por_ruta(db, ruta.id)
-    validos = [r for r in recojos if r.latitud is not None]
+    # Los recojos ya gestionados conservan su lugar: solo se reordena lo que falta visitar.
+    hechos = sum(1 for r in recojos if r.estado in ESTADOS_GESTIONADOS)
+    validos = [r for r in recojos if r.latitud is not None and r.estado not in ESTADOS_GESTIONADOS]
     sin_ubicacion = [r for r in recojos if r.latitud is None and r.estado not in ESTADOS_GESTIONADOS]
     if not validos:
-        raise HTTPException(status_code=400, detail="La ruta no tiene puntos válidos para optimizar")
+        raise HTTPException(status_code=400, detail="La ruta no tiene puntos pendientes con ubicación para optimizar")
 
     ordenados = optimizar_secuencia_pedidos(
         validos, datos.latitud_actual_conductor, datos.longitud_actual_conductor
     )
+    registrar_km(ruta, datos.latitud_actual_conductor, datos.longitud_actual_conductor, validos, ordenados)
 
-    origen = (datos.latitud_actual_conductor, datos.longitud_actual_conductor)
-    km_base = distancia_total(origen[0], origen[1], validos)
-    km_opt = distancia_total(origen[0], origen[1], ordenados)
-    ruta.km_estimado = round(km_opt, 2)
-    ruta.km_ahorrado = round(max(0.0, km_base - km_opt), 2)
-
-    secuencia = 1
+    secuencia = hechos + 1
     for recojo in ordenados:
         recojo.secuencia = secuencia
         if recojo.estado == "ASIGNADO":
@@ -601,10 +598,7 @@ def finalizar_ruta_recojo(db: Session, ruta: Ruta) -> CierreRutaResponse:
     ruta.estado = "FINALIZADA"
     ruta.fecha_fin = datetime.utcnow()
     if ruta.km_estimado is None and recojos:
-        primero = next((r for r in recojos if r.latitud is not None), None)
-        if primero is not None:
-            ruta.km_estimado = round(distancia_total(primero.latitud, primero.longitud, recojos), 2)
-            ruta.km_ahorrado = 0.0
+        km_sin_optimizar(ruta, recojos)
     total = len(recojos)
     liberados = _liberar_no_realizados(db, recojos)
 
