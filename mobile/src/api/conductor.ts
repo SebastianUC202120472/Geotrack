@@ -133,9 +133,10 @@ export async function finalizarRuta(): Promise<CierreRuta> {
   return data;
 }
 
-// Envía la posición actual al backend (mapa de flota). Recibe latitud y longitud.
-export async function enviarUbicacion(latitud: number, longitud: number): Promise<void> {
-  await api.post("/conductor/ubicacion", { latitud, longitud });
+// Envía la posición actual al backend (mapa de flota) con el nivel de batería, que sirve para
+// medir el consumo de la jornada (EX-15). Recibe latitud, longitud y batería (0 a 1) opcional.
+export async function enviarUbicacion(latitud: number, longitud: number, bateria?: number | null): Promise<void> {
+  await api.post("/conductor/ubicacion", { latitud, longitud, bateria: bateria ?? null });
 }
 
 // Reporta una avería mecánica y pausa la ruta. Recibe descripcion, coords y flag puedeSolucionarSolo.

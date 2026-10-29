@@ -7,6 +7,7 @@ import { Alert } from "react-native";
 import * as Location from "expo-location";
 import { TAREA_UBICACION } from "@/tasks/ubicacionBackground";
 import { enviarUbicacion } from "@/api/conductor";
+import { nivelBateria } from "@/services/bateria";
 
 // Cada cuánto se toma y envía la posición. Alta precisión: el mapa de flota la necesita a nivel de calle.
 const INTERVALO_MS = 15000;
@@ -79,7 +80,11 @@ export function useRastreoUbicacion(activa: boolean): void {
         // Respaldo: un solo seguimiento en primer plano.
         suscripcion = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.High, timeInterval: INTERVALO_MS, distanceInterval: 0 },
-          (pos) => { enviarUbicacion(pos.coords.latitude, pos.coords.longitude).catch(() => {}); }
+          (pos) => {
+            nivelBateria()
+              .then((b) => enviarUbicacion(pos.coords.latitude, pos.coords.longitude, b))
+              .catch(() => {});
+          }
         );
         if (cancelado) suscripcion.remove();
       } catch {

@@ -15,7 +15,7 @@ import { Aparecer, CheckEntrega } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
 import { Field } from "@/components/Field";
 import { useFotoConGps, type FotoConGps } from "@/hooks/useFotoConGps";
-import { abrirNavegacion } from "@/services/navegacion";
+import { abrirNavegacion, abrirEnWaze } from "@/services/navegacion";
 import { useRutaActiva, useManifiesto } from "@/features/ruta/hooks";
 import { useEntregarConEvidencia, useReportarFalla } from "@/features/entrega/hooks";
 import { usePendientesPorPedido } from "@/features/sync/hooks";
@@ -165,15 +165,26 @@ export default function ParadaScreen() {
             ) : null}
 
             {parada.latitud != null && parada.longitud != null && (
-              <Pressable
-                onPress={() => abrirNavegacion(parada.latitud as number, parada.longitud as number, parada.direccion_destino)}
-                accessibilityRole="button"
-                accessibilityLabel="Navegar a la dirección"
-                style={[estilos.navegar, { backgroundColor: colors.brand }]}
-              >
-                <Ionicons name="navigate" size={18} color={colors.white} />
-                <Texto variante="body" color={colors.white} style={estilos.navegarTexto}>Navegar con Google Maps</Texto>
-              </Pressable>
+              <View style={estilos.filaNavegar}>
+                <Pressable
+                  onPress={() => abrirNavegacion(parada.latitud as number, parada.longitud as number, parada.direccion_destino)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Navegar con Google Maps"
+                  style={[estilos.navegar, { backgroundColor: colors.brand, flex: 1 }]}
+                >
+                  <Ionicons name="navigate" size={18} color={colors.white} />
+                  <Texto variante="body" color={colors.white} style={estilos.navegarTexto}>Google Maps</Texto>
+                </Pressable>
+                <Pressable
+                  onPress={() => abrirEnWaze(parada.latitud as number, parada.longitud as number)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Navegar con Waze"
+                  style={[estilos.navegar, { backgroundColor: colors.brandSoft, flex: 1 }]}
+                >
+                  <Ionicons name="car" size={18} color={colors.brand} />
+                  <Texto variante="body" color={colors.brand} style={estilos.navegarTexto}>Waze</Texto>
+                </Pressable>
+              </View>
             )}
           </Card>
 
@@ -364,6 +375,7 @@ const estilos = StyleSheet.create({
   llamarTexto: {},
   navegar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, marginTop: spacing.md, paddingVertical: spacing.md, borderRadius: radius.md },
   navegarTexto: {},
+  filaNavegar: { flexDirection: "row", gap: spacing.sm },
   dato: { marginTop: spacing.md },
   datoEtiqueta: {},
   datoValor: {},

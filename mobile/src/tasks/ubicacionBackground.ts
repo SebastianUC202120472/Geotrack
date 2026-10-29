@@ -2,6 +2,7 @@
 import * as TaskManager from "expo-task-manager";
 import * as Location from "expo-location";
 import { enviarUbicacion } from "@/api/conductor";
+import { nivelBateria } from "@/services/bateria";
 
 export const TAREA_UBICACION = "geotrack-ubicacion";
 
@@ -14,9 +15,10 @@ TaskManager.defineTask(TAREA_UBICACION, async ({ data, error }) => {
   if (error) return;
   const { locations } = (data ?? {}) as DatosUbicacion;
   if (!locations?.length) return;
+  const bateria = await nivelBateria();
   for (const loc of locations) {
     try {
-      await enviarUbicacion(loc.coords.latitude, loc.coords.longitude);
+      await enviarUbicacion(loc.coords.latitude, loc.coords.longitude, bateria);
     } catch {
       // Ignora errores de red para no detener el rastreo.
     }

@@ -13,6 +13,13 @@ export function abrirNavegacion(latitud: number, longitud: number, _etiqueta?: s
   abrir(`https://www.google.com/maps/dir/?api=1&destination=${latitud},${longitud}&travelmode=driving`);
 }
 
+// Abre una parada en Waze por deep link (Waze no admite varias paradas). Recibe lat y lng.
+export function abrirEnWaze(latitud: number, longitud: number): void {
+  Linking.openURL(`https://waze.com/ul?ll=${latitud},${longitud}&navigate=yes`).catch(() => {
+    Alert.alert("No se pudo abrir", "No se pudo abrir Waze en este dispositivo.");
+  });
+}
+
 // Abre la ruta completa en Google Maps con waypoints. Recibe lista de paradas ordenada.
 export function abrirNavegacionRuta(puntos: PuntoNavegacion[]): void {
   const validos = puntos.filter((p): p is { lat: number; lng: number } => p.lat != null && p.lng != null);

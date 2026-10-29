@@ -6,7 +6,7 @@
 #   - backend:   instala deps, verifica que la app importa y corre pytest.
 #   - seguridad: análisis estático (bandit) + vulnerabilidades de deps (pip-audit).
 #   - frontend:  instala deps (npm ci), corre lint y compila el build de Vite.
-#   - movil:     instala deps (npm ci) y verifica el typecheck de TypeScript (tsc --noEmit).
+#   - movil:     instala deps (npm ci), verifica el typecheck (tsc --noEmit) y corre las pruebas Jest.
 #
 # IMPORTANTE (monorepo): el backend vive en ./backend y el frontend en ./frontend,
 # por eso cada job usa `working-directory` y los caches apuntan a su subcarpeta.
@@ -31,10 +31,10 @@ jobs:
         working-directory: backend
     steps:
       - name: Clonar el repositorio
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Configurar Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
@@ -63,10 +63,10 @@ jobs:
         working-directory: backend
     steps:
       - name: Clonar el repositorio
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Configurar Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: pip
@@ -96,12 +96,12 @@ jobs:
         working-directory: frontend
     steps:
       - name: Clonar el repositorio
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Configurar Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -131,12 +131,12 @@ jobs:
         working-directory: mobile
     steps:
       - name: Clonar el repositorio
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Configurar Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version: "24"
           cache: npm
           cache-dependency-path: mobile/package-lock.json
 
@@ -145,3 +145,6 @@ jobs:
 
       - name: Typecheck (tsc --noEmit)
         run: npm run typecheck
+
+      - name: Pruebas de la app (Jest)
+        run: npm test -- --ci

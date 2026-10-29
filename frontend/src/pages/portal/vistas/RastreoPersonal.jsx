@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ESTADOS, OPCIONES } from "../datos/portalUi.js";
 import { buscarPedido, verificarPedido, reprogramar, urlPod, detallePedido, obtenerFranjas } from "../servicios/portal.js";
 import { AyudaPedidos } from "./AyudaDemo";
+import { useIdioma, traducirFranja, traducirDinamico } from "../i18n";
 
 // Verificación guardada en la pestaña (sessionStorage): sobrevive a recargar la página y
 // se borra al cerrar la pestaña, al cerrar el pedido o al vencer el token (C42-01).
@@ -48,6 +49,7 @@ function textoEspera(seg) {
 // RastreoPersonal: vista de rastreo para el destinatario final.
 // Input: prop `avisar(texto, ms)` para mostrar el toast del portal.
 export default function RastreoPersonal({ avisar, demo }) {
+  const { t } = useIdioma();
   // Estado de la vista (port del bloque de estado personal del mockup).
   const [codigo, setCodigo] = useState(""); // texto del input de código
   const [buscando, setBuscando] = useState(false); // spinner "Buscando…"
@@ -186,7 +188,7 @@ export default function RastreoPersonal({ avisar, demo }) {
         setVerificado(true);
         setVerError(false);
         setIntentos(0);
-        avisar("Identidad verificada — datos desbloqueados", 3500);
+        avisar(t("Identidad verificada — datos desbloqueados"), 3500);
       })
       .catch((err) => {
         if (err.status === 429) {
@@ -195,7 +197,7 @@ export default function RastreoPersonal({ avisar, demo }) {
           setVerError(false);
           setVerInput("");
           setBloqueoHasta(Date.now() + seg * 1000);
-          avisar("Demasiados intentos — acceso pausado " + textoEspera(seg), 4500);
+          avisar(t("Demasiados intentos — acceso pausado") + " " + textoEspera(seg), 4500);
         } else {
           const restantes = err.data?.detail?.intentosRestantes;
           setIntentos(typeof restantes === "number" ? restantes : 0);
@@ -227,11 +229,11 @@ export default function RastreoPersonal({ avisar, demo }) {
       .then((r) => {
         setReprogOk(true);
         setDetalle((d) => (d ? { ...d, reprogramacion: r.reprogramacion } : d));
-        avisar("Solicitud recibida — le confirmaremos la nueva visita");
+        avisar(t("Solicitud recibida — le confirmaremos la nueva visita"));
       })
       .catch((e) => {
         const detalle = e?.data?.detail;
-        avisar(typeof detalle === "string" ? detalle : "No se pudo registrar la solicitud — intente de nuevo", 4000);
+        avisar(typeof detalle === "string" ? detalle : t("No se pudo registrar la solicitud — intente de nuevo"), 4000);
       });
   };
 
@@ -264,8 +266,8 @@ export default function RastreoPersonal({ avisar, demo }) {
           <input
             value={codigo}
             onChange={onCodigo}
-            aria-label="Código de seguimiento"
-            placeholder="Código de seguimiento · ej. PD-001 o SGF-DEMO-01"
+            aria-label={t("Código de seguimiento")}
+            placeholder={t("Código de seguimiento · ej. PD-001 o SGF-DEMO-01")}
             className="ptl-input-buscar"
             style={{ flex: 1, minWidth: 200, boxSizing: "border-box", fontFamily: "Inter, sans-serif", fontSize: 15, padding: "14px 16px", border: "1.5px solid rgba(15,43,74,.16)", borderRadius: 12, background: "#f8fafc", color: "#0f2b4a", outline: "none" }}
           />
@@ -274,7 +276,7 @@ export default function RastreoPersonal({ avisar, demo }) {
             className="ptl-btn-rastrear"
             style={{ border: 0, cursor: "pointer", background: "#2679d8", color: "#fff", fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 15, padding: "14px 28px", borderRadius: 12, transition: "background .2s ease" }}
           >
-            {buscando ? "Buscando…" : "Rastrear"}
+            {buscando ? t("Buscando…") : t("Rastrear")}
           </button>
         </form>
       </section>
@@ -283,7 +285,7 @@ export default function RastreoPersonal({ avisar, demo }) {
       {buscando && (
         <div style={{ maxWidth: 920, margin: "0 auto", padding: "34px 24px", display: "flex", gap: 14, alignItems: "center", justifyContent: "center", color: "#4f6580", fontSize: 14.5, animation: "aparecer .3s ease both" }}>
           <span aria-hidden="true" style={{ width: 22, height: 22, borderRadius: 99, border: "3px solid #d7e4f1", borderTopColor: "#2679d8", animation: "girar .8s linear infinite", flex: "none" }} />
-          Buscando su paquete en GeoTrack…
+          {t("Buscando su paquete en GeoTrack…")}
         </div>
       )}
 
@@ -291,9 +293,9 @@ export default function RastreoPersonal({ avisar, demo }) {
       {!!errorCod && (
         <section data-psec="1" style={{ maxWidth: 920, margin: "0 auto", padding: "10px 24px 20px", width: "100%", boxSizing: "border-box" }}>
           <div data-ppanel="1" style={{ background: "#fff", border: "1.5px solid rgba(217,122,31,.35)", borderRadius: 18, padding: "22px 24px", animation: "aparecer .4s ease both" }}>
-            <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#0f2b4a" }}>No encontramos el código «{errorCod}»</p>
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#0f2b4a" }}>{t("No encontramos el código")} «{errorCod}»</p>
             <p style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.6, color: "#4f6580" }}>
-              Revise que esté igual que en el correo o SMS de su tienda (con guion, ej. SGF-DEMO-01 o PD-001). Si acaba de recibir la confirmación, el código puede tardar unos minutos en activarse.
+              {t("Revise que esté igual que en el correo o SMS de su tienda (con guion, ej. SGF-DEMO-01 o PD-001). Si acaba de recibir la confirmación, el código puede tardar unos minutos en activarse.")}
             </p>
           </div>
         </section>
@@ -303,12 +305,9 @@ export default function RastreoPersonal({ avisar, demo }) {
       {sinBusqueda && (
         <section data-psec="1" style={{ maxWidth: 920, margin: "0 auto", padding: "10px 24px 20px", width: "100%", boxSizing: "border-box" }}>
           <div style={{ border: "1.5px dashed rgba(38,121,216,.35)", borderRadius: 18, padding: "28px 24px", textAlign: "center", animation: "aparecer .5s ease .1s both" }}>
-            <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#0f2b4a" }}>Su código está en el correo o SMS de su tienda</p>
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#0f2b4a" }}>{t("Su código está en el correo o SMS de su tienda")}</p>
             <p style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.6, color: "#4f6580", maxWidth: 540, display: "inline-block" }}>
-              Cuando Saga Falabella u otra tienda confirma su envío con SAVA, le llega el número de su
-              tienda (como <span style={{ fontWeight: 700, color: "#1b5fb3" }}>SGF-DEMO-01</span>). También
-              sirve el código de SAVA, del tipo{" "}
-              <span style={{ fontWeight: 700, color: "#1b5fb3" }}>PD-001</span>. Por su seguridad, además del código le pediremos verificar su identidad.
+              {t("Cuando su tienda confirma su envío con SAVA, le llega un código. Sirve el de la tienda (como SGF-DEMO-01) o el de SAVA (como PD-001). Por su seguridad, además del código le pediremos verificar su identidad.")}
             </p>
           </div>
           {demo && <AyudaPedidos pedidos={demo.pedidos} onElegir={setCodigo} />}
@@ -320,16 +319,14 @@ export default function RastreoPersonal({ avisar, demo }) {
         <section data-psec="1" style={{ maxWidth: 920, margin: "0 auto", padding: "10px 24px 20px", width: "100%", boxSizing: "border-box" }}>
           <div data-ppanel="1" style={{ background: "#fff", border: "1.5px solid rgba(217,122,31,.35)", borderRadius: 18, padding: "22px 24px", animation: "aparecer .4s ease both" }}>
             <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#0f2b4a" }}>
-              Encontramos el pedido «{encontrado}», pero no podemos verificar su identidad en línea
+              {t("Encontramos el pedido")} «{encontrado}», {t("pero no podemos verificar su identidad en línea")}
             </p>
             <p style={{ margin: "8px 0 0", fontSize: 13.5, lineHeight: 1.6, color: "#4f6580" }}>
-              Su tienda no registró un documento para este envío, así que por seguridad no podemos
-              mostrar el detalle aquí. Escríbanos a{" "}
-              <a href="mailto:contacto@sava.pe" style={{ color: "#1b5fb3", fontWeight: 600 }}>contacto@sava.pe</a>{" "}
-              con su código y le damos el estado.
+              {t("Su tienda no registró un documento para este envío, así que por seguridad no podemos mostrar el detalle aquí. Escríbanos con su código y le damos el estado:")}{" "}
+              <a href="mailto:contacto@sava.pe" style={{ color: "#1b5fb3", fontWeight: 600 }}>contacto@sava.pe</a>
             </p>
             <p style={{ margin: "14px 0 0", fontSize: 13.5, color: "#4f6580" }}>
-              Estado actual: <strong style={{ color: em.trazo }}>{em.tx}</strong> · destino {enc.destinoMask}
+              {t("Estado actual:")} <strong style={{ color: em.trazo }}>{t(em.tx)}</strong> · {t("destino")} {enc.destinoMask}
             </p>
           </div>
         </section>
@@ -359,7 +356,7 @@ export default function RastreoPersonal({ avisar, demo }) {
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", margin: "0 0 12px", animation: "aparecer .4s ease both" }}>
             <span style={{ display: "inline-flex", gap: 9, alignItems: "center", background: "#e3f2e8", color: "#1e7a43", fontSize: 12.5, fontWeight: 700, padding: "8px 15px", borderRadius: 99 }}>
               <span style={{ flex: "none", width: 16, height: 16, borderRadius: 99, background: "#22a35e", color: "#fff", display: "grid", placeItems: "center", fontSize: 10 }}>✓</span>
-              <span>Identidad verificada</span>
+              <span>{t("Identidad verificada")}</span>
             </span>
             <button
               type="button"
@@ -367,7 +364,7 @@ export default function RastreoPersonal({ avisar, demo }) {
               className="ptl-btn-cerrar"
               style={{ border: "1.5px solid rgba(15,43,74,.16)", background: "#fff", color: "#3d5570", fontFamily: "Inter, sans-serif", fontSize: 12.5, fontWeight: 600, padding: "8px 15px", borderRadius: 99, cursor: "pointer", transition: "border-color .2s ease, color .2s ease" }}
             >
-              Cerrar y proteger datos
+              {t("Cerrar y proteger datos")}
             </button>
           </div>
 
@@ -409,10 +406,11 @@ export default function RastreoPersonal({ avisar, demo }) {
 // de error/bloqueo/intentos y el reloj `now`.
 // ----------------------------------------------------------------------------
 function Verificacion({ enc, em, encCod, verInput, onVerInput, onVerificar, verError, verBloq, intentos, bloqueoHasta, now }) {
+  const { t } = useIdioma();
   const bloqueoTxt =
-    "Demasiados intentos fallidos. Por su seguridad, espere " +
-    textoEspera((bloqueoHasta - now) / 1000) +
-    " para volver a intentar. Cada nuevo bloqueo dura más.";
+    t("Demasiados intentos fallidos. Por su seguridad, espere") + " " +
+    textoEspera((bloqueoHasta - now) / 1000) + " " +
+    t("para volver a intentar. Cada nuevo bloqueo dura más.");
   const intentosTxt = String(Math.max(0, intentos));
 
   return (
@@ -427,17 +425,17 @@ function Verificacion({ enc, em, encCod, verInput, onVerInput, onVerificar, verE
           </span>
           <div style={{ flex: 1, minWidth: 220 }}>
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <p style={{ margin: 0, fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 19 }}>Pedido {encCod} encontrado</p>
-              <span style={{ background: em.bg, color: em.fg, fontSize: 11, fontWeight: 700, letterSpacing: ".05em", padding: "6px 12px", borderRadius: 99, animation: "latido 2.6s ease-in-out infinite" }}>{em.tx}</span>
+              <p style={{ margin: 0, fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 19 }}>{t("PEDIDO") === "ORDER" ? `Order ${encCod} found` : `Pedido ${encCod} encontrado`}</p>
+              <span style={{ background: em.bg, color: em.fg, fontSize: 11, fontWeight: 700, letterSpacing: ".05em", padding: "6px 12px", borderRadius: 99, animation: "latido 2.6s ease-in-out infinite" }}>{t(em.tx)}</span>
             </div>
-            <p style={{ margin: "6px 0 0", fontSize: 13.5, color: "#4f6580" }}>de {enc.retail} · {enc.destinoMask}</p>
+            <p style={{ margin: "6px 0 0", fontSize: 13.5, color: "#4f6580" }}>{t("de")} {enc.retail} · {enc.destinoMask}</p>
           </div>
         </div>
 
         <div style={{ margin: "18px 0 0", background: "#f2f7fc", borderRadius: 14, padding: "18px 20px" }}>
-          <p style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: "#0f2b4a" }}>Verifique que el pedido es suyo para ver el detalle</p>
+          <p style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: "#0f2b4a" }}>{t("Verifique que el pedido es suyo para ver el detalle")}</p>
           <p style={{ margin: "6px 0 0", fontSize: 13, lineHeight: 1.6, color: "#4f6580" }}>
-            Por su seguridad, la dirección y los datos completos solo se muestran al destinatario. Ingrese los <strong>últimos 4 dígitos del DNI</strong> del destinatario registrado en el pedido.
+            {t("Por su seguridad, la dirección y los datos completos solo se muestran al destinatario. Ingrese los últimos 4 dígitos del DNI del destinatario registrado en el pedido.")}
           </p>
 
           {verBloq && (
@@ -454,8 +452,8 @@ function Verificacion({ enc, em, encCod, verInput, onVerInput, onVerificar, verE
                   onChange={onVerInput}
                   inputMode="numeric"
                   maxLength={4}
-                  aria-label="Últimos 4 dígitos del DNI"
-                  placeholder="Últimos 4 dígitos del DNI"
+                  aria-label={t("Últimos 4 dígitos del DNI")}
+                  placeholder={t("Últimos 4 dígitos del DNI")}
                   className="ptl-input-ver"
                   style={{ flex: 1, minWidth: 200, boxSizing: "border-box", fontFamily: "Inter, sans-serif", fontSize: 14.5, letterSpacing: ".06em", padding: "13px 15px", border: "1.5px solid rgba(15,43,74,.16)", borderRadius: 12, background: "#fff", color: "#0f2b4a", outline: "none" }}
                 />
@@ -464,12 +462,12 @@ function Verificacion({ enc, em, encCod, verInput, onVerInput, onVerificar, verE
                   className="ptl-btn-verificar"
                   style={{ border: 0, cursor: "pointer", background: "#0f2b4a", color: "#fff", fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 14, padding: "13px 24px", borderRadius: 12, transition: "background .2s ease" }}
                 >
-                  Verificar
+                  {t("Verificar")}
                 </button>
               </form>
               {verError && (
                 <p style={{ margin: "10px 0 0", fontSize: 13, fontWeight: 600, color: "#c8362b", animation: "sacudir .4s ease both" }}>
-                  Dato incorrecto · le quedan {intentosTxt} intentos antes del bloqueo temporal
+                  {t("Dato incorrecto · intentos restantes antes del bloqueo temporal:")} {intentosTxt}
                 </p>
               )}
               <div style={{ margin: "12px 0 0", display: "flex", gap: "8px 18px", flexWrap: "wrap", alignItems: "center" }}>
@@ -479,9 +477,9 @@ function Verificacion({ enc, em, encCod, verInput, onVerInput, onVerificar, verE
                   className="ptl-link-sms"
                   style={{ border: 0, background: "none", cursor: "not-allowed", padding: 0, fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 600, color: "#8ba0b6", textDecoration: "underline" }}
                 >
-                  Código por SMS (disponible próximamente)
+                  {t("Código por SMS (disponible próximamente)")}
                 </button>
-                <span style={{ fontSize: 11.5, color: "#8ba0b6" }}>Ingrese el DNI del destinatario que figura en el pedido</span>
+                <span style={{ fontSize: 11.5, color: "#8ba0b6" }}>{t("Ingrese el DNI del destinatario que figura en el pedido")}</span>
               </div>
             </>
           )}
@@ -497,9 +495,10 @@ function Verificacion({ enc, em, encCod, verInput, onVerInput, onVerificar, verE
 // Input: pedido `ped`, su código `encCod` y la meta de estado `em`.
 // ----------------------------------------------------------------------------
 function PanelEstado({ ped, encCod, em }) {
+  const { t } = useIdioma();
   // Pasos del progreso: en ENTREGADO el paso actual es el 3 (Entregado), en el resto el 2.
   const idx = ped.estado === "ENTREGADO" ? 3 : 2;
-  const nombres = ["Recibido", "Verificado", ped.estado === "REPROGRAMADO" ? "Reprogramado" : "En ruta", "Entregado"];
+  const nombres = ["Recibido", "Verificado", ped.estado === "REPROGRAMADO" ? "Reprogramado" : "En ruta", "Entregado"].map(t);
   const pasos = nombres.map((n, i) => {
     const ep = i < idx ? "done" : i === idx ? "actual" : "pend";
     return {
@@ -515,17 +514,17 @@ function PanelEstado({ ped, encCod, em }) {
     <div data-ppanel="1" style={{ background: "#fff", border: "1px solid rgba(15,43,74,.08)", borderRadius: 22, padding: 26, boxShadow: "0 14px 36px rgba(15,43,74,.07)", animation: "aparecer .45s ease both" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
         <div>
-          <p style={{ margin: 0, fontSize: 11.5, fontWeight: 700, letterSpacing: ".12em", color: "#7288a0" }}>PEDIDO</p>
+          <p style={{ margin: 0, fontSize: 11.5, fontWeight: 700, letterSpacing: ".12em", color: "#7288a0" }}>{t("PEDIDO")}</p>
           <h2 style={{ margin: "2px 0 0", fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 28, letterSpacing: ".01em" }}>{encCod}</h2>
-          <p style={{ margin: "6px 0 0", fontSize: 13.5, color: "#4f6580" }}>de {ped.retail} · {ped.destino}</p>
+          <p style={{ margin: "6px 0 0", fontSize: 13.5, color: "#4f6580" }}>{t("de")} {ped.retail} · {ped.destino}</p>
         </div>
-        <span style={{ background: em.bg, color: em.fg, fontSize: 12, fontWeight: 700, letterSpacing: ".06em", padding: "8px 15px", borderRadius: 99, animation: "latido 2.6s ease-in-out infinite" }}>{em.tx}</span>
+        <span style={{ background: em.bg, color: em.fg, fontSize: 12, fontWeight: 700, letterSpacing: ".06em", padding: "8px 15px", borderRadius: 99, animation: "latido 2.6s ease-in-out infinite" }}>{t(em.tx)}</span>
       </div>
 
       <div style={{ margin: "18px 0 0", background: "#f2f7fc", border: "1px solid rgba(38,121,216,.16)", borderRadius: 14, padding: "14px 18px", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{ width: 9, height: 9, borderRadius: 99, background: em.trazo, flex: "none", animation: "latido 2s ease-in-out infinite" }} />
         <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#0f2b4a" }}>
-          {ped.etaT} <span style={{ fontWeight: 500, color: "#4f6580" }}>{ped.eta}</span>
+          {t(ped.etaT)} <span style={{ fontWeight: 500, color: "#4f6580" }}>{ped.eta}</span>
         </p>
       </div>
 
@@ -553,6 +552,7 @@ function PanelEstado({ ped, encCod, em }) {
 // la meta de estado `em` (para el color del trazo).
 // ----------------------------------------------------------------------------
 function MapaRecorrido({ ped, em }) {
+  const { t } = useIdioma();
   const rutaD = "M 34 206 L 148 206 L 148 128 L 262 128 L 262 62 L 340 62 L 340 158 L 424 158";
   const pedDash = parseInt(ped.pct, 10) + " 100"; // trazo del avance (pathLength=100)
   const esEnRuta = ped.estado === "EN_RUTA";
@@ -560,12 +560,12 @@ function MapaRecorrido({ ped, em }) {
   return (
     <div data-ppanel="1" style={{ background: "#fff", border: "1px solid rgba(15,43,74,.08)", borderRadius: 20, padding: 20, animation: "aparecer .5s ease .1s both" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, margin: "0 0 12px" }}>
-        <span style={{ fontFamily: "Archivo, sans-serif", fontWeight: 700, fontSize: 14.5 }}>Recorrido de hoy</span>
+        <span style={{ fontFamily: "Archivo, sans-serif", fontWeight: 700, fontSize: 14.5 }}>{t("Recorrido de hoy")}</span>
         {esEnRuta && (
-          <span style={{ background: "#e3f2e8", color: "#1e7a43", fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em", padding: "4px 10px", borderRadius: 99, animation: "latido 1.9s ease-in-out infinite" }}>EN VIVO</span>
+          <span style={{ background: "#e3f2e8", color: "#1e7a43", fontSize: 10.5, fontWeight: 700, letterSpacing: ".06em", padding: "4px 10px", borderRadius: 99, animation: "latido 1.9s ease-in-out infinite" }}>{t("EN VIVO")}</span>
         )}
       </div>
-      <svg viewBox="0 0 460 250" style={{ width: "100%", height: "auto", display: "block" }} aria-label="Mapa del recorrido del pedido">
+      <svg viewBox="0 0 460 250" style={{ width: "100%", height: "auto", display: "block" }} aria-label={t("Mapa del recorrido del pedido")}>
         <rect x="0" y="0" width="460" height="250" rx="14" fill="#eef4fa" />
         <g fill="#e0eaf4">
           <rect x="14" y="16" width="120" height="96" rx="8" />
@@ -589,13 +589,13 @@ function MapaRecorrido({ ped, em }) {
           <rect x="-12" y="-8" width="24" height="16" rx="4" fill="#0f2b4a" />
           <rect x="4" y="-6" width="6" height="12" rx="2" fill="#5db1f0" />
         </g>
-        <text x="30" y="194" style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 700, fill: "#0f2b4a", paintOrder: "stroke", stroke: "#eef4fa", strokeWidth: "4px" }}>Centro SAVA</text>
-        <text x="430" y="186" textAnchor="end" style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 700, fill: "#0f2b4a", paintOrder: "stroke", stroke: "#eef4fa", strokeWidth: "4px" }}>Su dirección</text>
+        <text x="30" y="194" style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 700, fill: "#0f2b4a", paintOrder: "stroke", stroke: "#eef4fa", strokeWidth: "4px" }}>{t("Centro SAVA")}</text>
+        <text x="430" y="186" textAnchor="end" style={{ fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 700, fill: "#0f2b4a", paintOrder: "stroke", stroke: "#eef4fa", strokeWidth: "4px" }}>{t("Su dirección")}</text>
         <text x="30" y="236" style={{ fontFamily: "Inter, sans-serif", fontSize: 10.5, fontWeight: 600, fill: "#8ba0b6" }}>Independencia</text>
         <text x="252" y="44" style={{ fontFamily: "Inter, sans-serif", fontSize: 10.5, fontWeight: 600, fill: "#8ba0b6" }}>San Isidro</text>
         <text x="446" y="236" textAnchor="end" style={{ fontFamily: "Inter, sans-serif", fontSize: 10.5, fontWeight: 600, fill: "#8ba0b6" }}>Miraflores</text>
       </svg>
-      <p style={{ margin: "12px 0 0", fontSize: 12.5, lineHeight: 1.55, color: "#4f6580" }}>{ped.nota}</p>
+      <p style={{ margin: "12px 0 0", fontSize: 12.5, lineHeight: 1.55, color: "#4f6580" }}>{t(ped.nota)}</p>
     </div>
   );
 }
@@ -606,6 +606,7 @@ function MapaRecorrido({ ped, em }) {
 // (transparente en el último). Input: pedido `ped` (usa ped.eventos).
 // ----------------------------------------------------------------------------
 function TimelinePedido({ ped }) {
+  const { t } = useIdioma();
   const eventos = ped.eventos.map((ev, i) => ({
     t: ev.t,
     d: ev.d,
@@ -618,7 +619,7 @@ function TimelinePedido({ ped }) {
 
   return (
     <div data-ppanel="1" style={{ background: "#fff", border: "1px solid rgba(15,43,74,.08)", borderRadius: 20, padding: "20px 20px 6px", animation: "aparecer .5s ease .18s both" }}>
-      <p style={{ margin: "0 0 16px", fontFamily: "Archivo, sans-serif", fontWeight: 700, fontSize: 14.5 }}>Línea de tiempo</p>
+      <p style={{ margin: "0 0 16px", fontFamily: "Archivo, sans-serif", fontWeight: 700, fontSize: 14.5 }}>{t("Línea de tiempo")}</p>
       {eventos.map((ev, i) => (
         <div key={i} style={{ display: "flex", gap: 14, animation: "aparecer .5s ease both", animationDelay: ev.delay }}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -626,8 +627,8 @@ function TimelinePedido({ ped }) {
             <span style={{ width: 2, flex: 1, background: ev.linea, minHeight: 12 }} />
           </div>
           <div style={{ padding: "0 0 16px" }}>
-            <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#0f2b4a" }}>{ev.t}</p>
-            <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#7288a0" }}>{ev.d}</p>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "#0f2b4a" }}>{t(ev.t)}</p>
+            <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#7288a0" }}>{t(ev.d)}</p>
             <p style={{ margin: "3px 0 0", fontSize: 11.5, fontWeight: 600, color: "#8ba0b6" }}>{ev.h}</p>
           </div>
         </div>
@@ -641,17 +642,18 @@ function TimelinePedido({ ped }) {
 // con badge EN VIVO. Solo se muestra cuando el pedido está EN_RUTA. Input: `ped`.
 // ----------------------------------------------------------------------------
 function Repartidor({ ped }) {
+  const { t } = useIdioma();
   const ini = ped.conductor.split(" ").map((w) => w.charAt(0)).join("");
   return (
     <div data-ppanel="1" style={{ margin: "16px 0 0", background: "#fff", border: "1px solid rgba(15,43,74,.08)", borderRadius: 20, padding: "20px 22px", display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap", animation: "aparecer .5s ease .26s both" }}>
       <span style={{ flex: "none", width: 52, height: 52, borderRadius: 99, background: "#eaf3fc", display: "grid", placeItems: "center", fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 17, color: "#1b5fb3" }}>{ini}</span>
       <div style={{ flex: 1, minWidth: 200 }}>
         <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#0f2b4a" }}>
-          {ped.conductor} <span style={{ fontWeight: 500, color: "#7288a0", fontSize: 13 }}>· su repartidor</span>
+          {ped.conductor} <span style={{ fontWeight: 500, color: "#7288a0", fontSize: 13 }}>{t("· su repartidor")}</span>
         </p>
-        <p style={{ margin: "3px 0 0", fontSize: 13, color: "#4f6580" }}>Camioneta placa {ped.placa} · {ped.parada}</p>
+        <p style={{ margin: "3px 0 0", fontSize: 13, color: "#4f6580" }}>{t("Camioneta placa")} {ped.placa} · {traducirDinamico(ped.parada, t)}</p>
       </div>
-      <span style={{ background: "#e3f2e8", color: "#1e7a43", fontSize: 11, fontWeight: 700, letterSpacing: ".06em", padding: "5px 12px", borderRadius: 99, animation: "latido 2s ease-in-out infinite" }}>EN VIVO</span>
+      <span style={{ background: "#e3f2e8", color: "#1e7a43", fontSize: 11, fontWeight: 700, letterSpacing: ".06em", padding: "5px 12px", borderRadius: 99, animation: "latido 2s ease-in-out infinite" }}>{t("EN VIVO")}</span>
     </div>
   );
 }
@@ -663,6 +665,7 @@ function Repartidor({ ped }) {
 // así que la foto se trae por fetch a blob y se muestra como objectURL).
 // ----------------------------------------------------------------------------
 function Evidencia({ ped, codigo, token }) {
+  const { t } = useIdioma();
   const [src, setSrc] = useState(""); // URL de blob del POD ("" = aún sin cargar o sin evidencia)
 
   // Carga el POD autenticado por Bearer y libera el objectURL al desmontar o si
@@ -682,19 +685,19 @@ function Evidencia({ ped, codigo, token }) {
   return (
     <div data-ppanel="1" style={{ margin: "16px 0 0", background: "#fff", border: "1px solid rgba(34,163,94,.3)", borderRadius: 20, padding: 22, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 20, alignItems: "center", animation: "aparecer .5s ease .26s both" }}>
       <div>
-        <p style={{ margin: 0, fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 18, color: "#1e7a43" }}>✓ Entrega confirmada</p>
-        <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.6, color: "#4f6580" }}>{ped.recibido}</p>
-        <p style={{ margin: "6px 0 0", fontSize: 12.5, color: "#8ba0b6" }}>El conductor registró la evidencia en GeoTrack al momento de entregar. Solo el destinatario verificado puede verla.</p>
+        <p style={{ margin: 0, fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 18, color: "#1e7a43" }}>{t("✓ Entrega confirmada")}</p>
+        <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.6, color: "#4f6580" }}>{t(traducirDinamico(ped.recibido, t))}</p>
+        <p style={{ margin: "6px 0 0", fontSize: 12.5, color: "#8ba0b6" }}>{t("El conductor registró la evidencia en GeoTrack al momento de entregar. Solo el destinatario verificado puede verla.")}</p>
       </div>
       {src ? (
         <img
           src={src}
-          alt="Foto de entrega (POD)"
+          alt={t("Foto de entrega (POD)")}
           style={{ width: "100%", height: 180, objectFit: "cover", borderRadius: 14, border: "1px solid rgba(15,43,74,.08)", display: "block" }}
         />
       ) : (
         <div style={{ width: "100%", height: 180, borderRadius: 14, background: "#eef4fa", border: "1px dashed rgba(15,43,74,.16)", display: "grid", placeItems: "center", color: "#8ba0b6", fontSize: 12.5, fontWeight: 600 }}>
-          Foto de entrega (POD)
+          {t("Foto de entrega (POD)")}
         </div>
       )}
     </div>
@@ -710,8 +713,9 @@ function Evidencia({ ped, codigo, token }) {
 // y el confirmador `confirmarReprog`.
 // ----------------------------------------------------------------------------
 function Reprogramacion({ ped, franjas, reprog, reprogOk, onElegir, confirmarReprog }) {
+  const { t } = useIdioma();
   const [cambiando, setCambiando] = useState(false); // el cliente quiere cambiar su solicitud pendiente
-  const reprogTxt = reprog >= 0 && franjas[reprog] ? franjas[reprog].toLowerCase() : "";
+  const reprogTxt = reprog >= 0 && franjas[reprog] ? traducirFranja(franjas[reprog], t).toLowerCase() : "";
   const fallido = ped.estado === "REPROGRAMADO";
   const sol = ped.reprogramacion; // { franja, estado } de la última solicitud, o null
   const pendiente = sol && sol.estado === "PENDIENTE";
@@ -723,35 +727,35 @@ function Reprogramacion({ ped, franjas, reprog, reprogOk, onElegir, confirmarRep
   return (
     <div data-ppanel="1" style={{ margin: "16px 0 0", background: "#fff", border: `1.5px solid ${fallido ? "rgba(217,122,31,.35)" : "rgba(38,121,216,.25)"}`, borderRadius: 20, padding: 22, animation: "aparecer .5s ease .26s both" }}>
       <p style={{ margin: 0, fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 18, color: fallido ? "#b35c12" : "#1b5fb3" }}>
-        {fallido ? "Necesitamos una nueva fecha" : "¿No estará para recibirlo?"}
+        {fallido ? t("Necesitamos una nueva fecha") : t("¿No estará para recibirlo?")}
       </p>
       <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.6, color: "#4f6580" }}>
         {fallido
-          ? `${ped.motivo}. Elija cuándo prefiere que volvamos; la central revisará su solicitud.`
-          : "Puede pedir otra franja de entrega antes de la visita. La central revisará su solicitud y le confirmaremos."}
+          ? `${t(ped.motivo)}. ${t("Elija cuándo prefiere que volvamos; la central revisará su solicitud.")}`
+          : t("Puede pedir otra franja de entrega antes de la visita. La central revisará su solicitud y le confirmaremos.")}
       </p>
 
       {reprogOk && (
         <div style={{ ...caja, background: "#e4effc", fontWeight: 600, color: "#1b5fb3" }}>
-          ✓ Solicitud recibida — pidió {reprogTxt}. La revisaremos y le confirmaremos la nueva visita.
+          ✓ {t("Solicitud recibida — pidió")} {reprogTxt}. {t("La revisaremos y le confirmaremos la nueva visita.")}
         </div>
       )}
       {!reprogOk && pendiente && !cambiando && (
         <div style={{ ...caja, background: "#e4effc", color: "#1b5fb3" }}>
-          <b>Solicitud recibida:</b> {sol.franja}. Está en revisión por la central.{" "}
+          <b>{t("Solicitud recibida:")}</b> {traducirFranja(sol.franja, t)}. {t("Está en revisión por la central.")}{" "}
           <button type="button" onClick={() => setCambiando(true)} style={{ border: 0, background: "none", padding: 0, color: "#1b5fb3", fontWeight: 600, textDecoration: "underline", cursor: "pointer", fontSize: 14 }}>
-            Elegir otra franja
+            {t("Elegir otra franja")}
           </button>
         </div>
       )}
       {!reprogOk && aceptada && (
         <div style={{ ...caja, background: "#e3f2e8", fontWeight: 600, color: "#1e7a43" }}>
-          ✓ Solicitud aceptada — su pedido saldrá {sol.franja.toLowerCase()}.
+          ✓ {t("Solicitud aceptada — su pedido saldrá")} {traducirFranja(sol.franja, t).toLowerCase()}.
         </div>
       )}
       {!reprogOk && rechazada && (
         <div style={{ ...caja, background: "#fdeedd", color: "#b35c12" }}>
-          No pudimos atender la franja «{sol.franja}». Elija otra o comuníquese con su tienda.
+          {t("No pudimos atender la franja")} «{traducirFranja(sol.franja, t)}». {t("Elija otra o comuníquese con su tienda.")}
         </div>
       )}
 
@@ -765,7 +769,7 @@ function Reprogramacion({ ped, franjas, reprog, reprogOk, onElegir, confirmarRep
                 onClick={() => onElegir(i)}
                 style={{ border: `1.5px solid ${reprog === i ? "#2679d8" : "rgba(15,43,74,.16)"}`, background: reprog === i ? "#eaf3fc" : "#fff", color: reprog === i ? "#1b5fb3" : "#3d5570", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 600, padding: "11px 16px", borderRadius: 12, cursor: "pointer", transition: "border-color .2s ease, background .2s ease" }}
               >
-                {n}
+                {traducirFranja(n, t)}
               </button>
             ))}
           </div>
@@ -776,7 +780,7 @@ function Reprogramacion({ ped, franjas, reprog, reprogOk, onElegir, confirmarRep
               className="ptl-btn-confirmar-reprog"
               style={{ margin: "14px 0 0", border: 0, cursor: "pointer", background: "#2679d8", color: "#fff", fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 14, padding: "13px 24px", borderRadius: 99, animation: "aparecer .3s ease both", transition: "background .2s ease" }}
             >
-              Enviar solicitud: {reprogTxt}
+              {t("Enviar solicitud:")} {reprogTxt}
             </button>
           )}
         </>

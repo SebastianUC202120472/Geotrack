@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import Logo from "./ui/Logo";
 import ConfirmDialog from "./ui/ConfirmDialog";
 import CampanaNotificaciones from "./CampanaNotificaciones";

@@ -137,6 +137,12 @@ export default function EficienciaPeriodo({ version = 0 }) {
               detalle={`${ind.in_oe_3.observados_en_almacen} faltantes en almacén y ${ind.in_oe_3.cancelados} cancelados · con GPS ${o(ind.in_oe_3.entregas_con_gps_porcentaje, " %")}`} />
             <Indicador codigo="In.OE.4" nombre="Pérdidas" valor={soles(ind.in_oe_4.perdidas_soles)}
               detalle={`${ind.in_oe_4.reintentos} reintentos (${soles(ind.in_oe_4.costo_reintentos_soles)}) + reclamado ${soles(ind.in_oe_4.monto_reclamado_soles)}`} />
+            {kpis?.bateria && (
+              <Indicador codigo="RNF-011" nombre="Batería del celular por hora de jornada" valor={o(kpis.bateria.por_hora, " %/h")}
+                detalle={kpis.bateria.jornadas
+                  ? `${kpis.bateria.jornadas} jornadas medidas · gasto promedio ${kpis.bateria.gasto_promedio} % en ${kpis.bateria.horas_promedio} h`
+                  : "Se mide sola desde la app en cada jornada de al menos 30 minutos"} />
+            )}
           </div>
         )}
       </div>

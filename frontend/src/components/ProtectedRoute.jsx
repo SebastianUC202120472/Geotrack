@@ -1,5 +1,5 @@
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 
 // Protege rutas: redirige al login sin sesión; almacen solo accede a /almacen.
 export default function ProtectedRoute({ children }) {

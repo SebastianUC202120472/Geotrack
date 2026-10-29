@@ -152,7 +152,7 @@ export default function ArmarRutaRecojo() {
         subtitulo="Elige en el mapa o en la lista los puntos por recoger y asígnalos a un conductor."
       />
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
         <SectionCard
           title="Solicitudes por recoger"
           subtitle="Haz clic en un punto del mapa para agregarlo o quitarlo de la ruta."

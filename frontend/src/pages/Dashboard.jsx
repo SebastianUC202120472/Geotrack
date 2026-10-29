@@ -144,7 +144,7 @@ export default function Dashboard() {
         <EficienciaPeriodo version={version} />
       </div>
 
-      <div className="animate-fade-up grid gap-6 lg:grid-cols-3" style={{ animationDelay: "120ms" }}>
+      <div className="animate-fade-up grid grid-cols-1 gap-6 lg:grid-cols-3" style={{ animationDelay: "120ms" }}>
         <Card title="Pedidos por estado" subtitle="Toca un estado para ver esos pedidos" className="lg:col-span-2">
           {datosEstado.length === 0 ? (
             <EmptyState icon={Package} title="Aún no hay datos" description="Importa un Excel de pedidos para ver los gráficos." />
@@ -208,7 +208,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="animate-fade-up grid gap-6 lg:grid-cols-2" style={{ animationDelay: "240ms" }}>
+      <div className="animate-fade-up grid grid-cols-1 gap-6 lg:grid-cols-2" style={{ animationDelay: "240ms" }}>
         <Card title="Pedidos pendientes por cliente" subtitle="Top 6 · toca para ver los pedidos">
           {pendientesPorCliente.length === 0 ? (
             <EmptyState icon={Package} title="Sin pendientes" description="No hay pedidos pendientes por cliente." />

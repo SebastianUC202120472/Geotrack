@@ -54,8 +54,9 @@ export default function Pedidos() {
   const [reportePorPedido, setReportePorPedido] = useState({});
 
   const [busqueda, setBusqueda] = useState("");
-  const [distrito, setDistrito] = useState(params.get("distrito") || "");
-  const [estado, setEstado] = useState(params.get("estado") || "");
+  // Zona y estado viven en la URL: un enlace (o el tablero) abre la lista ya filtrada.
+  const distrito = params.get("distrito") || "";
+  const estado = params.get("estado") || "";
   const [fecha, setFecha] = useState("todos");
   const [sinUbicar, setSinUbicar] = useState(false);
   const [pagina, setPagina] = useState(1);
@@ -90,18 +91,13 @@ export default function Pedidos() {
     }).catch((err) => console.error("Error al cargar reportes:", err.message));
   };
 
-  const cargar = async () => {
-    setCargando(true);
-    try {
-      const [ped, z] = await Promise.all([listarTodosLosPedidos(), listarZonas()]);
-      setPedidos(ped);
-      setZonas(z.zonas_operativas || []);
-    } catch (err) {
-      console.error("Error al cargar pedidos:", err.message);
-    } finally {
-      setCargando(false);
-    }
-  };
+  // Carga pedidos y zonas. Las recargas son silenciosas (la tabla no parpadea); el estado se
+  // fija dentro de los callbacks de la promesa (regla de lint "setState en effect").
+  const cargar = () =>
+    Promise.all([listarTodosLosPedidos(), listarZonas()])
+      .then(([ped, z]) => { setPedidos(ped); setZonas(z.zonas_operativas || []); })
+      .catch((err) => console.error("Error al cargar pedidos:", err.message))
+      .finally(() => setCargando(false));
 
   // Recarga completa: pedidos + zonas + reportes abiertos.
   const cargarTodo = () => { cargar(); cargarReportes(); };
@@ -110,12 +106,6 @@ export default function Pedidos() {
     cargar();
     cargarReportes();
   }, []);
-
-  // Sincroniza filtros con los query params de la URL.
-  useEffect(() => {
-    setDistrito(params.get("distrito") || "");
-    setEstado(params.get("estado") || "");
-  }, [params]);
 
   const estados = useMemo(
     () => [...new Set(pedidos.map((p) => p.estado).filter(Boolean))].sort(),
@@ -172,7 +162,6 @@ export default function Pedidos() {
   const aplicarBusqueda = (v) => { setBusqueda(v); setPagina(1); };
   const aplicarFecha = (v) => { setFecha(v); setPagina(1); };
 
-  useEffect(() => { setPagina(1); }, [busqueda, distrito, estado, fecha]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
   const visibles = filtrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA);
@@ -182,10 +171,11 @@ export default function Pedidos() {
     if (valor) nuevos.set(clave, valor);
     else nuevos.delete(clave);
     setParams(nuevos);
+    setPagina(1);
   };
 
   const limpiar = () => {
-    setBusqueda(""); setFecha("todos"); setSinUbicar(false); setParams({});
+    setBusqueda(""); setFecha("todos"); setSinUbicar(false); setParams({}); setPagina(1);
   };
 
   const hayFiltros = busqueda || distrito || estado || fecha !== "todos" || sinUbicar;
@@ -279,7 +269,7 @@ export default function Pedidos() {
       )}
 
       <div className="animate-fade-up">
-        <div className="inline-flex items-center gap-1 rounded-2xl border border-warm-200 bg-white p-1 shadow-card">
+        <div className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-2xl border border-warm-200 bg-white p-1 shadow-card">
           {VISTAS.map((v) => {
             const Ico = v.icon;
             const activo = vista === v.id;
@@ -427,9 +417,9 @@ function DetallePedido({ pedido, reporte, onCerrar, onIrARuta, onAccion, onDirec
   const sinUbicacion = pedido.latitud == null || pedido.longitud == null;
   const corregible = !ESTADOS_CERRADOS.includes(pedido.estado);
 
+  // El detalle se monta de nuevo por pedido (key), asi que "cargando" ya arranca en true.
   useEffect(() => {
     let activo = true;
-    setCargando(true);
     obtenerHistorial(pedido.codigo)
       .then((h) => { if (activo) setHistorial(h); })
       .catch((e) => { if (activo) setError(e.message); })

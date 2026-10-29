@@ -165,7 +165,7 @@ export default function Parametros() {
     <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
       <PageHeader titulo="Parámetros" subtitulo="Catálogos del sistema. Los motivos de rechazo se usan en la app al reportar una entrega fallida." />
 
-      <div className="grid gap-6 lg:grid-cols-3 animate-fade-up">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 animate-fade-up">
         <SectionCard title="Agregar motivo de rechazo" className="lg:col-span-1">
           <form onSubmit={agregar} noValidate className="space-y-4">
             <Input label="Motivo" value={texto} onChange={(e) => { setTexto(e.target.value); setAviso(null); }}
@@ -201,7 +201,7 @@ export default function Parametros() {
         </SectionCard>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2 animate-fade-up">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 animate-fade-up">
         <SectionCard
           title="Combustible (CUS-34)"
           subtitle="Parámetros para calcular el ahorro de combustible en los KPIs del dashboard."

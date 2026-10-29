@@ -49,6 +49,11 @@ SENTENCIAS = [
     "ALTER TABLE liquidaciones ADD COLUMN IF NOT EXISTS total_pedidos INTEGER",
     # Retencion de datos del destinatario (EX-04).
     "ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS datos_retirados_en TIMESTAMP",
+    # Consumo de bateria del celular en la jornada (EX-15).
+    "ALTER TABLE rutas ADD COLUMN IF NOT EXISTS bateria_inicio DOUBLE PRECISION",
+    "ALTER TABLE rutas ADD COLUMN IF NOT EXISTS bateria_inicio_en TIMESTAMP",
+    "ALTER TABLE rutas ADD COLUMN IF NOT EXISTS bateria_fin DOUBLE PRECISION",
+    "ALTER TABLE rutas ADD COLUMN IF NOT EXISTS bateria_fin_en TIMESTAMP",
 ]
 
 

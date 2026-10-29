@@ -4,28 +4,30 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import LayoutAdmin from "./components/LayoutAdmin";
 import ProtectedRoute from "./components/ProtectedRoute";
 
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Pedidos from "./pages/Pedidos";
-import AgrupacionZonas from "./pages/AgrupacionZonas";
-import AsignacionBloque from "./pages/AsignacionBloque";
-import Bandeja from "./pages/Bandeja";
-import Flota from "./pages/Flota";
-import Conductores from "./pages/Conductores";
-import Clientes from "./pages/Clientes";
-import Usuarios from "./pages/Usuarios";
-import Parametros from "./pages/Parametros";
-import SeguimientoConductores from "./pages/SeguimientoConductores";
-import IngresoAlmacen from "./pages/IngresoAlmacen";
-import PedidosObservados from "./pages/PedidosObservados";
-import RetornosAlmacen from "./pages/RetornosAlmacen";
-import ArmarRutaRecojo from "./pages/ArmarRutaRecojo";
-import MapaRecojos from "./pages/MapaRecojos";
-import ReportesPedido from "./pages/ReportesPedido";
-import AuxilioMecanico from "./pages/AuxilioMecanico";
-import Notificaciones from "./pages/Notificaciones";
-import LibroReclamaciones from "./pages/LibroReclamaciones";
-import ContactosComerciales from "./pages/ContactosComerciales";
+// Pantallas del panel en carga diferida (EX-19): cada una es su propio archivo y el paquete
+// inicial solo trae el armazón. LayoutAdmin las envuelve en un Suspense.
+const Login = lazy(() => import("./pages/Login"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Pedidos = lazy(() => import("./pages/Pedidos"));
+const AgrupacionZonas = lazy(() => import("./pages/AgrupacionZonas"));
+const AsignacionBloque = lazy(() => import("./pages/AsignacionBloque"));
+const Bandeja = lazy(() => import("./pages/Bandeja"));
+const Flota = lazy(() => import("./pages/Flota"));
+const Conductores = lazy(() => import("./pages/Conductores"));
+const Clientes = lazy(() => import("./pages/Clientes"));
+const Usuarios = lazy(() => import("./pages/Usuarios"));
+const Parametros = lazy(() => import("./pages/Parametros"));
+const SeguimientoConductores = lazy(() => import("./pages/SeguimientoConductores"));
+const IngresoAlmacen = lazy(() => import("./pages/IngresoAlmacen"));
+const PedidosObservados = lazy(() => import("./pages/PedidosObservados"));
+const RetornosAlmacen = lazy(() => import("./pages/RetornosAlmacen"));
+const ArmarRutaRecojo = lazy(() => import("./pages/ArmarRutaRecojo"));
+const MapaRecojos = lazy(() => import("./pages/MapaRecojos"));
+const ReportesPedido = lazy(() => import("./pages/ReportesPedido"));
+const AuxilioMecanico = lazy(() => import("./pages/AuxilioMecanico"));
+const Notificaciones = lazy(() => import("./pages/Notificaciones"));
+const LibroReclamaciones = lazy(() => import("./pages/LibroReclamaciones"));
+const ContactosComerciales = lazy(() => import("./pages/ContactosComerciales"));
 
 // Landing público (carga diferida: no forma parte del bundle del panel admin).
 const Landing = lazy(() => import("./pages/landing/Landing"));
@@ -55,7 +57,14 @@ export default function App() {
         }
       />
       <Route path="/login" element={<Navigate to="/panel/login" replace />} />
-      <Route path="/panel/login" element={<Login />} />
+      <Route
+        path="/panel/login"
+        element={
+          <Suspense fallback={null}>
+            <Login />
+          </Suspense>
+        }
+      />
 
       <Route
         path="/panel"

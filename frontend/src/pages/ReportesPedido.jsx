@@ -109,7 +109,7 @@ export default function ReportesPedido() {
     <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
       <PageHeader titulo="Reportes de pedido" subtitulo="Reportes que los conductores levantan sobre los pedidos. Ábrelos para responder y marcarlos resueltos." />
 
-      <div className="grid grid-cols-3 gap-4 animate-fade-up">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 animate-fade-up">
         <KpiCard label="Total" value={kpis.total} icon={ClipboardList} tone="brand" />
         <KpiCard label="Abiertos" value={kpis.abiertos} icon={ClipboardList} tone="warning" />
         <KpiCard label="Resueltos" value={kpis.resueltos} icon={CheckCircle2} tone="success" />
