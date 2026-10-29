@@ -19,7 +19,6 @@ import { useManifiestoRecojo, useIniciarRecojo, clavesRecojo } from "@/features/
 import { useReanudarRuta } from "@/features/incidencia/hooks";
 import { useUbicacionActual } from "@/hooks/useUbicacionActual";
 import { useRastreoUbicacion } from "@/hooks/useRastreoUbicacion";
-import { useEnviarUbicacion } from "@/hooks/useEnviarUbicacion";
 import { mensajeDeError } from "@/api/client";
 import { abrirNavegacionRuta } from "@/services/navegacion";
 import { useTheme, spacing } from "@/theme";
@@ -42,7 +41,6 @@ export function RutaRecojoView() {
   // Rastrea y envía la ubicación mientras la ruta esté activa.
   const rutaEnCurso = !!ruta.data && ruta.data.estado !== "FINALIZADA";
   useRastreoUbicacion(rutaEnCurso);
-  useEnviarUbicacion(rutaEnCurso);
 
   // Invalida consultas al enfocar la pantalla.
   useFocusEffect(useCallback(() => {

@@ -1,8 +1,7 @@
-// Pantalla de detalle de parada: permite marcar entregado (con foto) o reportar falla.
+// Pantalla de detalle de parada: permite marcar entregado (foto con GPS + quién recibe) o reportar falla.
 import { useState } from "react";
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, TextInput, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from "react-native";
 import { Image } from "expo-image";
-import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -14,6 +13,8 @@ import { EstadoBadge } from "@/components/EstadoBadge";
 import { Cargando, Vacio } from "@/components/Estados";
 import { Aparecer, CheckEntrega } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
+import { Field } from "@/components/Field";
+import { useFotoConGps, type FotoConGps } from "@/hooks/useFotoConGps";
 import { abrirNavegacion } from "@/services/navegacion";
 import { useRutaActiva, useManifiesto } from "@/features/ruta/hooks";
 import { useEntregarConEvidencia, useReportarFalla } from "@/features/entrega/hooks";
@@ -27,6 +28,9 @@ import type { ParadaManifiesto } from "@/types/api";
 
 // Motivos de falla por defecto si el backend no los devuelve.
 const MOTIVOS_DEFECTO = ["Cliente ausente", "Dirección incorrecta", "Pedido rechazado", "Zona inaccesible", "Otro"];
+
+// DNI (8 dígitos) o carné de extranjería: de 8 a 12 letras o números, igual que valida el servidor.
+const DOCUMENTO_VALIDO = /^[A-Za-z0-9]{8,12}$/;
 
 export default function ParadaScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -42,7 +46,12 @@ export default function ParadaScreen() {
   const motivosQuery = useQuery({ queryKey: ["motivos"], queryFn: obtenerMotivos, staleTime: 60_000 });
   const motivos = motivosQuery.data && motivosQuery.data.length ? motivosQuery.data : MOTIVOS_DEFECTO;
 
-  const [foto, setFoto] = useState<string | null>(null);
+  const camara = useFotoConGps();
+  const [foto, setFoto] = useState<FotoConGps | null>(null);
+  const [fotoFalla, setFotoFalla] = useState<FotoConGps | null>(null);
+  const [esDestinatario, setEsDestinatario] = useState(true);
+  const [receptorNombre, setReceptorNombre] = useState("");
+  const [receptorDoc, setReceptorDoc] = useState("");
   const [modoReporte, setModoReporte] = useState(false);
   const [motivo, setMotivo] = useState(MOTIVOS_DEFECTO[0]);
   const [descripcion, setDescripcion] = useState("");
@@ -50,28 +59,23 @@ export default function ParadaScreen() {
 
   const parada = manifiesto.data?.paradas.find((p: ParadaManifiesto) => p.pedido_id === pedidoId);
 
-  // Abre la cámara y guarda la URI de la foto. No recibe parámetros.
-  const tomarFoto = async () => {
-    const permiso = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permiso.granted) {
-      Alert.alert("Cámara", "Necesitamos permiso de cámara para la evidencia.");
-      return;
-    }
-    const res = await ImagePicker.launchCameraAsync({ quality: 0.6 });
-    if (!res.canceled) setFoto(res.assets[0].uri);
+  // Nombre de quien recibe: el del destinatario si él mismo lo recibe, o el que se escribió.
+  const nombreFinal = (esDestinatario ? parada?.nombre_destinatario ?? "" : receptorNombre).trim();
+  const documentoFinal = receptorDoc.trim().toUpperCase();
+  const receptorValido = nombreFinal.length >= 3 && DOCUMENTO_VALIDO.test(documentoFinal);
+
+  // Abre la cámara (sin galería: la evidencia se toma en el lugar) y guarda la foto con su GPS (C26-01).
+  // Recibe la función que guarda la foto (entrega o falla).
+  const tomarFoto = async (guardar: (f: FotoConGps) => void) => {
+    const resultado = await camara.tomar();
+    if (resultado) guardar(resultado);
   };
 
-  // Abre la galería y guarda la URI de la imagen elegida. No recibe parámetros.
-  const elegirFoto = async () => {
-    const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.6 });
-    if (!res.canceled) setFoto(res.assets[0].uri);
-  };
-
-  // Envía la foto al backend y marca la parada como ENTREGADO. No recibe parámetros.
+  // Envía la foto y quién recibe al backend y marca la parada como ENTREGADO. No recibe parámetros.
   const confirmarEntrega = () => {
-    if (!foto) return;
+    if (!foto || !receptorValido) return;
     entregar.mutate(
-      { pedidoId, uriFoto: foto },
+      { pedidoId, foto, receptor: { nombre: nombreFinal, documento: documentoFinal } },
       {
         onSuccess: (res) => {
           if (res?.encolado) {
@@ -90,7 +94,7 @@ export default function ParadaScreen() {
   // Envía el reporte de falla al backend y marca la parada como FALLIDO. No recibe parámetros.
   const enviarReporte = () => {
     reportar.mutate(
-      { pedidoId, motivo, descripcion: descripcion.trim() || undefined },
+      { pedidoId, motivo, descripcion: descripcion.trim() || undefined, foto: fotoFalla },
       {
         onSuccess: (res) => {
           Alert.alert(
@@ -227,6 +231,18 @@ export default function ParadaScreen() {
                 multiline
                 style={[estilos.area, { borderColor: colors.border, color: colors.ink, backgroundColor: colors.surface }]}
               />
+              {fotoFalla && <Image source={{ uri: fotoFalla.uri }} style={estilos.fotoFalla} contentFit="cover" />}
+              <View style={{ marginTop: spacing.md }}>
+                <Button
+                  titulo={camara.tomando ? "Leyendo GPS…" : fotoFalla ? "Cambiar foto" : "Tomar foto (opcional)"}
+                  variante="secondary"
+                  onPress={() => tomarFoto(setFotoFalla)}
+                  cargando={camara.tomando}
+                />
+              </View>
+              <Texto variante="caption" color={colors.muted} style={{ marginTop: spacing.xs }}>
+                Ej. la puerta cerrada o la numeración de la calle: respalda el reporte.
+              </Texto>
               <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
                 <Button titulo={reportar.isPending ? "Enviando…" : "Enviar reporte"} variante="danger" onPress={enviarReporte} cargando={reportar.isPending} />
                 <Button titulo="Cancelar" variante="secondary" onPress={() => setModoReporte(false)} />
@@ -237,19 +253,83 @@ export default function ParadaScreen() {
               <Card>
                 <Texto variante="subtitle" color={colors.ink} style={estilos.titulo}>Evidencia de entrega (foto)</Texto>
                 {foto ? (
-                  <Image source={{ uri: foto }} style={estilos.preview} contentFit="cover" />
+                  <Image source={{ uri: foto.uri }} style={estilos.preview} contentFit="cover" />
                 ) : (
                   <View style={[estilos.placeholder, { borderColor: colors.border }]}>
-                    <Texto variante="body" color={colors.muted}>Adjunta una foto como prueba de entrega</Texto>
+                    <Ionicons name="camera-outline" size={28} color={colors.muted} />
+                    <Texto variante="body" color={colors.muted} style={{ marginTop: spacing.xs }}>Toma una foto del paquete entregado</Texto>
                   </View>
                 )}
+                {foto && (
+                  <Texto variante="caption" color={foto.coords ? colors.success : colors.warning} style={{ marginTop: spacing.xs }}>
+                    {foto.coords ? "📍 Ubicación de la foto registrada" : "⚠️ Sin GPS: la foto se guardará sin ubicación"}
+                  </Texto>
+                )}
                 <View style={estilos.botonesFoto}>
-                  <View style={{ flex: 1 }}><Button titulo="Tomar foto" variante="secondary" onPress={tomarFoto} /></View>
-                  <View style={{ flex: 1 }}><Button titulo="Galería" variante="secondary" onPress={elegirFoto} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Button
+                      titulo={camara.tomando ? "Leyendo GPS…" : foto ? "Repetir foto" : "Tomar foto"}
+                      variante="secondary"
+                      onPress={() => tomarFoto(setFoto)}
+                      cargando={camara.tomando}
+                    />
+                  </View>
                 </View>
+                {camara.error && !camara.tomando && (
+                  <Texto variante="caption" color={colors.danger} style={{ marginTop: spacing.xs }}>{camara.error}</Texto>
+                )}
+              </Card>
+
+              <Card>
+                <Texto variante="subtitle" color={colors.ink} style={estilos.titulo}>¿Quién recibe?</Texto>
+                {parada.nombre_destinatario ? (
+                  <View style={estilos.toggle}>
+                    <View style={{ flex: 1 }}>
+                      <Texto variante="bodyMedium" color={colors.ink}>Lo recibe el destinatario</Texto>
+                      <Texto variante="caption" color={colors.muted} style={{ marginTop: 2 }}>
+                        {esDestinatario ? parada.nombre_destinatario : "Otra persona (familiar, portería…)"}
+                      </Texto>
+                    </View>
+                    <Switch
+                      value={esDestinatario}
+                      onValueChange={setEsDestinatario}
+                      trackColor={{ false: colors.border, true: colors.brandSoft }}
+                      thumbColor={esDestinatario ? colors.brand : colors.surface}
+                      ios_backgroundColor={colors.border}
+                    />
+                  </View>
+                ) : null}
+                {(!esDestinatario || !parada.nombre_destinatario) && (
+                  <Field
+                    label="Nombre de quien recibe"
+                    value={receptorNombre}
+                    onChangeText={setReceptorNombre}
+                    placeholder="Nombres y apellidos"
+                    autoCapitalize="words"
+                    maxLength={120}
+                  />
+                )}
+                <Field
+                  label="DNI o carné de extranjería"
+                  value={receptorDoc}
+                  onChangeText={(t) => setReceptorDoc(t.replace(/[^A-Za-z0-9]/g, ""))}
+                  placeholder="Ej. 45678912"
+                  autoCapitalize="characters"
+                  maxLength={12}
+                />
                 <View style={{ marginTop: spacing.lg }}>
-                  <Button titulo={entregar.isPending ? "Registrando…" : "Marcar como entregado"} onPress={confirmarEntrega} cargando={entregar.isPending} deshabilitado={!foto} />
+                  <Button
+                    titulo={entregar.isPending ? "Registrando…" : "Marcar como entregado"}
+                    onPress={confirmarEntrega}
+                    cargando={entregar.isPending}
+                    deshabilitado={!foto || !receptorValido || camara.tomando}
+                  />
                 </View>
+                {foto && !receptorValido && (
+                  <Texto variante="caption" color={colors.muted} style={{ marginTop: spacing.xs, textAlign: "center" }}>
+                    Completa el nombre y el documento de quien recibe.
+                  </Texto>
+                )}
               </Card>
 
               <Button titulo="Reportar un problema" variante="danger" onPress={() => setModoReporte(true)} />
@@ -292,6 +372,8 @@ const estilos = StyleSheet.create({
   preview: { width: "100%", height: 220, borderRadius: radius.md },
   evidenciaGuardada: { width: "100%", height: 200, borderRadius: radius.md, marginTop: spacing.md },
   placeholder: { height: 160, borderRadius: radius.md, borderWidth: 2, borderStyle: "dashed", alignItems: "center", justifyContent: "center" },
+  fotoFalla: { width: "100%", height: 160, borderRadius: radius.md, marginTop: spacing.md },
+  toggle: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.sm },
   botonesFoto: { flexDirection: "row", gap: spacing.md, marginTop: spacing.md },
   motivos: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   motivoChip: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1 },

@@ -114,6 +114,9 @@ class HistorialPedidoResponse(BaseModel):
     secuencia: Optional[int] = None
     url_evidencia: Optional[str] = None
     motivo_fallo: Optional[str] = None
+    recibido_por: Optional[str] = None       # "Nombre · DNI 12345678" (C26-02)
+    motivo_cancelacion: Optional[str] = None  # (C31-02)
+    ubicacion_evidencia: Optional[str] = None  # "lat,lng" donde se tomo la foto POD (C26-01)
     eventos: List[EventoHistorial]
 
 

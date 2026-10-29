@@ -22,6 +22,17 @@ def _nombre_conductor(db: Session, conductor_id: int):
     return u.correo if u else None
 
 
+def _ayudas(db: Session, inc) -> list:
+    """Historial de ayudas de la incidencia. Las anteriores a este historial solo guardaban la
+    ultima ayuda en la propia incidencia: esa se devuelve como unica entrada. Recibe la incidencia."""
+    filas = incidencia_repository.listar_ayudas(db, inc.id)
+    if filas:
+        return [{"detalle": a.detalle, "enviada_en": a.enviada_en} for a in filas]
+    if inc.ayuda_enviada_en:
+        return [{"detalle": inc.ayuda_detalle or "Ayuda enviada", "enviada_en": inc.ayuda_enviada_en}]
+    return []
+
+
 def _a_respuesta(db: Session, inc) -> dict:
     """Serializa una incidencia con nombres legibles. Recibe la instancia de incidencia."""
     ruta = ruta_repository.obtener_ruta_por_id(db, inc.ruta_id)
@@ -45,6 +56,7 @@ def _a_respuesta(db: Session, inc) -> dict:
         "puede_solucionar_solo": bool(inc.puede_solucionar_solo),
         "ayuda_enviada_en": inc.ayuda_enviada_en,
         "ayuda_detalle": inc.ayuda_detalle,
+        "ayudas": _ayudas(db, inc),
     }
 
 
@@ -125,21 +137,22 @@ def reanudar(db: Session, incidencia_id: int, usuario_id: int, nota=None) -> dic
 
 
 def mandar_ayuda(db: Session, incidencia_id: int, admin_id: int, tipo: str, nota=None) -> dict:
-    """Registra el envio de ayuda al conductor sin resolver la incidencia. Recibe id, admin_id, tipo y nota."""
+    """Registra una ayuda enviada al conductor sin resolver la incidencia. Cada envio se suma al
+    historial (C30-01) y se permite aunque el conductor marcara "puedo solo" (C30-02).
+    Recibe id, admin_id, tipo y nota."""
     inc = incidencia_repository.obtener(db, incidencia_id)
     if not inc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incidencia no encontrada")
     if inc.estado == "RESUELTA":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La incidencia ya fue resuelta")
-    if inc.puede_solucionar_solo:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="El conductor indicó que puede solucionarlo solo; no procede mandar ayuda.")
     if not (tipo or "").strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Indica el tipo de ayuda a enviar")
-    detalle = tipo.strip() + (f": {nota.strip()}" if (nota and nota.strip()) else "")
+    detalle = (tipo.strip() + (f": {nota.strip()}" if (nota and nota.strip()) else ""))[:255]
+    # La incidencia conserva la ultima ayuda (la ve la app del conductor); el historial guarda todas.
     inc.ayuda_enviada_en = datetime.utcnow()
     inc.ayuda_enviada_por = admin_id
-    inc.ayuda_detalle = detalle[:255]
+    inc.ayuda_detalle = detalle
+    incidencia_repository.agregar_ayuda(db, inc.id, detalle, admin_id)
     incidencia_repository.guardar(db)
     return _a_respuesta(db, inc)
 

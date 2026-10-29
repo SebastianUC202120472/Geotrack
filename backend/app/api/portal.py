@@ -11,7 +11,7 @@ from app.core.config import settings
 from app.core.rate_limit import limite_publico
 from app.core import portal_token, fechas
 from app.core.security import verify_password
-from app.services import portal_service, verificacion_portal_service as verif
+from app.services import portal_service, verificacion_portal_service as verif, parametro_service
 from app.services import correo_service, enmascarado, publico_forms_service
 from app.repositories import portal_repository as repo
 from app.schemas.portal import VerificarDni, Reprogramar, EmpresaLogin, EmpresaVerificar, ContactoIn, ReclamoIn
@@ -55,6 +55,12 @@ def ayuda_demo(db: Session = Depends(get_db)):
     return portal_service.ayuda_demo(db, settings.PORTAL_OTP_DEMO)
 
 
+@router.get("/franjas", dependencies=[Depends(limite_publico(30, 60))])
+def franjas(db: Session = Depends(get_db)):
+    """Franjas que el cliente puede elegir al reprogramar su entrega (C43-03). Sin datos personales."""
+    return {"franjas": parametro_service.obtener_franjas(db)}
+
+
 @router.post("/pedidos/{codigo}/buscar", dependencies=[Depends(limite_publico(30, 60))])
 def buscar_pedido(codigo: str, db: Session = Depends(get_db)):
     """Resumen enmascarado de un pedido (pre-verificacion). Recibe el codigo en la ruta."""
@@ -81,7 +87,7 @@ def detalle(codigo: str, _=Depends(portal_token.requiere_token_persona), db: Ses
 
 @router.post("/pedidos/{codigo}/reprogramar")
 def reprogramar(codigo: str, datos: Reprogramar, _=Depends(portal_token.requiere_token_persona), db: Session = Depends(get_db)):
-    """Registra una solicitud de reprogramacion (nota + notificacion al admin). Recibe codigo y {franja}."""
+    """Guarda la solicitud de reprogramacion ligada al pedido y avisa al admin. Recibe codigo y {franja}."""
     return portal_service.registrar_reprogramacion(db, codigo.upper(), datos.franja)
 
 

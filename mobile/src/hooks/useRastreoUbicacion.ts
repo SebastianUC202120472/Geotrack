@@ -1,30 +1,30 @@
+// Rastreo GPS ÚNICO mientras hay una ruta en curso (EX-15). Antes corrían dos a la vez (uno en
+// segundo plano cada 25 s y otro en primer plano cada 12 s); ahora hay uno solo:
+//  1) si hay permiso "Permitir siempre", el servicio en segundo plano (sigue con la app minimizada);
+//  2) si no (o el entorno no lo soporta, como Expo Go), un único seguimiento en primer plano.
 import { useEffect } from "react";
 import { Alert } from "react-native";
 import * as Location from "expo-location";
 import { TAREA_UBICACION } from "@/tasks/ubicacionBackground";
+import { enviarUbicacion } from "@/api/conductor";
+
+// Cada cuánto se toma y envía la posición. Alta precisión: el mapa de flota la necesita a nivel de calle.
+const INTERVALO_MS = 15000;
 
 let avisoMostrado = false;
 
-// Inicia el rastreo de ubicación en segundo plano. Pide permisos y arranca el servicio.
-async function iniciarRastreo(): Promise<void> {
+// Intenta arrancar el servicio en segundo plano. Devuelve true si quedó activo (o ya lo estaba).
+async function iniciarSegundoPlano(): Promise<boolean> {
   try {
-    const fg = await Location.requestForegroundPermissionsAsync();
-    if (fg.status !== "granted") {
-      avisarUnaVez();
-      return;
-    }
     const bg = await Location.requestBackgroundPermissionsAsync();
     if (bg.status !== "granted") {
       avisarUnaVez();
-      return;
+      return false;
     }
-
-    const yaActiva = await Location.hasStartedLocationUpdatesAsync(TAREA_UBICACION);
-    if (yaActiva) return;
-
+    if (await Location.hasStartedLocationUpdatesAsync(TAREA_UBICACION)) return true;
     await Location.startLocationUpdatesAsync(TAREA_UBICACION, {
       accuracy: Location.Accuracy.High,
-      timeInterval: 25000,
+      timeInterval: INTERVALO_MS,
       distanceInterval: 0,
       pausesUpdatesAutomatically: false,
       foregroundService: {
@@ -33,16 +33,18 @@ async function iniciarRastreo(): Promise<void> {
         notificationColor: "#2563eb",
       },
     });
+    return true;
   } catch {
-    avisarUnaVez();
+    return false;
   }
 }
 
-// Detiene el servicio de ubicación si estaba activo.
-async function detenerRastreo(): Promise<void> {
+// Detiene el servicio de ubicación en segundo plano si estaba activo.
+async function detenerSegundoPlano(): Promise<void> {
   try {
-    const activa = await Location.hasStartedLocationUpdatesAsync(TAREA_UBICACION);
-    if (activa) await Location.stopLocationUpdatesAsync(TAREA_UBICACION);
+    if (await Location.hasStartedLocationUpdatesAsync(TAREA_UBICACION)) {
+      await Location.stopLocationUpdatesAsync(TAREA_UBICACION);
+    }
   } catch {
     // ignorar
   }
@@ -54,20 +56,41 @@ function avisarUnaVez(): void {
   avisoMostrado = true;
   Alert.alert(
     "Ubicación en segundo plano",
-    "Para que el panel vea tu posición en tiempo real, activa el permiso de ubicación \"Permitir siempre\" en los ajustes. La app seguirá funcionando sin él."
+    "Para que el panel vea tu posición aunque minimices la app, activa el permiso de ubicación \"Permitir siempre\" en los ajustes. Mientras tanto se enviará solo con la app abierta."
   );
 }
 
-// Hook que mantiene el rastreo en segundo plano mientras activa sea true. Recibe activa (boolean).
+// Hook que mantiene un único rastreo GPS mientras activa sea true. Recibe activa (boolean).
 export function useRastreoUbicacion(activa: boolean): void {
   useEffect(() => {
-    if (activa) {
-      iniciarRastreo();
-    } else {
-      detenerRastreo();
+    if (!activa) {
+      detenerSegundoPlano();
+      return;
     }
+    let cancelado = false;
+    let suscripcion: Location.LocationSubscription | null = null;
+
+    (async () => {
+      try {
+        const fg = await Location.requestForegroundPermissionsAsync();
+        if (fg.status !== "granted" || cancelado) return;
+        if (await iniciarSegundoPlano()) return;
+        if (cancelado) return;
+        // Respaldo: un solo seguimiento en primer plano.
+        suscripcion = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.High, timeInterval: INTERVALO_MS, distanceInterval: 0 },
+          (pos) => { enviarUbicacion(pos.coords.latitude, pos.coords.longitude).catch(() => {}); }
+        );
+        if (cancelado) suscripcion.remove();
+      } catch {
+        // Sin GPS o permiso denegado: la app sigue funcionando sin enviar posición.
+      }
+    })();
+
     return () => {
-      if (activa) detenerRastreo();
+      cancelado = true;
+      suscripcion?.remove();
+      detenerSegundoPlano();
     };
   }, [activa]);
 }

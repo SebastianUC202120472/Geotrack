@@ -20,7 +20,6 @@ import { KmRuta } from "@/components/KmRuta";
 import { useRutaActiva, useManifiesto, useNavegacion, useIniciarRuta, useFinalizarRuta, claves } from "@/features/ruta/hooks";
 import { useUbicacionActual } from "@/hooks/useUbicacionActual";
 import { useRastreoUbicacion } from "@/hooks/useRastreoUbicacion";
-import { useEnviarUbicacion } from "@/hooks/useEnviarUbicacion";
 import { useReanudarRuta } from "@/features/incidencia/hooks";
 import { usePendientesPorPedido } from "@/features/sync/hooks";
 import { mensajeDeError } from "@/api/client";
@@ -52,7 +51,6 @@ function RutaEntregaView() {
   // Rastrea y envía la posición mientras la ruta esté en curso.
   const rutaEnCurso = !!ruta.data && ruta.data.estado !== "FINALIZADA";
   useRastreoUbicacion(rutaEnCurso);
-  useEnviarUbicacion(rutaEnCurso);
 
   useFocusEffect(
     useCallback(() => {

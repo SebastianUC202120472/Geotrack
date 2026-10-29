@@ -4,6 +4,7 @@ import { login as loginRequest } from "@/api/auth";
 import { guardarToken, borrarToken, leerToken } from "@/api/tokenStorage";
 import { registrarCierrePorSesionExpirada } from "@/api/client";
 import { limpiar as limpiarCola } from "@/store/colaSync";
+import { limpiarRutaOffline } from "@/store/rutaOffline";
 
 interface ContextoAuth {
   token: string | null;
@@ -97,6 +98,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error("Esta aplicación es de uso exclusivo para conductores.");
     }
 
+    // La copia offline de la ruta es del conductor anterior en este teléfono.
+    await limpiarRutaOffline();
     await guardarToken(access_token);
     setToken(access_token);
   };
@@ -105,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const cerrarSesion = async () => {
     setSesionExpirada(false);
     limpiarCola().catch(() => {});
+    limpiarRutaOffline();
     await borrarToken();
     setToken(null);
   };

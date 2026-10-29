@@ -4,7 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core import fechas
-from app.repositories import portal_repository as repo
+from app.repositories import portal_repository as repo, reprogramacion_repository
 from app.services import estado_portal, enmascarado
 
 # Etiquetas amables por estado destino de cada transicion del historial.
@@ -113,9 +113,11 @@ def detalle_pedido(db: Session, codigo: str) -> dict:
         "eventos": eventos,
     }
     if est == "ENTREGADO":
-        data["recibido"] = _texto_recibido(p)
+        data["recibido"] = _texto_recibido(pod)
     if est == "REPROGRAMADO":
         data["motivo"] = detalle.motivo_fallo if detalle and detalle.motivo_fallo else "No se pudo entregar en el intento anterior"
+    data["puedeReprogramar"] = puede_reprogramar(p)
+    data["reprogramacion"] = _reprogramacion_portal(reprogramacion_repository.ultima_de(db, p.id))
     return data
 
 
@@ -150,10 +152,15 @@ def _nota(est: str) -> str:
     }.get(est, "")
 
 
-def _texto_recibido(p) -> str:
-    """Texto de 'recibido por' para entregas. Recibe el pedido."""
-    nombre = p.nombre_destinatario or "el destinatario"
-    return f"Recibido por {nombre}."
+def _texto_recibido(pod) -> str:
+    """Texto de 'recibido por' con quien firmo la entrega en la app (C26-02); el documento va
+    enmascarado. Las entregas anteriores a ese registro no tienen el dato. Recibe la evidencia (o None)."""
+    nombre = (getattr(pod, "receptor_nombre", None) or "").strip()
+    if not nombre:
+        return "Entregado en la dirección de destino."
+    documento = getattr(pod, "receptor_documento", None) or ""
+    sufijo = f" · Doc. ****{documento[-3:]}" if len(documento) >= 3 else ""
+    return f"Recibido por {nombre}{sufijo}."
 
 
 def _estado_visible(p, det) -> str:
@@ -266,21 +273,38 @@ def excel_empresa(db: Session, cliente, dia=None) -> tuple[bytes, str]:
     return buffer.getvalue(), f"pedidos_{codigo}_{dia.isoformat()}.xlsx"
 
 
+def _reprogramacion_portal(solicitud) -> dict | None:
+    """Estado de la solicitud de reprogramacion para el cliente (sin notas internas). Recibe la solicitud."""
+    if not solicitud:
+        return None
+    return {"franja": solicitud.franja, "estado": solicitud.estado}
+
+
+def puede_reprogramar(p) -> bool:
+    """True si el cliente aun puede pedir otra fecha: antes de la visita o tras un intento fallido
+    (C43-02). Recibe el pedido."""
+    return p.estado not in ("ENTREGADO", "CANCELADO")
+
+
 def registrar_reprogramacion(db: Session, codigo: str, franja: str) -> dict:
-    """Registra la franja pedida por el cliente + notifica al admin. Recibe codigo y franja.
-    No cambia el pipeline (la reprogramacion real la decide el admin)."""
-    from app.services import notificaciones_service
+    """Guarda la solicitud de reprogramacion ligada al pedido (C43-01) y avisa al admin con un enlace
+    al pedido (C37-02). Solo acepta franjas configuradas (C43-03). No cambia el pipeline: la
+    reprogramacion la decide el admin. Recibe codigo y franja."""
+    from app.services import notificaciones_service, parametro_service
     p = repo.pedido_por_codigo(db, codigo)
     if not p:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
-    try:
-        notificaciones_service.registrar(
-            db, "reportes", "Reprogramacion solicitada por el cliente",
-            f"Pedido {codigo}: el cliente pide la franja «{franja}»", "/reportes?pendientes=1", p.id)
-    except Exception:
-        pass
+    if not puede_reprogramar(p):
+        raise HTTPException(status_code=409, detail="Este pedido ya no se puede reprogramar.")
+    franja = " ".join((franja or "").split())
+    if franja not in parametro_service.obtener_franjas(db):
+        raise HTTPException(status_code=400, detail="Elija una de las franjas disponibles.")
+    solicitud = reprogramacion_repository.registrar(db, p.id, franja)
     db.commit()
-    return {"ok": True}
+    notificaciones_service.registrar(
+        db, "reportes", "Reprogramación solicitada por el cliente",
+        f"Pedido {p.codigo}: pide la franja «{franja}»", f"/pedidos?codigo={p.codigo}", p.id)
+    return {"ok": True, "reprogramacion": _reprogramacion_portal(solicitud)}
 
 
 # Cache en memoria de las estadisticas publicas (TTL corto): el landing hace polling
