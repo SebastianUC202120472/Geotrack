@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     # directa, sin fotos). SOLO para presentaciones: se salta la evidencia del recojo.
     ALMACEN_INGRESO_DIRECTO: bool = False
 
+    # Modulo de catalogo y capacidad (Idea 3). Se puede apagar por entorno para
+    # retirarlo del panel sin tocar el resto del sistema.
+    MODULO_CAPACIDAD_ENABLED: bool = True
+
     DATABASE_URL: str = "postgresql://sava_admin:sava_password123@db:5432/siol_sava_db"  # nosec B105
 
     # Vacio = solo mismo origen (el panel llega por Nginx). Con dominios, separarlos por comas.
