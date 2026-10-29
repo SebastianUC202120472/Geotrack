@@ -21,6 +21,11 @@ class Ruta(Base):
     vehiculo_placa = Column(String(20), nullable=True)
     conductor_id = Column(Integer, nullable=True)
 
+    # Bateria del celular del conductor durante la jornada (EX-15): primera y ultima lectura.
+    bateria_inicio = Column(Float, nullable=True)
+    bateria_inicio_en = Column(DateTime, nullable=True)
+    bateria_fin = Column(Float, nullable=True)
+    bateria_fin_en = Column(DateTime, nullable=True)
     detalles = relationship("RutaDetalle", back_populates="ruta", cascade="all, delete")
 
 

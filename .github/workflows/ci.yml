@@ -6,7 +6,7 @@
 #   - backend:   instala deps, verifica que la app importa y corre pytest.
 #   - seguridad: análisis estático (bandit) + vulnerabilidades de deps (pip-audit).
 #   - frontend:  instala deps (npm ci), corre lint y compila el build de Vite.
-#   - movil:     instala deps (npm ci) y verifica el typecheck de TypeScript (tsc --noEmit).
+#   - movil:     instala deps (npm ci), verifica el typecheck (tsc --noEmit) y corre las pruebas Jest.
 #
 # IMPORTANTE (monorepo): el backend vive en ./backend y el frontend en ./frontend,
 # por eso cada job usa `working-directory` y los caches apuntan a su subcarpeta.
@@ -145,3 +145,6 @@ jobs:
 
       - name: Typecheck (tsc --noEmit)
         run: npm run typecheck
+
+      - name: Pruebas de la app (Jest)
+        run: npm test -- --ci

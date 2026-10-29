@@ -1,9 +1,10 @@
 // Copia en el teléfono de la última ruta descargada (C27-02). Si la app se abre sin señal, las
 // pantallas muestran lo último que se descargó en vez de quedarse vacías. Se borra al cerrar
 // sesión y cuando el servidor confirma que ya no hay ruta activa (404).
-// Va en AsyncStorage sin cifrar: son los mismos datos que la app muestra en pantalla.
+// Va cifrada con la clave del teléfono (EX-23), igual que la cola offline.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { esErrorDeRed } from "@/api/client";
+import { cifrar, descifrar } from "@/store/cifrado";
 
 const PREFIJO = "ruta_offline_v1:";
 const CLAVES = ["ruta-activa", "manifiesto", "navegacion", "manifiesto-recojo"] as const;
@@ -18,7 +19,8 @@ function sinRuta(error: unknown): boolean {
 async function leer<T>(clave: ClaveOffline): Promise<T | null> {
   try {
     const guardado = await AsyncStorage.getItem(PREFIJO + clave);
-    return guardado ? (JSON.parse(guardado) as T) : null;
+    const texto = guardado ? await descifrar(guardado) : null;
+    return texto ? (JSON.parse(texto) as T) : null;
   } catch {
     return null;
   }
@@ -30,7 +32,7 @@ export function conCopiaOffline<T>(clave: ClaveOffline, consulta: () => Promise<
   return async () => {
     try {
       const datos = await consulta();
-      AsyncStorage.setItem(PREFIJO + clave, JSON.stringify(datos)).catch(() => {});
+      cifrar(JSON.stringify(datos)).then((c) => AsyncStorage.setItem(PREFIJO + clave, c)).catch(() => {});
       return datos;
     } catch (e) {
       if (esErrorDeRed(e)) {
@@ -50,7 +52,7 @@ export async function ajustarCopia<T>(clave: ClaveOffline, cambio: (previa: T) =
   const copia = await leer<T>(clave);
   if (!copia) return;
   try {
-    await AsyncStorage.setItem(PREFIJO + clave, JSON.stringify(cambio(copia)));
+    await AsyncStorage.setItem(PREFIJO + clave, await cifrar(JSON.stringify(cambio(copia))));
   } catch {
     // sin espacio o almacenamiento no disponible: la cola offline sigue siendo la fuente de verdad
   }

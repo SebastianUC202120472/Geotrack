@@ -90,6 +90,7 @@ def kpis(db: Session, periodo: str | None = None, desde: date | None = None, has
     rutas = _rutas_cerradas(db, ini, fin)
     km = sum(r.km_estimado or 0 for r in rutas)
     km_ahorrado = sum(r.km_ahorrado or 0 for r in rutas)
+    bateria = consumo_bateria(rutas)
 
     serie = {}
     dia = d
@@ -110,8 +111,29 @@ def kpis(db: Session, periodo: str | None = None, desde: date | None = None, has
         "km_recorridos": round(km, 1),
         "km_ahorrados": round(km_ahorrado, 1),
         "ahorro_soles": round(km_ahorrado * _soles_por_km(db), 2),
+        "bateria": bateria,
         "serie": list(serie.values()),
     }
+
+
+def consumo_bateria(rutas) -> dict:
+    """Consumo de bateria del celular en las jornadas medidas (EX-15): puntos porcentuales gastados
+    y por hora de jornada, en promedio. Solo cuentan rutas con al menos 30 min de lecturas. Recibe las rutas."""
+    medidas = []
+    for r in rutas:
+        if r.bateria_inicio is None or r.bateria_fin is None or not (r.bateria_inicio_en and r.bateria_fin_en):
+            continue
+        horas = (r.bateria_fin_en - r.bateria_inicio_en).total_seconds() / 3600
+        if horas >= 0.5:
+            gasto = (r.bateria_inicio - r.bateria_fin) * 100
+            medidas.append((gasto, horas))
+    if not medidas:
+        return {"jornadas": 0, "gasto_promedio": None, "por_hora": None, "horas_promedio": None}
+    gasto = sum(g for g, _ in medidas) / len(medidas)
+    horas = sum(h for _, h in medidas) / len(medidas)
+    return {"jornadas": len(medidas), "gasto_promedio": round(gasto, 1),
+            "por_hora": round(sum(g for g, _ in medidas) / sum(h for _, h in medidas), 1),
+            "horas_promedio": round(horas, 1)}
 
 
 def _registro_de_lotes(db: Session, ini: datetime, fin: datetime) -> dict:
@@ -216,6 +238,8 @@ def excel_indicadores(db: Session, periodo: str | None = None, desde: date | Non
         ("Tablero", "Cumplimiento", vacio(tab["cumplimiento"]), "%",
          f"{tab['entregados']} entregados de {tab['gestionados']} gestionados ({tab['fallidos']} fallidos)."),
         ("Tablero", "Ahorro de la flota", tab["ahorro_soles"], "S/", f"{tab['km_ahorrados']} km ahorrados × costo por km."),
+        ("RNF-011", "Batería por hora de jornada", vacio(tab["bateria"]["por_hora"]), "% / h",
+         f"{tab['bateria']['jornadas']} jornadas medidas desde la app; gasto promedio {vacio(tab['bateria']['gasto_promedio'])} % en {vacio(tab['bateria']['horas_promedio'])} h."),
     ]
 
     wb = Workbook()

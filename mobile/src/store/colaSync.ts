@@ -1,5 +1,6 @@
-// Cola persistente de acciones de entrega offline; guarda fotos POD en disco.
+// Cola persistente de acciones de entrega offline, cifrada en el teléfono (EX-23); guarda fotos POD en disco.
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { cifrar, descifrar } from "@/store/cifrado";
 import * as FileSystem from "expo-file-system/legacy";
 
 export type TipoAccion = "ENTREGA" | "FALLIDO";
@@ -41,7 +42,8 @@ function _serializar<T>(op: () => Promise<T>): Promise<T> {
 async function _leer(): Promise<AccionPendiente[]> {
   if (cache) return cache;
   const raw = await AsyncStorage.getItem(CLAVE);
-  try { cache = raw ? (JSON.parse(raw) as AccionPendiente[]) : []; }
+  const texto = raw ? await descifrar(raw) : null;
+  try { cache = texto ? (JSON.parse(texto) as AccionPendiente[]) : []; }
   catch { cache = []; }
   return cache;
 }
@@ -49,7 +51,7 @@ async function _leer(): Promise<AccionPendiente[]> {
 // Persiste la cola y notifica suscriptores.
 async function _guardar(items: AccionPendiente[]): Promise<void> {
   cache = items;
-  await AsyncStorage.setItem(CLAVE, JSON.stringify(items));
+  await AsyncStorage.setItem(CLAVE, await cifrar(JSON.stringify(items)));
   suscriptores.forEach((cb) => cb());
 }
 

@@ -2,6 +2,7 @@ import os
 import time
 import glob
 import secrets
+from datetime import datetime
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -135,8 +136,18 @@ def restablecer_contrasena(db: Session, usuario_id: int, datos: ConductorResetCo
 
 
 def registrar_ubicacion(db: Session, conductor_id: int, datos: UbicacionRequest) -> dict:
-    """Guarda (upsert) la última posición del conductor que envía la app móvil."""
+    """Guarda (upsert) la última posición del conductor que envía la app móvil y, si trae el nivel
+    de batería, lo anota en su ruta activa (primera y última lectura de la jornada, EX-15)."""
     ubicacion_repository.upsert(db, conductor_id, datos.latitud, datos.longitud)
+    if datos.bateria is not None:
+        from app.repositories import ruta_repository  # import local: evita ciclo de imports
+        ruta = ruta_repository.obtener_ruta_activa_por_conductor(db, conductor_id)
+        if ruta:
+            ahora = datetime.utcnow()
+            if ruta.bateria_inicio is None:
+                ruta.bateria_inicio, ruta.bateria_inicio_en = datos.bateria, ahora
+            ruta.bateria_fin, ruta.bateria_fin_en = datos.bateria, ahora
+            db.commit()
     return {"mensaje": "Ubicación registrada"}
 
 
