@@ -332,3 +332,157 @@ def test_optimizar_con_todas_las_paradas_sin_ubicacion_lo_explica(monkeypatch):
         ruta_service.optimizar_ruta(None, OptimizacionRequest(ruta_id=1, latitud_actual_conductor=-12.1,
                                                                longitud_actual_conductor=-77.0), conductor_id=5)
     assert e.value.status_code == 400 and "PD-004" in e.value.detail
+
+
+# ---------------- F6: entrega en campo ----------------
+from app.core.imagenes import gps_de_captura  # noqa: E402
+from app.schemas.parametro import ContactoConfig  # noqa: E402
+from app.schemas.ruta import ActualizarEstadoRequest  # noqa: E402
+from app.services import reporte_service, incidencia_service, portal_service  # noqa: E402
+from app.schemas.reporte import ReporteCreate  # noqa: E402
+
+
+class _BDParada:
+    """Sesion falsa para actualizar_estado_parada: anota los pasos y devuelve el pedido."""
+
+    def __init__(self, pedido):
+        self.pedido, self.pasos = pedido, []
+
+    def refresh(self, obj, with_for_update=None):
+        self.pasos.append(f"bloqueo={bool(with_for_update)}")
+
+    def rollback(self):
+        self.pasos.append("rollback")
+
+    def commit(self):
+        self.pasos.append("commit")
+
+    def query(self, *a):
+        return self
+
+    def filter(self, *a):
+        return self
+
+    def first(self):
+        return self.pedido
+
+
+def _parada(monkeypatch, estado_entrega, url_evidencia="/media/evidencias/x.jpg"):
+    """Prepara una parada de la ruta del conductor con el estado dado. Devuelve (bd, detalle)."""
+    detalle = SimpleNamespace(id=1, ruta_id=3, estado_entrega=estado_entrega, url_evidencia=url_evidencia,
+                              motivo_fallo=None, fecha_gestion=None, ruta=SimpleNamespace(estado="EN_PROGRESO"))
+    pedido = SimpleNamespace(id=9, codigo="PD-009", estado="EN_RUTA", fecha_entrega=None)
+    monkeypatch.setattr(ruta_service, "_obtener_detalle_de_mi_ruta", lambda db, c, p: detalle)
+    monkeypatch.setattr(ruta_service.incidencia_repository, "tiene_abierta", lambda db, rid: False)
+    monkeypatch.setattr(ruta_service.historial_repository, "registrar", lambda *a: None)
+    receptores = []
+    monkeypatch.setattr(ruta_service.evidencia_repository, "fijar_receptor", lambda db, pid, n, d: receptores.append((n, d)))
+    bd = _BDParada(pedido)
+    bd.receptores = receptores
+    return bd, detalle
+
+
+def test_parada_entregada_no_puede_pasar_a_fallida(monkeypatch):
+    """Una parada ya gestionada no se modifica (C26-03): 409 y nada se guarda."""
+    bd, _ = _parada(monkeypatch, "ENTREGADO")
+    with pytest.raises(HTTPException) as e:
+        ruta_service.actualizar_estado_parada(bd, 5, 9, "FALLIDO", "Cliente ausente")
+    assert e.value.status_code == 409 and "entregada" in e.value.detail
+    assert "commit" not in bd.pasos
+
+
+def test_reintento_del_mismo_estado_responde_sin_repetir(monkeypatch):
+    """Si la cola offline reenvia la misma entrega, se responde OK sin volver a guardarla."""
+    bd, _ = _parada(monkeypatch, "FALLIDO")
+    r = ruta_service.actualizar_estado_parada(bd, 5, 9, "FALLIDO", "Cliente ausente")
+    assert r.estado_entrega == "FALLIDO" and bd.pasos == ["bloqueo=True", "rollback"]
+
+
+def test_entregar_exige_quien_recibe_y_lo_guarda(monkeypatch):
+    """ENTREGADO pide nombre y documento de quien recibe (C26-02) y los guarda con la parada bloqueada."""
+    bd, detalle = _parada(monkeypatch, "PENDIENTE")
+    with pytest.raises(HTTPException) as e:
+        ruta_service.actualizar_estado_parada(bd, 5, 9, "ENTREGADO", None)
+    assert e.value.status_code == 400 and "DNI" in e.value.detail
+    r = ruta_service.actualizar_estado_parada(bd, 5, 9, "ENTREGADO", None, "Ana Pérez", "45678912")
+    assert r.estado_entrega == "ENTREGADO" and bd.receptores == [("Ana Pérez", "45678912")]
+    assert bd.pasos[0] == "bloqueo=True" and "commit" in bd.pasos
+
+
+def test_no_se_cambia_la_foto_de_una_entrega_cerrada(monkeypatch):
+    """Subir otra foto POD a una parada ya entregada se rechaza antes de escribir nada."""
+    _parada(monkeypatch, "ENTREGADO")
+    with pytest.raises(HTTPException) as e:
+        ruta_service.guardar_evidencia(None, 5, 9, b"no-importa", "x.jpg")
+    assert e.value.status_code == 409
+
+
+@pytest.mark.parametrize("doc, valido", [("45678912", True), ("ce0012345", True), ("1234567", False),
+                                         ("45-678912", False), ("1234567890123", False)])
+def test_documento_de_quien_recibe(doc, valido):
+    """El documento es un DNI (8) o un carne de extranjeria: de 8 a 12 letras o numeros."""
+    if valido:
+        assert ActualizarEstadoRequest(estado="ENTREGADO", receptor_documento=doc).receptor_documento == doc.upper()
+    else:
+        with pytest.raises(ValidationError):
+            ActualizarEstadoRequest(estado="ENTREGADO", receptor_documento=doc)
+
+
+def test_gps_de_la_foto():
+    """La ubicacion de la foto se guarda como "lat,lng"; sin dato o fuera de rango queda vacia (C26-01)."""
+    assert gps_de_captura(-12.1, -77.03) == "-12.100000,-77.030000"
+    assert gps_de_captura(None, -77.0) is None
+    assert gps_de_captura(120.0, -77.0) is None
+
+
+def test_reporte_de_pedido_ajeno_a_la_ruta_se_rechaza(monkeypatch):
+    """Solo se reportan pedidos de la ruta activa del conductor (C29-02)."""
+    pedido = SimpleNamespace(id=9, codigo="PD-009")
+    bd = SimpleNamespace(query=lambda *a: SimpleNamespace(filter=lambda *b: SimpleNamespace(first=lambda: pedido)))
+    monkeypatch.setattr(reporte_service.ruta_repository, "obtener_ruta_activa_por_conductor", lambda db, c: SimpleNamespace(id=3))
+    monkeypatch.setattr(reporte_service.ruta_repository, "obtener_detalle_de_ruta", lambda db, r, p: None)
+    with pytest.raises(HTTPException) as e:
+        reporte_service.crear(bd, 5, ReporteCreate(pedido_id=9, motivo="Cliente ausente"))
+    assert e.value.status_code == 403
+
+
+def test_se_manda_ayuda_aunque_diga_que_puede_solo_y_queda_el_historial(monkeypatch):
+    """C30-02: marcar 'puedo solo' ya no bloquea la ayuda. C30-01: cada envio se suma al historial."""
+    inc = SimpleNamespace(id=4, estado="ABIERTA", puede_solucionar_solo=True,
+                          ayuda_enviada_en=None, ayuda_enviada_por=None, ayuda_detalle=None)
+    historial = []
+    monkeypatch.setattr(incidencia_service.incidencia_repository, "obtener", lambda db, i: inc)
+    monkeypatch.setattr(incidencia_service.incidencia_repository, "agregar_ayuda",
+                        lambda db, i, d, a: historial.append(d))
+    monkeypatch.setattr(incidencia_service.incidencia_repository, "guardar", lambda db: None)
+    monkeypatch.setattr(incidencia_service, "_a_respuesta", lambda db, i: i)
+    incidencia_service.mandar_ayuda(None, 4, 1, "Grúa", "llega en 30 min")
+    incidencia_service.mandar_ayuda(None, 4, 1, "Mecánico")
+    assert historial == ["Grúa: llega en 30 min", "Mecánico"] and inc.ayuda_detalle == "Mecánico"
+
+
+def test_ayuda_de_antes_del_historial_se_muestra_igual(monkeypatch):
+    """Una incidencia vieja (solo con la ultima ayuda en la propia fila) la devuelve como unica entrada."""
+    monkeypatch.setattr(incidencia_service.incidencia_repository, "listar_ayudas", lambda db, i: [])
+    vieja = SimpleNamespace(id=1, ayuda_enviada_en="2026-10-01", ayuda_detalle="Grúa")
+    assert incidencia_service._ayudas(None, vieja) == [{"detalle": "Grúa", "enviada_en": "2026-10-01"}]
+
+
+@pytest.mark.parametrize("tel, esperado", [("+51 987 654 321", "+51 987 654 321"), ("  ", None), (None, None)])
+def test_telefono_de_coordinacion_valido(tel, esperado):
+    """El telefono de coordinacion admite +, digitos y espacios; vacio lo borra (EX-13)."""
+    assert ContactoConfig(telefono_coordinacion=tel).telefono_coordinacion == esperado
+
+
+@pytest.mark.parametrize("tel", ["999-888-777", "12345", "llamar a Juan"])
+def test_telefono_de_coordinacion_invalido(tel):
+    """Un telefono con guiones, muy corto o con letras se rechaza."""
+    with pytest.raises(ValidationError):
+        ContactoConfig(telefono_coordinacion=tel)
+
+
+def test_portal_muestra_quien_recibio_de_verdad():
+    """El portal usa el nombre registrado por el conductor y enmascara el documento (C26-02)."""
+    pod = SimpleNamespace(receptor_nombre="Luis Rojas", receptor_documento="45678912")
+    assert portal_service._texto_recibido(pod) == "Recibido por Luis Rojas · Doc. ****912."
+    assert portal_service._texto_recibido(None) == "Entregado en la dirección de destino."

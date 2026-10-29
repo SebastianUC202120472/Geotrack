@@ -1,3 +1,6 @@
+import re
+from typing import Optional
+
 from pydantic import BaseModel, field_validator
 
 
@@ -26,3 +29,19 @@ class CombustibleConfig(BaseModel):
     """Parámetros de combustible editables desde el panel."""
     consumo_l_100km: float
     precio_soles_litro: float
+
+
+class ContactoConfig(BaseModel):
+    """Telefono de coordinacion que la app muestra en Ayuda y Reportar un error (EX-13)."""
+    telefono_coordinacion: Optional[str] = None
+
+    @field_validator("telefono_coordinacion")
+    @classmethod
+    def _v_telefono(cls, v: Optional[str]) -> Optional[str]:
+        v = " ".join((v or "").split())
+        if not v:
+            return None
+        digitos = re.sub(r"\D", "", v)
+        if not re.fullmatch(r"\+?[\d ]+", v) or not 7 <= len(digitos) <= 15:
+            raise ValueError("Escribe un teléfono válido (solo números, con + y código de país si quieres)")
+        return v

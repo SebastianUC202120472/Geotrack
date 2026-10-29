@@ -93,10 +93,17 @@ export default function TabTrazabilidad() {
               <Dato etiqueta="Distrito" valor={historial.distrito || "—"} />
               <Dato etiqueta="Ruta asignada" valor={historial.ruta_asignada || "Sin asignar"} />
               {historial.motivo_fallo && <Dato etiqueta="Motivo de fallo" valor={historial.motivo_fallo} />}
+              {historial.recibido_por && <Dato etiqueta="Recibido por" valor={historial.recibido_por} />}
               {historial.url_evidencia && (
                 <a href={historial.url_evidencia} target="_blank" rel="noreferrer"
                   className="inline-block text-sm font-medium text-brand-600 hover:underline">
                   Ver evidencia (POD)
+                </a>
+              )}
+              {historial.ubicacion_evidencia && (
+                <a href={`https://www.google.com/maps?q=${historial.ubicacion_evidencia}`} target="_blank" rel="noreferrer"
+                  className="flex items-center gap-1 text-sm font-medium text-brand-600 hover:underline">
+                  <MapPin size={14} /> Dónde se tomó la foto
                 </a>
               )}
             </div>

@@ -10,12 +10,17 @@ export interface AccionPendiente {
   pedidoId: number;
   motivo?: string;
   descripcion?: string;
-  fotoUri?: string;   // ruta persistida en disco
+  fotoUri?: string;   // ruta persistida en disco (POD o foto del reporte de falla)
+  latitud?: number;   // dónde se tomó la foto
+  longitud?: number;
+  receptorNombre?: string;     // quién recibió (solo ENTREGA)
+  receptorDocumento?: string;
   creadoEn: number;
   // Progreso por sub-paso para reintentos idempotentes: no se re-ejecutan los POST ya hechos.
   estadoAplicado?: boolean;
   evidenciaSubida?: boolean;
   reporteCreado?: boolean;
+  reporteId?: number;          // id del reporte creado, para adjuntarle la foto después
 }
 
 const CLAVE = "cola_sync_v1";
@@ -57,6 +62,7 @@ async function _asegurarDir(): Promise<void> {
 // Encola una acción; copia la foto a disco si viene adjunta. Devuelve el ítem encolado.
 export function encolar(params: {
   tipo: TipoAccion; pedidoId: number; motivo?: string; descripcion?: string; fotoUri?: string;
+  latitud?: number; longitud?: number; receptorNombre?: string; receptorDocumento?: string;
 }): Promise<AccionPendiente> {
   return _serializar(async () => {
     const items = await _leer();
@@ -74,7 +80,10 @@ export function encolar(params: {
     }
     const item: AccionPendiente = {
       id, tipo: params.tipo, pedidoId: params.pedidoId,
-      motivo: params.motivo, descripcion: params.descripcion, fotoUri, creadoEn: Date.now(),
+      motivo: params.motivo, descripcion: params.descripcion, fotoUri,
+      latitud: params.latitud, longitud: params.longitud,
+      receptorNombre: params.receptorNombre, receptorDocumento: params.receptorDocumento,
+      creadoEn: Date.now(),
     };
     await _guardar([...items, item]);
     return item;

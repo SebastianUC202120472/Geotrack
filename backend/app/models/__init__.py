@@ -13,7 +13,7 @@ from .liquidacion import Liquidacion
 from .evidencia import EvidenciaEntrega
 from .solicitud_restablecimiento import SolicitudRestablecimiento
 from .parametro import ParametroSistema
-from .incidencia import Incidencia
+from .incidencia import Incidencia, IncidenciaAyuda
 from .solicitud_recojo import SolicitudRecojo
 from .notificacion import Notificacion
 from .evidencia_recojo import EvidenciaRecojo

@@ -69,10 +69,29 @@ class NavegacionResponse(BaseModel):
     paradas: List[ParadaNavegacion]
 
 
-# Solicitud para actualizar el estado de una parada. Recibe estado y motivo opcional.
+# Solicitud para actualizar el estado de una parada. Recibe estado, motivo opcional y,
+# en una entrega, el nombre y documento de quien recibe (C26-02).
 class ActualizarEstadoRequest(BaseModel):
     estado: str  # ENTREGADO | FALLIDO
     motivo_fallo: Optional[str] = None
+    receptor_nombre: Optional[str] = Field(None, max_length=120)
+    receptor_documento: Optional[str] = None  # DNI (8 digitos) o carne de extranjeria
+
+    @field_validator("receptor_nombre")
+    @classmethod
+    def validar_receptor_nombre(cls, v: Optional[str]) -> Optional[str]:
+        v = " ".join((v or "").split())
+        return v or None
+
+    @field_validator("receptor_documento")
+    @classmethod
+    def validar_receptor_documento(cls, v: Optional[str]) -> Optional[str]:
+        v = (v or "").strip().upper()
+        if not v:
+            return None
+        if not v.isalnum() or not 8 <= len(v) <= 12:
+            raise ValueError("El documento de quien recibe debe tener de 8 a 12 letras o números")
+        return v
 
     @field_validator("estado")
     @classmethod

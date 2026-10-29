@@ -138,6 +138,18 @@ export interface Reporte {
   accion?: string | null;
   creado_en?: string | null;
   respondido_en?: string | null;
+  url_evidencia?: string | null;  // foto que respalda la falla (C29-01)
+}
+
+// Quien recibe el paquete al entregar (C26-02).
+export interface Receptor {
+  nombre: string;
+  documento: string; // DNI (8 dígitos) o carné de extranjería
+}
+
+// Teléfono de coordinación configurado en el panel (EX-13).
+export interface Contacto {
+  telefono_coordinacion?: string | null;
 }
 
 // Incidencia de auxilio mecánico.

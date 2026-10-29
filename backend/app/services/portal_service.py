@@ -113,7 +113,7 @@ def detalle_pedido(db: Session, codigo: str) -> dict:
         "eventos": eventos,
     }
     if est == "ENTREGADO":
-        data["recibido"] = _texto_recibido(p)
+        data["recibido"] = _texto_recibido(pod)
     if est == "REPROGRAMADO":
         data["motivo"] = detalle.motivo_fallo if detalle and detalle.motivo_fallo else "No se pudo entregar en el intento anterior"
     return data
@@ -150,10 +150,15 @@ def _nota(est: str) -> str:
     }.get(est, "")
 
 
-def _texto_recibido(p) -> str:
-    """Texto de 'recibido por' para entregas. Recibe el pedido."""
-    nombre = p.nombre_destinatario or "el destinatario"
-    return f"Recibido por {nombre}."
+def _texto_recibido(pod) -> str:
+    """Texto de 'recibido por' con quien firmo la entrega en la app (C26-02); el documento va
+    enmascarado. Las entregas anteriores a ese registro no tienen el dato. Recibe la evidencia (o None)."""
+    nombre = (getattr(pod, "receptor_nombre", None) or "").strip()
+    if not nombre:
+        return "Entregado en la dirección de destino."
+    documento = getattr(pod, "receptor_documento", None) or ""
+    sufijo = f" · Doc. ****{documento[-3:]}" if len(documento) >= 3 else ""
+    return f"Recibido por {nombre}{sufijo}."
 
 
 def _estado_visible(p, det) -> str:

@@ -7,18 +7,19 @@ import { Button } from "@/components/Button";
 import { Cabecera } from "@/components/Cabecera";
 import { Aparecer } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
+import { useTelefonoCoordinacion } from "@/hooks/useTelefonoCoordinacion";
 import { useTheme, spacing, radius, fuentes } from "@/theme";
-
-const TELEFONO_COORDINACION = process.env.EXPO_PUBLIC_COORDINACION_TEL ?? "+51999888777";
 
 export default function FeedbackScreen() {
   const { colors } = useTheme();
+  const { telefono } = useTelefonoCoordinacion();
   const [texto, setTexto] = useState("");
 
-  // Abre WhatsApp con el reporte escrito.
+  // Abre WhatsApp de coordinación con el reporte escrito.
   const enviar = () => {
+    if (!telefono) return;
     const msg = encodeURIComponent(`Reporte de error en GeoTrack:\n${texto.trim()}`);
-    Linking.openURL(`https://wa.me/${TELEFONO_COORDINACION.replace(/[^\d]/g, "")}?text=${msg}`);
+    Linking.openURL(`https://wa.me/${telefono.replace(/[^\d]/g, "")}?text=${msg}`);
   };
 
   return (
@@ -40,8 +41,13 @@ export default function FeedbackScreen() {
               style={[estilos.area, { borderColor: colors.border, color: colors.ink, backgroundColor: colors.canvas }]}
             />
             <View style={{ marginTop: spacing.md }}>
-              <Button titulo="Enviar por WhatsApp" onPress={enviar} deshabilitado={texto.trim().length === 0} />
+              <Button titulo="Enviar por WhatsApp" onPress={enviar} deshabilitado={!telefono || texto.trim().length === 0} />
             </View>
+            {!telefono && (
+              <Texto variante="caption" color={colors.muted} style={{ marginTop: spacing.sm }}>
+                Coordinación aún no registró su teléfono. Pide al administrador que lo configure en el panel.
+              </Texto>
+            )}
           </Card>
         </Aparecer>
       </ScrollView>

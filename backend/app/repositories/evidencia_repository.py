@@ -17,9 +17,21 @@ def registrar_foto(db: Session, pedido_id: int, url_foto: str, geo: Optional[str
         evidencia = EvidenciaEntrega(pedido_id=pedido_id)
         db.add(evidencia)
     evidencia.url_foto = url_foto
-    if geo is not None:
-        evidencia.latitud_longitud_captura = geo
+    # Una foto nueva reemplaza la ubicacion de la anterior (o la deja vacia si no hubo GPS).
+    evidencia.latitud_longitud_captura = geo
     evidencia.fecha_hora = datetime.utcnow()
     db.commit()
     db.refresh(evidencia)
+    return evidencia
+
+
+def fijar_receptor(db: Session, pedido_id: int, nombre: str, documento: str) -> EvidenciaEntrega:
+    """Anota quien recibio el paquete en la evidencia del pedido (sin commit: lo hace el servicio).
+    Recibe pedido_id, nombre y documento."""
+    evidencia = obtener_por_pedido(db, pedido_id)
+    if evidencia is None:
+        evidencia = EvidenciaEntrega(pedido_id=pedido_id)
+        db.add(evidencia)
+    evidencia.receptor_nombre = nombre
+    evidencia.receptor_documento = documento
     return evidencia

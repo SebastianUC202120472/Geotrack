@@ -6,7 +6,7 @@ from datetime import datetime
 
 from app.models.usuario import Usuario
 from app.models.solicitud_recojo import ESTADOS_GESTIONADOS
-from app.repositories import ruta_repository, pedido_repository, usuario_repository, historial_repository, ubicacion_repository, incidencia_repository, recojo_repository
+from app.repositories import ruta_repository, pedido_repository, usuario_repository, historial_repository, ubicacion_repository, incidencia_repository, recojo_repository, evidencia_repository
 from app.schemas.dashboard import (
     RutaFlota,
     FlotaResponse,
@@ -256,6 +256,14 @@ def obtener_historial(db: Session, codigo: str) -> HistorialPedidoResponse:
     secuencia = None
     url_evidencia = None
     motivo_fallo = None
+    recibido_por = None
+    ubicacion_evidencia = None
+
+    pod = evidencia_repository.obtener_por_pedido(db, pedido.id)
+    if pod:
+        if pod.receptor_nombre:
+            recibido_por = pod.receptor_nombre + (f" · DNI {pod.receptor_documento}" if pod.receptor_documento else "")
+        ubicacion_evidencia = pod.latitud_longitud_captura
 
     par = ruta_repository.obtener_detalle_y_ruta_por_pedido(db, pedido.id)
     if par:
@@ -277,6 +285,8 @@ def obtener_historial(db: Session, codigo: str) -> HistorialPedidoResponse:
         secuencia=secuencia,
         url_evidencia=url_evidencia,
         motivo_fallo=motivo_fallo,
+        recibido_por=recibido_por,
+        ubicacion_evidencia=ubicacion_evidencia,
         eventos=eventos,
     )
 

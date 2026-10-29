@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.api.deps import get_current_admin
 from app.services import parametro_service
-from app.schemas.parametro import MotivoCreate, MotivoResponse, CombustibleConfig
+from app.schemas.parametro import MotivoCreate, MotivoResponse, CombustibleConfig, ContactoConfig
 
 router = APIRouter()
 
@@ -39,3 +39,15 @@ def obtener_combustible(db: Session = Depends(get_db)):
 def actualizar_combustible(datos: CombustibleConfig, db: Session = Depends(get_db)):
     """Actualiza los parámetros de combustible. Recibe consumo y precio por litro."""
     return parametro_service.actualizar_combustible(db, datos.consumo_l_100km, datos.precio_soles_litro)
+
+
+@router.get("/contacto", response_model=ContactoConfig, dependencies=[Depends(get_current_admin)])
+def obtener_contacto(db: Session = Depends(get_db)):
+    """Lee el telefono de coordinacion que usa la app del conductor."""
+    return parametro_service.obtener_contacto(db)
+
+
+@router.put("/contacto", response_model=ContactoConfig, dependencies=[Depends(get_current_admin)])
+def actualizar_contacto(datos: ContactoConfig, db: Session = Depends(get_db)):
+    """Actualiza el telefono de coordinacion. Recibe el telefono (vacio lo borra)."""
+    return parametro_service.actualizar_contacto(db, datos.telefono_coordinacion)

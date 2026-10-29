@@ -4,7 +4,10 @@ import PageHeader from "../components/ui/PageHeader";
 import SectionCard from "../components/ui/SectionCard";
 import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
-import { listarMotivos, crearMotivo, eliminarMotivo, obtenerCombustible, actualizarCombustible } from "../services/api";
+import {
+  listarMotivos, crearMotivo, eliminarMotivo, obtenerCombustible, actualizarCombustible,
+  obtenerContacto, actualizarContacto,
+} from "../services/api";
 
 // Pagina de parametros del sistema: motivos de rechazo y parametros de combustible.
 export default function Parametros() {
@@ -16,6 +19,33 @@ export default function Parametros() {
 
   const [combustible, setCombustible] = useState({ consumo_l_100km: "", precio_soles_litro: "" });
   const [guardandoComb, setGuardandoComb] = useState(false);
+
+  const [telefono, setTelefono] = useState("");
+  const [guardandoTel, setGuardandoTel] = useState(false);
+  const [avisoTel, setAvisoTel] = useState(null);
+
+  // Carga el telefono de coordinacion al montar.
+  useEffect(() => {
+    let activo = true;
+    obtenerContacto()
+      .then((c) => activo && setTelefono(c.telefono_coordinacion || ""))
+      .catch(() => {});
+    return () => { activo = false; };
+  }, []);
+
+  // Guarda el telefono de coordinacion. Recibe el evento del formulario.
+  const guardarTelefono = (e) => {
+    e.preventDefault();
+    setGuardandoTel(true);
+    setAvisoTel(null);
+    actualizarContacto(telefono.trim() || null)
+      .then((c) => {
+        setTelefono(c.telefono_coordinacion || "");
+        setAvisoTel({ ok: true, texto: c.telefono_coordinacion ? "Teléfono guardado." : "Teléfono borrado." });
+      })
+      .catch((err) => setAvisoTel({ ok: false, texto: err.message }))
+      .finally(() => setGuardandoTel(false));
+  };
 
   // Carga parametros de combustible al montar.
   useEffect(() => {
@@ -115,11 +145,10 @@ export default function Parametros() {
         </SectionCard>
       </div>
 
-      <div className="grid gap-6 animate-fade-up">
+      <div className="grid gap-6 lg:grid-cols-2 animate-fade-up">
         <SectionCard
           title="Combustible (CUS-34)"
           subtitle="Parámetros para calcular el ahorro de combustible en los KPIs del dashboard."
-          className="lg:max-w-md"
         >
           <form onSubmit={guardarCombustible} noValidate className="space-y-4">
             <Input
@@ -145,6 +174,31 @@ export default function Parametros() {
             <Button type="submit" icon={Save} block disabled={guardandoComb}>
               {guardandoComb ? "Guardando…" : "Guardar parámetros"}
             </Button>
+          </form>
+        </SectionCard>
+
+        <SectionCard
+          title="Teléfono de coordinación"
+          subtitle="El conductor lo usa en la app para llamar o escribir por WhatsApp (Ayuda y Reportar un error)."
+        >
+          <form onSubmit={guardarTelefono} noValidate className="space-y-4">
+            <Input
+              label="Teléfono"
+              type="tel"
+              value={telefono}
+              maxLength={20}
+              onChange={(e) => { setTelefono(e.target.value); setAvisoTel(null); }}
+              placeholder="Ej. +51 987 654 321"
+              hint="Con código de país para que funcione WhatsApp. Déjalo vacío si aún no hay uno."
+            />
+            <Button type="submit" icon={Save} block disabled={guardandoTel}>
+              {guardandoTel ? "Guardando…" : "Guardar teléfono"}
+            </Button>
+            {avisoTel && (
+              <p className={`rounded-xl px-3.5 py-2.5 text-sm ${avisoTel.ok ? "bg-success-soft text-success-strong" : "bg-danger-soft text-danger-strong"}`}>
+                {avisoTel.texto}
+              </p>
+            )}
           </form>
         </SectionCard>
       </div>

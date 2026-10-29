@@ -5,7 +5,7 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.imagenes import validar_imagen
+from app.core.imagenes import validar_imagen, gps_de_captura
 from app.models.ruta import Ruta, RutaDetalle
 from app.models.pedido import Pedido
 from app.models.solicitud_recojo import ESTADOS_RECOGIDO
@@ -150,14 +150,40 @@ def _obtener_detalle_de_mi_ruta(
     return detalle
 
 
+def _respuesta_gestion(detalle: RutaDetalle, pedido: Pedido, mensaje: str) -> GestionParadaResponse:
+    """Arma la respuesta de una parada gestionada. Recibe el detalle, el pedido y el mensaje."""
+    return GestionParadaResponse(
+        pedido_id=pedido.id,
+        codigo=pedido.codigo,
+        estado_entrega=detalle.estado_entrega,
+        motivo_fallo=detalle.motivo_fallo,
+        url_evidencia=detalle.url_evidencia,
+        fecha_gestion=detalle.fecha_gestion,
+        mensaje=mensaje,
+    )
+
+
+def validar_parada_pendiente(detalle: RutaDetalle) -> None:
+    """Rechaza cambios sobre una parada ya entregada o fallida (C26-03). Recibe el detalle de ruta."""
+    if detalle.estado_entrega != "PENDIENTE":
+        texto = "entregada" if detalle.estado_entrega == "ENTREGADO" else "reportada como fallida"
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Esta parada ya fue {texto} y no se puede modificar.",
+        )
+
+
 def actualizar_estado_parada(
     db: Session,
     conductor_id: int,
     pedido_id: int,
     estado: str,
     motivo_fallo: str | None,
+    receptor_nombre: str | None = None,
+    receptor_documento: str | None = None,
 ) -> GestionParadaResponse:
-    """Marca un pedido como ENTREGADO o FALLIDO. Recibe: id del conductor, pedido, estado y motivo."""
+    """Marca un pedido como ENTREGADO o FALLIDO. Recibe: id del conductor, pedido, estado, motivo
+    y, si se entrega, el nombre y documento de quien recibe."""
     if estado == "FALLIDO" and not (motivo_fallo and motivo_fallo.strip()):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -165,6 +191,16 @@ def actualizar_estado_parada(
         )
 
     detalle = _obtener_detalle_de_mi_ruta(db, conductor_id, pedido_id)
+    # Bloquea la fila: dos envios a la vez (p. ej. la cola offline y la pantalla) no pueden
+    # gestionar la misma parada dos veces.
+    db.refresh(detalle, with_for_update=True)
+    pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
+
+    # Un reintento del mismo cambio (respuesta perdida por la señal) se responde sin repetirlo.
+    if detalle.estado_entrega == estado:
+        db.rollback()
+        return _respuesta_gestion(detalle, pedido, f"Pedido marcado como {estado}")
+    validar_parada_pendiente(detalle)
 
     if incidencia_repository.tiene_abierta(db, detalle.ruta_id):
         raise HTTPException(status_code=400, detail="La ruta está pausada por una incidencia. Reanúdala antes de continuar.")
@@ -175,8 +211,11 @@ def actualizar_estado_parada(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Adjunta la foto de evidencia (POD) antes de marcar la entrega como ENTREGADO.",
         )
-
-    pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
+    if estado == "ENTREGADO" and not (receptor_nombre and len(receptor_nombre) >= 3 and receptor_documento):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Indica el nombre y el DNI de quien recibe el paquete.",
+        )
 
     ahora = datetime.utcnow()
     estado_anterior = pedido.estado
@@ -190,20 +229,15 @@ def actualizar_estado_parada(
     if detalle.ruta and detalle.ruta.estado == "CREADA":
         detalle.ruta.estado = "EN_PROGRESO"
 
+    if estado == "ENTREGADO":
+        evidencia_repository.fijar_receptor(db, pedido.id, receptor_nombre, receptor_documento)
+
     historial_repository.registrar(db, pedido.id, estado_anterior, estado, conductor_id)
 
     db.commit()
     db.refresh(detalle)
 
-    return GestionParadaResponse(
-        pedido_id=pedido.id,
-        codigo=pedido.codigo,
-        estado_entrega=detalle.estado_entrega,
-        motivo_fallo=detalle.motivo_fallo,
-        url_evidencia=detalle.url_evidencia,
-        fecha_gestion=detalle.fecha_gestion,
-        mensaje=f"Pedido marcado como {estado}",
-    )
+    return _respuesta_gestion(detalle, pedido, f"Pedido marcado como {estado}")
 
 
 def guardar_evidencia(
@@ -212,9 +246,14 @@ def guardar_evidencia(
     pedido_id: int,
     contenido: bytes,
     nombre_archivo: str,
+    latitud: float | None = None,
+    longitud: float | None = None,
 ) -> GestionParadaResponse:
-    """Guarda la foto POD y la asocia al detalle de ruta. Recibe: id conductor, pedido, bytes e imagen."""
+    """Guarda la foto POD y la asocia al detalle de ruta. Recibe: id conductor, pedido, bytes,
+    nombre de la imagen y la posicion GPS donde se tomo (C26-01)."""
     detalle = _obtener_detalle_de_mi_ruta(db, conductor_id, pedido_id)
+    # Una entrega ya cerrada no puede cambiar su foto de evidencia (C26-03).
+    validar_parada_pendiente(detalle)
 
     # La extension sale del contenido real, no del nombre que manda el cliente.
     extension = validar_imagen(contenido)
@@ -233,18 +272,10 @@ def guardar_evidencia(
     db.commit()
     db.refresh(detalle)
 
-    evidencia_repository.registrar_foto(db, pedido_id, url)
+    evidencia_repository.registrar_foto(db, pedido_id, url, gps_de_captura(latitud, longitud))
 
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
-    return GestionParadaResponse(
-        pedido_id=pedido.id,
-        codigo=pedido.codigo,
-        estado_entrega=detalle.estado_entrega,
-        motivo_fallo=detalle.motivo_fallo,
-        url_evidencia=detalle.url_evidencia,
-        fecha_gestion=detalle.fecha_gestion,
-        mensaje="Evidencia (POD) cargada correctamente",
-    )
+    return _respuesta_gestion(detalle, pedido, "Evidencia (POD) cargada correctamente")
 
 
 def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
