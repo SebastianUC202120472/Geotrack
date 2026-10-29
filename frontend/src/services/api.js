@@ -36,7 +36,9 @@ async function request(ruta, { method = "GET", body, headers = {}, auth = true }
 
   if (!respuesta.ok) {
     const detalle = datos?.detail || datos?.message || "Ocurrió un error en el servidor";
-    throw new Error(typeof detalle === "string" ? detalle : "Solicitud inválida");
+    const error = new Error(typeof detalle === "string" ? detalle : "Solicitud inválida");
+    error.status = respuesta.status;
+    throw error;
   }
 
   return datos;
@@ -531,3 +533,88 @@ export const moverParadaRuta = (rutaId, pedidoId, rutaDestinoId) =>
     body: { ruta_destino_id: rutaDestinoId },
   });
 
+// ===========================================================================
+// Modulo de catalogo y capacidad (Idea 3)
+// Estas rutas viven bajo /api/modulo-capacidad y se apagan con la bandera
+// MODULO_CAPACIDAD_ENABLED del backend.
+// ===========================================================================
+
+const RUTA_CAPACIDAD = "/modulo-capacidad";
+
+// Lista el catalogo de vehiculos. Recibe filtros opcionales { busqueda, marca, tipo, soloVerificados }.
+export const listarCatalogoCapacidad = (filtros = {}) => {
+  const query = new URLSearchParams();
+  if (filtros.busqueda) query.append("busqueda", filtros.busqueda);
+  if (filtros.marca) query.append("marca", filtros.marca);
+  if (filtros.tipo) query.append("tipo", filtros.tipo);
+  if (filtros.soloVerificados) query.append("solo_verificados", "true");
+  const cadena = query.toString();
+  return request(`${RUTA_CAPACIDAD}/catalogo${cadena ? `?${cadena}` : ""}`);
+};
+
+// Crea un modelo propio del catalogo. Recibe la ficha completa.
+export const crearModeloCapacidad = (datos) =>
+  request(`${RUTA_CAPACIDAD}/catalogo`, { method: "POST", body: datos });
+
+// Edita un modelo (si es del catalogo base, el backend guarda una copia). Recibe id y cambios.
+export const actualizarModeloCapacidad = (modeloId, datos) =>
+  request(`${RUTA_CAPACIDAD}/catalogo/${encodeURIComponent(modeloId)}`, {
+    method: "PATCH",
+    body: datos,
+  });
+
+// Borra un modelo agregado desde el panel. Recibe el id.
+export const eliminarModeloCapacidad = (modeloId) =>
+  request(`${RUTA_CAPACIDAD}/catalogo/${encodeURIComponent(modeloId)}`, { method: "DELETE" });
+
+// Lista la flota con su modelo vinculado (si tiene). Sin parametros.
+export const listarFlotaCapacidad = () => request(`${RUTA_CAPACIDAD}/flota`);
+
+// Historial de placas vinculadas a modelos. Sin parametros.
+export const listarVinculacionesCapacidad = () => request(`${RUTA_CAPACIDAD}/vinculaciones`);
+
+// Vincula una placa de la flota con un modelo. Recibe { placa, modelo_id }.
+export const vincularPlacaCapacidad = (datos) =>
+  request(`${RUTA_CAPACIDAD}/vinculaciones`, { method: "POST", body: datos });
+
+// Quita la vinculacion de una placa. Recibe el id de la vinculacion.
+export const desvincularPlacaCapacidad = (vinculacionId) =>
+  request(`${RUTA_CAPACIDAD}/vinculaciones/${vinculacionId}`, { method: "DELETE" });
+
+// Lee el factor de aprovechamiento y los topes de planificacion. Sin parametros.
+export const obtenerConfiguracionCapacidad = () => request(`${RUTA_CAPACIDAD}/configuracion`);
+
+// Actualiza los parametros de planificacion. Recibe solo los campos a cambiar.
+export const actualizarConfiguracionCapacidad = (datos) =>
+  request(`${RUTA_CAPACIDAD}/configuracion`, { method: "PUT", body: datos });
+
+// Calcula capacidad y viajes para un modelo o una placa. Recibe el cuerpo del calculo.
+export const calcularCapacidad = (datos) =>
+  request(`${RUTA_CAPACIDAD}/calcular`, { method: "POST", body: datos });
+
+// Planifica el dia con los pedidos reales (o demo). Recibe filtros y ajustes.
+export const obtenerPlanificacionCapacidad = (filtros = {}) => {
+  const query = new URLSearchParams();
+  const claves = [
+    "estado",
+    "distrito",
+    "fecha",
+    "limite",
+    "demo_pedidos",
+    "demo_vehiculos",
+    "factor_aprovechamiento",
+    "max_paradas_por_viaje",
+    "max_viajes_por_dia",
+  ];
+  for (const clave of claves) {
+    if (filtros[clave] !== undefined && filtros[clave] !== null && filtros[clave] !== "") {
+      query.append(clave, filtros[clave]);
+    }
+  }
+  const cadena = query.toString();
+  return request(`${RUTA_CAPACIDAD}/planificacion${cadena ? `?${cadena}` : ""}`);
+};
+
+// Ultimos cambios del modulo. Recibe el limite de filas (por defecto 100).
+export const listarAuditoriaCapacidad = (limite = 100) =>
+  request(`${RUTA_CAPACIDAD}/auditoria?limite=${limite}`);

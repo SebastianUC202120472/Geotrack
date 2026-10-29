@@ -17,6 +17,7 @@ import {
   Wrench,
   BookText,
   AlertOctagon,
+  Scale,
   Handshake,
 } from "lucide-react";
 import { useState } from "react";
@@ -44,6 +45,7 @@ const secciones = [
     roles: ["admin"],
     items: [
       { icon: Truck, label: "Flota de Vehículos", path: "/panel/flota" },
+      { icon: Scale, label: "Capacidad de Vehículos", path: "/panel/capacidad" }, // 2. Opción agregada aquí
       { icon: Users, label: "Conductores", path: "/panel/conductores" },
       { icon: Building2, label: "Clientes", path: "/panel/clientes" },
       { icon: MapPin, label: "Seguimiento de Conductores", path: "/panel/seguimiento-conductores" },
@@ -76,6 +78,7 @@ const secciones = [
       { icon: AlertOctagon, label: "Pedidos observados", path: "/panel/almacen/observados" },
       { icon: Undo2, label: "Retornos de Ruta", path: "/panel/almacen/retornos" },
       { icon: MapPin, label: "Mapa de recojos", path: "/panel/almacen/mapa" },
+      { icon: Scale, label: "Capacidad de Vehículos", path: "/panel/capacidad" }, // Consulta de solo lectura
     ],
   },
 ];
