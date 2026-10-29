@@ -236,6 +236,9 @@ porque `@prueba.local` no pasa la validación de `EmailStr` en `/usuarios/yo`).
 - Escrituras solo con `get_current_admin`; lecturas con `get_current_almacen`.
 - No se guardan secretos en el frontend ni en el repositorio; la configuración
   sensible sigue en `.env`.
+- CORS: `CORS_ORIGINS` vacío deja solo el mismo origen (el panel llama a `/api`
+  por Nginx). En el entorno local se usa una lista explícita
+  (`http://localhost:8080,http://127.0.0.1:8080`); nunca se publica `*`.
 - El módulo no modifica tablas del núcleo: pedidos y flota se leen, no se escriben.
 - El tope de paradas por viaje es una recomendación operativa, no una restricción
   física. El límite duro es `max_viajes_por_dia`.
