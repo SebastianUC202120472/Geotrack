@@ -375,6 +375,16 @@ export const obtenerEficienciaConductores = () => request("/dashboard/eficiencia
 
 export const obtenerCombustible = () => request("/parametros/combustible");
 
+// Meses que se conservan los datos del destinatario (EX-04). Sin parametros.
+export const obtenerPrivacidad = () => request("/parametros/privacidad");
+
+// Cambia los meses de retención (0 = no retirar). Recibe los meses.
+export const actualizarPrivacidad = (retencion_meses) =>
+  request("/parametros/privacidad", { method: "PUT", body: { retencion_meses } });
+
+// Aplica ahora la política de retención. Sin parametros.
+export const aplicarPrivacidad = () => request("/parametros/privacidad/aplicar", { method: "POST" });
+
 // Franjas que el portal ofrece para reprogramar una entrega (C43-03). Sin parametros.
 export const obtenerFranjas = () => request("/parametros/franjas");
 

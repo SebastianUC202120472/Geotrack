@@ -7,6 +7,7 @@ import Button from "../components/ui/Button";
 import {
   listarMotivos, crearMotivo, eliminarMotivo, obtenerCombustible, actualizarCombustible,
   obtenerContacto, actualizarContacto, obtenerFranjas, actualizarFranjas,
+  obtenerPrivacidad, actualizarPrivacidad, aplicarPrivacidad,
 } from "../services/api";
 
 // Pagina de parametros del sistema: motivos de rechazo y parametros de combustible.
@@ -27,6 +28,34 @@ export default function Parametros() {
   const [franjas, setFranjas] = useState("");
   const [guardandoFranjas, setGuardandoFranjas] = useState(false);
   const [avisoFranjas, setAvisoFranjas] = useState(null);
+
+  const [meses, setMeses] = useState("");
+  const [guardandoMeses, setGuardandoMeses] = useState(false);
+  const [avisoMeses, setAvisoMeses] = useState(null);
+
+  // Carga los meses de retencion de datos al montar (EX-04).
+  useEffect(() => {
+    let activo = true;
+    obtenerPrivacidad().then((r) => activo && setMeses(String(r.retencion_meses))).catch(() => {});
+    return () => { activo = false; };
+  }, []);
+
+  // Guarda los meses y aplica la politica en el acto. Recibe el evento del formulario.
+  const guardarRetencion = (e) => {
+    e.preventDefault();
+    setGuardandoMeses(true);
+    setAvisoMeses(null);
+    actualizarPrivacidad(Number(meses))
+      .then((r) => { setMeses(String(r.retencion_meses)); return aplicarPrivacidad(); })
+      .then((r) => setAvisoMeses({
+        ok: true,
+        texto: r.retencion_meses === 0
+          ? "Guardado: no se retirarán datos."
+          : `Guardado. Se retiraron los datos de ${r.pedidos} pedido(s) con más de ${r.retencion_meses} meses.`,
+      }))
+      .catch((err) => setAvisoMeses({ ok: false, texto: err.message }))
+      .finally(() => setGuardandoMeses(false));
+  };
 
   // Carga las franjas de reprogramacion del portal al montar (una por linea).
   useEffect(() => {
@@ -249,6 +278,31 @@ export default function Parametros() {
             {avisoFranjas && (
               <p className={`rounded-xl px-3.5 py-2.5 text-sm ${avisoFranjas.ok ? "bg-success-soft text-success-strong" : "bg-danger-soft text-danger-strong"}`}>
                 {avisoFranjas.texto}
+              </p>
+            )}
+          </form>
+        </SectionCard>
+
+        <SectionCard
+          title="Retención de datos personales"
+          subtitle="Pasado este plazo desde la entrega o cancelación, se retiran nombre, teléfono, DNI, dirección exacta y ubicación del destinatario. Se aplica solo cada día."
+        >
+          <form onSubmit={guardarRetencion} noValidate className="space-y-4">
+            <Input
+              label="Conservar los datos durante (meses)"
+              type="number"
+              min="0"
+              max="120"
+              value={meses}
+              onChange={(e) => { setMeses(e.target.value); setAvisoMeses(null); }}
+              hint="0 = no retirar nunca. El Libro de Reclamaciones no se ve afectado."
+            />
+            <Button type="submit" icon={Save} block disabled={guardandoMeses || meses === ""}>
+              {guardandoMeses ? "Aplicando…" : "Guardar y aplicar"}
+            </Button>
+            {avisoMeses && (
+              <p className={`rounded-xl px-3.5 py-2.5 text-sm ${avisoMeses.ok ? "bg-success-soft text-success-strong" : "bg-danger-soft text-danger-strong"}`}>
+                {avisoMeses.texto}
               </p>
             )}
           </form>

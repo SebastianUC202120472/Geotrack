@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     IMAGEN_MAX_MB: int = 8
     RECOJO_MAX_FOTOS: int = 10
 
+    # Archivos subidos (EX-08): "local" (carpeta UPLOADS_DIR, volumen de Docker) o "supabase" (Supabase Storage).
+    ALMACENAMIENTO: str = "local"
+    UPLOADS_DIR: str = "uploads"
+    SUPABASE_URL: str = ""
+    SUPABASE_SERVICE_KEY: str = ""  # nosec B105 - clave de servicio, solo en el .env
+    SUPABASE_BUCKET: str = "geotrack"
+
     ADMIN_EMAIL: str = "admin@siol.com"
     ADMIN_PASSWORD: str = "admin123"  # nosec B105
 

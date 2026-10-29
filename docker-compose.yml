@@ -43,6 +43,15 @@ services:
       MAIL_FOLDER: ${MAIL_FOLDER:-INBOX}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-SAVA S.A.C.}
       MAIL_SIGNATURE: ${MAIL_SIGNATURE:-}
+      # Datos del proveedor en el Libro de Reclamaciones (C40-02).
+      EMPRESA_RAZON_SOCIAL: ${EMPRESA_RAZON_SOCIAL:-SAVA S.A.C.}
+      EMPRESA_RUC: ${EMPRESA_RUC:-}
+      EMPRESA_DIRECCION: ${EMPRESA_DIRECCION:-Calle Los Sinchis Nro. 166, Urb. Tahuantinsuyo Zona III, Independencia, Lima}
+      # Archivos (EX-08): "local" usa el volumen backend_uploads; "supabase" guarda en Supabase Storage.
+      ALMACENAMIENTO: ${ALMACENAMIENTO:-local}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-}
+      SUPABASE_BUCKET: ${SUPABASE_BUCKET:-geotrack}
     volumes:
       - backend_uploads:/app/uploads
       # Registro de errores (EX-11): sobrevive a la reconstruccion del contenedor.

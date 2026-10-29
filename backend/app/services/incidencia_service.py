@@ -5,12 +5,12 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core import almacenamiento
 from app.core.imagenes import validar_imagen
 from app.repositories import incidencia_repository, ruta_repository, usuario_repository
 from app.models.conductor import PerfilConductor
 from app.services import notificaciones_service
 
-DIR_INCIDENCIAS = os.path.join("uploads", "incidencias")
 
 
 def _nombre_conductor(db: Session, conductor_id: int):
@@ -101,12 +101,9 @@ def guardar_evidencia(db: Session, incidencia_id: int, conductor_id: int, conten
     # La extension sale del contenido real, no del nombre que manda el cliente.
     extension = validar_imagen(contenido)
 
-    os.makedirs(DIR_INCIDENCIAS, exist_ok=True)
-    # Sufijo aleatorio: /media es estatico y el nombre no debe ser adivinable.
+    # Nombre no adivinable y, ademas, /media solo entrega enlaces firmados (EX-03).
     nombre_final = f"inc_{inc.id}_{secrets.token_hex(8)}{extension}"
-    with open(os.path.join(DIR_INCIDENCIAS, nombre_final), "wb") as f:
-        f.write(contenido)
-    inc.url_evidencia = f"/media/incidencias/{nombre_final}"
+    inc.url_evidencia = almacenamiento.guardar(f"incidencias/{nombre_final}", contenido)
     incidencia_repository.guardar(db)
     return _a_respuesta(db, inc)
 

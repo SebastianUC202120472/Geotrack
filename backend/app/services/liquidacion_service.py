@@ -9,11 +9,13 @@ from openpyxl import Workbook
 from openpyxl.styles import Font
 from sqlalchemy.orm import Session
 
+import io
+
+from app.core import almacenamiento
 from app.core.excel import fila_segura
 from app.repositories import pedido_repository, ruta_repository, cliente_repository, liquidacion_repository
 
 # Carpeta privada para .xlsx; no bajo /media para evitar acceso público.
-DIR_LIQUIDACIONES = os.path.join("archivos_privados", "liquidaciones")
 
 COLUMNAS = [
     "Código", "Referencia", "Cliente", "Destinatario", "Dirección",
@@ -64,15 +66,17 @@ def generar(db: Session, cliente: str, periodo_inicio: Optional[date], periodo_f
             motivo or "",
         ]))
 
-    os.makedirs(DIR_LIQUIDACIONES, exist_ok=True)
     nombre_final = f"liquidacion_{_slug(cliente)}_{secrets.token_hex(16)}.xlsx"
-    ruta_fisica = os.path.join(DIR_LIQUIDACIONES, nombre_final)
-    wb.save(ruta_fisica)
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    # Se guarda en "privado/": la descarga va solo por el endpoint autenticado, nunca por /media.
+    clave = f"{almacenamiento.CARPETA_PRIVADA}liquidaciones/{nombre_final}"
+    almacenamiento.guardar(clave, buffer.getvalue())
 
     registro = cliente_repository.obtener_por_razon_social(db, cliente)
     cliente_id = registro.id if registro else None
 
-    liquidacion = liquidacion_repository.crear(db, cliente_id, periodo_inicio, periodo_fin, ruta_fisica)
+    liquidacion = liquidacion_repository.crear(db, cliente_id, periodo_inicio, periodo_fin, clave)
     liquidacion.cliente_nombre = cliente
     liquidacion.total_pedidos = len(pedidos)
     db.commit()
@@ -94,21 +98,43 @@ def historial(db: Session) -> list:
             "id": l.id, "cliente": l.cliente_nombre or "—", "total_pedidos": l.total_pedidos,
             "periodo_inicio": l.periodo_inicio, "periodo_fin": l.periodo_fin, "generada_en": l.fecha_generacion,
             "descarga_url": f"/dashboard/liquidaciones/{l.id}/descarga",
-            "disponible": bool(l.url_documento) and os.path.exists(l.url_documento),
+            "disponible": _existe(l.url_documento),
         }
         for l in liquidacion_repository.listar(db)  # noqa: E741
     ]
 
 
-def ruta_archivo(db: Session, liquidacion_id: int) -> tuple[str, str]:
-    """Devuelve (ruta_en_disco, nombre_archivo) de una liquidacion. Recibe: liquidacion_id."""
+def _leer_documento(referencia: str | None) -> bytes | None:
+    """Bytes de la liquidacion. Las nuevas guardan la clave del almacenamiento; las anteriores
+    a EX-08, la ruta en disco (archivos_privados/...). Recibe la referencia guardada."""
+    if not referencia:
+        return None
+    if referencia.startswith(almacenamiento.CARPETA_PRIVADA):
+        return almacenamiento.leer(referencia)
+    if os.path.isfile(referencia):
+        with open(referencia, "rb") as f:
+            return f.read()
+    return None
+
+
+def _existe(referencia: str | None) -> bool:
+    """True si el archivo de la liquidacion sigue disponible. Recibe la referencia guardada."""
+    if not referencia:
+        return False
+    if referencia.startswith(almacenamiento.CARPETA_PRIVADA):
+        return almacenamiento.existe(referencia)
+    return os.path.isfile(referencia)
+
+
+def contenido_archivo(db: Session, liquidacion_id: int) -> tuple[bytes, str]:
+    """Devuelve (bytes, nombre_archivo) de una liquidacion. Recibe: liquidacion_id."""
     liquidacion = liquidacion_repository.obtener_por_id(db, liquidacion_id)
     if liquidacion is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Liquidación no encontrada")
-    ruta = liquidacion.url_documento
-    if not ruta or not os.path.exists(ruta):
+    contenido = _leer_documento(liquidacion.url_documento)
+    if contenido is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="El archivo de la liquidación ya no está disponible; vuelve a generarla.",
         )
-    return ruta, os.path.basename(ruta)
+    return contenido, os.path.basename(liquidacion.url_documento)

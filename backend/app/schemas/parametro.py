@@ -64,3 +64,8 @@ class FranjasConfig(BaseModel):
         if any(not 3 <= len(f) <= 60 for f in limpias):
             raise ValueError("Cada franja debe tener entre 3 y 60 caracteres")
         return limpias
+
+
+class PrivacidadConfig(BaseModel):
+    """Meses que se conservan los datos del destinatario tras la entrega; 0 = sin retiro (EX-04)."""
+    retencion_meses: int

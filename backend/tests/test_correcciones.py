@@ -756,3 +756,97 @@ def test_periodo_invalido_o_rango_al_reves():
 def test_excel_no_ejecuta_formulas_de_terceros(valor, esperado):
     """Lo que escriben terceros (formularios, Excel del cliente) se exporta como texto, nunca como formula."""
     assert celda_segura(valor) == esperado
+
+
+# ---------------- F10: archivos protegidos ----------------
+import json as _json  # noqa: E402
+
+from app.core import almacenamiento, media_firmada  # noqa: E402
+from app.services import privacidad_service  # noqa: E402
+
+
+def test_url_firmada_vence_y_no_se_puede_alterar():
+    """/media solo entrega enlaces firmados y vigentes (EX-03)."""
+    url = media_firmada.firmar("/media/evidencias/pod_1.jpg", ahora=1_000_000)
+    ruta, _, query = url.partition("?")
+    params = dict(p.split("=") for p in query.split("&"))
+    exp, firma = int(params["exp"]), params["firma"]
+    assert media_firmada.verificar(ruta, exp, firma, ahora=1_000_000)
+    assert not media_firmada.verificar("/media/evidencias/pod_2.jpg", exp, firma, ahora=1_000_000)
+    assert not media_firmada.verificar(ruta, exp + 3600, firma, ahora=1_000_000)
+    assert not media_firmada.verificar(ruta, exp, firma, ahora=exp + 1)
+
+
+def test_la_misma_foto_conserva_la_url_dentro_de_la_hora():
+    """El vencimiento se redondea por hora: el panel y la app aprovechan la cache entre refrescos."""
+    a = media_firmada.firmar("/media/x/a.jpg", ahora=7200 + 10)
+    b = media_firmada.firmar("/media/x/a.jpg", ahora=7200 + 3000)
+    assert a == b
+
+
+def test_se_firman_todas_las_urls_del_json_y_nada_mas():
+    cuerpo = _json.dumps({"url_evidencia": "/media/evidencias/a.jpg", "otra": "/api/x",
+                          "lista": [{"foto_url": "/media/conductores/c.jpg?v=5"}]}).encode()
+    datos = _json.loads(media_firmada.firmar_cuerpo(cuerpo))
+    assert "firma=" in datos["url_evidencia"] and datos["otra"] == "/api/x"
+    assert datos["lista"][0]["foto_url"].startswith("/media/conductores/c.jpg?v=5&exp=")
+    assert media_firmada.firmar_cuerpo(b'{"a": 1}') is None
+
+
+@pytest.mark.parametrize("clave", ["../secreto.txt", "C:\\x\\..\\y", "evidencias/../../x", "a//b", ""])
+def test_el_almacenamiento_rechaza_rutas_fuera_de_su_carpeta(clave):
+    with pytest.raises(ValueError):
+        almacenamiento._validar_clave(clave)
+
+
+def test_supabase_storage_sube_y_si_falta_lee_del_disco(monkeypatch, tmp_path):
+    """Con ALMACENAMIENTO=supabase se sube a la nube; lo que aun esta en disco se sigue leyendo (EX-08)."""
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "ALMACENAMIENTO", "supabase")
+    monkeypatch.setattr(settings, "SUPABASE_URL", "https://proyecto.supabase.co")
+    monkeypatch.setattr(settings, "SUPABASE_SERVICE_KEY", "clave-servicio")
+    monkeypatch.setattr(settings, "SUPABASE_BUCKET", "geotrack")
+    monkeypatch.setattr(settings, "UPLOADS_DIR", str(tmp_path))
+    peticiones = []
+
+    class _Resp:
+        def __init__(self, datos):
+            self.datos = datos
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return self.datos
+
+    def falso_urlopen(req, timeout=None):
+        peticiones.append((req.get_method(), req.full_url, req.get_header("Authorization"), req.get_header("X-upsert")))
+        if req.get_method() == "GET":
+            raise almacenamiento.urllib.error.HTTPError(req.full_url, 404, "no", {}, None)
+        return _Resp(b"{}")
+
+    monkeypatch.setattr(almacenamiento.urllib.request, "urlopen", falso_urlopen)
+    url = almacenamiento.guardar("evidencias/pod_9.jpg", b"jpg")
+    assert url == "/media/evidencias/pod_9.jpg"
+    assert peticiones[0] == ("POST", "https://proyecto.supabase.co/storage/v1/object/geotrack/evidencias/pod_9.jpg",
+                             "Bearer clave-servicio", "true")
+    (tmp_path / "evidencias").mkdir()
+    (tmp_path / "evidencias" / "vieja.jpg").write_bytes(b"de-disco")
+    assert almacenamiento.leer("evidencias/vieja.jpg") == b"de-disco"
+
+
+def test_retencion_deja_solo_iniciales_y_quita_contacto_y_ubicacion():
+    """Pasado el plazo se retiran los datos personales del destinatario y de quien recibio (EX-04)."""
+    pedido = SimpleNamespace(nombre_destinatario="Luis Alberto Rojas", telefono_destinatario="987654321",
+                             dni_destinatario="45678912", direccion_destino="Av. Larco 120", distrito="Miraflores",
+                             latitud=-12.1, longitud=-77.0, datos_retirados_en=None)
+    pod = SimpleNamespace(receptor_nombre="Ana Pérez", receptor_documento="12345678", latitud_longitud_captura="-12,-77")
+    ahora = datetime(2027, 5, 1)
+    privacidad_service._retirar(pedido, pod, ahora)
+    assert pedido.nombre_destinatario == "L. A. R." and pedido.telefono_destinatario is None and pedido.dni_destinatario is None
+    assert pedido.direccion_destino == "Dirección retirada por antigüedad · Miraflores" and pedido.latitud is None
+    assert pod.receptor_nombre == "A. P." and pod.receptor_documento is None and pod.latitud_longitud_captura is None
+    assert pedido.datos_retirados_en == ahora

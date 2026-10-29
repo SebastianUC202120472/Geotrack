@@ -1,7 +1,7 @@
 from datetime import date
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -84,11 +84,11 @@ def indicadores_excel(periodo: Optional[str] = Query("mes"), desde: Optional[dat
 @router.get("/liquidaciones/{liquidacion_id}/descarga", dependencies=[Depends(get_current_admin)])
 def descargar_liquidacion(liquidacion_id: int, db: Session = Depends(get_db)):
     """Descarga el .xlsx de una liquidacion. Recibe liquidacion_id."""
-    ruta, nombre = liquidacion_service.ruta_archivo(db, liquidacion_id)
-    return FileResponse(
-        ruta,
-        filename=nombre,
+    contenido, nombre = liquidacion_service.contenido_archivo(db, liquidacion_id)
+    return Response(
+        content=contenido,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
     )
 
 

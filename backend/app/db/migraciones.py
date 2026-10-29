@@ -47,6 +47,8 @@ SENTENCIAS = [
     # Historial de liquidaciones (C36-02).
     "ALTER TABLE liquidaciones ADD COLUMN IF NOT EXISTS cliente_nombre VARCHAR(150)",
     "ALTER TABLE liquidaciones ADD COLUMN IF NOT EXISTS total_pedidos INTEGER",
+    # Retencion de datos del destinatario (EX-04).
+    "ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS datos_retirados_en TIMESTAMP",
 ]
 
 

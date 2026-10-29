@@ -5,6 +5,7 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core import almacenamiento
 from app.core.imagenes import validar_imagen, gps_de_captura
 from app.models.ruta import Ruta, RutaDetalle
 from app.models.pedido import Pedido
@@ -24,8 +25,6 @@ from app.schemas.ruta import (
     OptimizacionRequest,
 )
 
-# Directorio de fotos POD, servido en /media.
-DIR_EVIDENCIAS = os.path.join("uploads", "evidencias")
 
 
 def _construir_parada(detalle: RutaDetalle, pedido: Pedido) -> ParadaManifiesto:
@@ -258,16 +257,9 @@ def guardar_evidencia(
     # La extension sale del contenido real, no del nombre que manda el cliente.
     extension = validar_imagen(contenido)
 
-    os.makedirs(DIR_EVIDENCIAS, exist_ok=True)
-    # El sufijo aleatorio evita que la foto sea adivinable: /media se sirve como
-    # estatico y un nombre secuencial (pod_1_1.jpg) permitiria descargar evidencias
-    # ajenas iterando enteros, saltandose la verificacion por DNI del portal.
+    # Nombre no adivinable y, ademas, /media solo entrega enlaces firmados (EX-03).
     nombre_final = f"pod_{detalle.ruta_id}_{pedido_id}_{secrets.token_hex(8)}{extension}"
-    ruta_fisica = os.path.join(DIR_EVIDENCIAS, nombre_final)
-    with open(ruta_fisica, "wb") as f:
-        f.write(contenido)
-
-    url = f"/media/evidencias/{nombre_final}"
+    url = almacenamiento.guardar(f"evidencias/{nombre_final}", contenido)
     detalle.url_evidencia = url
     db.commit()
     db.refresh(detalle)
