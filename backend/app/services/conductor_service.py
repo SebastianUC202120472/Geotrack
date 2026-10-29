@@ -5,6 +5,8 @@ import secrets
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core import almacenamiento
+from app.core.config import settings
 from app.core.imagenes import validar_imagen
 from app.repositories import conductor_repository, usuario_repository, ubicacion_repository, solicitud_restablecimiento_repository, vehiculo_repository
 from app.core.security import get_password_hash
@@ -152,7 +154,6 @@ def eliminar(db: Session, usuario_id: int) -> dict:
     return {"mensaje": "Conductor eliminado"}
 
 
-DIR_FOTOS = os.path.join("uploads", "conductores")
 
 
 def guardar_foto(db: Session, usuario_id: int, contenido: bytes, nombre_archivo: str) -> dict:
@@ -162,23 +163,24 @@ def guardar_foto(db: Session, usuario_id: int, contenido: bytes, nombre_archivo:
     # La extension sale del contenido real, no del nombre que manda el cliente.
     extension = validar_imagen(contenido)
 
-    os.makedirs(DIR_FOTOS, exist_ok=True)
-    # Borra la foto anterior: el patron viejo (cond_ID.ext, sin sufijo) y el nuevo
-    # (cond_ID_<aleatorio>.ext), para no dejar huerfanos al cambiar de esquema.
+    # Borra la foto anterior (la registrada y, en disco, las del patron viejo cond_ID.ext).
+    perfil = conductor_repository.obtener_perfil(db, usuario_id)
+    anterior = almacenamiento.clave_de_url(getattr(perfil, "foto_url", None) or "")
+    if anterior:
+        try:
+            almacenamiento.borrar(anterior)
+        except (OSError, ValueError):
+            pass
     for patron in (f"cond_{usuario_id}.*", f"cond_{usuario_id}_*"):
-        for viejo in glob.glob(os.path.join(DIR_FOTOS, patron)):
+        for viejo in glob.glob(os.path.join(settings.UPLOADS_DIR, "conductores", patron)):
             try:
                 os.remove(viejo)
             except OSError:
                 pass
 
-    # Sufijo aleatorio: /media es estatico y la foto personal no debe ser adivinable.
+    # Nombre no adivinable y, ademas, /media solo entrega enlaces firmados (EX-03).
     nombre_final = f"cond_{usuario_id}_{secrets.token_hex(8)}{extension}"
-    ruta_fisica = os.path.join(DIR_FOTOS, nombre_final)
-    with open(ruta_fisica, "wb") as f:
-        f.write(contenido)
-
     # ?v= invalida la cache del navegador al reemplazar la foto.
-    url = f"/media/conductores/{nombre_final}?v={int(time.time())}"
+    url = almacenamiento.guardar(f"conductores/{nombre_final}", contenido) + f"?v={int(time.time())}"
     conductor_repository.actualizar_foto(db, usuario_id, url)
     return _a_respuesta(db, usuario)

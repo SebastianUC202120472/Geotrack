@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     IMAGEN_MAX_MB: int = 8
     RECOJO_MAX_FOTOS: int = 10
 
+    # Archivos subidos (EX-08): "local" (carpeta UPLOADS_DIR, volumen de Docker) o "supabase" (Supabase Storage).
+    ALMACENAMIENTO: str = "local"
+    UPLOADS_DIR: str = "uploads"
+    SUPABASE_URL: str = ""
+    SUPABASE_SERVICE_KEY: str = ""  # nosec B105 - clave de servicio, solo en el .env
+    SUPABASE_BUCKET: str = "geotrack"
+
     ADMIN_EMAIL: str = "admin@siol.com"
     ADMIN_PASSWORD: str = "admin123"  # nosec B105
 
@@ -52,6 +59,11 @@ class Settings(BaseSettings):
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
     MAIL_FOLDER: str = "INBOX"
+
+    # Datos del proveedor que exige el Libro de Reclamaciones (D.S. 011-2011-PCM, C40-02).
+    EMPRESA_RAZON_SOCIAL: str = "SAVA S.A.C."
+    EMPRESA_RUC: str = ""
+    EMPRESA_DIRECCION: str = "Calle Los Sinchis Nro. 166, Urb. Tahuantinsuyo Zona III, Independencia, Lima"
 
     MAIL_FROM_NAME: str = "SAVA S.A.C."
     MAIL_SIGNATURE: str = "Atentamente,\nEquipo de Logística\nSAVA S.A.C."

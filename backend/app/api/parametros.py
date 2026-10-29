@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.api.deps import get_current_admin
 from app.services import parametro_service
-from app.schemas.parametro import MotivoCreate, MotivoResponse, CombustibleConfig, ContactoConfig, FranjasConfig
+from app.schemas.parametro import MotivoCreate, MotivoResponse, CombustibleConfig, ContactoConfig, FranjasConfig, PrivacidadConfig
+from app.services import privacidad_service
 
 router = APIRouter()
 
@@ -63,3 +64,21 @@ def obtener_franjas(db: Session = Depends(get_db)):
 def actualizar_franjas(datos: FranjasConfig, db: Session = Depends(get_db)):
     """Actualiza las franjas de reprogramacion del portal. Recibe la lista de franjas."""
     return {"franjas": parametro_service.actualizar_franjas(db, datos.franjas)}
+
+
+@router.get("/privacidad", response_model=PrivacidadConfig, dependencies=[Depends(get_current_admin)])
+def obtener_privacidad(db: Session = Depends(get_db)):
+    """Lee los meses de retencion de los datos del destinatario (EX-04)."""
+    return privacidad_service.obtener_config(db)
+
+
+@router.put("/privacidad", response_model=PrivacidadConfig, dependencies=[Depends(get_current_admin)])
+def actualizar_privacidad(datos: PrivacidadConfig, db: Session = Depends(get_db)):
+    """Cambia los meses de retencion (0 = no retirar). Recibe retencion_meses."""
+    return privacidad_service.actualizar_config(db, datos.retencion_meses)
+
+
+@router.post("/privacidad/aplicar", dependencies=[Depends(get_current_admin)])
+def aplicar_privacidad(db: Session = Depends(get_db)):
+    """Aplica ahora la politica de retencion (ademas corre sola cada dia). Devuelve cuantos pedidos proceso."""
+    return privacidad_service.aplicar_retencion(db)

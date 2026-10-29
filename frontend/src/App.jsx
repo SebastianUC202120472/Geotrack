@@ -26,6 +26,7 @@ import AuxilioMecanico from "./pages/AuxilioMecanico";
 import Notificaciones from "./pages/Notificaciones";
 import LibroReclamaciones from "./pages/LibroReclamaciones";
 import { ModuloCapacidadPage } from './pages/ModuloCapacidadPage';
+import ContactosComerciales from "./pages/ContactosComerciales";
 
 // Landing público (carga diferida: no forma parte del bundle del panel admin).
 const Landing = lazy(() => import("./pages/landing/Landing"));
@@ -79,6 +80,7 @@ export default function App() {
         <Route path="reportes" element={<ReportesPedido />} />
         <Route path="auxilio" element={<AuxilioMecanico />} />
         <Route path="reclamos" element={<LibroReclamaciones />} />
+        <Route path="contactos" element={<ContactosComerciales />} />
         <Route path="notificaciones" element={<Notificaciones />} />
         <Route path="almacen" element={<IngresoAlmacen />} />
         <Route path="almacen/retornos" element={<RetornosAlmacen />} />

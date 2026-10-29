@@ -1,18 +1,18 @@
-import os
+import mimetypes
 from datetime import date, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.core.config import settings
 from app.core.rate_limit import limite_publico
-from app.core import portal_token, fechas
+from app.core import portal_token, fechas, almacenamiento
 from app.core.security import verify_password
 from app.services import portal_service, verificacion_portal_service as verif, parametro_service
-from app.services import correo_service, enmascarado, publico_forms_service
+from app.services import correo_service, enmascarado, publico_forms_service, reclamo_service
 from app.repositories import portal_repository as repo
 from app.schemas.portal import VerificarDni, Reprogramar, EmpresaLogin, EmpresaVerificar, ContactoIn, ReclamoIn
 
@@ -74,6 +74,9 @@ def verificar_pedido(codigo: str, datos: VerificarDni, db: Session = Depends(get
     p = repo.pedido_por_codigo(db, codigo)
     if not p:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    if p.datos_retirados_en:
+        # Politica de retencion (EX-04): ya no hay DNI con que verificar ni datos que mostrar.
+        raise HTTPException(status_code=410, detail="Este pedido ya no está disponible para consulta: sus datos se retiraron por antigüedad.")
     verif.verificar_dni(db, codigo, datos.dni, p.dni_destinatario)
     token = portal_token.crear_token_persona(codigo)
     return {"token": token, "pedido": portal_service.detalle_pedido(db, codigo)}
@@ -100,15 +103,16 @@ def pod(codigo: str, _=Depends(portal_token.requiere_token_persona), db: Session
     ev = repo.evidencia_de(db, p.id)
     if not ev or not ev.url_foto:
         raise HTTPException(status_code=404, detail="Sin evidencia disponible")
-    # url_foto suele ser '/media/evidencias/archivo.jpg' -> mapear a uploads/.
-    # Se resuelve a ruta canonica y se exige que quede DENTRO de uploads/ (defensa
-    # contra path traversal si url_foto trajera '..' o una ruta absoluta).
-    base = os.path.realpath("uploads")
-    rel = ev.url_foto.replace("/media/", "", 1).lstrip("/")
-    ruta = os.path.realpath(os.path.join(base, rel))
-    if not (ruta == base or ruta.startswith(base + os.sep)) or not os.path.isfile(ruta):
+    # El almacenamiento rechaza claves con '..' o absolutas (defensa contra path traversal).
+    clave = almacenamiento.clave_de_url(ev.url_foto)
+    try:
+        contenido = almacenamiento.leer(clave) if clave else None
+    except ValueError:
+        contenido = None
+    if contenido is None:
         raise HTTPException(status_code=404, detail="Archivo no encontrado")
-    return FileResponse(ruta)
+    return Response(content=contenido, media_type=mimetypes.guess_type(clave)[0] or "image/jpeg",
+                    headers={"Cache-Control": "private, max-age=3600"})
 
 
 @router.post("/empresa/login", dependencies=[Depends(limite_publico(10, 60))])
@@ -171,6 +175,12 @@ def empresa_pedidos_excel(
 def contacto(datos: ContactoIn, db: Session = Depends(get_db)):
     """Registra un lead de contacto del landing. Recibe ContactoIn."""
     return publico_forms_service.registrar_contacto(db, datos)
+
+
+@router.get("/libro", dependencies=[Depends(limite_publico(30, 60))])
+def datos_libro():
+    """Razon social, RUC y direccion de SAVA para el Libro de Reclamaciones (C40-02)."""
+    return reclamo_service.datos_proveedor()
 
 
 @router.post("/reclamos", dependencies=[Depends(limite_publico(5, 60))])

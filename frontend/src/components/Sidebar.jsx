@@ -17,7 +17,8 @@ import {
   Wrench,
   BookText,
   AlertOctagon,
-  Scale, 
+  Scale,
+  Handshake,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -57,6 +58,7 @@ const secciones = [
       { icon: ClipboardList, label: "Reportes de pedido", path: "/panel/reportes" },
       { icon: Wrench, label: "Auxilio mecánico", path: "/panel/auxilio" },
       { icon: BookText, label: "Libro de Reclamaciones", path: "/panel/reclamos" },
+      { icon: Handshake, label: "Contactos comerciales", path: "/panel/contactos" },
     ],
   },
   {

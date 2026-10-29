@@ -1,11 +1,12 @@
-from typing import List
-from fastapi import APIRouter, Depends
-from fastapi.responses import FileResponse
+from datetime import date
+from typing import List, Optional
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.api.deps import get_current_admin
-from app.services import dashboard_service, liquidacion_service
+from app.services import dashboard_service, liquidacion_service, indicadores_service
 from app.schemas.dashboard import (
     FlotaResponse,
     ResumenResponse,
@@ -50,14 +51,44 @@ def generar_liquidacion(datos: LiquidacionRequest, db: Session = Depends(get_db)
     return liquidacion_service.generar(db, datos.cliente, datos.periodo_inicio, datos.periodo_fin)
 
 
+@router.get("/liquidaciones", dependencies=[Depends(get_current_admin)])
+def historial_liquidaciones(db: Session = Depends(get_db)):
+    """Liquidaciones generadas antes, para volver a descargarlas (C36-02)."""
+    return liquidacion_service.historial(db)
+
+
+@router.get("/kpis", dependencies=[Depends(get_current_admin)])
+def kpis_periodo(periodo: Optional[str] = Query("dia"), desde: Optional[date] = None, hasta: Optional[date] = None,
+                 db: Session = Depends(get_db)):
+    """KPIs del tablero por periodo (dia, semana, mes) o rango de fechas (C34-01, C34-02)."""
+    return indicadores_service.kpis(db, periodo, desde, hasta)
+
+
+@router.get("/indicadores", dependencies=[Depends(get_current_admin)])
+def indicadores_proyecto(periodo: Optional[str] = Query("mes"), desde: Optional[date] = None, hasta: Optional[date] = None,
+                         db: Session = Depends(get_db)):
+    """Indicadores In.OE.1 a In.OE.4 del Charter en el periodo (C34-03)."""
+    return indicadores_service.indicadores(db, periodo, desde, hasta)
+
+
+@router.get("/indicadores/excel", dependencies=[Depends(get_current_admin)])
+def indicadores_excel(periodo: Optional[str] = Query("mes"), desde: Optional[date] = None, hasta: Optional[date] = None,
+                      db: Session = Depends(get_db)):
+    """Descarga el reporte de indicadores del proyecto en Excel (C34-03)."""
+    contenido, nombre = indicadores_service.excel_indicadores(db, periodo, desde, hasta)
+    return Response(content=contenido,
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
+
+
 @router.get("/liquidaciones/{liquidacion_id}/descarga", dependencies=[Depends(get_current_admin)])
 def descargar_liquidacion(liquidacion_id: int, db: Session = Depends(get_db)):
     """Descarga el .xlsx de una liquidacion. Recibe liquidacion_id."""
-    ruta, nombre = liquidacion_service.ruta_archivo(db, liquidacion_id)
-    return FileResponse(
-        ruta,
-        filename=nombre,
+    contenido, nombre = liquidacion_service.contenido_archivo(db, liquidacion_id)
+    return Response(
+        content=contenido,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
     )
 
 

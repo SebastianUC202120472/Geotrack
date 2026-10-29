@@ -37,6 +37,18 @@ SENTENCIAS = [
     "ALTER TABLE reportes ADD COLUMN IF NOT EXISTS latitud_longitud_captura VARCHAR(60)",
     # Motivo obligatorio al cancelar un pedido (C31-02).
     "ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS motivo_cancelacion VARCHAR(255)",
+    # Libro de Reclamaciones completo y su respuesta (C40-01, C41-02).
+    "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS pedido_consumidor TEXT",
+    "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS apoderado_nombre VARCHAR(150)",
+    "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS apoderado_dni VARCHAR(20)",
+    "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS respuesta TEXT",
+    "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS respondido_en TIMESTAMP",
+    "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS respondido_por INTEGER",
+    # Historial de liquidaciones (C36-02).
+    "ALTER TABLE liquidaciones ADD COLUMN IF NOT EXISTS cliente_nombre VARCHAR(150)",
+    "ALTER TABLE liquidaciones ADD COLUMN IF NOT EXISTS total_pedidos INTEGER",
+    # Retencion de datos del destinatario (EX-04).
+    "ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS datos_retirados_en TIMESTAMP",
 ]
 
 

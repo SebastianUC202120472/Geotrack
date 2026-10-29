@@ -631,3 +631,222 @@ def test_franjas_configurables():
     for malas in ([], ["ok"], [f"F{i} mañana" for i in range(7)]):
         with pytest.raises(ValidationError):
             FranjasConfig(franjas=malas)
+
+
+# ---------------- F8: reclamos y contactos ----------------
+from datetime import date, datetime  # noqa: E402
+
+from app.core.plazos import sumar_dias_habiles, dias_habiles_entre, es_feriado  # noqa: E402
+from app.schemas.portal import ContactoIn, ReclamoIn  # noqa: E402
+from app.services import reclamo_service, publico_forms_service  # noqa: E402
+
+
+def test_dias_habiles_saltan_fines_de_semana_y_feriados():
+    """El plazo legal se cuenta en dias habiles: sin sabados, domingos ni feriados (C41-03)."""
+    assert sumar_dias_habiles(date(2026, 12, 7), 3) == date(2026, 12, 14)  # 8 y 9 de dic son feriados
+    assert dias_habiles_entre(date(2026, 12, 14), date(2026, 12, 7)) == -3
+    assert es_feriado(date(2026, 4, 2)) and es_feriado(date(2026, 4, 3))  # Jueves y Viernes Santo 2026
+    assert not es_feriado(date(2026, 4, 6))
+
+
+def _reclamo(creado, respondido=None):
+    return SimpleNamespace(creado_en=creado, respondido_en=respondido)
+
+
+def test_estado_del_plazo_del_reclamo():
+    """15 dias habiles: en plazo, por vencer (3 o menos), vencido y respondido a tiempo."""
+    r = _reclamo(datetime(2026, 10, 1, 15, 0))  # jueves 1-oct (10:00 en Lima)
+    vence = reclamo_service.vence_el(r)
+    assert vence == date(2026, 10, 23)  # el 8-oct es feriado
+    assert reclamo_service.plazo(r, date(2026, 10, 5))["estado"] == "EN_PLAZO"
+    assert reclamo_service.plazo(r, date(2026, 10, 20))["estado"] == "POR_VENCER"
+    assert reclamo_service.plazo(r, date(2026, 10, 27))["estado"] == "VENCIDO"
+    r.respondido_en = datetime(2026, 10, 22, 15, 0)
+    assert reclamo_service.plazo(r, date(2026, 11, 30)) == {"venceEl": "2026-10-23", "diasRestantes": None,
+                                                             "estado": "RESPONDIDO", "aTiempo": True}
+
+
+def _hoja(**cambios):
+    """Hoja de reclamacion valida con cambios opcionales."""
+    base = {
+        "tipo": "RECLAMO",
+        "consumidor": {"nombre": "Luis Rojas", "dni": "45678912", "domicilio": "Av. Larco 120, Miraflores",
+                       "email": "luis@correo.pe", "telefono": "987 654 321"},
+        "bien": {"tipo": "servicio", "descripcion": "Entrega a domicilio", "monto": 25.5},
+        "detalle": "El paquete llegó abierto y faltaba un producto.",
+        "pedidoConsumidor": "Que repongan el producto faltante",
+    }
+    for k, v in cambios.items():
+        base[k] = v
+    return base
+
+
+def test_hoja_de_reclamacion_completa_es_valida():
+    hoja = ReclamoIn(**_hoja())
+    assert hoja.bien.tipo == "SERVICIO" and hoja.consumidor.apoderadoNombre is None
+
+
+@pytest.mark.parametrize("cambio", [
+    {"consumidor": {"nombre": "Luis Rojas", "dni": "45678912", "email": "luis@correo.pe", "telefono": "987654321"}},
+    {"consumidor": {"nombre": "Ana", "dni": "45678912", "domicilio": "Jr. Lima 1", "email": "ana@correo.pe",
+                    "telefono": "987654321", "esMenor": True}},
+    {"bien": {"tipo": "OTRO", "descripcion": "x"}},
+    {"pedidoConsumidor": ""},
+    {"consumidor": {"nombre": "Luis Rojas", "dni": "45678912", "domicilio": "Av. Larco 120",
+                    "email": "no-es-correo", "telefono": "987654321"}},
+])
+def test_hoja_incompleta_se_rechaza_en_el_servidor(cambio):
+    """Domicilio, apoderado del menor, bien contratado, pedido del consumidor y correo valido son obligatorios (C40-01)."""
+    with pytest.raises(ValidationError):
+        ReclamoIn(**_hoja(**cambio))
+
+
+def test_contacto_con_correo_invalido_se_rechaza():
+    """El servidor valida el correo del formulario de contacto (C39-02)."""
+    with pytest.raises(ValidationError):
+        ContactoIn(nombre="Ana", email="ana(at)empresa")
+    assert ContactoIn(nombre="Ana", email="ana@empresa.pe").email == "ana@empresa.pe"
+
+
+def test_nuevo_contacto_avisa_en_la_campana(monkeypatch):
+    """Un contacto comercial genera un aviso que lleva a la pantalla de contactos (C37-01)."""
+    avisos = []
+    monkeypatch.setattr(publico_forms_service.repo, "crear_contacto", lambda db, d: SimpleNamespace(id=7))
+    monkeypatch.setattr(publico_forms_service.notificaciones_service, "registrar",
+                        lambda db, tipo, titulo, msg, ruta, eid: avisos.append((tipo, ruta)))
+    monkeypatch.setattr(publico_forms_service.correo_service, "enviar_simple", lambda *a: False)
+    publico_forms_service.registrar_contacto(None, ContactoIn(nombre="Ana", empresa="Tienda", email="ana@tienda.pe"))
+    assert avisos == [("contactos", "/contactos")]
+
+
+def test_un_reclamo_respondido_no_se_vuelve_a_responder(monkeypatch):
+    """La respuesta queda registrada con su fecha y no se reescribe (C41-02)."""
+    r = SimpleNamespace(id=1, respondido_en=datetime(2026, 10, 2), respuesta="Ya respondido")
+    monkeypatch.setattr(reclamo_service.repo, "obtener_reclamo", lambda db, i: r)
+    with pytest.raises(HTTPException) as e:
+        reclamo_service.responder(None, 1, "Otra respuesta más", 1)
+    assert e.value.status_code == 409 and r.respuesta == "Ya respondido"
+
+
+# ---------------- F9: tablero, KPIs y liquidaciones ----------------
+from app.core.excel import celda_segura  # noqa: E402
+from app.services import indicadores_service  # noqa: E402
+
+
+@pytest.mark.parametrize("periodo, esperado", [
+    ("dia", (date(2026, 10, 29), date(2026, 10, 29))),
+    ("semana", (date(2026, 10, 26), date(2026, 10, 29))),   # lunes a hoy (jueves)
+    ("mes", (date(2026, 10, 1), date(2026, 10, 29))),
+])
+def test_periodo_del_tablero(monkeypatch, periodo, esperado):
+    """El tablero se filtra por hoy, semana (lunes a hoy) o mes (dia 1 a hoy) (C34-01)."""
+    monkeypatch.setattr(indicadores_service.fechas, "hoy_local", lambda: date(2026, 10, 29))
+    assert indicadores_service.rango(periodo) == esperado
+
+
+def test_periodo_invalido_o_rango_al_reves():
+    with pytest.raises(HTTPException):
+        indicadores_service.rango("anio")
+    with pytest.raises(HTTPException):
+        indicadores_service.rango(desde=date(2026, 10, 5), hasta=date(2026, 10, 1))
+
+
+@pytest.mark.parametrize("valor, esperado", [("=HYPERLINK(\"x\")", "'=HYPERLINK(\"x\")"), ("+51 987", "'+51 987"),
+                                             ("-2", "'-2"), ("@SUM(A1)", "'@SUM(A1)"), ("Ana", "Ana"), (120, 120), (None, None)])
+def test_excel_no_ejecuta_formulas_de_terceros(valor, esperado):
+    """Lo que escriben terceros (formularios, Excel del cliente) se exporta como texto, nunca como formula."""
+    assert celda_segura(valor) == esperado
+
+
+# ---------------- F10: archivos protegidos ----------------
+import json as _json  # noqa: E402
+
+from app.core import almacenamiento, media_firmada  # noqa: E402
+from app.services import privacidad_service  # noqa: E402
+
+
+def test_url_firmada_vence_y_no_se_puede_alterar():
+    """/media solo entrega enlaces firmados y vigentes (EX-03)."""
+    url = media_firmada.firmar("/media/evidencias/pod_1.jpg", ahora=1_000_000)
+    ruta, _, query = url.partition("?")
+    params = dict(p.split("=") for p in query.split("&"))
+    exp, firma = int(params["exp"]), params["firma"]
+    assert media_firmada.verificar(ruta, exp, firma, ahora=1_000_000)
+    assert not media_firmada.verificar("/media/evidencias/pod_2.jpg", exp, firma, ahora=1_000_000)
+    assert not media_firmada.verificar(ruta, exp + 3600, firma, ahora=1_000_000)
+    assert not media_firmada.verificar(ruta, exp, firma, ahora=exp + 1)
+
+
+def test_la_misma_foto_conserva_la_url_dentro_de_la_hora():
+    """El vencimiento se redondea por hora: el panel y la app aprovechan la cache entre refrescos."""
+    a = media_firmada.firmar("/media/x/a.jpg", ahora=7200 + 10)
+    b = media_firmada.firmar("/media/x/a.jpg", ahora=7200 + 3000)
+    assert a == b
+
+
+def test_se_firman_todas_las_urls_del_json_y_nada_mas():
+    cuerpo = _json.dumps({"url_evidencia": "/media/evidencias/a.jpg", "otra": "/api/x",
+                          "lista": [{"foto_url": "/media/conductores/c.jpg?v=5"}]}).encode()
+    datos = _json.loads(media_firmada.firmar_cuerpo(cuerpo))
+    assert "firma=" in datos["url_evidencia"] and datos["otra"] == "/api/x"
+    assert datos["lista"][0]["foto_url"].startswith("/media/conductores/c.jpg?v=5&exp=")
+    assert media_firmada.firmar_cuerpo(b'{"a": 1}') is None
+
+
+@pytest.mark.parametrize("clave", ["../secreto.txt", "C:\\x\\..\\y", "evidencias/../../x", "a//b", ""])
+def test_el_almacenamiento_rechaza_rutas_fuera_de_su_carpeta(clave):
+    with pytest.raises(ValueError):
+        almacenamiento._validar_clave(clave)
+
+
+def test_supabase_storage_sube_y_si_falta_lee_del_disco(monkeypatch, tmp_path):
+    """Con ALMACENAMIENTO=supabase se sube a la nube; lo que aun esta en disco se sigue leyendo (EX-08)."""
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "ALMACENAMIENTO", "supabase")
+    monkeypatch.setattr(settings, "SUPABASE_URL", "https://proyecto.supabase.co")
+    monkeypatch.setattr(settings, "SUPABASE_SERVICE_KEY", "clave-servicio")
+    monkeypatch.setattr(settings, "SUPABASE_BUCKET", "geotrack")
+    monkeypatch.setattr(settings, "UPLOADS_DIR", str(tmp_path))
+    peticiones = []
+
+    class _Resp:
+        def __init__(self, datos):
+            self.datos = datos
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return self.datos
+
+    def falso_urlopen(req, timeout=None):
+        peticiones.append((req.get_method(), req.full_url, req.get_header("Authorization"), req.get_header("X-upsert")))
+        if req.get_method() == "GET":
+            raise almacenamiento.urllib.error.HTTPError(req.full_url, 404, "no", {}, None)
+        return _Resp(b"{}")
+
+    monkeypatch.setattr(almacenamiento.urllib.request, "urlopen", falso_urlopen)
+    url = almacenamiento.guardar("evidencias/pod_9.jpg", b"jpg")
+    assert url == "/media/evidencias/pod_9.jpg"
+    assert peticiones[0] == ("POST", "https://proyecto.supabase.co/storage/v1/object/geotrack/evidencias/pod_9.jpg",
+                             "Bearer clave-servicio", "true")
+    (tmp_path / "evidencias").mkdir()
+    (tmp_path / "evidencias" / "vieja.jpg").write_bytes(b"de-disco")
+    assert almacenamiento.leer("evidencias/vieja.jpg") == b"de-disco"
+
+
+def test_retencion_deja_solo_iniciales_y_quita_contacto_y_ubicacion():
+    """Pasado el plazo se retiran los datos personales del destinatario y de quien recibio (EX-04)."""
+    pedido = SimpleNamespace(nombre_destinatario="Luis Alberto Rojas", telefono_destinatario="987654321",
+                             dni_destinatario="45678912", direccion_destino="Av. Larco 120", distrito="Miraflores",
+                             latitud=-12.1, longitud=-77.0, datos_retirados_en=None)
+    pod = SimpleNamespace(receptor_nombre="Ana Pérez", receptor_documento="12345678", latitud_longitud_captura="-12,-77")
+    ahora = datetime(2027, 5, 1)
+    privacidad_service._retirar(pedido, pod, ahora)
+    assert pedido.nombre_destinatario == "L. A. R." and pedido.telefono_destinatario is None and pedido.dni_destinatario is None
+    assert pedido.direccion_destino == "Dirección retirada por antigüedad · Miraflores" and pedido.latitud is None
+    assert pod.receptor_nombre == "A. P." and pod.receptor_documento is None and pod.latitud_longitud_captura is None
+    assert pedido.datos_retirados_en == ahora
