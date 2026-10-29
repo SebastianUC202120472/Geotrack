@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core import almacenamiento
 from app.core.imagenes import validar_imagen
 from app.models.solicitud_recojo import SolicitudRecojo, ESTADOS_RECOGIDO, ESTADOS_GESTIONADOS
 from app.models.pedido import Pedido
@@ -34,7 +35,6 @@ from app.core.fechas import hoy_local
 from app.services import pedido_service as _pedido_svc
 from app.schemas.ruta import OptimizacionRequest, CierreRutaResponse
 
-DIR_GUIAS = os.path.join("uploads", "guias")
 
 
 def _ubicar_origen(direccion: str):
@@ -521,15 +521,11 @@ def registrar_recepcion(db: Session, conductor_id: int, recojo_id: int, cantidad
     extensiones = [validar_imagen(contenido) for contenido, _ in archivos]
 
     gps = f"{latitud:.6f},{longitud:.6f}" if latitud is not None and longitud is not None else None
-    os.makedirs(DIR_GUIAS, exist_ok=True)
     urls: list[str] = []
     for i, ((contenido, _), extension) in enumerate(zip(archivos, extensiones), start=1):
-        # Sufijo aleatorio: /media es estatico, un nombre secuencial dejaria las
-        # fotos de recojo al alcance de cualquiera que itere enteros.
+        # Nombre no adivinable y, ademas, /media solo entrega enlaces firmados (EX-03).
         nombre_final = f"guia_{ruta.id}_{recojo_id}_{i}_{secrets.token_hex(8)}{extension}"
-        with open(os.path.join(DIR_GUIAS, nombre_final), "wb") as f:
-            f.write(contenido)
-        url = f"/media/guias/{nombre_final}"
+        url = almacenamiento.guardar(f"guias/{nombre_final}", contenido)
         urls.append(url)
         recojo_repository.agregar_evidencia(db, recojo_id, url, i, gps)
 

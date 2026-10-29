@@ -4,6 +4,7 @@ from datetime import datetime
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.core import almacenamiento
 from app.core.imagenes import validar_imagen, gps_de_captura
 from app.repositories import reporte_repository, conductor_repository, ruta_repository
 from app.models.pedido import Pedido
@@ -13,9 +14,6 @@ from app.services import notificaciones_service, pedido_service
 
 # Decision que acompana la respuesta al reporte (C31-01) -> texto guardado en "accion".
 ACCIONES = {"NINGUNA": None, "REPROGRAMAR": "Reprogramado", "CANCELAR": "Cancelado"}
-
-# Directorio de fotos de los reportes de falla, servido en /media.
-DIR_REPORTES = os.path.join("uploads", "reportes")
 
 
 def _a_respuesta(db: Session, r) -> dict:
@@ -82,12 +80,9 @@ def guardar_evidencia(db: Session, reporte_id: int, conductor_id: int, contenido
 
     # La extension sale del contenido real, no del nombre que manda el cliente.
     extension = validar_imagen(contenido)
-    os.makedirs(DIR_REPORTES, exist_ok=True)
-    # Sufijo aleatorio: /media es estatico y el nombre no debe ser adivinable.
+    # Nombre no adivinable y, ademas, /media solo entrega enlaces firmados (EX-03).
     nombre_final = f"rep_{reporte.id}_{secrets.token_hex(8)}{extension}"
-    with open(os.path.join(DIR_REPORTES, nombre_final), "wb") as f:
-        f.write(contenido)
-    reporte.url_evidencia = f"/media/reportes/{nombre_final}"
+    reporte.url_evidencia = almacenamiento.guardar(f"reportes/{nombre_final}", contenido)
     reporte.latitud_longitud_captura = gps_de_captura(latitud, longitud)
     reporte_repository.guardar(db)
     return _a_respuesta(db, reporte)
