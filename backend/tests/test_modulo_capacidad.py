@@ -833,21 +833,33 @@ def test_calculo_limita_la_cantidad_de_pedidos():
 # 8. SEGURIDAD Y REGISTRO DE RUTAS
 # ============================================================
 
-def _ruta(path, metodo):
-    """Busca una ruta registrada por path y metodo HTTP."""
 
-    for ruta in app.routes:
+def _ruta(path, metodo):
+    """Busca una ruta registrada, compatible con FastAPI nuevo y antiguo."""
+
+    # Comprueba que el endpoint exista en la aplicacion principal.
+    rutas_openapi = app.openapi().get("paths", {})
+
+    if metodo.lower() not in rutas_openapi.get(path, {}):
+        return None
+
+    # Recupera la ruta original para verificar sus dependencias.
+    prefijo = "/api/modulo-capacidad"
+
+    if not path.startswith(prefijo + "/"):
+        return None
+
+    ruta_relativa = path[len(prefijo):]
+
+    for ruta in capacidad_router.router.routes:
         if (
-            getattr(ruta, "path", None) == path
-            and metodo in getattr(
-                ruta,
-                "methods",
-                set(),
-            )
+            getattr(ruta, "path", None) == ruta_relativa
+            and metodo in getattr(ruta, "methods", set())
         ):
             return ruta
 
     return None
+
 
 
 def test_rutas_del_modulo_registradas():
@@ -970,11 +982,11 @@ def test_flag_encendido_registra_rutas(monkeypatch):
         is True
     )
 
-    assert any(
-        getattr(r, "path", "")
-        == "/api/modulo-capacidad/salud"
-        for r in app_prueba.routes
-    )
+    rutas_openapi = app_prueba.openapi().get("paths", {})
+
+    assert "/api/modulo-capacidad/salud" in rutas_openapi
+    assert "get" in rutas_openapi["/api/modulo-capacidad/salud"]
+
 
 
 # ============================================================
