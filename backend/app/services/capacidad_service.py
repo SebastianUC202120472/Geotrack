@@ -2,6 +2,9 @@
 # No conoce HTTP: recibe datos, consulta el repositorio y devuelve diccionarios
 # que el router convierte a los esquemas Pydantic.
 import json
+import math
+import time
+from collections import defaultdict
 import os
 import re
 import unicodedata
@@ -11,6 +14,7 @@ from typing import Dict, List, Optional, Tuple
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
+from app.models.ruta import Ruta
 
 from app.models.capacidad import (
     ConfiguracionCapacidad,
@@ -27,6 +31,7 @@ from app.schemas.capacidad import (
     ModeloUpdateRequest,
     ModeloVehiculo,
     VinculacionPlacaRequest,
+    validar_fuente_tecnica,
 )
 
 # Tope duro de pedidos por calculo: evita que una peticion congele el servidor.
@@ -77,7 +82,11 @@ def leer_catalogo_base() -> CatalogoEstructuraJSON:
         )
     with open(RUTA_CATALOGO, "r", encoding="utf-8") as archivo:
         contenido = json.load(archivo)
-    return CatalogoEstructuraJSON(**contenido)
+    catalogo = CatalogoEstructuraJSON(**contenido)
+    ids = [modelo.id for modelo in catalogo.modelos]
+    if len(ids) != len(set(ids)):
+        raise HTTPException(status_code=500, detail="El JSON contiene modelos duplicados.")
+    return catalogo
 
 
 def _slug(texto: str) -> str:
@@ -227,6 +236,10 @@ def actualizar_modelo(
     fusionado = actual.model_dump()
     fusionado.update(datos.model_dump(exclude_unset=True))
     validado = ModeloVehiculo(**fusionado)
+    try:
+        validar_fuente_tecnica(validado.fuente, validado.fuente_url)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
     fila = capacidad_repository.obtener_modelo_personalizado(db, modelo_id)
     if fila is None:
@@ -294,14 +307,29 @@ def eliminar_modelo(db: Session, modelo_id: str, usuario: str) -> None:
 
 
 def configuracion_dict(config: ConfiguracionCapacidad) -> dict:
-    """Convierte la configuracion en diccionario de respuesta. Recibe la fila."""
+    """Expone configuracion y medidas S/M/L guardadas por el modulo."""
     return {
         "factor_aprovechamiento": config.factor_aprovechamiento,
         "max_paradas_por_viaje": config.max_paradas_por_viaje,
         "max_paradas_por_jornada": config.max_paradas_por_jornada,
         "max_viajes_por_dia": config.max_viajes_por_dia,
+        "s_peso_kg": config.s_peso_kg,
+        "s_volumen_m3": config.s_volumen_m3,
+        "m_peso_kg": config.m_peso_kg,
+        "m_volumen_m3": config.m_volumen_m3,
+        "l_peso_kg": config.l_peso_kg,
+        "l_volumen_m3": config.l_volumen_m3,
         "actualizado_por": config.actualizado_por,
         "actualizado_en": config.actualizado_en,
+    }
+
+
+def tamanos_desde_config(config: ConfiguracionCapacidad) -> dict:
+    """Obtiene la tabla de medidas estandar para calculos reales y demo."""
+    return {
+        "S": {"peso_kg": config.s_peso_kg, "volumen_m3": config.s_volumen_m3},
+        "M": {"peso_kg": config.m_peso_kg, "volumen_m3": config.m_volumen_m3},
+        "L": {"peso_kg": config.l_peso_kg, "volumen_m3": config.l_volumen_m3},
     }
 
 
@@ -511,77 +539,74 @@ def _tamano_estimado(pedido_id: int) -> str:
     return ("S", "S", "S", "M", "M", "L")[int(pedido_id) % 6]
 
 
-def items_desde_pedidos(pedidos) -> List[dict]:
-    """Convierte pedidos reales en items de carga. Recibe la lista de pedidos."""
+def items_desde_pedidos(pedidos, tamanos: Optional[dict] = None) -> List[dict]:
+    """Lee peso y volumen reales; faltantes se estiman con M configurable."""
+    tamanos = tamanos or TAMANOS_ESTANDAR
     items = []
     for pedido in pedidos:
-        peso = pedido.peso_kg if pedido.peso_kg and pedido.peso_kg > 0 else None
-        volumen = (
-            pedido.volumen_m3
-            if pedido.volumen_m3 and pedido.volumen_m3 > 0
-            else None
-        )
-
-        estimado = False
-        tamano = None
-        if peso is None or volumen is None:
-            tamano = _tamano_estimado(pedido.id)
-            estandar = TAMANOS_ESTANDAR[tamano]
-            peso = peso if peso is not None else estandar["peso_kg"]
-            volumen = volumen if volumen is not None else estandar["volumen_m3"]
-            estimado = True
-
-        items.append(
-            {
-                "pedido_id": pedido.id,
-                "codigo": pedido.codigo,
-                "distrito": pedido.distrito,
-                "peso_kg": round(float(peso), 3),
-                "volumen_m3": round(float(volumen), 4),
-                "estimado": estimado,
-                "tamano_estimado": tamano,
-            }
-        )
+        peso = getattr(pedido, "peso_kg", None)
+        volumen = getattr(pedido, "volumen_m3", None)
+        falta_peso = peso is None or float(peso) <= 0
+        falta_volumen = volumen is None or float(volumen) <= 0
+        estimado = falta_peso or falta_volumen
+        tamano = "M" if estimado else None
+        if falta_peso:
+            peso = tamanos["M"]["peso_kg"]
+        if falta_volumen:
+            volumen = tamanos["M"]["volumen_m3"]
+        items.append({
+            "pedido_id": pedido.id,
+            "codigo": pedido.codigo,
+            "distrito": pedido.distrito,
+            "latitud": getattr(pedido, "latitud", None),
+            "longitud": getattr(pedido, "longitud", None),
+            "peso_kg": round(float(peso), 3),
+            "volumen_m3": round(float(volumen), 4),
+            "estimado": estimado,
+            "tamano_estimado": tamano,
+        })
     return items
 
 
-def items_desde_cantidades(cantidades: Dict[str, int]) -> List[dict]:
-    """Convierte cajas S/M/L en items de carga. Recibe el diccionario de cantidades."""
+def items_desde_cantidades(cantidades: Dict[str, int], tamanos: Optional[dict] = None) -> List[dict]:
+    """Convierte la cantidad de cajas en una lista de carga valida."""
+    tamanos = tamanos or TAMANOS_ESTANDAR
+    if sum(cantidades.values()) > MAX_PEDIDOS:
+        raise HTTPException(status_code=400, detail="El maximo es de 5000 cajas.")
     items = []
     for tamano in ("S", "M", "L"):
-        estandar = TAMANOS_ESTANDAR[tamano]
+        estandar = tamanos[tamano]
         for indice in range(int(cantidades.get(tamano, 0))):
-            items.append(
-                {
-                    "pedido_id": None,
-                    "codigo": f"Caja {tamano}-{indice + 1}",
-                    "distrito": None,
-                    "peso_kg": estandar["peso_kg"],
-                    "volumen_m3": estandar["volumen_m3"],
-                    "estimado": True,
-                    "tamano_estimado": tamano,
-                }
-            )
-    return items
-
-
-def items_demo(cantidad: int) -> List[dict]:
-    """Genera pedidos sinteticos para la demostracion de 700. Recibe la cantidad."""
-    items = []
-    for indice in range(1, cantidad + 1):
-        tamano = ("S", "S", "S", "M", "M", "L")[indice % 6]
-        estandar = TAMANOS_ESTANDAR[tamano]
-        items.append(
-            {
+            items.append({
                 "pedido_id": None,
-                "codigo": f"DEMO-{indice:04d}",
-                "distrito": f"Zona {(indice % 8) + 1}",
+                "codigo": f"Caja {tamano}-{indice + 1}",
+                "distrito": None,
                 "peso_kg": estandar["peso_kg"],
                 "volumen_m3": estandar["volumen_m3"],
                 "estimado": True,
                 "tamano_estimado": tamano,
-            }
-        )
+            })
+    return items
+
+
+def items_demo(cantidad: int, tamanos: Optional[dict] = None) -> List[dict]:
+    """Genera pedidos sinteticos reproducibles, sin datos personales."""
+    if not 1 <= cantidad <= MAX_PEDIDOS:
+        raise HTTPException(status_code=400, detail="Indica entre 1 y 5000 pedidos.")
+    tamanos = tamanos or TAMANOS_ESTANDAR
+    items = []
+    for indice in range(1, cantidad + 1):
+        tamano = ("S", "S", "S", "M", "M", "L")[indice % 6]
+        estandar = tamanos[tamano]
+        items.append({
+            "pedido_id": None,
+            "codigo": f"DEMO-{indice:04d}",
+            "distrito": f"Zona {(indice % 8) + 1}",
+            "peso_kg": estandar["peso_kg"],
+            "volumen_m3": estandar["volumen_m3"],
+            "estimado": True,
+            "tamano_estimado": tamano,
+        })
     return items
 
 
@@ -598,22 +623,39 @@ def vehiculo_desde_modelo(modelo: ModeloVehiculo, placa: str = "CATALOGO") -> di
     }
 
 
-def _flota_planificable(db: Session) -> Tuple[List[dict], int]:
-    """Vehiculos con modelo vinculado. Devuelve (lista, cuantos sin modelo)."""
+def _flota_planificable(db: Session) -> Tuple[List[dict], int, int]:
+    """Devuelve flota libre con conductor habilitado y modelo vinculado."""
     catalogo = {m.id: m for m in catalogo_completo(db)}
     vinculaciones = {
-        v.placa: v.modelo_id for v in capacidad_repository.listar_vinculaciones(db)
+        v.placa: v.modelo_id
+        for v in capacidad_repository.listar_vinculaciones(db)
     }
-
-    vehiculos = []
+    rutas_activas = db.query(Ruta).filter(
+        Ruta.estado.in_(("CREADA", "EN_PROGRESO"))
+    ).all()
+    placas_ocupadas = {r.vehiculo_placa for r in rutas_activas if r.vehiculo_placa}
+    conductores_ocupados = {r.conductor_id for r in rutas_activas if r.conductor_id}
+    disponibles = []
     sin_modelo = 0
+    no_disponibles = 0
     for vehiculo in vehiculo_repository.listar(db):
         modelo = catalogo.get(vinculaciones.get(vehiculo.placa))
         if modelo is None:
             sin_modelo += 1
             continue
-        vehiculos.append(vehiculo_desde_modelo(modelo, vehiculo.placa))
-    return vehiculos, sin_modelo
+        conductor_id = vehiculo.conductor_id
+        if vehiculo.estado != "DISPONIBLE" or conductor_id is None:
+            no_disponibles += 1
+            continue
+        conductor = usuario_repository.obtener_por_id(db, conductor_id)
+        if not conductor or not conductor.estado or conductor.rol != "conductor":
+            no_disponibles += 1
+            continue
+        if vehiculo.placa in placas_ocupadas or conductor_id in conductores_ocupados:
+            no_disponibles += 1
+            continue
+        disponibles.append(vehiculo_desde_modelo(modelo, vehiculo.placa))
+    return disponibles, sin_modelo, no_disponibles
 
 
 def _vehiculos_demo(cantidad: int, existentes: List[dict]) -> List[dict]:
@@ -642,182 +684,222 @@ def calcular_plan(
     max_paradas_por_viaje: int,
     max_viajes_por_dia: int,
     max_paradas_por_jornada: int = 60,
+    max_segundos: float = 8.0,
 ) -> dict:
-    """Empaqueta los items en viajes y vehiculos. Recibe items, flota y topes.
+    """Recomienda viajes por distrito y cercania sin escribir rutas.
 
-    Es una funcion pura: no toca la base de datos, por eso se prueba directo.
+    Agrupa por distrito y celda geografica para priorizar destinos cercanos.
+    Un mismo viaje puede incluir VARIAS celdas del mismo distrito si aun
+    existe capacidad; evita desperdiciar viajes con un solo pedido por celda.
+
+    La cercania es aproximada: NO optimiza distancias de calles ni tiempos.
+    Conserva los limites de peso, volumen, paradas, viajes y jornada.
     """
-    total_pedidos = len(items)
-    peso_total = round(sum(i["peso_kg"] for i in items), 2)
-    volumen_total = round(sum(i["volumen_m3"] for i in items), 3)
-    estimados = sum(1 for i in items if i["estimado"])
+    inicio = time.monotonic()
+    if len(items) > MAX_PEDIDOS:
+        raise HTTPException(status_code=400, detail="Maximo 5000 pedidos por calculo.")
+    if not (0.5 <= factor_aprovechamiento <= 1.0):
+        raise HTTPException(status_code=422, detail="Factor invalido.")
+    if min(max_paradas_por_viaje, max_paradas_por_jornada, max_viajes_por_dia) < 1:
+        raise HTTPException(status_code=422, detail="Los limites deben ser positivos.")
 
-    alertas: List[dict] = []
-    viajes: List[dict] = []
+    def comprobar_tiempo():
+        if time.monotonic() - inicio > max_segundos:
+            raise HTTPException(
+                status_code=503,
+                detail="Planificacion excede el tiempo maximo permitido.",
+            )
+
+    def zona(item):
+        distrito = str(item.get("distrito") or "SIN DISTRITO").strip().upper()
+        lat, lon = item.get("latitud"), item.get("longitud")
+        # Agrupacion aproximada; tolera coordenadas ausentes o invalidas.
+        try:
+            lat, lon = float(lat), float(lon)
+            if math.isfinite(lat) and math.isfinite(lon) and -90 <= lat <= 90 and -180 <= lon <= 180:
+                return distrito, round(lat, 2), round(lon, 2)
+        except (TypeError, ValueError):
+            pass
+        return distrito, None, None
+
+    grupos = defaultdict(list)
+    for item in items:
+        peso_item = float(item["peso_kg"])
+        volumen_item = float(item["volumen_m3"])
+        if (
+            not math.isfinite(peso_item) or not math.isfinite(volumen_item)
+            or peso_item <= 0 or volumen_item <= 0
+        ):
+            raise HTTPException(status_code=422, detail="Pedidos con peso o volumen no positivo.")
+        grupos[zona(item)].append(item)
+
+    # Orden estable para que dos ejecuciones con los mismos datos sean comparables.
+    for grupo in grupos.values():
+        grupo.sort(
+            key=lambda item: (float(item["volumen_m3"]), float(item["peso_kg"])),
+            reverse=True,
+        )
+
+    total = len(items)
+    peso_total = round(sum(float(i["peso_kg"]) for i in items), 2)
+    volumen_total = round(sum(float(i["volumen_m3"]) for i in items), 3)
+    estimados = sum(bool(i.get("estimado")) for i in items)
+    viajes = []
+    alertas = []
     agregados = {
         v["placa"]: {
-            "placa": v["placa"],
-            "modelo_id": v["modelo_id"],
-            "marca": v.get("marca"),
-            "modelo": v.get("modelo"),
-            "viajes": 0,
-            "pedidos": 0,
-            "peso_kg": 0.0,
-            "volumen_m3": 0.0,
-            "paradas": 0,
-            "capacidad_total": 0.0,
+            "placa": v["placa"], "modelo_id": v["modelo_id"],
+            "marca": v.get("marca"), "modelo": v.get("modelo"),
+            "viajes": 0, "pedidos": 0, "peso_kg": 0.0,
+            "volumen_m3": 0.0, "paradas": 0, "capacidad_total": 0.0,
         }
         for v in vehiculos
     }
-
     if not vehiculos:
-        alertas.append(
-            {
-                "nivel": "danger",
-                "codigo": "sin_vehiculos",
-                "mensaje": "No hay vehiculos con modelo vinculado para planificar.",
-            }
-        )
+        alertas.append({
+            "nivel": "danger", "codigo": "sin_vehiculos",
+            "mensaje": f"No hay vehiculos disponibles: {total} pedidos sin asignar.",
+        })
         return _armar_respuesta(
-            viajes, agregados, alertas, total_pedidos, estimados, 0,
-            peso_total, volumen_total, 0, 0, 0
+            viajes, agregados, alertas, total, estimados, total,
+            peso_total, volumen_total, 0, 0.0, 0, vehiculos,
         )
 
-    # Primero lo mas voluminoso: mejora el aprovechamiento del espacio.
-    pendientes = sorted(items, key=lambda i: i["volumen_m3"], reverse=True)
-    numero_viaje = 0
+    def prioridad_zona(z):
+        return (-len(grupos[z]), z[0], str(z[1:]))
+
+    def cercania(zona_origen, zona_vecina):
+        # Primero celdas con coordenadas; despues las que no tienen ubicacion.
+        # Solo se compara dentro del MISMO distrito.
+        lat1, lon1 = zona_origen[1:]
+        lat2, lon2 = zona_vecina[1:]
+        if None in (lat1, lon1, lat2, lon2):
+            return (1, 0.0, -len(grupos[zona_vecina]), str(zona_vecina))
+        # Distancia aproximada cuadratica, sin necesidad de calculo vial.
+        distancia = (lat1 - lat2) ** 2 + ((lon1 - lon2) * math.cos(math.radians(lat1))) ** 2
+        return (0, distancia, -len(grupos[zona_vecina]), str(zona_vecina))
 
     for vehiculo in vehiculos:
-        capacidad_m3 = vehiculo["volumen_m3"] * factor_aprovechamiento
-        capacidad_kg = vehiculo["carga_kg"] * factor_aprovechamiento
+        comprobar_tiempo()
+        placa = vehiculo["placa"]
+        carga_max = float(vehiculo["carga_kg"]) * factor_aprovechamiento
+        volumen_max = float(vehiculo["volumen_m3"]) * factor_aprovechamiento
+        if carga_max <= 0 or volumen_max <= 0:
+            alertas.append({
+                "nivel": "warning", "codigo": "vehiculo_sin_capacidad",
+                "mensaje": f"El vehiculo {placa} no tiene capacidad valida.",
+            })
+            continue
 
+        agregado = agregados[placa]
         for _ in range(max_viajes_por_dia):
-            if not pendientes:
-                break
-
-            seleccion: List[dict] = []
-            resto: List[dict] = []
-            volumen = 0.0
-            peso = 0.0
-
-            for item in pendientes:
-                cabe = (
-                    volumen + item["volumen_m3"] <= capacidad_m3 + 1e-9
-                    and peso + item["peso_kg"] <= capacidad_kg + 1e-9
-                )
-                if cabe:
-                    seleccion.append(item)
-                    volumen += item["volumen_m3"]
-                    peso += item["peso_kg"]
-                else:
-                    resto.append(item)
-
-            if not seleccion:
-                break
-
-            pendientes = resto
-            numero_viaje += 1
-
-            utilizacion = (volumen / capacidad_m3 * 100) if capacidad_m3 else 0
-            utilizacion_peso = (peso / capacidad_kg * 100) if capacidad_kg else 0
-
-            viajes.append(
-                {
-                    "numero": numero_viaje,
-                    "vehiculo_placa": vehiculo["placa"],
-                    "modelo_id": vehiculo["modelo_id"],
-                    "marca": vehiculo.get("marca"),
-                    "modelo": vehiculo.get("modelo"),
-                    "pedidos": seleccion,
-                    "paradas": len(seleccion),
-                    "peso_kg": round(peso, 2),
-                    "volumen_m3": round(volumen, 3),
-                    "utilizacion_pct": round(utilizacion, 1),
-                    "utilizacion_peso_pct": round(utilizacion_peso, 1),
-                    "capacidad_m3": round(capacidad_m3, 3),
-                    "capacidad_kg": round(capacidad_kg, 2),
-                }
+            comprobar_tiempo()
+            cupo_paradas = min(
+                max_paradas_por_viaje,
+                max_paradas_por_jornada - agregado["paradas"],
             )
+            if cupo_paradas <= 0:
+                break
 
-            agregado = agregados[vehiculo["placa"]]
+            # Elegimos una celda inicial que tenga algun pedido que quepa.
+            # Se prioriza la celda mas poblada; si un bulto no cabe, se
+            # busca otra celda compatible antes de descartar el viaje.
+            inicio_zona = None
+            for z in sorted(grupos, key=prioridad_zona):
+                comprobar_tiempo()
+                if any(
+                    float(item["peso_kg"]) <= carga_max + 1e-9
+                    and float(item["volumen_m3"]) <= volumen_max + 1e-9
+                    for item in grupos[z]
+                ):
+                    inicio_zona = z
+                    break
+            if inicio_zona is None:
+                break
+
+            distrito = inicio_zona[0]
+            # CAMBIO PRINCIPAL: completar el viaje con TODAS las celdas
+            # cercanas del mismo distrito, no detenerse tras la primera.
+            vecinas = sorted(
+                (z for z in grupos if z != inicio_zona and z[0] == distrito and grupos[z]),
+                key=lambda z: cercania(inicio_zona, z),
+            )
+            zonas_del_viaje = [inicio_zona, *vecinas]
+
+            seleccionados = []
+            peso = 0.0
+            volumen = 0.0
+            for z in zonas_del_viaje:
+                comprobar_tiempo()
+                restantes = []
+                for item in grupos[z]:
+                    item_peso = float(item["peso_kg"])
+                    item_volumen = float(item["volumen_m3"])
+                    if (
+                        len(seleccionados) < cupo_paradas
+                        and peso + item_peso <= carga_max + 1e-9
+                        and volumen + item_volumen <= volumen_max + 1e-9
+                    ):
+                        seleccionados.append(item)
+                        peso += item_peso
+                        volumen += item_volumen
+                    else:
+                        restantes.append(item)
+                grupos[z] = restantes
+                if len(seleccionados) >= cupo_paradas:
+                    break
+
+            if not seleccionados:
+                break
+
+            viajes.append({
+                "numero": len(viajes) + 1,
+                "vehiculo_placa": placa,
+                "modelo_id": vehiculo["modelo_id"],
+                "marca": vehiculo.get("marca"),
+                "modelo": vehiculo.get("modelo"),
+                "pedidos": [
+                    {clave: valor for clave, valor in item.items()
+                     if clave not in ("latitud", "longitud")}
+                    for item in seleccionados
+                ],
+                "paradas": len(seleccionados),
+                "peso_kg": round(peso, 2),
+                "volumen_m3": round(volumen, 3),
+                "utilizacion_pct": round(volumen / volumen_max * 100, 1),
+                "utilizacion_peso_pct": round(peso / carga_max * 100, 1),
+                "capacidad_m3": round(volumen_max, 3),
+                "capacidad_kg": round(carga_max, 2),
+            })
             agregado["viajes"] += 1
-            agregado["pedidos"] += len(seleccion)
+            agregado["pedidos"] += len(seleccionados)
             agregado["peso_kg"] = round(agregado["peso_kg"] + peso, 2)
             agregado["volumen_m3"] = round(agregado["volumen_m3"] + volumen, 3)
-            agregado["paradas"] += len(seleccion)
-            agregado["capacidad_total"] = round(
-                agregado["capacidad_total"] + capacidad_m3, 3
-            )
+            agregado["paradas"] += len(seleccionados)
+            agregado["capacidad_total"] = round(agregado["capacidad_total"] + volumen_max, 3)
 
-            if len(seleccion) > max_paradas_por_viaje:
-                alertas.append(
-                    {
-                        "nivel": "warning",
-                        "codigo": "tope_paradas_viaje",
-                        "mensaje": (
-                            f"El viaje {numero_viaje} tiene {len(seleccion)} paradas y supera "
-                            f"el tope recomendado de {max_paradas_por_viaje}. Conviene dividirlo "
-                            "o sumar otro vehiculo."
-                        ),
-                    }
-                )
-
-    sin_asignar = len(pendientes)
+    sin_asignar = sum(len(grupo) for grupo in grupos.values())
     if sin_asignar:
-        alertas.append(
-            {
-                "nivel": "danger",
-                "codigo": "capacidad_insuficiente",
-                "mensaje": (
-                    f"{sin_asignar} pedidos no entran con la flota y los topes actuales. "
-                    "Agrega vehiculos, sube el factor de aprovechamiento o reduce paradas."
-                ),
-            }
-        )
-
+        alertas.append({
+            "nivel": "danger", "codigo": "capacidad_insuficiente",
+            "mensaje": (
+                f"{sin_asignar} pedidos quedaron sin asignar. "
+                "La flota o sus limites operativos (peso, volumen, "
+                "paradas o viajes) no alcanzaron para planificar todo."
+            ),
+        })
     if estimados:
-        alertas.append(
-            {
-                "nivel": "warning",
-                "codigo": "datos_estimados",
-                "mensaje": (
-                    f"{estimados} pedidos no traen peso/volumen: se uso un tamano "
-                    "estandar S/M/L y el calculo es estimado."
-                ),
-            }
-        )
-
-    for agregado in agregados.values():
-        if agregado["paradas"] > max_paradas_por_jornada:
-            alertas.append(
-                {
-                    "nivel": "warning",
-                    "codigo": "jornada_excedida",
-                    "mensaje": (
-                        f"El vehiculo {agregado['placa']} acumula {agregado['paradas']} paradas "
-                        f"en el dia (tope {max_paradas_por_jornada})."
-                    ),
-                }
-            )
-
+        alertas.append({
+            "nivel": "warning", "codigo": "datos_estimados",
+            "mensaje": f"{estimados} pedidos emplean tamanos referenciales configurables.",
+        })
     utilizaciones = [v["utilizacion_pct"] for v in viajes]
-    promedio = round(sum(utilizaciones) / len(utilizaciones), 1) if utilizaciones else 0
-    vehiculos_usados = len({v["vehiculo_placa"] for v in viajes})
-    max_paradas = max((v["paradas"] for v in viajes), default=0)
-
+    promedio = round(sum(utilizaciones) / len(utilizaciones), 1) if utilizaciones else 0.0
+    usados = len({v["vehiculo_placa"] for v in viajes})
+    maxima = max((v["paradas"] for v in viajes), default=0)
     return _armar_respuesta(
-        viajes,
-        agregados,
-        alertas,
-        total_pedidos,
-        estimados,
-        sin_asignar,
-        peso_total,
-        volumen_total,
-        vehiculos_usados,
-        promedio,
-        max_paradas,
-        vehiculos,
+        viajes, agregados, alertas, total, estimados, sin_asignar,
+        peso_total, volumen_total, usados, promedio, maxima, vehiculos,
     )
 
 
@@ -835,29 +917,32 @@ def _armar_respuesta(
     max_paradas: int,
     vehiculos: Optional[List[dict]] = None,
 ) -> dict:
-    """Arma el diccionario final del plan. Recibe las partes ya calculadas."""
+    """Arma los indicadores y calcula necesidades estimadas sin inventar flota."""
     lista_vehiculos = []
     for agregado in agregados.values():
         utilizacion = (
             agregado["volumen_m3"] / agregado["capacidad_total"] * 100
-            if agregado["capacidad_total"]
-            else 0
+            if agregado["capacidad_total"] else 0
         )
-        lista_vehiculos.append(
-            {
-                "placa": agregado["placa"],
-                "modelo_id": agregado["modelo_id"],
-                "marca": agregado["marca"],
-                "modelo": agregado["modelo"],
-                "viajes": agregado["viajes"],
-                "pedidos": agregado["pedidos"],
-                "peso_kg": agregado["peso_kg"],
-                "volumen_m3": agregado["volumen_m3"],
-                "utilizacion_pct": round(utilizacion, 1),
-                "paradas": agregado["paradas"],
-            }
-        )
-
+        lista_vehiculos.append({
+            "placa": agregado["placa"], "modelo_id": agregado["modelo_id"],
+            "marca": agregado["marca"], "modelo": agregado["modelo"],
+            "viajes": agregado["viajes"], "pedidos": agregado["pedidos"],
+            "peso_kg": agregado["peso_kg"], "volumen_m3": agregado["volumen_m3"],
+            "utilizacion_pct": round(utilizacion, 1), "paradas": agregado["paradas"],
+        })
+    necesarios = None
+    adicionales = None
+    if sin_asignar == 0:
+        necesarios = vehiculos_usados
+        adicionales = 0
+    elif vehiculos_usados > 0:
+        # Estimacion por productividad observada, NO una asignacion prometida.
+        atendidos = total_pedidos - sin_asignar
+        promedio_atendidos = atendidos / vehiculos_usados
+        if promedio_atendidos > 0:
+            adicionales = math.ceil(sin_asignar / promedio_atendidos)
+            necesarios = vehiculos_usados + adicionales
     return {
         "resumen": {
             "total_pedidos": total_pedidos,
@@ -866,7 +951,9 @@ def _armar_respuesta(
             "volumen_total_m3": volumen_total,
             "viajes_necesarios": len(viajes),
             "vehiculos_disponibles": len(vehiculos or []),
-            "vehiculos_necesarios": vehiculos_usados,
+            "vehiculos_usados": vehiculos_usados,
+            "vehiculos_necesarios": necesarios,
+            "vehiculos_adicionales_estimados": adicionales,
             "utilizacion_promedio_pct": promedio,
             "paradas_maximas_por_viaje": max_paradas,
             "pedidos_sin_asignar": sin_asignar,
@@ -877,32 +964,22 @@ def _armar_respuesta(
     }
 
 
-def _resolver_items(db: Session, datos: CalculoRequest) -> Tuple[List[dict], str]:
-    """Decide de donde salen los items del calculo. Recibe la peticion."""
+def _resolver_items(db: Session, datos: CalculoRequest, tamanos: Optional[dict] = None) -> Tuple[List[dict], str]:
+    """Resuelve un unico origen de pedidos mediante consulta de solo lectura."""
     if datos.cantidades is not None:
-        items = items_desde_cantidades(datos.cantidades)
-        modo = "cajas"
-    elif datos.demo_pedidos:
-        items = items_demo(datos.demo_pedidos)
-        modo = "demo"
+        items, modo = items_desde_cantidades(datos.cantidades, tamanos), "cajas"
+    elif datos.demo_pedidos is not None:
+        items, modo = items_demo(datos.demo_pedidos, tamanos), "demo"
     else:
         filtros = datos.filtros or FiltrosPedidos()
         pedidos = capacidad_repository.listar_pedidos_planificables(
-            db,
-            pedido_ids=datos.pedido_ids,
-            estado=filtros.estado,
-            distrito=filtros.distrito,
-            fecha=filtros.fecha,
+            db, pedido_ids=datos.pedido_ids, estado=filtros.estado,
+            distrito=filtros.distrito, fecha=filtros.fecha,
             limite=min(filtros.limite or MAX_PEDIDOS, MAX_PEDIDOS),
         )
-        items = items_desde_pedidos(pedidos)
-        modo = "pedidos"
-
+        items, modo = items_desde_pedidos(pedidos, tamanos), "pedidos"
     if len(items) > MAX_PEDIDOS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"El calculo admite como maximo {MAX_PEDIDOS} pedidos.",
-        )
+        raise HTTPException(status_code=400, detail=f"Maximo {MAX_PEDIDOS} pedidos.")
     return items, modo
 
 
@@ -931,7 +1008,7 @@ def calcular(db: Session, datos: CalculoRequest) -> dict:
             detail="El modelo no existe en el catalogo.",
         )
 
-    items, modo = _resolver_items(db, datos)
+    items, modo = _resolver_items(db, datos, tamanos_desde_config(config))
     factor = datos.factor_aprovechamiento or config.factor_aprovechamiento
     max_paradas = datos.max_paradas_por_viaje or config.max_paradas_por_viaje
     max_viajes = datos.max_viajes_por_dia or config.max_viajes_por_dia
@@ -959,10 +1036,10 @@ def planificacion(
 ) -> dict:
     """Planifica el dia con la flota vinculada. Recibe filtros y ajustes."""
     config = obtener_configuracion(db)
-    vehiculos, sin_modelo = _flota_planificable(db)
+    vehiculos, sin_modelo, no_disponibles = _flota_planificable(db)
 
     if demo_pedidos:
-        items = items_demo(demo_pedidos)
+        items = items_demo(demo_pedidos, tamanos_desde_config(config))
         if demo_vehiculos:
             vehiculos = _vehiculos_demo(demo_vehiculos, vehiculos)
         modo = "demo"
@@ -974,7 +1051,7 @@ def planificacion(
             fecha=filtros.fecha,
             limite=min(filtros.limite or MAX_PEDIDOS, MAX_PEDIDOS),
         )
-        items = items_desde_pedidos(pedidos)
+        items = items_desde_pedidos(pedidos, tamanos_desde_config(config))
         modo = "pedidos"
 
     if len(items) > MAX_PEDIDOS:
@@ -1019,6 +1096,12 @@ def planificacion(
                 ),
             }
         )
+
+    if no_disponibles and modo != "demo":
+        plan["alertas"].append({
+            "nivel": "warning", "codigo": "vehiculos_no_disponibles",
+            "mensaje": f"{no_disponibles} vehiculos no pueden salir por estado, conductor o ruta activa.",
+        })
 
     if modo == "demo":
         plan["alertas"].append(

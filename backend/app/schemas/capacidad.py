@@ -1,10 +1,13 @@
+
 # Esquemas Pydantic del modulo de catalogo y capacidad (Idea 3).
 from datetime import date, datetime
 from enum import Enum
 from typing import Dict, List, Optional
+from urllib.parse import urlparse
+import ipaddress
 import re
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StrictInt, model_validator
 
 
 class TipoVehiculoEnum(str, Enum):
@@ -70,6 +73,30 @@ class CatalogoEstructuraJSON(BaseModel):
     modelos: List[ModeloVehiculo]
 
 
+def validar_fuente_tecnica(fuente: Optional[str], url_fuente: Optional[str]) -> None:
+    """Exige referencia HTTPS, sin tratarla como verificacion documental."""
+    if not fuente or not fuente.strip():
+        raise ValueError("Indica la fuente de la ficha tecnica.")
+    if not url_fuente or not url_fuente.strip():
+        raise ValueError("Indica la URL de la ficha tecnica.")
+
+    url = urlparse(url_fuente.strip())
+
+    if url.scheme != "https" or not url.hostname or url.username or url.password:
+        raise ValueError("La fuente debe ser una URL HTTPS publica valida.")
+
+    if url.hostname.lower() == "localhost" or url.hostname.endswith(".local"):
+        raise ValueError("No se aceptan direcciones locales como fuente.")
+
+    try:
+        if not ipaddress.ip_address(url.hostname).is_global:
+            raise ValueError("No se aceptan direcciones IP privadas o reservadas.")
+    except ValueError as exc:
+        if "no se aceptan" in str(exc).lower():
+            raise
+        # Un nombre DNS normal no se puede interpretar como direccion IP.
+
+
 class ModeloCreateRequest(BaseModel):
     """Alta de un modelo. El id se genera desde marca/modelo si no se envia."""
 
@@ -92,6 +119,7 @@ class ModeloCreateRequest(BaseModel):
         _validar_coherencia_volumen(
             self.largo_m, self.ancho_m, self.alto_m, self.volumen_util_m3
         )
+        validar_fuente_tecnica(self.fuente, self.fuente_url)
         return self
 
 
@@ -128,8 +156,10 @@ class VinculacionPlacaRequest(BaseModel):
     def validar_formato_placa_peru(self):
         """Normaliza y valida el formato peruano ABC-123. Devuelve la peticion."""
         self.placa = self.placa.strip().upper()
+
         if not PATRON_PLACA.match(self.placa):
             raise ValueError("La placa debe tener el formato peruano (ej. ABC-123).")
+
         return self
 
 
@@ -165,19 +195,49 @@ class ConfiguracionResponse(BaseModel):
     max_paradas_por_viaje: int
     max_paradas_por_jornada: int
     max_viajes_por_dia: int
+
+    s_peso_kg: float = 5.0
+    s_volumen_m3: float = 0.03
+
+    m_peso_kg: float = 15.0
+    m_volumen_m3: float = 0.09
+
+    l_peso_kg: float = 40.0
+    l_volumen_m3: float = 0.25
+
     actualizado_por: Optional[str] = None
     actualizado_en: Optional[datetime] = None
 
 
 class ConfiguracionUpdateRequest(BaseModel):
-    factor_aprovechamiento: Optional[float] = Field(None, ge=0.5, le=1.0)
-    max_paradas_por_viaje: Optional[int] = Field(None, ge=1, le=100)
-    max_paradas_por_jornada: Optional[int] = Field(None, ge=1, le=500)
-    max_viajes_por_dia: Optional[int] = Field(None, ge=1, le=20)
+    factor_aprovechamiento: Optional[float] = Field(
+        None, ge=0.5, le=1.0
+    )
+
+    max_paradas_por_viaje: Optional[int] = Field(
+        None, ge=1, le=100
+    )
+
+    max_paradas_por_jornada: Optional[int] = Field(
+        None, ge=1, le=500
+    )
+
+    max_viajes_por_dia: Optional[int] = Field(
+        None, ge=1, le=20
+    )
+
+    s_peso_kg: Optional[float] = Field(None, gt=0, le=1000)
+    s_volumen_m3: Optional[float] = Field(None, gt=0, le=100)
+
+    m_peso_kg: Optional[float] = Field(None, gt=0, le=1000)
+    m_volumen_m3: Optional[float] = Field(None, gt=0, le=100)
+
+    l_peso_kg: Optional[float] = Field(None, gt=0, le=1000)
+    l_volumen_m3: Optional[float] = Field(None, gt=0, le=100)
 
     @model_validator(mode="after")
-    def exigir_al_menos_un_cambio(self):
-        """Rechaza una peticion vacia. Devuelve la configuracion."""
+    def validar_parametros(self):
+        """Rechaza actualizaciones sin campos."""
         if not self.model_dump(exclude_unset=True):
             raise ValueError("Indica al menos un parametro a modificar.")
         return self
@@ -193,35 +253,89 @@ class FiltrosPedidos(BaseModel):
 
 
 class CalculoRequest(BaseModel):
-    """Calculo de capacidad con cajas S/M/L o con pedidos reales."""
+    """Calculadora: exactamente un origen de pedidos por solicitud."""
 
     modelo_id: Optional[str] = Field(None, min_length=3, max_length=80)
     placa: Optional[str] = Field(None, max_length=10)
-    cantidades: Optional[Dict[str, int]] = None
+
+    cantidades: Optional[Dict[str, StrictInt]] = None
     pedido_ids: Optional[List[int]] = Field(None, max_length=5000)
     filtros: Optional[FiltrosPedidos] = None
     demo_pedidos: Optional[int] = Field(None, ge=1, le=5000)
-    factor_aprovechamiento: Optional[float] = Field(None, ge=0.5, le=1.0)
-    max_paradas_por_viaje: Optional[int] = Field(None, ge=1, le=100)
-    max_viajes_por_dia: Optional[int] = Field(None, ge=1, le=20)
+
+    factor_aprovechamiento: Optional[float] = Field(
+        None, ge=0.5, le=1.0
+    )
+
+    max_paradas_por_viaje: Optional[int] = Field(
+        None, ge=1, le=100
+    )
+
+    max_viajes_por_dia: Optional[int] = Field(
+        None, ge=1, le=20
+    )
 
     @model_validator(mode="after")
     def validar_origen(self):
-        """Exige un vehiculo y un origen de carga. Devuelve la peticion."""
+        """Verifica el modelo seleccionado y el origen de los pedidos."""
         if not self.modelo_id and not self.placa:
-            raise ValueError("Indica un modelo_id o una placa de la flota.")
-        if self.cantidades is None and not self.pedido_ids and not self.demo_pedidos:
-            raise ValueError("Indica cantidades S/M/L, pedido_ids o demo_pedidos.")
+            raise ValueError("Indica modelo_id o placa del vehiculo.")
+
+        origenes = (
+            self.cantidades is not None,
+            self.pedido_ids is not None,
+            self.filtros is not None,
+            self.demo_pedidos is not None,
+        )
+
+        if sum(origenes) != 1:
+            raise ValueError(
+                "Indica exactamente un origen: cantidades, "
+                "pedido_ids, filtros o demo_pedidos."
+            )
+
+        if self.pedido_ids is not None:
+            if not self.pedido_ids or len(set(self.pedido_ids)) != len(self.pedido_ids):
+                raise ValueError(
+                    "Los pedido_ids no pueden ser vacios ni repetidos."
+                )
+
+            if any(i <= 0 for i in self.pedido_ids):
+                raise ValueError(
+                    "Los identificadores deben ser positivos."
+                )
+
         if self.cantidades is not None:
-            normalizadas = {}
+            normalizadas: Dict[str, int] = {}
+
             for clave, valor in self.cantidades.items():
-                tamano = str(clave).strip().upper()
+                tamano = str(clave).upper().strip()
+
                 if tamano not in ("S", "M", "L"):
-                    raise ValueError("Solo se aceptan los tamanos S, M y L.")
-                if valor < 0 or valor > 10000:
-                    raise ValueError("Las cantidades deben estar entre 0 y 10000.")
-                normalizadas[tamano] = int(valor)
+                    raise ValueError(
+                        "Solo se aceptan tamanos S, M o L."
+                    )
+
+                if (
+                    isinstance(valor, bool)
+                    or not isinstance(valor, int)
+                    or valor < 0
+                ):
+                    raise ValueError(
+                        "Las cantidades deben ser enteros no negativos."
+                    )
+
+                normalizadas[tamano] = (
+                    normalizadas.get(tamano, 0) + valor
+                )
+
+            if not 1 <= sum(normalizadas.values()) <= 5000:
+                raise ValueError(
+                    "El total debe tener entre 1 y 5000 cajas."
+                )
+
             self.cantidades = normalizadas
+
         return self
 
 
@@ -264,7 +378,9 @@ class ResumenPlan(BaseModel):
     volumen_total_m3: float
     viajes_necesarios: int
     vehiculos_disponibles: int
-    vehiculos_necesarios: int
+    vehiculos_necesarios: Optional[int] = None
+    vehiculos_usados: int = 0
+    vehiculos_adicionales_estimados: Optional[int] = None
     utilizacion_promedio_pct: float
     paradas_maximas_por_viaje: int
     pedidos_sin_asignar: int

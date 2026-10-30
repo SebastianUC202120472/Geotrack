@@ -1,3 +1,4 @@
+
 # Tablas propias del modulo de catalogo y capacidad (Idea 3).
 # Viven fuera de las tablas del nucleo: el modulo solo LEE pedidos y vehiculos.
 from datetime import datetime
@@ -73,6 +74,12 @@ class ConfiguracionCapacidad(Base):
     max_paradas_por_viaje = Column(Integer, nullable=False, default=25)
     max_paradas_por_jornada = Column(Integer, nullable=False, default=60)
     max_viajes_por_dia = Column(Integer, nullable=False, default=3)
+    s_peso_kg = Column(Float, nullable=False, default=5.0)
+    s_volumen_m3 = Column(Float, nullable=False, default=0.03)
+    m_peso_kg = Column(Float, nullable=False, default=15.0)
+    m_volumen_m3 = Column(Float, nullable=False, default=0.09)
+    l_peso_kg = Column(Float, nullable=False, default=40.0)
+    l_volumen_m3 = Column(Float, nullable=False, default=0.25)
     actualizado_por = Column(String(150), nullable=True)
     actualizado_en = Column(DateTime, nullable=True)
 

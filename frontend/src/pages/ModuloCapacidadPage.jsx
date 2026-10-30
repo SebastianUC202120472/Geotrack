@@ -1,27 +1,10 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
-import {
-  AlertCircle,
-  AlertTriangle,
-  BarChart3,
-  BookOpen,
-  Boxes,
-  CalendarRange,
-  Calculator,
-  CheckCircle2,
-  ClipboardList,
-  FileText,
-  Gauge,
-  Link2,
-  Pencil,
-  Plus,
-  Search,
-  Settings,
-  Trash2,
-  Truck,
-  Unlink,
-  X,
-} from "lucide-react";
 
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import {
+  AlertCircle, AlertTriangle, BookOpen, Boxes, Calculator, CalendarRange,
+  CheckCircle2, ClipboardList, Gauge, Link2, Pencil, Plus, Settings,
+  Trash2, Truck, Unlink,
+} from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -33,1902 +16,563 @@ import ConfirmDialog from "../components/ui/ConfirmDialog";
 import Badge, { EstadoBadge } from "../components/ui/Badge";
 import Skeleton from "../components/ui/Skeleton";
 import FormularioModelo from "../components/capacidad/FormularioModelo";
-import {
-  ESTADOS_PLANIFICABLES,
-  ETIQUETA_TIPO,
-  TIPOS_VEHICULO,
-} from "../components/capacidad/constantes";
+import { ESTADOS_PLANIFICABLES, ETIQUETA_TIPO, TIPOS_VEHICULO } from "../components/capacidad/constantes";
 import { useAuth } from "../context/AuthContext";
 import {
-  actualizarConfiguracionCapacidad,
-  actualizarModeloCapacidad,
-  calcularCapacidad,
-  crearModeloCapacidad,
-  desvincularPlacaCapacidad,
-  eliminarModeloCapacidad,
-  listarAuditoriaCapacidad,
-  listarCatalogoCapacidad,
-  listarFlotaCapacidad,
-  listarVinculacionesCapacidad,
-  obtenerConfiguracionCapacidad,
-  obtenerPlanificacionCapacidad,
+  actualizarConfiguracionCapacidad, actualizarModeloCapacidad,
+  calcularCapacidad, crearModeloCapacidad, desvincularPlacaCapacidad,
+  eliminarModeloCapacidad, listarAuditoriaCapacidad, listarCatalogoCapacidad,
+  listarFlotaCapacidad, listarVinculacionesCapacidad,
+  obtenerConfiguracionCapacidad, obtenerPlanificacionCapacidad,
   vincularPlacaCapacidad,
 } from "../services/api";
 
-// El visor 3D se carga bajo demanda: Three.js queda en un chunk aparte.
+// El visor 3D se descarga solo cuando el usuario abre un resultado.
 const VisorCarga3D = lazy(() => import("../components/capacidad/VisorCarga3D"));
-
-const TABS = [
-  { id: "catalogo", etiqueta: "Catalogo", icono: BookOpen },
-  { id: "flota", etiqueta: "Flota y vinculaciones", icono: Link2 },
-  { id: "calculadora", etiqueta: "Calculadora", icono: Calculator },
-  { id: "planificacion", etiqueta: "Planificacion", icono: CalendarRange },
-  { id: "configuracion", etiqueta: "Configuracion", icono: Settings },
+const CAMPOS = ["factor_aprovechamiento", "max_paradas_por_viaje", "max_paradas_por_jornada", "max_viajes_por_dia",
+  "s_peso_kg", "s_volumen_m3", "m_peso_kg", "m_volumen_m3", "l_peso_kg", "l_volumen_m3"];
+const etiquetas = {
+  factor_aprovechamiento: "Factor de aprovechamiento (0.5 a 1)",
+  max_paradas_por_viaje: "Paradas máximas por viaje",
+  max_paradas_por_jornada: "Paradas máximas por jornada",
+  max_viajes_por_dia: "Viajes máximos por día",
+  s_peso_kg: "Peso S (kg)", s_volumen_m3: "Volumen S (m³)",
+  m_peso_kg: "Peso M (kg)", m_volumen_m3: "Volumen M (m³)",
+  l_peso_kg: "Peso L (kg)", l_volumen_m3: "Volumen L (m³)",
+};
+const tabs = [
+  ["catalogo", "Catálogo", BookOpen], ["flota", "Flota y vinculaciones", Link2],
+  ["calculadora", "Calculadora", Calculator], ["planificacion", "Planificación", CalendarRange],
+  ["configuracion", "Configuración", Settings],
 ];
+const formularioConfig = (config) => Object.fromEntries(CAMPOS.map((campo) => [campo, String(config?.[campo] ?? "")]));
+const natural = (n) => Number(n ?? 0).toLocaleString("es-PE");
 
-const ETIQUETA_MODO = {
-  cajas: "Cajas S/M/L",
-  pedidos: "Pedidos reales",
-  demo: "Demostracion",
-};
-
-// Convierte un valor de input en numero o undefined (para no enviar campos vacios).
-const aNumero = (valor) => (valor === "" || valor === null ? undefined : Number(valor));
-
-// Los vehiculos de la demo no tienen ficha en el catalogo. Se construye un
-// modelo referencial con proporcion de furgon para que el visor 3D los muestre.
-const modeloReferencial = (viaje) => {
-  if (!viaje) return null;
-  const volumen = Math.max(0.5, Number(viaje.capacidad_m3) || 7.5);
-  const escala = Math.cbrt(volumen / (2.6 * 1.6 * 1.0));
-  return {
-    marca: viaje.marca || "Vehiculo",
-    modelo: viaje.modelo || "sin ficha",
-    largo_m: Number((2.6 * escala).toFixed(2)),
-    ancho_m: Number((1.6 * escala).toFixed(2)),
-    alto_m: Number((1.0 * escala).toFixed(2)),
-    referencial: true,
-  };
-};
-
-// Mensaje de exito o error con boton para cerrarlo.
-function Aviso({ aviso, onCerrar }) {
-  if (!aviso) return null;
-  const ok = aviso.ok;
-  return (
-    <div
-      className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${
-        ok
-          ? "border-success/30 bg-success-soft text-success-strong"
-          : "border-danger/30 bg-danger-soft text-danger-strong"
-      }`}
-    >
-      {ok ? (
-        <CheckCircle2 size={18} className="mt-0.5 shrink-0" />
-      ) : (
-        <AlertCircle size={18} className="mt-0.5 shrink-0" />
-      )}
-      <p className="flex-1 font-medium">{aviso.texto}</p>
-      <button type="button" onClick={onCerrar} aria-label="Cerrar aviso" className="rounded p-0.5 hover:bg-black/5">
-        <X size={16} />
-      </button>
-    </div>
-  );
-}
-
-// Barra compacta de utilizacion (volumen usado / capacidad).
-function BarraUso({ valor }) {
-  const pct = Math.max(0, Math.min(100, Number(valor) || 0));
-  const color = pct >= 90 ? "bg-success" : pct >= 60 ? "bg-brand-600" : "bg-warning";
-  return (
-    <div className="flex items-center gap-2">
-      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
-      </div>
-      <span className="nums text-xs font-semibold text-slate-600">{pct.toFixed(0)}%</span>
-    </div>
-  );
-}
-
-// Lista de alertas del plan con color segun el nivel.
-function ListaAlertas({ alertas }) {
-  if (!alertas?.length) return null;
-  return (
-    <div className="space-y-2">
-      {alertas.map((alerta, indice) => {
-        const peligro = alerta.nivel === "danger";
-        const advertencia = alerta.nivel === "warning";
-        const Icono = peligro ? AlertCircle : advertencia ? AlertTriangle : CheckCircle2;
-        const clases = peligro
-          ? "border-danger/30 bg-danger-soft text-danger-strong"
-          : advertencia
-            ? "border-warning/30 bg-warning-soft text-warning-strong"
-            : "border-info/30 bg-info-soft text-info-strong";
-        return (
-          <div
-            key={`${alerta.codigo}-${indice}`}
-            className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${clases}`}
-          >
-            <Icono size={18} className="mt-0.5 shrink-0" />
-            <div>
-              <p className="font-semibold capitalize">{alerta.codigo.replaceAll("_", " ")}</p>
-              <p className="text-xs opacity-90">{alerta.mensaje}</p>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// Tabla de viajes reutilizada por la calculadora y la planificacion.
-function TablaViajes({ viajes, maxParadas, seleccionado, onSeleccionar }) {
-  const columnas = [
-    {
-      key: "numero",
-      header: "Viaje",
-      render: (v) => <span className="nums font-semibold text-slate-800">#{v.numero}</span>,
-    },
-    {
-      key: "vehiculo_placa",
-      header: "Vehiculo",
-      render: (v) => (
-        <div>
-          <p className="font-semibold text-slate-800">
-            {v.vehiculo_placa === "CATALOGO" ? "Modelo del catalogo" : v.vehiculo_placa}
-          </p>
-          <p className="text-xs text-slate-400">
-            {v.marca} {v.modelo}
-          </p>
+function Alertas({ alertas = [] }) {
+  return alertas.length ? (
+    <div className="space-y-2" role="status">
+      {alertas.map((a, i) => (
+        <div key={`${a.codigo}-${i}`} className={`flex gap-2 rounded-xl border p-3 text-sm ${a.nivel === "danger"
+          ? "border-red-200 bg-red-50 text-red-800" : a.nivel === "warning"
+            ? "border-amber-200 bg-amber-50 text-amber-800" : "border-blue-200 bg-blue-50 text-blue-800"}`}>
+          <AlertTriangle size={18} className="shrink-0" />
+          <span><strong>{String(a.codigo || "Aviso").replaceAll("_", " ")}: </strong>{a.mensaje}</span>
         </div>
-      ),
-    },
-    {
-      key: "paradas",
-      header: "Paradas",
-      render: (v) => (
-        <span className={v.paradas > maxParadas ? "font-semibold text-warning-strong" : "text-slate-700"}>
-          {v.paradas}
-          {v.paradas > maxParadas && " ⚠"}
-        </span>
-      ),
-    },
-    {
-      key: "peso_kg",
-      header: "Peso",
-      render: (v) => <span className="nums text-slate-600">{v.peso_kg.toLocaleString("es-PE")} kg</span>,
-    },
-    {
-      key: "volumen_m3",
-      header: "Volumen",
-      render: (v) => <span className="nums text-slate-600">{v.volumen_m3} m3</span>,
-    },
-    {
-      key: "utilizacion_pct",
-      header: "Uso",
-      render: (v) => <BarraUso valor={v.utilizacion_pct} />,
-    },
-    {
-      key: "acciones",
-      header: "",
-      render: (v) => {
-        const activo = seleccionado === viajes.indexOf(v);
-        return (
-          <Button
-            size="sm"
-            variant={activo ? "primary" : "secondary"}
-            onClick={() => onSeleccionar(viajes.indexOf(v))}
-            aria-pressed={activo}
-            title="Carga este viaje en el visor 3D"
-          >
-            {activo ? "Viendo 3D" : "Ver 3D"}
-          </Button>
-        );
-      },
-    },
-  ];
+      ))}
+    </div>
+  ) : null;
+}
+
+function TablaResultado({ plan, indice, cambiarIndice, modelos }) {
+  const viajes = plan?.viajes || [];
+  const viaje = viajes[indice] || null;
+  const ficha = modelos.find((m) => m.id === viaje?.modelo_id);
+  const modelo = ficha || (viaje ? {
+    marca: viaje.marca || "Vehículo", modelo: viaje.modelo || "Referencial",
+    largo_m: 2.6, ancho_m: 1.6, alto_m: 1.0, referencial: true,
+  } : null);
+  const resumen = plan.resumen;
+  const nombreVehiculo = (v) => {
+    if (!v) return "Sin identificar";
+
+    const fichaVehiculo = modelos.find((m) => m.id === v.modelo_id);
+
+    const nombre = fichaVehiculo
+      ? `${fichaVehiculo.marca} ${fichaVehiculo.modelo}`
+      : [v.marca, v.modelo].filter(Boolean).join(" ");
+
+    const placa = v.vehiculo_placa || "";
+
+    if (placa && placa.toUpperCase() !== "CATALOGO") {
+      return nombre ? `${placa} - ${nombre}` : placa;
+    }
+
+    return nombre || placa || "Sin identificar";
+  };
 
   return (
-    <DataTable
-      columns={columnas}
-      rows={viajes}
-      rowKey={(v) => `${v.numero}-${v.vehiculo_placa}`}
-      empty={{
-        icon: ClipboardList,
-        title: "Sin viajes calculados",
-        description: "Ajusta la carga, el vehiculo o los topes para volver a calcular.",
-      }}
-    />
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <KpiCard label="Pedidos" value={resumen.total_pedidos} icon={Boxes} tone="brand" />
+        <KpiCard label="Viajes" value={resumen.viajes_necesarios} icon={Truck} tone="info" />
+        <KpiCard label="Sin asignar" value={resumen.pedidos_sin_asignar} icon={AlertCircle}
+          tone={resumen.pedidos_sin_asignar ? "danger" : "success"} />
+        <KpiCard label="Vehículos necesarios (estimación)"
+          value={resumen.vehiculos_necesarios ?? "Sin datos"} icon={Gauge} tone="warning" />
+      </div>
+      <Alertas alertas={plan.alertas} />
+      <SectionCard title="Viajes calculados" subtitle="Una recomendación que no altera las rutas del núcleo.">
+        <DataTable rows={viajes} rowKey={(v) => `${v.numero}-${v.vehiculo_placa}`}
+          empty={{ icon: ClipboardList, title: "No se generaron viajes", description: "Revisa la flota y los límites." }}
+          columns={[
+            { key: "numero", header: "Viaje", render: (v) => `#${v.numero}` },
+            { key: "vehiculo_placa",header: "Vehículo",render: (v) => nombreVehiculo(v) },
+            { key: "paradas", header: "Paradas", render: (v) => v.paradas },
+            { key: "peso_kg", header: "Peso (kg)", render: (v) => natural(v.peso_kg) },
+            { key: "volumen_m3", header: "Volumen (m³)", render: (v) => v.volumen_m3 },
+            { key: "utilizacion_pct", header: "Uso (%)", render: (v) => `${v.utilizacion_pct}%` },
+            { key: "ver", header: "Detalle", render: (v) => (
+              <Button size="sm" variant={viajes.indexOf(v) === indice ? "primary" : "secondary"}
+                onClick={() => cambiarIndice(viajes.indexOf(v))}>Ver 3D</Button>
+            ) },
+          ]} />
+      </SectionCard>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <SectionCard title="Vista de carga 3D" subtitle="Visualización referencial del viaje elegido.">
+          <Suspense fallback={<Skeleton className="h-72 w-full" />}>
+              <VisorCarga3D
+              modelo={modelo}
+              utilizacionPct={viaje?.utilizacion_pct || 0}
+              placa={
+              viaje?.vehiculo_placa?.toUpperCase() === "CATALOGO"
+                ? nombreVehiculo(viaje)
+                : (viaje?.vehiculo_placa || "")
+                    }
+              pedidos={viaje?.paradas || 0}
+            />
+
+          </Suspense>
+        </SectionCard>
+        <SectionCard title="Resumen del viaje">
+          {viaje ? <dl className="space-y-2 text-sm">
+            <div>Vehículo: <strong>{nombreVehiculo(viaje)}</strong></div>
+            <div>Pedidos: <strong>{viaje.paradas}</strong></div>
+            <div>Peso: <strong>{natural(viaje.peso_kg)} / {natural(viaje.capacidad_kg)} kg</strong></div>
+            <div>Volumen: <strong>{viaje.volumen_m3} / {viaje.capacidad_m3} m³</strong></div>
+            <div>Uso por peso: <strong>{viaje.utilizacion_peso_pct}%</strong></div>
+            <div>Uso por volumen: <strong>{viaje.utilizacion_pct}%</strong></div>
+            <p className="text-xs text-slate-500">Los pesos o volúmenes estimados se indican en las alertas.</p>
+          </dl> : <p className="text-sm text-slate-500">No hay un viaje seleccionado.</p>}
+        </SectionCard>
+      </div>
+    </div>
   );
 }
 
-// Pagina del modulo de catalogo y capacidad (Idea 3, semanas 9 a 11).
 export function ModuloCapacidadPage() {
   const { rol } = useAuth();
   const esAdmin = rol === "admin";
-
   const [tab, setTab] = useState("catalogo");
   const [cargando, setCargando] = useState(true);
-  const [moduloActivo, setModuloActivo] = useState(true);
   const [aviso, setAviso] = useState(null);
-
   const [modelos, setModelos] = useState([]);
   const [flota, setFlota] = useState([]);
   const [vinculaciones, setVinculaciones] = useState([]);
   const [config, setConfig] = useState(null);
-
-  // --- Catalogo ---
+  const [formConfig, setFormConfig] = useState({});
+  const [auditoria, setAuditoria] = useState([]);
   const [busqueda, setBusqueda] = useState("");
-  const [filtroTipo, setFiltroTipo] = useState("");
   const [filtroMarca, setFiltroMarca] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState("");
   const [soloVerificados, setSoloVerificados] = useState(false);
   const [modalModelo, setModalModelo] = useState(null);
-  const [guardandoModelo, setGuardandoModelo] = useState(false);
-  const [modeloAEliminar, setModeloAEliminar] = useState(null);
-  const [eliminandoModelo, setEliminandoModelo] = useState(false);
-
-  // --- Flota y vinculaciones ---
+  const [modeloEliminar, setModeloEliminar] = useState(null);
+  const [vinculoEliminar, setVinculoEliminar] = useState(null);
+  const [guardando, setGuardando] = useState(false);
   const [placaNueva, setPlacaNueva] = useState("");
   const [modeloNuevo, setModeloNuevo] = useState("");
-  const [guardandoVinculo, setGuardandoVinculo] = useState(false);
-  const [vinculacionAEliminar, setVinculacionAEliminar] = useState(null);
-  const [eliminandoVinculo, setEliminandoVinculo] = useState(false);
-
-  // --- Calculadora ---
-  const [calcFuente, setCalcFuente] = useState("modelo");
+  const [fuente, setFuente] = useState("modelo");
   const [calcModelo, setCalcModelo] = useState("");
   const [calcPlaca, setCalcPlaca] = useState("");
-  const [calcCarga, setCalcCarga] = useState("cajas");
+  const [carga, setCarga] = useState("cajas");
   const [cajas, setCajas] = useState({ S: 20, M: 10, L: 4 });
-  const [calcFiltros, setCalcFiltros] = useState({ estado: "", distrito: "", limite: 200 });
-  const [calcDemo, setCalcDemo] = useState(100);
-  const [calcFactor, setCalcFactor] = useState("");
-  const [calcParadas, setCalcParadas] = useState("");
-  const [calcViajes, setCalcViajes] = useState("");
-  const [calculando, setCalculando] = useState(false);
+  const [filtrosCalc, setFiltrosCalc] = useState({ estado: "", distrito: "", limite: 200 });
+  const [demoCalc, setDemoCalc] = useState(100);
+  const [factorCalc, setFactorCalc] = useState("");
+  const [paradasCalc, setParadasCalc] = useState("");
+  const [viajesCalc, setViajesCalc] = useState("");
   const [resultado, setResultado] = useState(null);
-  const [viajeSeleccionado, setViajeSeleccionado] = useState(0);
-
-  // --- Planificacion ---
-  const [planFiltros, setPlanFiltros] = useState({ estado: "", distrito: "", fecha: "", limite: 500 });
-  const [planDemoPedidos, setPlanDemoPedidos] = useState(700);
-  const [planDemoVehiculos, setPlanDemoVehiculos] = useState(6);
-  const [planFactor, setPlanFactor] = useState("");
-  const [planificando, setPlanificando] = useState(false);
+  const [viajeCalc, setViajeCalc] = useState(0);
+  const [filtrosPlan, setFiltrosPlan] = useState({ estado: "", distrito: "", fecha: "", limite: 500 });
+  const [demoPedidos, setDemoPedidos] = useState(700);
+  const [demoVehiculos, setDemoVehiculos] = useState(6);
+  const [factorPlan, setFactorPlan] = useState("");
   const [planResultado, setPlanResultado] = useState(null);
-  const [planViajeSeleccionado, setPlanViajeSeleccionado] = useState(0);
+  const [viajePlan, setViajePlan] = useState(0);
 
-  // Referencias al panel 3D para desplazar la vista al pulsar "Ver 3D".
-  const visorCalculoRef = useRef(null);
-  const visorPlanRef = useRef(null);
-
-  // --- Configuracion y auditoria ---
-  const [formConfig, setFormConfig] = useState(null);
-  const [guardandoConfig, setGuardandoConfig] = useState(false);
-  const [auditoria, setAuditoria] = useState([]);
+  const notificar = (ok, texto) => setAviso({ ok, texto });
+  const manejarError = (error) => notificar(false, error?.message || "Se produjo un error en el módulo.");
+  const recargarCatalogo = async () => setModelos(await listarCatalogoCapacidad());
+  const recargarFlota = async () => {
+    const [a, b] = await Promise.all([listarFlotaCapacidad(), listarVinculacionesCapacidad()]);
+    setFlota(a); setVinculaciones(b);
+  };
 
   useEffect(() => {
     let activo = true;
-
-    Promise.all([
-      listarCatalogoCapacidad(),
-      listarFlotaCapacidad(),
-      listarVinculacionesCapacidad(),
-      obtenerConfiguracionCapacidad(),
-    ])
-      .then(([catalogo, flotaApi, vinculos, configApi]) => {
+    Promise.all([listarCatalogoCapacidad(), listarFlotaCapacidad(), listarVinculacionesCapacidad(), obtenerConfiguracionCapacidad()])
+      .then(([m, f, v, c]) => {
         if (!activo) return;
-        setModelos(catalogo);
-        setFlota(flotaApi);
-        setVinculaciones(vinculos);
-        setConfig(configApi);
-        setFormConfig({
-          factor_aprovechamiento: String(configApi.factor_aprovechamiento),
-          max_paradas_por_viaje: String(configApi.max_paradas_por_viaje),
-          max_paradas_por_jornada: String(configApi.max_paradas_por_jornada),
-          max_viajes_por_dia: String(configApi.max_viajes_por_dia),
-        });
+        setModelos(m); setFlota(f); setVinculaciones(v); setConfig(c); setFormConfig(formularioConfig(c));
       })
-      .catch((error) => {
-        if (!activo) return;
-        if (error.status === 404) {
-          setModuloActivo(false);
-          setAviso({
-            ok: false,
-            texto:
-              "El modulo de capacidad esta desactivado en este servidor (MODULO_CAPACIDAD_ENABLED=false).",
-          });
-        } else {
-          setAviso({ ok: false, texto: error.message || "No se pudo cargar el modulo." });
-        }
-      })
-      .finally(() => {
-        if (activo) setCargando(false);
-      });
+.catch((e) => {
+  if (activo) {
+    setAviso({
+      ok: false,
+      texto: e?.message || "Error al cargar el módulo de capacidad.",
+    });
+  }
+})
 
-    return () => {
-      activo = false;
-    };
+      .finally(() => { if (activo) setCargando(false); });
+    return () => { activo = false; };
   }, []);
 
-  // La auditoria solo se pide cuando un administrador abre la pestana de configuracion.
   useEffect(() => {
-    if (!esAdmin || tab !== "configuracion") return undefined;
+    if (!esAdmin || tab !== "configuracion") return;
     let activo = true;
+    listarAuditoriaCapacidad(50).then((a) => { if (activo) setAuditoria(a); })
+      .catch(() => { if (activo) setAuditoria([]); });
+    return () => { activo = false; };
+  }, [esAdmin, tab]);
 
-    listarAuditoriaCapacidad(50)
-      .then((datos) => {
-        if (activo) setAuditoria(datos);
-      })
-      .catch(() => {
-        if (activo) setAuditoria([]);
-      });
+  const marcas = useMemo(() => [...new Set(modelos.map((m) => m.marca))].sort(), [modelos]);
+  const catalogo = useMemo(() => modelos.filter((m) => (
+    (!busqueda || `${m.marca} ${m.modelo} ${m.id}`.toLowerCase().includes(busqueda.toLowerCase())) &&
+    (!filtroMarca || m.marca === filtroMarca) && (!filtroTipo || m.tipo === filtroTipo) &&
+    (!soloVerificados || m.verificado)
+  )), [modelos, busqueda, filtroMarca, filtroTipo, soloVerificados]);
+  const vinculadas = useMemo(() => new Set(vinculaciones.map((v) => v.placa)), [vinculaciones]);
 
-    return () => {
-      activo = false;
-    };
-  }, [tab, esAdmin]);
-
-  const marcas = useMemo(
-    () => [...new Set(modelos.map((m) => m.marca))].sort((a, b) => a.localeCompare(b, "es")),
-    [modelos],
-  );
-
-  const modelosFiltrados = useMemo(() => {
-    const texto = busqueda.trim().toLowerCase();
-    return modelos.filter((modelo) => {
-      const coincideTexto =
-        !texto ||
-        `${modelo.marca} ${modelo.modelo} ${modelo.id}`.toLowerCase().includes(texto);
-      const coincideTipo = !filtroTipo || modelo.tipo === filtroTipo;
-      const coincideMarca = !filtroMarca || modelo.marca === filtroMarca;
-      const coincideVerificado = !soloVerificados || modelo.verificado;
-      return coincideTexto && coincideTipo && coincideMarca && coincideVerificado;
-    });
-  }, [modelos, busqueda, filtroTipo, filtroMarca, soloVerificados]);
-
-  const modelosPorId = useMemo(
-    () => Object.fromEntries(modelos.map((m) => [m.id, m])),
-    [modelos],
-  );
-
-  const vinculacionPorPlaca = useMemo(
-    () => Object.fromEntries(vinculaciones.map((v) => [v.placa, v])),
-    [vinculaciones],
-  );
-
-  const placasDisponibles = useMemo(
-    () => flota.filter((vehiculo) => !vinculacionPorPlaca[vehiculo.placa]),
-    [flota, vinculacionPorPlaca],
-  );
-
-  const modelosVerificados = useMemo(
-    () => modelos.filter((m) => m.verificado).length,
-    [modelos],
-  );
-
-  const tiposDistintos = useMemo(() => new Set(modelos.map((m) => m.tipo)).size, [modelos]);
-
-  const flotaConModelo = useMemo(
-    () => flota.filter((vehiculo) => vehiculo.vinculacion).length,
-    [flota],
-  );
-
-  const modeloCalculado = calcModelo ? modelosPorId[calcModelo] : null;
-  const viajeActual = resultado?.viajes?.[viajeSeleccionado] || null;
-  const modeloViaje = viajeActual
-    ? modelosPorId[viajeActual.modelo_id] || modeloReferencial(viajeActual)
-    : null;
-
-  const planViajeActual = planResultado?.viajes?.[planViajeSeleccionado] || null;
-  const planModeloViaje = planViajeActual
-    ? modelosPorId[planViajeActual.modelo_id] || modeloReferencial(planViajeActual)
-    : null;
-
-  // Lleva la vista al visor 3D sin recargar la pagina.
-  const desplazarAlVisor = (referencia) => {
-    const nodo = referencia?.current;
-    if (nodo && typeof nodo.scrollIntoView === "function") {
-      nodo.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  };
-
-  const seleccionarViajeCalculo = (indice) => {
-    setViajeSeleccionado(indice);
-    desplazarAlVisor(visorCalculoRef);
-  };
-
-  const seleccionarViajePlan = (indice) => {
-    setPlanViajeSeleccionado(indice);
-    desplazarAlVisor(visorPlanRef);
-  };
-
-  const mostrarAviso = (ok, texto) => setAviso({ ok, texto });
-
-  // Traduce un error de la API a un mensaje entendible (y detecta el modulo apagado).
-  const manejarError = (error) => {
-    if (error.status === 404) {
-      setModuloActivo(false);
-      mostrarAviso(false, "El modulo de capacidad esta desactivado en este servidor.");
-      return;
-    }
-    mostrarAviso(false, error.message || "Ocurrio un error inesperado.");
-  };
-
-  const recargarCatalogo = async () => {
-    const catalogo = await listarCatalogoCapacidad();
-    setModelos(catalogo);
-  };
-
-  const recargarFlota = async () => {
-    const [flotaApi, vinculos] = await Promise.all([
-      listarFlotaCapacidad(),
-      listarVinculacionesCapacidad(),
-    ]);
-    setFlota(flotaApi);
-    setVinculaciones(vinculos);
-  };
-
-  // --------------------------- Acciones del catalogo ---------------------------
-
-  const guardarModelo = async (datos) => {
-    setGuardandoModelo(true);
+  async function guardarModelo(datos) {
+    setGuardando(true);
     try {
-      if (modalModelo?.modo === "editar") {
-        await actualizarModeloCapacidad(modalModelo.modelo.id, datos);
-        mostrarAviso(true, "Modelo actualizado en el catalogo.");
-      } else {
-        const creado = await crearModeloCapacidad(datos);
-        mostrarAviso(true, `Modelo ${creado.marca} ${creado.modelo} agregado al catalogo.`);
-      }
-      await recargarCatalogo();
-      setModalModelo(null);
-    } catch (error) {
-      manejarError(error);
-    } finally {
-      setGuardandoModelo(false);
-    }
-  };
+      if (modalModelo?.modo === "editar") await actualizarModeloCapacidad(modalModelo.modelo.id, datos);
+      else await crearModeloCapacidad(datos);
+      await recargarCatalogo(); setModalModelo(null); notificar(true, "Modelo guardado correctamente.");
+    } catch (e) { manejarError(e); } finally { setGuardando(false); }
+  }
 
-  const confirmarEliminarModelo = async () => {
-    if (!modeloAEliminar) return;
-    setEliminandoModelo(true);
+  async function eliminarModelo() {
+    if (!modeloEliminar) return;
+    setGuardando(true);
     try {
-      await eliminarModeloCapacidad(modeloAEliminar.id);
-      await recargarCatalogo();
-      mostrarAviso(true, "Modelo eliminado del catalogo.");
-      setModeloAEliminar(null);
-    } catch (error) {
-      manejarError(error);
-    } finally {
-      setEliminandoModelo(false);
-    }
-  };
+      await eliminarModeloCapacidad(modeloEliminar.id); await recargarCatalogo();
+      setModeloEliminar(null); notificar(true, "Modelo eliminado.");
+    } catch (e) { manejarError(e); } finally { setGuardando(false); }
+  }
 
-  // --------------------------- Acciones de la flota ---------------------------
-
-  const vincular = async (evento) => {
+  async function vincular(evento) {
     evento.preventDefault();
-    if (!placaNueva || !modeloNuevo) {
-      mostrarAviso(false, "Selecciona la placa y el modelo del catalogo.");
-      return;
-    }
-
-    setGuardandoVinculo(true);
+    if (!placaNueva || !modeloNuevo) return notificar(false, "Selecciona placa y modelo.");
+    setGuardando(true);
     try {
-      const datos = await vincularPlacaCapacidad({ placa: placaNueva, modelo_id: modeloNuevo });
-      await recargarFlota();
-      setPlacaNueva("");
-      setModeloNuevo("");
-      mostrarAviso(true, `Placa ${datos.placa} vinculada a ${datos.marca} ${datos.nombre_modelo}.`);
-    } catch (error) {
-      manejarError(error);
-    } finally {
-      setGuardandoVinculo(false);
-    }
-  };
+      await vincularPlacaCapacidad({ placa: placaNueva, modelo_id: modeloNuevo });
+      await recargarFlota(); setPlacaNueva(""); setModeloNuevo("");
+      notificar(true, "Vinculación registrada y guardada.");
+    } catch (e) { manejarError(e); } finally { setGuardando(false); }
+  }
 
-  const confirmarDesvincular = async () => {
-    if (!vinculacionAEliminar) return;
-    setEliminandoVinculo(true);
+  async function desvincular() {
+    if (!vinculoEliminar) return;
+    setGuardando(true);
     try {
-      await desvincularPlacaCapacidad(vinculacionAEliminar.id);
-      await recargarFlota();
-      mostrarAviso(true, `Se quito el modelo de la placa ${vinculacionAEliminar.placa}.`);
-      setVinculacionAEliminar(null);
-    } catch (error) {
-      manejarError(error);
-    } finally {
-      setEliminandoVinculo(false);
-    }
-  };
+      await desvincularPlacaCapacidad(vinculoEliminar.id); await recargarFlota();
+      setVinculoEliminar(null); notificar(true, "Placa desvinculada.");
+    } catch (e) { manejarError(e); } finally { setGuardando(false); }
+  }
 
-  // --------------------------- Calculadora ---------------------------
-
-  const calcular = async () => {
+  async function calcular() {
     const datos = {};
-
-    if (calcFuente === "placa") {
-      if (!calcPlaca) {
-        mostrarAviso(false, "Selecciona una placa vinculada.");
-        return;
-      }
-      datos.placa = calcPlaca;
-    } else {
-      if (!calcModelo) {
-        mostrarAviso(false, "Selecciona un modelo del catalogo.");
-        return;
-      }
+    if (fuente === "modelo") {
+      if (!calcModelo) return notificar(false, "Selecciona un modelo.");
       datos.modelo_id = calcModelo;
+    } else {
+      if (!calcPlaca) return notificar(false, "Selecciona una placa vinculada.");
+      datos.placa = calcPlaca;
     }
-
-    if (calcCarga === "cajas") {
-      const cantidades = {
-        S: Math.max(0, Math.trunc(Number(cajas.S) || 0)),
-        M: Math.max(0, Math.trunc(Number(cajas.M) || 0)),
-        L: Math.max(0, Math.trunc(Number(cajas.L) || 0)),
-      };
-      if (cantidades.S + cantidades.M + cantidades.L === 0) {
-        mostrarAviso(false, "Indica al menos una caja S, M o L.");
-        return;
+    if (carga === "cajas") {
+      const cantidades = Object.fromEntries(["S", "M", "L"].map((s) => [s, Number(cajas[s])]));
+      if (Object.values(cantidades).some((n) => !Number.isInteger(n) || n < 0)
+          || Object.values(cantidades).reduce((s, n) => s + n, 0) < 1
+          || Object.values(cantidades).reduce((s, n) => s + n, 0) > 5000) {
+        return notificar(false, "Ingresa entre 1 y 5000 cajas en total.");
       }
       datos.cantidades = cantidades;
-    } else if (calcCarga === "demo") {
-      datos.demo_pedidos = Math.max(1, Math.trunc(Number(calcDemo) || 1));
+    } else if (carga === "demo") {
+      datos.demo_pedidos = Number(demoCalc);
     } else {
-      datos.filtros = {
-        estado: calcFiltros.estado || null,
-        distrito: calcFiltros.distrito || null,
-        limite: Math.max(1, Math.trunc(Number(calcFiltros.limite) || 200)),
-      };
+      datos.filtros = { estado: filtrosCalc.estado || null,
+        distrito: filtrosCalc.distrito || null, limite: Number(filtrosCalc.limite) };
     }
-
-    if (calcFactor) datos.factor_aprovechamiento = Number(calcFactor);
-    if (calcParadas) datos.max_paradas_por_viaje = Number(calcParadas);
-    if (calcViajes) datos.max_viajes_por_dia = Number(calcViajes);
-
-    setCalculando(true);
+    if (factorCalc !== "") datos.factor_aprovechamiento = Number(factorCalc);
+    if (paradasCalc !== "") datos.max_paradas_por_viaje = Number(paradasCalc);
+    if (viajesCalc !== "") datos.max_viajes_por_dia = Number(viajesCalc);
+    setGuardando(true);
     try {
-      const plan = await calcularCapacidad(datos);
-      setResultado(plan);
-      setViajeSeleccionado(0);
-      mostrarAviso(true, `Calculo listo: ${plan.resumen.viajes_necesarios} viajes para ${plan.resumen.total_pedidos} pedidos.`);
-    } catch (error) {
-      manejarError(error);
-    } finally {
-      setCalculando(false);
-    }
-  };
+      const respuesta = await calcularCapacidad(datos);
+      setResultado(respuesta); setViajeCalc(0);
+      notificar(true, `Calculados ${respuesta.resumen.viajes_necesarios} viajes.`);
+    } catch (e) { manejarError(e); } finally { setGuardando(false); }
+  }
 
-  const limpiarCalculo = () => {
-    setResultado(null);
-    setViajeSeleccionado(0);
-    setAviso(null);
-  };
-
-  // --------------------------- Planificacion ---------------------------
-
-  const planificar = async (demo) => {
+  async function planificar(demo) {
     const datos = demo
-      ? {
-          demo_pedidos: Math.max(1, Math.trunc(Number(planDemoPedidos) || 700)),
-          demo_vehiculos: Math.max(1, Math.trunc(Number(planDemoVehiculos) || 6)),
-        }
-      : {
-          estado: planFiltros.estado || undefined,
-          distrito: planFiltros.distrito || undefined,
-          fecha: planFiltros.fecha || undefined,
-          limite: aNumero(planFiltros.limite),
-        };
-
-    if (planFactor) datos.factor_aprovechamiento = Number(planFactor);
-
-    setPlanificando(true);
+      ? { demo_pedidos: Number(demoPedidos), demo_vehiculos: Number(demoVehiculos) }
+      : { estado: filtrosPlan.estado || undefined, distrito: filtrosPlan.distrito || undefined,
+          fecha: filtrosPlan.fecha || undefined, limite: Number(filtrosPlan.limite) };
+    if (factorPlan !== "") datos.factor_aprovechamiento = Number(factorPlan);
+    setGuardando(true);
     try {
-      const plan = await obtenerPlanificacionCapacidad(datos);
-      setPlanResultado(plan);
-      setPlanViajeSeleccionado(0);
-      mostrarAviso(
-        true,
-        `${demo ? "Demo" : "Plan real"}: ${plan.resumen.total_pedidos} pedidos en ${plan.resumen.viajes_necesarios} viajes.`,
-      );
-    } catch (error) {
-      manejarError(error);
-    } finally {
-      setPlanificando(false);
-    }
-  };
+      const respuesta = await obtenerPlanificacionCapacidad(datos);
+      setPlanResultado(respuesta); setViajePlan(0);
+      notificar(true, `Plan: ${respuesta.resumen.viajes_necesarios} viajes, ${respuesta.resumen.pedidos_sin_asignar} pendientes.`);
+    } catch (e) { manejarError(e); } finally { setGuardando(false); }
+  }
 
-  // --------------------------- Configuracion ---------------------------
-
-  const guardarConfiguracion = async (evento) => {
+  async function guardarConfiguracion(evento) {
     evento.preventDefault();
-    if (!formConfig) return;
-
-    const datos = {
-      factor_aprovechamiento: Number(formConfig.factor_aprovechamiento),
-      max_paradas_por_viaje: Number(formConfig.max_paradas_por_viaje),
-      max_paradas_por_jornada: Number(formConfig.max_paradas_por_jornada),
-      max_viajes_por_dia: Number(formConfig.max_viajes_por_dia),
-    };
-
-    if (datos.factor_aprovechamiento < 0.5 || datos.factor_aprovechamiento > 1) {
-      mostrarAviso(false, "El factor debe estar entre 0.50 y 1.00.");
-      return;
+    const datos = Object.fromEntries(CAMPOS.map((campo) => [campo, Number(formConfig[campo])]));
+    if (CAMPOS.some((c) => !formConfig[c] || !Number.isFinite(datos[c]))) {
+      return notificar(false, "Todos los parámetros deben estar completos.");
     }
-
-    setGuardandoConfig(true);
+    const enteros = ["max_paradas_por_viaje", "max_paradas_por_jornada", "max_viajes_por_dia"];
+    if (datos.factor_aprovechamiento < 0.5 || datos.factor_aprovechamiento > 1 ||
+        enteros.some((c) => !Number.isInteger(datos[c]) || datos[c] < 1) ||
+        CAMPOS.slice(4).some((c) => datos[c] <= 0)) {
+      return notificar(false, "Revisa factor, límites y medidas positivas.");
+    }
+    setGuardando(true);
     try {
       const actualizada = await actualizarConfiguracionCapacidad(datos);
-      setConfig(actualizada);
-      setFormConfig({
-        factor_aprovechamiento: String(actualizada.factor_aprovechamiento),
-        max_paradas_por_viaje: String(actualizada.max_paradas_por_viaje),
-        max_paradas_por_jornada: String(actualizada.max_paradas_por_jornada),
-        max_viajes_por_dia: String(actualizada.max_viajes_por_dia),
-      });
-      const historial = await listarAuditoriaCapacidad(50);
-      setAuditoria(historial);
-      mostrarAviso(true, "Parametros de planificacion actualizados.");
-    } catch (error) {
-      manejarError(error);
-    } finally {
-      setGuardandoConfig(false);
-    }
-  };
-
-  // --------------------------- Columnas ---------------------------
-
-  const columnasCatalogo = [
-    {
-      key: "marca",
-      header: "Marca",
-      render: (m) => <span className="font-semibold text-slate-800">{m.marca}</span>,
-    },
-    {
-      key: "modelo",
-      header: "Modelo",
-      render: (m) => <span className="text-slate-700">{m.modelo}</span>,
-    },
-    {
-      key: "tipo",
-      header: "Tipo",
-      render: (m) => <Badge tono="brand">{ETIQUETA_TIPO[m.tipo] || m.tipo}</Badge>,
-    },
-    {
-      key: "dimensiones",
-      header: "L x A x H",
-      render: (m) => (
-        <span className="nums text-xs text-slate-600">
-          {m.largo_m} x {m.ancho_m} x {m.alto_m} m
-        </span>
-      ),
-    },
-    {
-      key: "volumen_util_m3",
-      header: "Vol. util",
-      render: (m) => <span className="nums font-semibold text-brand-700">{m.volumen_util_m3} m3</span>,
-    },
-    {
-      key: "carga_util_kg",
-      header: "Carga util",
-      render: (m) => <span className="nums text-slate-700">{m.carga_util_kg.toLocaleString("es-PE")} kg</span>,
-    },
-    {
-      key: "fuente",
-      header: "Fuente",
-      render: (m) =>
-        m.fuente_url ? (
-          <a
-            href={m.fuente_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline"
-          >
-            <FileText size={13} />
-            {m.fuente || "Ver ficha"}
-          </a>
-        ) : (
-          <span className="text-xs text-slate-400">{m.fuente || "Sin fuente"}</span>
-        ),
-    },
-    {
-      key: "estado",
-      header: "Estado",
-      render: (m) =>
-        m.verificado ? (
-          <Badge tono="success">Verificado</Badge>
-        ) : m.es_personalizado ? (
-          <Badge tono="warning">Editado</Badge>
-        ) : (
-          <Badge tono="neutral">Referencia</Badge>
-        ),
-    },
-  ];
-
-  if (esAdmin) {
-    columnasCatalogo.push({
-      key: "acciones",
-      header: "",
-      render: (m) => (
-        <div className="flex justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={Pencil}
-            onClick={() => setModalModelo({ modo: "editar", modelo: m })}
-          >
-            Editar
-          </Button>
-          {m.es_personalizado && (
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={Trash2}
-              className="text-danger-strong"
-              onClick={() => setModeloAEliminar(m)}
-            >
-              Borrar
-            </Button>
-          )}
-        </div>
-      ),
-    });
+      setConfig(actualizada); setFormConfig(formularioConfig(actualizada));
+      setAuditoria(await listarAuditoriaCapacidad(50));
+      notificar(true, "Configuración S/M/L guardada.");
+    } catch (e) { manejarError(e); } finally { setGuardando(false); }
   }
 
-  const columnasFlota = [
-    {
-      key: "placa",
-      header: "Placa",
-      render: (v) => <span className="font-semibold text-slate-800">{v.placa}</span>,
-    },
-    {
-      key: "estado",
-      header: "Estado",
-      render: (v) => <EstadoBadge estado={v.estado} />,
-    },
-    {
-      key: "conductor",
-      header: "Conductor",
-      render: (v) => <span className="text-slate-600">{v.conductor || "Empresa"}</span>,
-    },
-    {
-      key: "modelo",
-      header: "Modelo vinculado",
-      render: (v) =>
-        v.vinculacion ? (
-          <div>
-            <p className="font-medium text-slate-700">
-              {v.vinculacion.marca} {v.vinculacion.nombre_modelo}
-            </p>
-            <p className="text-xs text-slate-400">{ETIQUETA_TIPO[v.vinculacion.tipo] || v.vinculacion.tipo}</p>
-          </div>
-        ) : (
-          <Badge tono="warning">Sin modelo</Badge>
-        ),
-    },
-    {
-      key: "capacidad",
-      header: "Vol. / carga",
-      render: (v) =>
-        v.vinculacion ? (
-          <span className="nums text-xs text-slate-600">
-            {v.vinculacion.capacidad_m3} m3 · {v.vinculacion.carga_kg?.toLocaleString("es-PE")} kg
-          </span>
-        ) : (
-          <span className="text-xs text-slate-400">—</span>
-        ),
-    },
-  ];
-
-  if (esAdmin) {
-    columnasFlota.push({
-      key: "acciones",
-      header: "",
-      render: (v) =>
-        v.vinculacion ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={Unlink}
-            className="text-danger-strong"
-            onClick={() => setVinculacionAEliminar(v.vinculacion)}
-          >
-            Desvincular
-          </Button>
-        ) : null,
-    });
-  }
-
-  const columnasVinculaciones = [
-    {
-      key: "placa",
-      header: "Placa",
-      render: (v) => <span className="font-semibold text-slate-800">{v.placa}</span>,
-    },
-    {
-      key: "modelo",
-      header: "Modelo",
-      render: (v) => (
-        <span className="text-slate-700">
-          {v.marca} {v.nombre_modelo}
-        </span>
-      ),
-    },
-    {
-      key: "capacidad_m3",
-      header: "Volumen",
-      render: (v) => <span className="nums text-slate-600">{v.capacidad_m3} m3</span>,
-    },
-    {
-      key: "carga_kg",
-      header: "Carga",
-      render: (v) => <span className="nums text-slate-600">{v.carga_kg?.toLocaleString("es-PE")} kg</span>,
-    },
-    {
-      key: "creado_por",
-      header: "Registrado por",
-      render: (v) => <span className="text-xs text-slate-500">{v.creado_por}</span>,
-    },
-    {
-      key: "creado_en",
-      header: "Fecha",
-      render: (v) => (
-        <span className="text-xs text-slate-500">
-          {new Date(v.creado_en).toLocaleString("es-PE")}
-        </span>
-      ),
-    },
-  ];
-
-  const columnasVehiculosPlan = [
-    {
-      key: "placa",
-      header: "Vehiculo",
-      render: (v) => <span className="font-semibold text-slate-800">{v.placa}</span>,
-    },
-    {
-      key: "modelo",
-      header: "Modelo",
-      render: (v) => <span className="text-slate-600">{v.marca} {v.modelo}</span>,
-    },
-    {
-      key: "viajes",
-      header: "Viajes",
-      render: (v) => <span className="nums text-slate-700">{v.viajes}</span>,
-    },
-    {
-      key: "pedidos",
-      header: "Pedidos",
-      render: (v) => <span className="nums text-slate-700">{v.pedidos}</span>,
-    },
-    {
-      key: "volumen_m3",
-      header: "Volumen",
-      render: (v) => <span className="nums text-slate-600">{v.volumen_m3} m3</span>,
-    },
-    {
-      key: "paradas",
-      header: "Paradas",
-      render: (v) => <span className="nums text-slate-600">{v.paradas}</span>,
-    },
-    {
-      key: "utilizacion_pct",
-      header: "Uso",
-      render: (v) => <BarraUso valor={v.utilizacion_pct} />,
-    },
-  ];
-
-  const columnasAuditoria = [
-    {
-      key: "creado_en",
-      header: "Fecha",
-      render: (fila) => (
-        <span className="text-xs text-slate-500">{new Date(fila.creado_en).toLocaleString("es-PE")}</span>
-      ),
-    },
-    {
-      key: "usuario",
-      header: "Usuario",
-      render: (fila) => <span className="text-slate-700">{fila.usuario}</span>,
-    },
-    {
-      key: "accion",
-      header: "Accion",
-      render: (fila) => <Badge tono="brand">{fila.accion}</Badge>,
-    },
-    {
-      key: "entidad",
-      header: "Entidad",
-      render: (fila) => <span className="text-slate-600">{fila.entidad}</span>,
-    },
-    {
-      key: "entidad_id",
-      header: "Referencia",
-      render: (fila) => <span className="text-xs text-slate-500">{fila.entidad_id || "—"}</span>,
-    },
-    {
-      key: "detalle",
-      header: "Detalle",
-      render: (fila) => <span className="text-xs text-slate-500">{fila.detalle || "—"}</span>,
-    },
-  ];
-
-  // --------------------------- Render ---------------------------
-
-  if (cargando) {
-    return (
-      <div className="space-y-6 p-6 lg:p-8">
-        <PageHeader
-          titulo="Catalogo de vehiculos y capacidad"
-          subtitulo="Cargando catalogo, flota y configuracion..."
-        />
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {[0, 1, 2, 3].map((indice) => (
-            <Skeleton key={indice} className="h-28 w-full" rounded="rounded-card" />
-          ))}
-        </div>
-        <Skeleton className="h-72 w-full" rounded="rounded-card" />
-      </div>
-    );
-  }
-
-  if (!moduloActivo) {
-    return (
-      <div className="space-y-6 p-6 lg:p-8">
-        <PageHeader
-          titulo="Catalogo de vehiculos y capacidad"
-          subtitulo="Modulo de la Idea 3 (semanas 9 a 11)."
-        />
-        <div className="flex items-start gap-3 rounded-card border border-warning/30 bg-warning-soft p-5 text-sm text-warning-strong">
-          <AlertTriangle size={20} className="mt-0.5 shrink-0" />
-          <div>
-            <p className="font-semibold">Modulo desactivado</p>
-            <p className="mt-1">
-              {aviso?.texto ||
-                "El backend tiene MODULO_CAPACIDAD_ENABLED=false. Activa la bandera y vuelve a cargar la pagina."}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (cargando) return <div className="p-8"><Skeleton className="h-72 w-full" /></div>;
 
   return (
     <div className="space-y-6 p-6 lg:p-8">
-      <PageHeader
-        titulo="Catalogo de vehiculos y capacidad"
-        subtitulo="Fichas tecnicas, vinculacion de placas, calculadora de carga y planificacion diaria."
-      >
+      <PageHeader titulo="Catálogo de vehículos y capacidad"
+        subtitulo="Idea 3: catálogo, flota, cálculo, planificación y configuración.">
         <Badge tono={esAdmin ? "brand" : "neutral"}>{esAdmin ? "Administrador" : "Solo lectura"}</Badge>
       </PageHeader>
+      {aviso && <div role="alert" className={`flex items-center justify-between rounded-xl border p-3 text-sm ${aviso.ok
+        ? "border-green-200 bg-green-50 text-green-800" : "border-red-200 bg-red-50 text-red-800"}`}>
+        <span className="flex items-center gap-2">{aviso.ok ? <CheckCircle2 size={17} /> : <AlertCircle size={17} />}{aviso.texto}</span>
+        <button type="button" onClick={() => setAviso(null)} aria-label="Cerrar aviso">Cerrar</button>
+      </div>}
+      <nav className="flex flex-wrap gap-2" aria-label="Secciones del módulo">
+        {tabs.map(([id, nombre, Icono]) => <button type="button" key={id} onClick={() => setTab(id)}
+          aria-current={tab === id ? "page" : undefined}
+          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${tab === id
+            ? "bg-brand-600 text-white" : "border border-slate-200 bg-white text-slate-700"}`}>
+          <Icono size={16} />{nombre}</button>)}
+      </nav>
 
-      <Aviso aviso={aviso} onCerrar={() => setAviso(null)} />
-
-      <div className="flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-card">
-        {TABS.map((opcion) => {
-          const Icono = opcion.icono;
-          const activa = tab === opcion.id;
-          return (
-            <button
-              key={opcion.id}
-              type="button"
-              onClick={() => setTab(opcion.id)}
-              className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-                activa ? "bg-brand-600 text-white" : "text-slate-600 hover:bg-slate-100"
-              }`}
-            >
-              <Icono size={16} />
-              {opcion.etiqueta}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ------------------------------ Catalogo ------------------------------ */}
-      {tab === "catalogo" && (
-        <div className="space-y-6 animate-fade-in">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <KpiCard label="Modelos" value={modelos.length} icon={Boxes} tone="brand" />
-            <KpiCard label="Marcas" value={marcas.length} icon={Truck} tone="info" />
-            <KpiCard label="Verificados" value={modelosVerificados} icon={CheckCircle2} tone="success" />
-            <KpiCard label="Tipos" value={tiposDistintos} icon={Gauge} tone="warning" />
+      {tab === "catalogo" && <div className="space-y-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <KpiCard label="Modelos" value={modelos.length} icon={Boxes} tone="brand" />
+          <KpiCard label="Marcas" value={marcas.length} icon={Truck} tone="info" />
+          <KpiCard label="Verificados" value={modelos.filter((m) => m.verificado).length} icon={CheckCircle2} tone="success" />
+          <KpiCard label="Tipos" value={new Set(modelos.map((m) => m.tipo)).size} icon={Gauge} tone="warning" />
+        </div>
+        <SectionCard title="Catálogo" subtitle={`${catalogo.length} de ${modelos.length} modelos`}
+          action={esAdmin ? <Button size="sm" icon={Plus} onClick={() => setModalModelo({ modo: "crear" })}>Agregar modelo</Button> : null}>
+          <div className="grid gap-3 sm:grid-cols-4">
+            <Input label="Buscar" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Marca o modelo" />
+            <Input as="select" label="Marca" value={filtroMarca} onChange={(e) => setFiltroMarca(e.target.value)}>
+              <option value="">Todas</option>{marcas.map((m) => <option key={m}>{m}</option>)}
+            </Input>
+            <Input as="select" label="Tipo" value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}>
+              <option value="">Todos</option>{TIPOS_VEHICULO.map((t) => <option key={t.valor} value={t.valor}>{t.etiqueta}</option>)}
+            </Input>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={soloVerificados}
+              onChange={(e) => setSoloVerificados(e.target.checked)} />Solo verificados</label>
           </div>
+          <div className="mt-4"><DataTable rows={catalogo} rowKey={(m) => m.id}
+            empty={{ icon: Boxes, title: "Sin resultados", description: "Cambia los filtros." }} columns={[
+              { key: "marca", header: "Marca", render: (m) => m.marca },
+              { key: "modelo", header: "Modelo", render: (m) => m.modelo },
+              { key: "tipo", header: "Tipo", render: (m) => ETIQUETA_TIPO[m.tipo] || m.tipo },
+              { key: "volumen", header: "Volumen (m³)", render: (m) => m.volumen_util_m3 },
+              { key: "carga", header: "Carga (kg)", render: (m) => natural(m.carga_util_kg) },
+              { key: "fuente", header: "Ficha", render: (m) => m.fuente_url
+                ? <a className="text-brand-700 underline" href={m.fuente_url} target="_blank" rel="noopener noreferrer">Fuente</a> : "Sin fuente" },
+              { key: "estado", header: "Estado", render: (m) => m.verificado ? "Verificado" : "Referencial" },
+              ...(esAdmin ? [{ key: "acciones", header: "", render: (m) => <div className="flex gap-2">
+                <Button size="sm" variant="ghost" icon={Pencil} onClick={() => setModalModelo({ modo: "editar", modelo: m })}>Editar</Button>
+                {m.es_personalizado && <Button size="sm" variant="ghost" icon={Trash2}
+                  onClick={() => setModeloEliminar(m)}>Borrar</Button>}
+              </div> }] : []),
+            ]} /></div>
+        </SectionCard>
+      </div>}
 
-          <SectionCard
-            title="Catalogo de vehiculos"
-            subtitle="Fichas del JSON base y modelos agregados o editados desde el panel."
-            action={
-              esAdmin ? (
-                <Button size="sm" icon={Plus} onClick={() => setModalModelo({ modo: "crear", modelo: null })}>
-                  Agregar modelo
-                </Button>
-              ) : null
-            }
-          >
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="relative">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={busqueda}
-                  onChange={(evento) => setBusqueda(evento.target.value)}
-                  placeholder="Buscar marca, modelo o ID..."
-                  className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-800 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30"
-                />
-              </div>
-              <Input as="select" value={filtroTipo} onChange={(evento) => setFiltroTipo(evento.target.value)}>
-                <option value="">Todos los tipos</option>
-                {TIPOS_VEHICULO.map((tipo) => (
-                  <option key={tipo.valor} value={tipo.valor}>
-                    {tipo.etiqueta}
-                  </option>
-                ))}
-              </Input>
-              <Input as="select" value={filtroMarca} onChange={(evento) => setFiltroMarca(evento.target.value)}>
-                <option value="">Todas las marcas</option>
-                {marcas.map((marca) => (
-                  <option key={marca} value={marca}>
-                    {marca}
-                  </option>
-                ))}
-              </Input>
-              <label className="flex items-center gap-2 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={soloVerificados}
-                  onChange={(evento) => setSoloVerificados(evento.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-                />
-                Solo verificados
-              </label>
-            </div>
+      {tab === "flota" && <div className="space-y-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <KpiCard label="Vehículos" value={flota.length} icon={Truck} tone="brand" />
+          <KpiCard label="Vinculados" value={vinculaciones.length} icon={Link2} tone="success" />
+          <KpiCard label="Sin vínculo" value={flota.filter((v) => !vinculadas.has(v.placa)).length} icon={Unlink} tone="warning" />
+        </div>
+        {esAdmin && <SectionCard title="Vincular placa y modelo">
+          <form className="grid gap-3 sm:grid-cols-3" onSubmit={vincular}>
+            <Input as="select" label="Placa disponible" value={placaNueva} onChange={(e) => setPlacaNueva(e.target.value)}>
+              <option value="">Seleccionar</option>{flota.filter((v) => !vinculadas.has(v.placa)).map((v) =>
+                <option key={v.id} value={v.placa}>{v.placa}</option>)}
+            </Input>
+            <Input as="select" label="Modelo" value={modeloNuevo} onChange={(e) => setModeloNuevo(e.target.value)}>
+              <option value="">Seleccionar</option>{modelos.map((m) =>
+                <option key={m.id} value={m.id}>{m.marca} {m.modelo}</option>)}
+            </Input>
+            <div className="flex items-end"><Button icon={Link2} type="submit" disabled={guardando}>Vincular</Button></div>
+          </form>
+        </SectionCard>}
+        <SectionCard title="Flota de vehículos">
+          <DataTable rows={flota} rowKey={(v) => v.id}
+            empty={{ icon: Truck, title: "Sin vehículos", description: "Registra vehículos en Flota." }} columns={[
+              { key: "placa", header: "Placa", render: (v) => v.placa },
+              { key: "estado", header: "Estado", render: (v) => <EstadoBadge estado={v.estado} /> },
+              { key: "conductor", header: "Conductor", render: (v) => v.conductor || "Sin conductor" },
+              { key: "modelo", header: "Modelo", render: (v) => v.vinculacion
+                ? `${v.vinculacion.marca} ${v.vinculacion.nombre_modelo}` : "No vinculado" },
+              ...(esAdmin ? [{ key: "acciones", header: "", render: (v) => v.vinculacion
+                ? <Button variant="ghost" icon={Unlink} size="sm" onClick={() => setVinculoEliminar(v.vinculacion)}>Desvincular</Button> : null }] : []),
+            ]} />
+        </SectionCard>
+        <SectionCard title="Historial de vinculaciones">
+          <DataTable rows={vinculaciones} rowKey={(v) => v.id}
+            empty={{ icon: Link2, title: "Sin vinculaciones", description: "Vincula una placa para comenzar." }} columns={[
+              { key: "placa", header: "Placa", render: (v) => v.placa },
+              { key: "modelo", header: "Modelo", render: (v) => `${v.marca} ${v.nombre_modelo}` },
+              { key: "creado_por", header: "Usuario", render: (v) => v.creado_por },
+              { key: "creado_en", header: "Fecha", render: (v) => new Date(v.creado_en).toLocaleString("es-PE") },
+            ]} />
+        </SectionCard>
+      </div>}
 
-            <p className="mt-3 text-xs text-slate-500">
-              {modelosFiltrados.length} de {modelos.length} modelos · volumen util y carga declarados por el fabricante.
-            </p>
+      {tab === "calculadora" && <div className="space-y-5">
+        <SectionCard title="Calculadora de capacidad" subtitle="Compara peso y volumen; se aplica el límite que se alcanza primero.">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input as="select" label="Tipo de vehículo" value={fuente} onChange={(e) => setFuente(e.target.value)}>
+              <option value="modelo">Modelo del catálogo</option><option value="placa">Placa vinculada</option>
+            </Input>
+            {fuente === "modelo" ? <Input as="select" label="Modelo" value={calcModelo} onChange={(e) => setCalcModelo(e.target.value)}>
+              <option value="">Selecciona modelo</option>{modelos.map((m) =>
+                <option key={m.id} value={m.id}>{m.marca} {m.modelo} — {m.volumen_util_m3} m³</option>)}
+            </Input> : <Input as="select" label="Placa" value={calcPlaca} onChange={(e) => setCalcPlaca(e.target.value)}>
+              <option value="">Selecciona placa</option>{vinculaciones.map((v) =>
+                <option key={v.id} value={v.placa}>{v.placa} — {v.marca} {v.nombre_modelo}</option>)}
+            </Input>}
+            <Input as="select" label="Origen de pedidos" value={carga} onChange={(e) => setCarga(e.target.value)}>
+              <option value="cajas">Cajas S/M/L</option><option value="pedidos">Pedidos reales</option><option value="demo">Demostración</option>
+            </Input>
+          </div>
+          {carga === "cajas" && <div className="mt-4 grid grid-cols-3 gap-3">
+            {["S", "M", "L"].map((s) => <Input key={s} label={`Cajas ${s}`} type="number" min="0" max="5000" step="1"
+              value={cajas[s]} onChange={(e) => setCajas((c) => ({ ...c, [s]: e.target.value }))} />)}
+          </div>}
+          {carga === "pedidos" && <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <Input as="select" label="Estado" value={filtrosCalc.estado}
+              onChange={(e) => setFiltrosCalc((f) => ({ ...f, estado: e.target.value }))}>
+              {ESTADOS_PLANIFICABLES.map((e) => <option key={e.valor} value={e.valor}>{e.etiqueta}</option>)}
+            </Input>
+            <Input label="Distrito" value={filtrosCalc.distrito}
+              onChange={(e) => setFiltrosCalc((f) => ({ ...f, distrito: e.target.value }))} />
+            <Input label="Límite" type="number" min="1" max="5000" value={filtrosCalc.limite}
+              onChange={(e) => setFiltrosCalc((f) => ({ ...f, limite: e.target.value }))} />
+          </div>}
+          {carga === "demo" && <div className="mt-4"><Input label="Pedidos de demostración" type="number" min="1" max="5000"
+            value={demoCalc} onChange={(e) => setDemoCalc(e.target.value)} /></div>}
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <Input label="Factor (opcional)" type="number" min="0.5" max="1" step="0.05"
+              value={factorCalc} onChange={(e) => setFactorCalc(e.target.value)} />
+            <Input label="Paradas por viaje (opcional)" type="number" min="1" max="100" step="1"
+              value={paradasCalc} onChange={(e) => setParadasCalc(e.target.value)} />
+            <Input label="Viajes diarios (opcional)" type="number" min="1" max="20" step="1"
+              value={viajesCalc} onChange={(e) => setViajesCalc(e.target.value)} />
+          </div>
+          <div className="mt-4"><Button icon={Calculator} disabled={guardando} onClick={calcular}>Calcular capacidad</Button></div>
+        </SectionCard>
+        {resultado && <TablaResultado plan={resultado} indice={viajeCalc} cambiarIndice={setViajeCalc} modelos={modelos} />}
+      </div>}
 
-            <div className="mt-4">
-              <DataTable
-                columns={columnasCatalogo}
-                rows={modelosFiltrados}
-                rowKey={(m) => m.id}
-                empty={{
-                  icon: Boxes,
-                  title: "Sin modelos",
-                  description: "Prueba con otra busqueda, marca o tipo de vehiculo.",
-                }}
-              />
-            </div>
+      {tab === "planificacion" && <div className="space-y-5">
+        <SectionCard title="Planificación del día" subtitle="Utiliza la flota disponible; no crea rutas en el sistema principal.">
+          <div className="grid gap-3 sm:grid-cols-4">
+            <Input as="select" label="Estado" value={filtrosPlan.estado}
+              onChange={(e) => setFiltrosPlan((f) => ({ ...f, estado: e.target.value }))}>
+              {ESTADOS_PLANIFICABLES.map((e) => <option key={e.valor} value={e.valor}>{e.etiqueta}</option>)}
+            </Input>
+            <Input label="Distrito" value={filtrosPlan.distrito}
+              onChange={(e) => setFiltrosPlan((f) => ({ ...f, distrito: e.target.value }))} />
+            <Input label="Fecha de creación" type="date" value={filtrosPlan.fecha}
+              onChange={(e) => setFiltrosPlan((f) => ({ ...f, fecha: e.target.value }))} />
+            <Input label="Límite" type="number" min="1" max="5000" value={filtrosPlan.limite}
+              onChange={(e) => setFiltrosPlan((f) => ({ ...f, limite: e.target.value }))} />
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <Input label="Pedidos demo" type="number" min="1" max="5000" value={demoPedidos}
+              onChange={(e) => setDemoPedidos(e.target.value)} />
+            <Input label="Vehículos demo" type="number" min="1" max="50" value={demoVehiculos}
+              onChange={(e) => setDemoVehiculos(e.target.value)} />
+            <Input label="Factor (opcional)" type="number" min="0.5" max="1" step="0.05" value={factorPlan}
+              onChange={(e) => setFactorPlan(e.target.value)} />
+          </div>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Button icon={CalendarRange} disabled={guardando} onClick={() => planificar(false)}>Planificar pedidos reales</Button>
+            <Button icon={Boxes} variant="secondary" disabled={guardando} onClick={() => planificar(true)}>Probar 700 pedidos</Button>
+          </div>
+        </SectionCard>
+        {planResultado && <>
+          <TablaResultado plan={planResultado} indice={viajePlan} cambiarIndice={setViajePlan} modelos={modelos} />
+          <SectionCard title="Resumen por vehículo">
+            <DataTable rows={planResultado.vehiculos || []} rowKey={(v) => v.placa}
+              empty={{ icon: Truck, title: "No se utilizaron vehículos", description: "Revisa la disponibilidad." }} columns={[
+                { key: "placa", header: "Placa", render: (v) => v.placa },
+                { key: "modelo", header: "Modelo", render: (v) => `${v.marca} ${v.modelo}` },
+                { key: "viajes", header: "Viajes", render: (v) => v.viajes },
+                { key: "pedidos", header: "Pedidos", render: (v) => v.pedidos },
+                { key: "peso_kg", header: "Peso (kg)", render: (v) => natural(v.peso_kg) },
+                { key: "paradas", header: "Paradas", render: (v) => v.paradas },
+              ]} />
           </SectionCard>
-        </div>
-      )}
+        </>}
+      </div>}
 
-      {/* --------------------------- Flota y vinculos --------------------------- */}
-      {tab === "flota" && (
-        <div className="space-y-6 animate-fade-in">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <KpiCard label="Vehiculos" value={flota.length} icon={Truck} tone="brand" />
-            <KpiCard label="Con modelo" value={flotaConModelo} icon={Link2} tone="success" />
-            <KpiCard label="Sin modelo" value={flota.length - flotaConModelo} icon={Unlink} tone="warning" />
-            <KpiCard label="Vinculaciones" value={vinculaciones.length} icon={ClipboardList} tone="info" />
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-3">
-            <SectionCard
-              title="Vincular placa"
-              subtitle="Solo aparecen placas de la flota que aun no tienen modelo."
-              className="lg:col-span-1"
-            >
-              {esAdmin ? (
-                <form onSubmit={vincular} className="space-y-4">
-                  <Input
-                    as="select"
-                    label="Placa de la flota"
-                    value={placaNueva}
-                    onChange={(evento) => setPlacaNueva(evento.target.value)}
-                    hint={placasDisponibles.length ? undefined : "Todas las placas ya tienen modelo."}
-                  >
-                    <option value="">Selecciona una placa...</option>
-                    {placasDisponibles.map((vehiculo) => (
-                      <option key={vehiculo.id} value={vehiculo.placa}>
-                        {vehiculo.placa}
-                        {vehiculo.marca ? ` · ${vehiculo.marca}` : ""}
-                      </option>
-                    ))}
-                  </Input>
-                  <Input
-                    as="select"
-                    label="Modelo del catalogo"
-                    value={modeloNuevo}
-                    onChange={(evento) => setModeloNuevo(evento.target.value)}
-                  >
-                    <option value="">Selecciona un modelo...</option>
-                    {modelos.map((modelo) => (
-                      <option key={modelo.id} value={modelo.id}>
-                        {modelo.marca} {modelo.modelo} · {modelo.volumen_util_m3} m3
-                      </option>
-                    ))}
-                  </Input>
-                  <Button type="submit" icon={Link2} block disabled={guardandoVinculo}>
-                    {guardandoVinculo ? "Vinculando..." : "Vincular placa"}
-                  </Button>
-                  <p className="text-xs text-slate-400">
-                    Vincular no modifica la flota del nucleo: la relacion se guarda en las tablas propias del modulo.
-                  </p>
-                </form>
-              ) : (
-                <div className="flex items-start gap-2 text-sm text-slate-500">
-                  <AlertCircle size={18} className="mt-0.5 shrink-0" />
-                  Solo un administrador puede vincular o desvincular placas.
-                </div>
-              )}
-            </SectionCard>
-
-            <SectionCard
-              title="Flota"
-              subtitle="Vehiculos activos y su modelo vinculado."
-              className="lg:col-span-2"
-            >
-              <DataTable
-                columns={columnasFlota}
-                rows={flota}
-                rowKey={(v) => v.id}
-                empty={{
-                  icon: Truck,
-                  title: "No hay vehiculos",
-                  description: "Registra vehiculos en Flota para poder vincularlos a un modelo.",
-                }}
-              />
-            </SectionCard>
-          </div>
-
-          <SectionCard
-            title="Historial de vinculaciones"
-            subtitle="Cada placa conserva quien la vinculo y cuando."
-          >
-            <DataTable
-              columns={columnasVinculaciones}
-              rows={vinculaciones}
-              rowKey={(v) => v.id}
-              empty={{
-                icon: Link2,
-                title: "Sin vinculaciones",
-                description: "Usa el formulario de arriba para asociar una placa a un modelo.",
-              }}
-            />
-          </SectionCard>
-        </div>
-      )}
-
-      {/* ----------------------------- Calculadora ----------------------------- */}
-      {tab === "calculadora" && (
-        <div className="space-y-6 animate-fade-in">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <SectionCard title="Vehiculo" subtitle="Elige un modelo del catalogo o una placa ya vinculada.">
-              <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
-                {[
-                  { valor: "modelo", etiqueta: "Modelo del catalogo" },
-                  { valor: "placa", etiqueta: "Placa de la flota" },
-                ].map((opcion) => (
-                  <button
-                    key={opcion.valor}
-                    type="button"
-                    onClick={() => setCalcFuente(opcion.valor)}
-                    className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-                      calcFuente === opcion.valor
-                        ? "bg-white text-brand-700 shadow-sm"
-                        : "text-slate-500 hover:text-slate-700"
-                    }`}
-                  >
-                    {opcion.etiqueta}
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-4">
-                {calcFuente === "modelo" ? (
-                  <Input
-                    as="select"
-                    label="Modelo"
-                    value={calcModelo}
-                    onChange={(evento) => setCalcModelo(evento.target.value)}
-                    hint="El calculo usa la capacidad del modelo y no toca la flota."
-                  >
-                    <option value="">Selecciona un modelo...</option>
-                    {modelos.map((modelo) => (
-                      <option key={modelo.id} value={modelo.id}>
-                        {modelo.marca} {modelo.modelo} · {modelo.volumen_util_m3} m3 /{" "}
-                        {modelo.carga_util_kg} kg
-                      </option>
-                    ))}
-                  </Input>
-                ) : (
-                  <Input
-                    as="select"
-                    label="Placa vinculada"
-                    value={calcPlaca}
-                    onChange={(evento) => setCalcPlaca(evento.target.value)}
-                    hint={vinculaciones.length ? undefined : "Primero vincula una placa en la pestana Flota."}
-                  >
-                    <option value="">Selecciona una placa...</option>
-                    {vinculaciones.map((vinculo) => (
-                      <option key={vinculo.id} value={vinculo.placa}>
-                        {vinculo.placa} · {vinculo.marca} {vinculo.nombre_modelo}
-                      </option>
-                    ))}
-                  </Input>
-                )}
-              </div>
-
-              {modeloCalculado && (
-                <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
-                  <p className="font-semibold text-slate-700">
-                    {modeloCalculado.marca} {modeloCalculado.modelo}
-                  </p>
-                  <p className="mt-1">
-                    {modeloCalculado.largo_m} x {modeloCalculado.ancho_m} x {modeloCalculado.alto_m} m ·{" "}
-                    {modeloCalculado.volumen_util_m3} m3 · {modeloCalculado.carga_util_kg} kg
-                  </p>
-                </div>
-              )}
-            </SectionCard>
-
-            <SectionCard title="Carga a transportar" subtitle="Cajas de prueba, pedidos reales o el escenario demo.">
-              <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
-                {[
-                  { valor: "cajas", etiqueta: "Cajas S/M/L" },
-                  { valor: "pedidos", etiqueta: "Pedidos" },
-                  { valor: "demo", etiqueta: "Demo" },
-                ].map((opcion) => (
-                  <button
-                    key={opcion.valor}
-                    type="button"
-                    onClick={() => setCalcCarga(opcion.valor)}
-                    className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-                      calcCarga === opcion.valor
-                        ? "bg-white text-brand-700 shadow-sm"
-                        : "text-slate-500 hover:text-slate-700"
-                    }`}
-                  >
-                    {opcion.etiqueta}
-                  </button>
-                ))}
-              </div>
-
-              {calcCarga === "cajas" && (
-                <div className="mt-4 grid grid-cols-3 gap-3">
-                  {[
-                    { clave: "S", etiqueta: "Cajas S", ayuda: "5 kg · 0.03 m3" },
-                    { clave: "M", etiqueta: "Cajas M", ayuda: "15 kg · 0.09 m3" },
-                    { clave: "L", etiqueta: "Cajas L", ayuda: "40 kg · 0.25 m3" },
-                  ].map((caja) => (
-                    <Input
-                      key={caja.clave}
-                      label={caja.etiqueta}
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={cajas[caja.clave]}
-                      onChange={(evento) =>
-                        setCajas((actual) => ({ ...actual, [caja.clave]: evento.target.value }))
-                      }
-                      hint={caja.ayuda}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {calcCarga === "pedidos" && (
-                <div className="mt-4 space-y-3">
-                  <Input
-                    as="select"
-                    label="Estado"
-                    value={calcFiltros.estado}
-                    onChange={(evento) =>
-                      setCalcFiltros((actual) => ({ ...actual, estado: evento.target.value }))
-                    }
-                  >
-                    {ESTADOS_PLANIFICABLES.map((estado) => (
-                      <option key={estado.valor} value={estado.valor}>
-                        {estado.etiqueta}
-                      </option>
-                    ))}
-                  </Input>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Input
-                      label="Distrito"
-                      value={calcFiltros.distrito}
-                      onChange={(evento) =>
-                        setCalcFiltros((actual) => ({ ...actual, distrito: evento.target.value }))
-                      }
-                      placeholder="Opcional"
-                    />
-                    <Input
-                      label="Limite"
-                      type="number"
-                      min="1"
-                      max="5000"
-                      value={calcFiltros.limite}
-                      onChange={(evento) =>
-                        setCalcFiltros((actual) => ({ ...actual, limite: evento.target.value }))
-                      }
-                      hint="Maximo 5000"
-                    />
-                  </div>
-                  <p className="text-xs text-slate-400">
-                    Se usan el peso y volumen reales del pedido. Si faltan, se estima S/M/L y el plan lo advierte.
-                  </p>
-                </div>
-              )}
-
-              {calcCarga === "demo" && (
-                <div className="mt-4 space-y-3">
-                  <Input
-                    label="Pedidos sinteticos"
-                    type="number"
-                    min="1"
-                    max="5000"
-                    value={calcDemo}
-                    onChange={(evento) => setCalcDemo(evento.target.value)}
-                    hint="Escenario de la semana 11: 700 pedidos."
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    {[100, 300, 700].map((cantidad) => (
-                      <Button
-                        key={cantidad}
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setCalcDemo(cantidad)}
-                      >
-                        {cantidad} pedidos
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </SectionCard>
-          </div>
-
-          <SectionCard
-            title="Parametros del calculo"
-            subtitle="Vacio usa el valor guardado en Configuracion."
-          >
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Input
-                label="Factor de aprovechamiento"
-                type="number"
-                min="0.5"
-                max="1"
-                step="0.05"
-                value={calcFactor}
-                onChange={(evento) => setCalcFactor(evento.target.value)}
-                placeholder={config ? String(config.factor_aprovechamiento) : "0.85"}
-                hint="0.50 a 1.00 · 0.85 = 15% de holgura"
-              />
-              <Input
-                label="Maximo de paradas por viaje"
-                type="number"
-                min="1"
-                max="100"
-                value={calcParadas}
-                onChange={(evento) => setCalcParadas(evento.target.value)}
-                placeholder={config ? String(config.max_paradas_por_viaje) : "25"}
-                hint="Se avisa si un viaje lo supera"
-              />
-              <Input
-                label="Maximo de viajes por dia"
-                type="number"
-                min="1"
-                max="20"
-                value={calcViajes}
-                onChange={(evento) => setCalcViajes(evento.target.value)}
-                placeholder={config ? String(config.max_viajes_por_dia) : "3"}
-                hint="Limite duro por vehiculo"
-              />
+      {tab === "configuracion" && <div className="space-y-5">
+        <SectionCard title="Parámetros de planificación" subtitle="El administrador configura límites, pesos y volúmenes de S/M/L.">
+          {esAdmin ? <form onSubmit={guardarConfiguracion} className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {CAMPOS.map((campo) => <Input key={campo} label={etiquetas[campo]} type="number"
+                min={campo === "factor_aprovechamiento" ? "0.5" : campo.startsWith("max_") ? "1" : "0.0001"}
+                max={campo === "factor_aprovechamiento" ? "1" : undefined}
+                step={campo.startsWith("max_") ? "1" : "any"}
+                value={formConfig[campo] ?? ""}
+                onChange={(e) => setFormConfig((f) => ({ ...f, [campo]: e.target.value }))} />)}
             </div>
+            <Button type="submit" icon={Settings} disabled={guardando}>Guardar configuración</Button>
+          </form> : <dl className="grid gap-3 sm:grid-cols-2 text-sm">
+            {CAMPOS.map((c) => <div key={c}><dt className="text-slate-500">{etiquetas[c]}</dt>
+              <dd className="font-semibold">{config?.[c]}</dd></div>)}
+          </dl>}
+        </SectionCard>
+        {esAdmin && <SectionCard title="Auditoría" subtitle="Últimos 50 cambios del módulo.">
+          <DataTable rows={auditoria} rowKey={(a) => a.id}
+            empty={{ icon: ClipboardList, title: "Sin movimientos", description: "No hay cambios registrados." }} columns={[
+              { key: "fecha", header: "Fecha", render: (a) => new Date(a.creado_en).toLocaleString("es-PE") },
+              { key: "usuario", header: "Usuario", render: (a) => a.usuario },
+              { key: "accion", header: "Acción", render: (a) => a.accion },
+              { key: "entidad", header: "Entidad", render: (a) => a.entidad },
+              { key: "detalle", header: "Detalle", render: (a) => a.detalle || "—" },
+            ]} />
+        </SectionCard>}
+      </div>}
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button icon={Calculator} onClick={calcular} disabled={calculando}>
-                {calculando ? "Calculando..." : "Calcular capacidad"}
-              </Button>
-              <Button variant="secondary" icon={Trash2} onClick={limpiarCalculo}>
-                Limpiar resultado
-              </Button>
-            </div>
-          </SectionCard>
-
-          {resultado && (
-            <div className="space-y-6 animate-fade-up">
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <KpiCard
-                  label="Pedidos"
-                  value={resultado.resumen.total_pedidos}
-                  icon={Boxes}
-                  tone="brand"
-                />
-                <KpiCard
-                  label="Viajes"
-                  value={resultado.resumen.viajes_necesarios}
-                  icon={Truck}
-                  tone="info"
-                />
-                <KpiCard
-                  label="Uso promedio"
-                  value={Math.round(resultado.resumen.utilizacion_promedio_pct)}
-                  icon={Gauge}
-                  tone="success"
-                />
-                <KpiCard
-                  label="Sin asignar"
-                  value={resultado.resumen.pedidos_sin_asignar}
-                  icon={AlertCircle}
-                  tone={resultado.resumen.pedidos_sin_asignar ? "danger" : "success"}
-                />
-              </div>
-
-              <ListaAlertas alertas={resultado.alertas} />
-
-              <div className="grid gap-6 xl:grid-cols-[1.4fr,1fr]">
-                <SectionCard
-                  title="Viajes calculados"
-                  subtitle={`Modo: ${ETIQUETA_MODO[resultado.modo] || resultado.modo}. Tope de paradas por viaje: ${resultado.configuracion.max_paradas_por_viaje}.`}
-                >
-                  <TablaViajes
-                    viajes={resultado.viajes}
-                    maxParadas={resultado.configuracion.max_paradas_por_viaje}
-                    seleccionado={viajeSeleccionado}
-                    onSeleccionar={seleccionarViajeCalculo}
-                  />
-                  <p className="mt-3 text-xs text-slate-400">
-                    {resultado.resumen.pedidos_estimados
-                      ? `${resultado.resumen.pedidos_estimados} pedidos sin peso/volumen usaron una talla estimada.`
-                      : "Todos los pedidos tenian peso y volumen reales."}
-                  </p>
-                </SectionCard>
-
-                <div ref={visorCalculoRef}>
-                  <SectionCard title="Vista de carga 3D" subtitle="Representacion referencial del volumen ocupado.">
-                    <Suspense fallback={<Skeleton className="h-[280px] w-full" />}>
-                      <VisorCarga3D
-                        modelo={modeloViaje}
-                        utilizacionPct={viajeActual?.utilizacion_pct || 0}
-                        placa={
-                          viajeActual?.vehiculo_placa === "CATALOGO"
-                            ? ""
-                            : viajeActual?.vehiculo_placa || ""
-                        }
-                        pedidos={viajeActual?.paradas || 0}
-                      />
-                    </Suspense>
-                    {viajeActual && (
-                      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                        <div className="rounded-xl bg-slate-50 p-3">
-                          <p className="text-xs uppercase tracking-wide text-slate-400">Peso</p>
-                          <p className="nums mt-1 font-semibold text-slate-700">
-                            {viajeActual.peso_kg.toLocaleString("es-PE")} /{" "}
-                            {viajeActual.capacidad_kg.toLocaleString("es-PE")} kg
-                          </p>
-                        </div>
-                        <div className="rounded-xl bg-slate-50 p-3">
-                          <p className="text-xs uppercase tracking-wide text-slate-400">Volumen</p>
-                          <p className="nums mt-1 font-semibold text-slate-700">
-                            {viajeActual.volumen_m3} / {viajeActual.capacidad_m3} m3
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </SectionCard>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ---------------------------- Planificacion ---------------------------- */}
-      {tab === "planificacion" && (
-        <div className="space-y-6 animate-fade-in">
-          <SectionCard
-            title="Planificacion del dia"
-            subtitle="Reparte los pedidos reales entre los vehiculos con modelo vinculado."
-          >
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Input
-                as="select"
-                label="Estado de pedido"
-                value={planFiltros.estado}
-                onChange={(evento) =>
-                  setPlanFiltros((actual) => ({ ...actual, estado: evento.target.value }))
-                }
-              >
-                {ESTADOS_PLANIFICABLES.map((estado) => (
-                  <option key={estado.valor} value={estado.valor}>
-                    {estado.etiqueta}
-                  </option>
-                ))}
-              </Input>
-              <Input
-                label="Distrito"
-                value={planFiltros.distrito}
-                onChange={(evento) =>
-                  setPlanFiltros((actual) => ({ ...actual, distrito: evento.target.value }))
-                }
-                placeholder="Opcional"
-              />
-              <Input
-                label="Fecha de creacion"
-                type="date"
-                value={planFiltros.fecha}
-                onChange={(evento) =>
-                  setPlanFiltros((actual) => ({ ...actual, fecha: evento.target.value }))
-                }
-              />
-              <Input
-                label="Limite de pedidos"
-                type="number"
-                min="1"
-                max="5000"
-                value={planFiltros.limite}
-                onChange={(evento) =>
-                  setPlanFiltros((actual) => ({ ...actual, limite: evento.target.value }))
-                }
-              />
-            </div>
-
-            <div className="mt-4 grid gap-4 sm:grid-cols-3">
-              <Input
-                label="Demo: pedidos"
-                type="number"
-                min="1"
-                max="5000"
-                value={planDemoPedidos}
-                onChange={(evento) => setPlanDemoPedidos(evento.target.value)}
-                hint="El caso de la semana 11 es 700."
-              />
-              <Input
-                label="Demo: vehiculos"
-                type="number"
-                min="1"
-                max="50"
-                value={planDemoVehiculos}
-                onChange={(evento) => setPlanDemoVehiculos(evento.target.value)}
-                hint="Completa la flota con camiones tipicos."
-              />
-              <Input
-                label="Factor de aprovechamiento"
-                type="number"
-                min="0.5"
-                max="1"
-                step="0.05"
-                value={planFactor}
-                onChange={(evento) => setPlanFactor(evento.target.value)}
-                placeholder={config ? String(config.factor_aprovechamiento) : "0.85"}
-              />
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button icon={CalendarRange} onClick={() => planificar(false)} disabled={planificando}>
-                {planificando ? "Planificando..." : "Planificar pedidos reales"}
-              </Button>
-              <Button
-                variant="secondary"
-                icon={Boxes}
-                onClick={() => planificar(true)}
-                disabled={planificando}
-              >
-                Probar demo 700 pedidos
-              </Button>
-            </div>
-          </SectionCard>
-
-          {planResultado && (
-            <div className="space-y-6 animate-fade-up">
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-                <KpiCard
-                  label="Pedidos"
-                  value={planResultado.resumen.total_pedidos}
-                  icon={Boxes}
-                  tone="brand"
-                />
-                <KpiCard
-                  label="Viajes"
-                  value={planResultado.resumen.viajes_necesarios}
-                  icon={Truck}
-                  tone="info"
-                />
-                <KpiCard
-                  label="Vehiculos"
-                  value={planResultado.resumen.vehiculos_necesarios}
-                  icon={BarChart3}
-                  tone="success"
-                />
-                <KpiCard
-                  label="Uso promedio"
-                  value={Math.round(planResultado.resumen.utilizacion_promedio_pct)}
-                  icon={Gauge}
-                  tone="success"
-                />
-                <KpiCard
-                  label="Sin asignar"
-                  value={planResultado.resumen.pedidos_sin_asignar}
-                  icon={AlertCircle}
-                  tone={planResultado.resumen.pedidos_sin_asignar ? "danger" : "success"}
-                />
-                <KpiCard
-                  label="Estimados"
-                  value={planResultado.resumen.pedidos_estimados}
-                  icon={AlertTriangle}
-                  tone="warning"
-                />
-              </div>
-
-              <ListaAlertas alertas={planResultado.alertas} />
-
-              <SectionCard
-                title="Resumen por vehiculo"
-                subtitle="Viajes, pedidos, volumen y utilizacion de cada vehiculo del plan."
-              >
-                <DataTable
-                  columns={columnasVehiculosPlan}
-                  rows={planResultado.vehiculos}
-                  rowKey={(v) => v.placa}
-                  empty={{
-                    icon: Truck,
-                    title: "Sin vehiculos en el plan",
-                    description: "Vincula placas a modelos o usa la demo para ver un escenario completo.",
-                  }}
-                />
-              </SectionCard>
-
-              <div className="grid gap-6 xl:grid-cols-[1.4fr,1fr]">
-                <SectionCard
-                  title="Detalle de viajes"
-                  subtitle={`Plan generado en modo ${ETIQUETA_MODO[planResultado.modo] || planResultado.modo}.`}
-                >
-                  <TablaViajes
-                    viajes={planResultado.viajes}
-                    maxParadas={planResultado.configuracion.max_paradas_por_viaje}
-                    seleccionado={planViajeSeleccionado}
-                    onSeleccionar={seleccionarViajePlan}
-                  />
-                  <p className="mt-3 text-xs text-slate-400">
-                    Pulsa Ver 3D en un viaje para cargarlo en el visor de la derecha.
-                  </p>
-                </SectionCard>
-
-                <div ref={visorPlanRef}>
-                  <SectionCard
-                    title="Vista de carga 3D"
-                    subtitle="Carga del viaje seleccionado en el plan del dia."
-                  >
-                    <Suspense fallback={<Skeleton className="h-[280px] w-full" />}>
-                      <VisorCarga3D
-                        modelo={planModeloViaje}
-                        utilizacionPct={planViajeActual?.utilizacion_pct || 0}
-                        placa={
-                          planViajeActual?.vehiculo_placa === "CATALOGO"
-                            ? ""
-                            : planViajeActual?.vehiculo_placa || ""
-                        }
-                        pedidos={planViajeActual?.paradas || 0}
-                      />
-                    </Suspense>
-                    {planViajeActual && (
-                      <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                        <div className="rounded-xl bg-slate-50 p-3">
-                          <p className="text-xs uppercase tracking-wide text-slate-400">Peso</p>
-                          <p className="nums mt-1 font-semibold text-slate-700">
-                            {planViajeActual.peso_kg.toLocaleString("es-PE")} /{" "}
-                            {planViajeActual.capacidad_kg.toLocaleString("es-PE")} kg
-                          </p>
-                        </div>
-                        <div className="rounded-xl bg-slate-50 p-3">
-                          <p className="text-xs uppercase tracking-wide text-slate-400">Volumen</p>
-                          <p className="nums mt-1 font-semibold text-slate-700">
-                            {planViajeActual.volumen_m3} / {planViajeActual.capacidad_m3} m3
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </SectionCard>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ----------------------------- Configuracion ----------------------------- */}
-      {tab === "configuracion" && (
-        <div className="space-y-6 animate-fade-in">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <SectionCard
-              title="Parametros de planificacion"
-              subtitle="Se aplican a la calculadora y a la planificacion del dia."
-            >
-              {formConfig ? (
-                esAdmin ? (
-                  <form onSubmit={guardarConfiguracion} className="space-y-4">
-                    <Input
-                      label="Factor de aprovechamiento"
-                      type="number"
-                      min="0.5"
-                      max="1"
-                      step="0.05"
-                      value={formConfig.factor_aprovechamiento}
-                      onChange={(evento) =>
-                        setFormConfig((actual) => ({
-                          ...actual,
-                          factor_aprovechamiento: evento.target.value,
-                        }))
-                      }
-                      hint="0.85 significa usar el 85% del volumen y del peso."
-                    />
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <Input
-                        label="Paradas por viaje"
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={formConfig.max_paradas_por_viaje}
-                        onChange={(evento) =>
-                          setFormConfig((actual) => ({
-                            ...actual,
-                            max_paradas_por_viaje: evento.target.value,
-                          }))
-                        }
-                        hint="Umbral de alerta por viaje."
-                      />
-                      <Input
-                        label="Paradas por jornada"
-                        type="number"
-                        min="1"
-                        max="500"
-                        value={formConfig.max_paradas_por_jornada}
-                        onChange={(evento) =>
-                          setFormConfig((actual) => ({
-                            ...actual,
-                            max_paradas_por_jornada: evento.target.value,
-                          }))
-                        }
-                        hint="Alerta si un vehiculo acumula mas."
-                      />
-                    </div>
-                    <Input
-                      label="Viajes por dia y vehiculo"
-                      type="number"
-                      min="1"
-                      max="20"
-                      value={formConfig.max_viajes_por_dia}
-                      onChange={(evento) =>
-                        setFormConfig((actual) => ({
-                          ...actual,
-                          max_viajes_por_dia: evento.target.value,
-                        }))
-                      }
-                      hint="Este si es un limite duro del plan."
-                    />
-                    <Button type="submit" icon={Settings} block disabled={guardandoConfig}>
-                      {guardandoConfig ? "Guardando..." : "Guardar parametros"}
-                    </Button>
-                  </form>
-                ) : (
-                  <dl className="space-y-3 text-sm">
-                    <div className="flex justify-between border-b border-slate-100 pb-2">
-                      <dt className="text-slate-500">Factor de aprovechamiento</dt>
-                      <dd className="font-semibold text-slate-800">{config?.factor_aprovechamiento}</dd>
-                    </div>
-                    <div className="flex justify-between border-b border-slate-100 pb-2">
-                      <dt className="text-slate-500">Paradas por viaje</dt>
-                      <dd className="font-semibold text-slate-800">{config?.max_paradas_por_viaje}</dd>
-                    </div>
-                    <div className="flex justify-between border-b border-slate-100 pb-2">
-                      <dt className="text-slate-500">Paradas por jornada</dt>
-                      <dd className="font-semibold text-slate-800">{config?.max_paradas_por_jornada}</dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt className="text-slate-500">Viajes por dia</dt>
-                      <dd className="font-semibold text-slate-800">{config?.max_viajes_por_dia}</dd>
-                    </div>
-                  </dl>
-                )
-              ) : (
-                <Skeleton className="h-48 w-full" />
-              )}
-            </SectionCard>
-
-            <SectionCard title="Como se calcula" subtitle="Reglas del modulo de capacidad.">
-              <ul className="space-y-3 text-sm text-slate-600">
-                <li className="flex gap-2">
-                  <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-success" />
-                  La capacidad efectiva es volumen y peso del modelo multiplicados por el factor de aprovechamiento.
-                </li>
-                <li className="flex gap-2">
-                  <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-success" />
-                  Los pedidos reales usan peso y volumen de la tabla de pedidos; si faltan, se estima S/M/L y se avisa.
-                </li>
-                <li className="flex gap-2">
-                  <AlertTriangle size={16} className="mt-0.5 shrink-0 text-warning" />
-                  El tope de paradas por viaje es una alerta: el plan puede superarlo y avisarte para sumar otro vehiculo.
-                </li>
-                <li className="flex gap-2">
-                  <AlertCircle size={16} className="mt-0.5 shrink-0 text-danger" />
-                  El maximo de viajes por dia si es un limite duro. Si sobra carga, aparece la alerta de capacidad insuficiente.
-                </li>
-                <li className="flex gap-2">
-                  <Link2 size={16} className="mt-0.5 shrink-0 text-brand-600" />
-                  El modulo solo lee pedidos y vehiculos del nucleo; sus tablas viven en el esquema del propio modulo.
-                </li>
-              </ul>
-            </SectionCard>
-          </div>
-
-          {esAdmin && (
-            <SectionCard title="Auditoria" subtitle="Ultimos 50 cambios hechos en el modulo.">
-              <DataTable
-                columns={columnasAuditoria}
-                rows={auditoria}
-                rowKey={(fila) => fila.id}
-                empty={{
-                  icon: ClipboardList,
-                  title: "Sin movimientos",
-                  description: "Los cambios de catalogo, vinculaciones y configuracion se registran aqui.",
-                }}
-              />
-            </SectionCard>
-          )}
-        </div>
-      )}
-
-      {/* ------------------------------- Modales ------------------------------- */}
-      <Modal
-        open={Boolean(modalModelo)}
-        onClose={() => {
-          if (!guardandoModelo) setModalModelo(null);
-        }}
-        className="max-w-2xl"
-      >
-        {modalModelo && (
-          <FormularioModelo
-            key={modalModelo.modelo?.id || "nuevo"}
-            modelo={modalModelo.modelo}
-            guardando={guardandoModelo}
-            onGuardar={guardarModelo}
-            onCancelar={() => setModalModelo(null)}
-          />
-        )}
+      <Modal open={Boolean(modalModelo)} onClose={() => !guardando && setModalModelo(null)} className="max-w-2xl">
+        {modalModelo && <FormularioModelo key={modalModelo.modelo?.id || "nuevo"} modelo={modalModelo.modelo}
+          guardando={guardando} onGuardar={guardarModelo} onCancelar={() => setModalModelo(null)} />}
       </Modal>
-
-      <ConfirmDialog
-        open={Boolean(modeloAEliminar)}
-        titulo="Eliminar modelo del catalogo"
-        mensaje={
-          modeloAEliminar
-            ? `Se borrara ${modeloAEliminar.marca} ${modeloAEliminar.modelo}. Solo se pueden eliminar modelos creados desde el panel.`
-            : ""
-        }
-        textoConfirmar="Eliminar modelo"
-        tono="danger"
-        cargando={eliminandoModelo}
-        onConfirmar={confirmarEliminarModelo}
-        onCancelar={() => setModeloAEliminar(null)}
-      />
-
-      <ConfirmDialog
-        open={Boolean(vinculacionAEliminar)}
-        titulo="Desvincular placa"
-        mensaje={
-          vinculacionAEliminar
-            ? `La placa ${vinculacionAEliminar.placa} quedara sin modelo y saldra de la planificacion hasta que la vincules de nuevo.`
-            : ""
-        }
-        textoConfirmar="Desvincular"
-        tono="danger"
-        cargando={eliminandoVinculo}
-        onConfirmar={confirmarDesvincular}
-        onCancelar={() => setVinculacionAEliminar(null)}
-      />
+      <ConfirmDialog open={Boolean(modeloEliminar)} titulo="Eliminar modelo"
+        mensaje={modeloEliminar ? `¿Eliminar ${modeloEliminar.marca} ${modeloEliminar.modelo}?` : ""}
+        textoConfirmar="Eliminar" tono="danger" cargando={guardando}
+        onConfirmar={eliminarModelo} onCancelar={() => setModeloEliminar(null)} />
+      <ConfirmDialog open={Boolean(vinculoEliminar)} titulo="Desvincular placa"
+        mensaje={vinculoEliminar ? `¿Quitar el modelo de ${vinculoEliminar.placa}?` : ""}
+        textoConfirmar="Desvincular" tono="danger" cargando={guardando}
+        onConfirmar={desvincular} onCancelar={() => setVinculoEliminar(null)} />
     </div>
   );
 }

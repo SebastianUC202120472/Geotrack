@@ -1,3 +1,4 @@
+
 # Migraciones idempotentes del esquema. create_all solo crea tablas nuevas: no agrega
 # columnas a tablas que ya existen en Postgres/Supabase, por eso las columnas nuevas
 # se agregan aqui con ADD COLUMN IF NOT EXISTS (se pueden ejecutar en cada arranque).
@@ -17,26 +18,34 @@ SENTENCIAS = [
     "ALTER TABLE clientes_corporativos ADD COLUMN IF NOT EXISTS correo_portal VARCHAR(150)",
     "ALTER TABLE clientes_corporativos ADD COLUMN IF NOT EXISTS acceso_activo BOOLEAN DEFAULT FALSE",
     "CREATE UNIQUE INDEX IF NOT EXISTS ix_clientes_codigo_acceso ON clientes_corporativos (codigo_acceso)",
+
     # Licencia de conducir del conductor (C03-03).
     "ALTER TABLE conductor_perfiles ADD COLUMN IF NOT EXISTS licencia_numero VARCHAR(20)",
     "ALTER TABLE conductor_perfiles ADD COLUMN IF NOT EXISTS licencia_vencimiento DATE",
+
     # Bloqueo progresivo de la verificacion del portal (C42-01).
     "ALTER TABLE verificaciones_portal ADD COLUMN IF NOT EXISTS bloqueos INTEGER DEFAULT 0",
+
     # Solicitudes de recojo: fecha pedida y visitas no realizadas (C11-04, C12-02).
     "ALTER TABLE solicitudes_recojo ADD COLUMN IF NOT EXISTS fecha_programada DATE",
     "ALTER TABLE solicitudes_recojo ADD COLUMN IF NOT EXISTS motivo_no_realizado VARCHAR(255)",
     "ALTER TABLE solicitudes_recojo ADD COLUMN IF NOT EXISTS intentos_no_realizados INTEGER DEFAULT 0",
+
     # Ubicacion de captura de las fotos del recojo (C13-01).
     "ALTER TABLE evidencias_recojo ADD COLUMN IF NOT EXISTS latitud_longitud_captura VARCHAR(60)",
+
     # Distrito que devuelve el geocodificador, guardado junto a la coordenada (C16-01).
     "ALTER TABLE geocodificaciones_cache ADD COLUMN IF NOT EXISTS distrito VARCHAR(100)",
+
     # Quien recibio la entrega (C26-02) y foto que respalda un reporte de falla (C29-01).
     "ALTER TABLE evidencias_entrega ADD COLUMN IF NOT EXISTS receptor_nombre VARCHAR(120)",
     "ALTER TABLE evidencias_entrega ADD COLUMN IF NOT EXISTS receptor_documento VARCHAR(12)",
     "ALTER TABLE reportes ADD COLUMN IF NOT EXISTS url_evidencia VARCHAR(255)",
     "ALTER TABLE reportes ADD COLUMN IF NOT EXISTS latitud_longitud_captura VARCHAR(60)",
+
     # Motivo obligatorio al cancelar un pedido (C31-02).
     "ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS motivo_cancelacion VARCHAR(255)",
+
     # Libro de Reclamaciones completo y su respuesta (C40-01, C41-02).
     "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS pedido_consumidor TEXT",
     "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS apoderado_nombre VARCHAR(150)",
@@ -44,20 +53,47 @@ SENTENCIAS = [
     "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS respuesta TEXT",
     "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS respondido_en TIMESTAMP",
     "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS respondido_por INTEGER",
+
     # Historial de liquidaciones (C36-02).
     "ALTER TABLE liquidaciones ADD COLUMN IF NOT EXISTS cliente_nombre VARCHAR(150)",
     "ALTER TABLE liquidaciones ADD COLUMN IF NOT EXISTS total_pedidos INTEGER",
+
     # Retencion de datos del destinatario (EX-04).
     "ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS datos_retirados_en TIMESTAMP",
+
+    # ========================================================
+    # IDEA 3 - CATALOGO Y CALCULADORA DE CAPACIDAD
+    # Nuevos parametros para los tamanos estandar S, M y L.
+    # ========================================================
+
+    # Tamano pequeno (S).
+    "ALTER TABLE capacidad_configuracion ADD COLUMN IF NOT EXISTS s_peso_kg DOUBLE PRECISION NOT NULL DEFAULT 5.0",
+    "ALTER TABLE capacidad_configuracion ADD COLUMN IF NOT EXISTS s_volumen_m3 DOUBLE PRECISION NOT NULL DEFAULT 0.03",
+
+    # Tamano mediano (M).
+    "ALTER TABLE capacidad_configuracion ADD COLUMN IF NOT EXISTS m_peso_kg DOUBLE PRECISION NOT NULL DEFAULT 15.0",
+    "ALTER TABLE capacidad_configuracion ADD COLUMN IF NOT EXISTS m_volumen_m3 DOUBLE PRECISION NOT NULL DEFAULT 0.09",
+
+    # Tamano grande (L).
+    "ALTER TABLE capacidad_configuracion ADD COLUMN IF NOT EXISTS l_peso_kg DOUBLE PRECISION NOT NULL DEFAULT 40.0",
+    "ALTER TABLE capacidad_configuracion ADD COLUMN IF NOT EXISTS l_volumen_m3 DOUBLE PRECISION NOT NULL DEFAULT 0.25",
 ]
 
 
 def preparar_esquema(engine) -> None:
-    """Crea las tablas que falten y aplica las migraciones en una sola transaccion. Recibe el engine."""
+    """Crea las tablas faltantes y aplica las migraciones en una transaccion."""
+
     with engine.begin() as conn:
         if conn.dialect.name == "postgresql":
-            # Candado de transaccion: compatible con el pooler de Supabase en modo transaccion.
-            conn.execute(text("SELECT pg_advisory_xact_lock(:n)"), {"n": _CANDADO_ARRANQUE})
+            # Candado de transaccion compatible con Supabase.
+            conn.execute(
+                text("SELECT pg_advisory_xact_lock(:n)"),
+                {"n": _CANDADO_ARRANQUE},
+            )
+
+        # Crea tablas nuevas que aun no existan.
         Base.metadata.create_all(bind=conn)
+
+        # Aplica las migraciones pendientes.
         for sentencia in SENTENCIAS:
             conn.execute(text(sentencia))
