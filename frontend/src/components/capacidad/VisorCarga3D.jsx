@@ -9,7 +9,7 @@ const limpiarNumero = (valor) => (Number.isFinite(Number(valor)) ? Number(valor)
 // Vista lateral en SVG: se usa como respaldo cuando WebGL no esta disponible.
 // Recibe modelo, utilizacionPct y mensaje opcional.
 function VistaLateral({ modelo, utilizacionPct = 0, mensaje }) {
-  const fraccion = Math.min(1, Math.max(0.02, limpiarNumero(utilizacionPct) / 100));
+  const fraccion = Math.min(1, Math.max(0, limpiarNumero(utilizacionPct) / 100));
   const cargaAncho = 230 * fraccion;
 
   return (
@@ -58,7 +58,7 @@ export default function VisorCarga3D({
         const largo = Math.max(0.5, limpiarNumero(modelo.largo_m) || 1);
         const profundo = Math.max(0.4, limpiarNumero(modelo.ancho_m) || 0.8);
         const altoCaja = Math.max(0.4, limpiarNumero(modelo.alto_m) || 0.8);
-        const fraccion = Math.min(1, Math.max(0.02, limpiarNumero(utilizacionPct) / 100));
+        const fraccion = Math.min(1, Math.max(0, limpiarNumero(utilizacionPct) / 100));
 
         const anchoPx = contenedor.clientWidth || 480;
         const altoPx = alto;
@@ -143,7 +143,7 @@ export default function VisorCarga3D({
         );
 
         let indice = 0;
-        for (let ix = 0; ix < nx; ix += 1) {
+        for (let ix = 0; fraccion > 0 && ix < nx; ix += 1) {
           for (let iy = 0; iy < ny; iy += 1) {
             for (let iz = 0; iz < nz; iz += 1) {
               const caja = new THREE.Mesh(geometriaCarga, materiales[indice % materiales.length]);
@@ -188,11 +188,22 @@ export default function VisorCarga3D({
         };
         const alRodar = (evento) => {
           evento.preventDefault();
+
           const factor = evento.deltaY > 0 ? 1.08 : 0.92;
-          camara.position.multiplyScalar(factor);
-          camara.lookAt(0, altoCaja * 0.35, 0);
-          dibujar();
+          const nuevaPosicion = camara.position.clone().multiplyScalar(factor);
+
+          const distanciaMinima = Math.max(largo, profundo, altoCaja) * 0.8;
+          const distanciaMaxima = Math.max(largo, profundo, altoCaja) * 8;
+
+          const distancia = nuevaPosicion.length();
+
+          if (distancia >= distanciaMinima && distancia <= distanciaMaxima) {
+            camara.position.copy(nuevaPosicion);
+            camara.lookAt(0, altoCaja * 0.35, 0);
+            dibujar();
+          }
         };
+
 
         renderer.domElement.addEventListener("pointerdown", alPresionar);
         window.addEventListener("pointermove", alMover);
@@ -274,13 +285,13 @@ export default function VisorCarga3D({
         </p>
         <p className="text-slate-500">
           {utilizacionPct}% del volumen util
-          {pedidos ? ` · ${pedidos} pedidos` : ""}
+          {pedidos ? ` Â· ${pedidos} pedidos` : ""}
         </p>
       </div>
 
       <div className="pointer-events-none absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full bg-white/85 px-3 py-1 text-[11px] text-slate-500 shadow-sm">
         <MousePointer2 size={12} />
-        Arrastra para girar · rueda para acercar
+        Arrastra para girar Â· rueda para acercar
       </div>
     </div>
   );
