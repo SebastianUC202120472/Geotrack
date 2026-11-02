@@ -540,7 +540,7 @@ def _tamano_estimado(pedido_id: int) -> str:
 
 
 def items_desde_pedidos(pedidos, tamanos: Optional[dict] = None) -> List[dict]:
-    """Lee peso y volumen reales; faltantes se estiman con M configurable."""
+    """Lee peso y volumen reales; los faltantes usan una talla S/M/L estable."""
     tamanos = tamanos or TAMANOS_ESTANDAR
     items = []
     for pedido in pedidos:
@@ -549,11 +549,12 @@ def items_desde_pedidos(pedidos, tamanos: Optional[dict] = None) -> List[dict]:
         falta_peso = peso is None or float(peso) <= 0
         falta_volumen = volumen is None or float(volumen) <= 0
         estimado = falta_peso or falta_volumen
-        tamano = "M" if estimado else None
+        # La talla se reparte de forma estable por pedido (S/M/L), no siempre M.
+        tamano = _tamano_estimado(getattr(pedido, "id", 0) or 0) if estimado else None
         if falta_peso:
-            peso = tamanos["M"]["peso_kg"]
+            peso = tamanos[tamano]["peso_kg"]
         if falta_volumen:
-            volumen = tamanos["M"]["volumen_m3"]
+            volumen = tamanos[tamano]["volumen_m3"]
         items.append({
             "pedido_id": pedido.id,
             "codigo": pedido.codigo,
@@ -693,7 +694,8 @@ def calcular_plan(
     existe capacidad; evita desperdiciar viajes con un solo pedido por celda.
 
     La cercania es aproximada: NO optimiza distancias de calles ni tiempos.
-    Conserva los limites de peso, volumen, paradas, viajes y jornada.
+    Respeta peso, volumen y viajes por dia; los topes de paradas por viaje y
+    por jornada se informan como alertas, no descartan pedidos.
     """
     inicio = time.monotonic()
     if len(items) > MAX_PEDIDOS:
@@ -794,13 +796,9 @@ def calcular_plan(
         agregado = agregados[placa]
         for _ in range(max_viajes_por_dia):
             comprobar_tiempo()
-            cupo_paradas = min(
-                max_paradas_por_viaje,
-                max_paradas_por_jornada - agregado["paradas"],
-            )
-            if cupo_paradas <= 0:
-                break
 
+            # Los topes de paradas son alertas, no limites de carga: el viaje se
+            # llena por peso y volumen. Si se excede un tope, se avisa al final.
             # Elegimos una celda inicial que tenga algun pedido que quepa.
             # Se prioriza la celda mas poblada; si un bulto no cabe, se
             # busca otra celda compatible antes de descartar el viaje.
@@ -836,8 +834,7 @@ def calcular_plan(
                     item_peso = float(item["peso_kg"])
                     item_volumen = float(item["volumen_m3"])
                     if (
-                        len(seleccionados) < cupo_paradas
-                        and peso + item_peso <= carga_max + 1e-9
+                        peso + item_peso <= carga_max + 1e-9
                         and volumen + item_volumen <= volumen_max + 1e-9
                     ):
                         seleccionados.append(item)
@@ -846,8 +843,6 @@ def calcular_plan(
                     else:
                         restantes.append(item)
                 grupos[z] = restantes
-                if len(seleccionados) >= cupo_paradas:
-                    break
 
             if not seleccionados:
                 break
@@ -858,6 +853,7 @@ def calcular_plan(
                 "modelo_id": vehiculo["modelo_id"],
                 "marca": vehiculo.get("marca"),
                 "modelo": vehiculo.get("modelo"),
+                "tipo": vehiculo.get("tipo"),
                 "pedidos": [
                     {clave: valor for clave, valor in item.items()
                      if clave not in ("latitud", "longitud")}
@@ -877,6 +873,37 @@ def calcular_plan(
             agregado["volumen_m3"] = round(agregado["volumen_m3"] + volumen, 3)
             agregado["paradas"] += len(seleccionados)
             agregado["capacidad_total"] = round(agregado["capacidad_total"] + volumen_max, 3)
+
+    # Topes de paradas: se informan como alertas, no descartan pedidos.
+    viajes_excedidos = [
+        v for v in viajes if v["paradas"] > max_paradas_por_viaje
+    ]
+    if viajes_excedidos:
+        maximo = max(v["paradas"] for v in viajes_excedidos)
+        alertas.append({
+            "nivel": "warning", "codigo": "tope_paradas_viaje",
+            "mensaje": (
+                f"{len(viajes_excedidos)} viajes superan el tope de "
+                f"{max_paradas_por_viaje} paradas (maximo: {maximo}). "
+                "Conviene dividir el viaje o sumar un vehiculo."
+            ),
+        })
+
+    jornadas_excedidas = [
+        a for a in agregados.values()
+        if a["paradas"] > max_paradas_por_jornada
+    ]
+    if jornadas_excedidas:
+        detalle = ", ".join(
+            f"{a['placa']} ({a['paradas']})" for a in jornadas_excedidas
+        )
+        alertas.append({
+            "nivel": "warning", "codigo": "jornada_excedida",
+            "mensaje": (
+                f"{len(jornadas_excedidas)} vehiculos superan la jornada de "
+                f"{max_paradas_por_jornada} paradas: {detalle}."
+            ),
+        })
 
     sin_asignar = sum(len(grupo) for grupo in grupos.values())
     if sin_asignar:

@@ -69,6 +69,7 @@ function TablaResultado({ plan, indice, cambiarIndice, modelos }) {
   const ficha = modelos.find((m) => m.id === viaje?.modelo_id);
   const modelo = ficha || (viaje ? {
     marca: viaje.marca || "Vehículo", modelo: viaje.modelo || "Referencial",
+    tipo: viaje.tipo || null,
     largo_m: 2.6, ancho_m: 1.6, alto_m: 1.0, referencial: true,
   } : null);
   const resumen = plan.resumen;

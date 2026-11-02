@@ -22,12 +22,11 @@ from .verificacion_portal import VerificacionPortal
 from .contacto import ContactoComercial
 from .reclamo import Reclamo
 from .reprogramacion import SolicitudReprogramacion
+
 from .capacidad import (
     AuditoriaCapacidad,
     ConfiguracionCapacidad,
     ModeloPersonalizado,
     VinculacionPlaca,
 )
-
-from .reprogramacion import SolicitudReprogramacion
 

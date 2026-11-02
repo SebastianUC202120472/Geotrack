@@ -355,6 +355,7 @@ class ViajePlan(BaseModel):
     modelo_id: str
     marca: Optional[str] = None
     modelo: Optional[str] = None
+    tipo: Optional[str] = None
     pedidos: List[PedidoEnViaje]
     paradas: int
     peso_kg: float

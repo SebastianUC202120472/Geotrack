@@ -124,8 +124,9 @@ Alternativas a `cantidades`:
 ## 5. Cómo calcula
 
 1. Cada pedido aporta peso (`pedidos.peso_kg`) y volumen (`pedidos.volumen_m3`).
-2. Si un pedido no tiene esos datos, se usa una talla estándar S/M/L y el plan
-   responde con `pedidos_estimados > 0` y la alerta `datos_estimados`.
+2. Si un pedido no tiene esos datos, se le asigna una talla estándar S/M/L
+   (reparto estable por pedido, configurable) y el plan responde con
+   `pedidos_estimados > 0` y la alerta `datos_estimados`.
 3. La capacidad efectiva de un vehículo es:
    `volumen_util_m3 × factor_aprovechamiento` y
    `carga_util_kg × factor_aprovechamiento`.
@@ -142,7 +143,7 @@ Alternativas a `cantidades`:
 - Demo desde la interfaz: pestaña **Planificación** → **Probar demo 700 pedidos**
   (6 vehículos por defecto).
 - API: `GET /api/modulo-capacidad/planificacion?demo_pedidos=700&demo_vehiculos=6`.
-- Resultado esperado: 700 pedidos asignados (0 sin asignar), 5-6 vehículos
+- Resultado esperado: 700 pedidos asignados (0 sin asignar), 4-6 vehículos
   usados, alertas `tope_paradas_viaje` y `jornada_excedida` porque el volumen
   obliga a viajes con muchas paradas.
 - En la calculadora, con **un solo vehículo**, el mismo caso muestra
@@ -165,7 +166,10 @@ Ruta: `/panel/capacidad`. Pestañas:
 
 El visor 3D usa Three.js cargado bajo demanda (`import("three")`), dibuja solo
 cuando se interactúa y cae a una vista SVG si WebGL no está disponible. Three.js
-queda en un chunk aparte, no en el bundle principal.
+queda en un chunk aparte, no en el bundle principal. La silueta es distinta por
+tipo de vehículo (sedán, hatchback, SUV, pickup, furgoneta, van, camión ligero,
+mediano y pesado) y se dibuja con geometría procedural, sin animación continua;
+el respaldo SVG también cambia según el tipo.
 
 ### Roles
 
@@ -203,7 +207,7 @@ docker run --rm -v "$PWD/backend:/app" -w /app geotrack-backend \
   sh -c "pip install -q pytest; python -m pytest -q"
 ```
 
-Resultado de referencia: **40 pruebas del módulo** y **150 pruebas del backend**
+Resultado de referencia: **50 pruebas del módulo** y **226 pruebas del backend**
 en verde.
 
 ### Frontend

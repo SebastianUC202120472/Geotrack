@@ -631,29 +631,26 @@ def test_pedidos_reales_usan_su_peso_y_volumen():
 
 
 def test_pedidos_sin_medidas_se_marcan_estimados():
-    """Sin peso o volumen se usa S/M/L estimado."""
+    """Sin peso o volumen se reparte S/M/L con los valores configurables."""
 
     pedidos = [
         SimpleNamespace(
-            id=4,
-            codigo="PD-004",
+            id=indice,
+            codigo=f"PD-{indice:03d}",
             distrito=None,
             peso_kg=None,
             volumen_m3=0,
         )
+        for indice in range(1, 7)
     ]
 
     items = capacidad_service.items_desde_pedidos(pedidos)
 
-    assert items[0]["estimado"] is True
-
-    assert items[0]["tamano_estimado"] in (
-        "S",
-        "M",
-        "L",
-    )
-
-    assert items[0]["peso_kg"] > 0
+    assert all(item["estimado"] is True for item in items)
+    # El reparto estable por pedido debe cubrir las tres tallas, no solo M.
+    assert {item["tamano_estimado"] for item in items} == {"S", "M", "L"}
+    assert {item["peso_kg"] for item in items} == {5.0, 15.0, 40.0}
+    assert {item["volumen_m3"] for item in items} == {0.03, 0.09, 0.25}
 
 
 def test_plan_avisa_cuando_un_pedido_no_cabe():
@@ -679,7 +676,7 @@ def test_plan_avisa_cuando_un_pedido_no_cabe():
 
 
 def test_plan_alerta_cuando_supera_el_tope_de_paradas_por_viaje():
-    """El limite de paradas se respeta."""
+    """El tope de paradas es una alerta, no un limite que descarte carga."""
 
     plan = _plan(
         capacidad_service.items_demo(100),
@@ -687,8 +684,13 @@ def test_plan_alerta_cuando_supera_el_tope_de_paradas_por_viaje():
         paradas=10,
     )
 
-    assert all(
-        v["paradas"] <= 10
+    assert any(
+        a["codigo"] == "tope_paradas_viaje"
+        for a in plan["alertas"]
+    )
+
+    assert any(
+        v["paradas"] > 10
         for v in plan["viajes"]
     )
 
@@ -698,18 +700,13 @@ def test_plan_alerta_cuando_supera_el_tope_de_paradas_por_viaje():
         == 100
     )
 
-    assert any(
-        a["codigo"] == "capacidad_insuficiente"
-        for a in plan["alertas"]
-    )
-
 
 # ============================================================
 # 6. PLANIFICACION CON 700 PEDIDOS
 # ============================================================
 
 def test_caso_700_pedidos():
-    """Con seis vehiculos se informa lo pendiente."""
+    """Con seis vehiculos se asignan los 700 pedidos del caso de la semana 11."""
 
     vehiculos = [
         _camion(f"T-{i:02d}")
@@ -729,22 +726,22 @@ def test_caso_700_pedidos():
     )
 
     assert plan["resumen"]["total_pedidos"] == 700
-    assert asignados <= 360
+    assert plan["resumen"]["pedidos_sin_asignar"] == 0
+    assert asignados == 700
 
-    assert (
-        asignados
-        + plan["resumen"]["pedidos_sin_asignar"]
-        == 700
+    assert any(
+        a["codigo"] == "tope_paradas_viaje"
+        for a in plan["alertas"]
     )
 
-    assert all(
-        v["paradas"] <= 60
-        for v in plan["vehiculos"]
+    assert any(
+        a["codigo"] == "jornada_excedida"
+        for a in plan["alertas"]
     )
 
 
 def test_caso_700_con_tope_de_25_paradas_alerta():
-    """Ningun viaje supera 25 paradas ni 60 por jornada."""
+    """Con tres viajes tampoco se descarta carga: solo se alerta."""
 
     vehiculos = [
         _camion(f"T-{i:02d}")
@@ -758,14 +755,20 @@ def test_caso_700_con_tope_de_25_paradas_alerta():
         viajes=3,
     )
 
-    assert all(
-        v["paradas"] <= 25
+    assert plan["resumen"]["pedidos_sin_asignar"] == 0
+
+    assert any(
+        v["paradas"] > 25
         for v in plan["viajes"]
     )
 
+    assert any(
+        a["codigo"] == "tope_paradas_viaje"
+        for a in plan["alertas"]
+    )
+
     assert all(
-        v["paradas"] <= 60
-        and v["viajes"] <= 3
+        v["viajes"] <= 3
         for v in plan["vehiculos"]
     )
 
@@ -1157,8 +1160,8 @@ def test_plan_separa_distritos_con_capacidad_suficiente():
         )
 
 
-def test_plan_respeta_peso_volumen_y_jornada():
-    """Respeta peso, volumen, paradas y jornada."""
+def test_plan_respeta_peso_volumen_y_alerta_jornada():
+    """Respeta peso y volumen; los topes de paradas y jornada solo alertan."""
 
     vehiculos = [
         _camion(f"T-{i:02d}")
@@ -1172,8 +1175,6 @@ def test_plan_respeta_peso_volumen_y_jornada():
     )
 
     for viaje in plan["viajes"]:
-        assert viaje["paradas"] <= 25
-
         assert (
             viaje["peso_kg"]
             <= viaje["capacidad_kg"] + 0.01
@@ -1184,8 +1185,12 @@ def test_plan_respeta_peso_volumen_y_jornada():
             <= viaje["capacidad_m3"] + 0.01
         )
 
-    for vehiculo in plan["vehiculos"]:
-        assert vehiculo["paradas"] <= 60
+    assert plan["resumen"]["pedidos_sin_asignar"] == 0
+
+    assert any(
+        a["codigo"] in ("tope_paradas_viaje", "jornada_excedida")
+        for a in plan["alertas"]
+    )
 
 
 # ============================================================
@@ -1295,5 +1300,6 @@ def test_varias_celdas_no_rompen_los_limites_de_carga():
         v["volumen_m3"] <= v["capacidad_m3"] + 0.01
         for v in plan["viajes"]
     )
+
 
     assert len(plan["viajes"]) <= 3
