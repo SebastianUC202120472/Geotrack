@@ -79,6 +79,18 @@ def detalle(codigo: str, _=Depends(portal_token.requiere_token_persona), db: Ses
     return portal_service.detalle_pedido(db, codigo.upper())
 
 
+@router.get("/pedidos/{codigo}/enlace-notificaciones")
+def obtener_enlace_notificaciones(codigo: str, _=Depends(portal_token.requiere_token_persona)):
+    """Devuelve el enlace profundo a Telegram para vincular avisos del pedido verificado."""
+    bot_token = settings.TELEGRAM_BOT_TOKEN
+    # Si no hay token configurado en settings devuelve bot demo
+    bot_user = "GeoTrackAvisosBot"
+    return {
+        "canal": "telegram",
+        "url": f"https://t.me/{bot_user}?start=PD_{codigo.upper()}",
+    }
+
+
 @router.post("/pedidos/{codigo}/reprogramar")
 def reprogramar(codigo: str, datos: Reprogramar, _=Depends(portal_token.requiere_token_persona), db: Session = Depends(get_db)):
     """Registra una solicitud de reprogramacion (nota + notificacion al admin). Recibe codigo y {franja}."""

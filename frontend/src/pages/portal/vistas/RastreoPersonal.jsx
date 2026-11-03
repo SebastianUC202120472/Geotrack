@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ESTADOS, OPCIONES } from "../datos/portalUi.js";
-import { buscarPedido, verificarPedido, reprogramar, urlPod, detallePedido } from "../servicios/portal.js";
+import { buscarPedido, verificarPedido, reprogramar, urlPod, detallePedido, obtenerEnlaceNotificaciones } from "../servicios/portal.js";
 import { AyudaPedidos } from "./AyudaDemo";
 
 // Verificación guardada en la pestaña (sessionStorage): sobrevive a recargar la página y
@@ -348,6 +348,16 @@ export default function RastreoPersonal({ avisar, demo }) {
               <span style={{ flex: "none", width: 16, height: 16, borderRadius: 99, background: "#22a35e", color: "#fff", display: "grid", placeItems: "center", fontSize: 10 }}>✓</span>
               <span>Identidad verificada</span>
             </span>
+
+            <a
+              href={`https://t.me/GeoTrackAvisosBot?start=PD_${encodeURIComponent(encontrado)}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{ display: "inline-flex", gap: 8, alignItems: "center", background: "#eaf4ff", color: "#1b5fb3", fontSize: 12.5, fontWeight: 700, padding: "8px 15px", borderRadius: 99, textDecoration: "none", border: "1px solid rgba(27,95,179,.2)" }}
+            >
+              <span>📲 Recibir avisos por Telegram</span>
+            </a>
+
             <button
               type="button"
               onClick={cerrarPedido}

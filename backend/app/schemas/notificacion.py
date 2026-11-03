@@ -21,3 +21,13 @@ class NotificacionesResponse(BaseModel):
     """Respuesta del endpoint de notificaciones: contador no vistas + historial."""
     no_vistas: int
     items: list[NotificacionItem]
+
+
+class NotificacionContactoCreate(BaseModel):
+    """Contacto de un destinatario para un canal externo."""
+    entidad_tipo: str
+    entidad_id: int
+    canal: str = "telegram"
+    valor: str
+    nombre: str | None = None
+    activo: bool = True

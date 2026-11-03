@@ -244,6 +244,15 @@ MAIL_PASSWORD=
 
 # --- Portal: muestra el código OTP en pantalla cuando no hay correo (SOLO para demos) ---
 PORTAL_OTP_DEMO=false
+
+# --- Centro de notificaciones automaticas (Idea 5; opcional) ---
+# En false no crea ni procesa avisos. La demo usa SMTP y Telegram.
+NOTIFICACIONES_HABILITADAS=false
+NOTIFICACIONES_INTERVALO_SEG=30
+NOTIFICACIONES_ADMIN_TELEGRAM_CHAT_ID=
+NOTIFICACIONES_ALMACEN_EMAIL=
+NOTIFICACIONES_URL_PORTAL=https://sava.pe/portal
+TELEGRAM_BOT_TOKEN=
 ```
 
 | Grupo | Variables | Notas |
@@ -255,6 +264,7 @@ PORTAL_OTP_DEMO=false
 | **Geocodificación** | `GOOGLE_GEOCODING_KEY` | Vacía = Nominatim/OSM (gratis, menos preciso). Con clave = Google. |
 | **Correo** | `MAIL_ENABLED`, `MAIL_ADDRESS`, `MAIL_PASSWORD` y opcionales `IMAP_HOST`, `IMAP_PORT`, `SMTP_HOST`, `SMTP_PORT`, `MAIL_FOLDER`, `MAIL_FROM_NAME`, `MAIL_SIGNATURE` | Por defecto apunta a Gmail. Sin correo, el login de empresa del portal responde 503 (no puede enviar el OTP), salvo que actives `PORTAL_OTP_DEMO`. |
 | **Demo del portal** | `PORTAL_OTP_DEMO` | En `true` y sin correo, el backend devuelve el OTP y el portal lo muestra. **Nunca en producción:** expone un factor de autenticación. |
+| **Notificaciones automáticas** | `NOTIFICACIONES_HABILITADAS`, `NOTIFICACIONES_INTERVALO_SEG`, `NOTIFICACIONES_ADMIN_TELEGRAM_CHAT_ID`, `NOTIFICACIONES_ALMACEN_EMAIL`, `NOTIFICACIONES_URL_PORTAL`, `TELEGRAM_BOT_TOKEN` | En `false` (por defecto) no crea ni procesa avisos. En la demo, el trabajador entrega por SMTP y Telegram. El SMTP reutiliza `MAIL_ADDRESS`, `MAIL_PASSWORD`, `SMTP_HOST` y `SMTP_PORT`. |
 
 > Antes de un despliegue real, recorre la [lista de verificación de producción](docs/CHECKLIST_PRODUCCION.md): el backend avisa en su registro (`PRODUCCIÓN: …`) de cada punto pendiente.
 

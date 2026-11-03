@@ -369,6 +369,43 @@ export const obtenerNotificaciones = (limite) =>
 export const marcarNotificacionesVistas = () =>
   request("/notificaciones/marcar-vistas", { method: "POST" });
 
+// Centro de notificaciones automaticas (Idea 5)
+export const listarEnviosNotificaciones = (params = {}) => {
+  const q = new URLSearchParams(params).toString();
+  return request(`/notificaciones/envios${q ? `?${q}` : ""}`);
+};
+
+export const reintentarEnvio = (id) =>
+  request(`/notificaciones/envios/${id}/reintentar`, { method: "POST" });
+
+export const listarMecanicos = () =>
+  request("/notificaciones/mecanicos");
+
+export const crearMecanico = (datos) =>
+  request("/notificaciones/mecanicos", { method: "POST", body: datos });
+
+export const actualizarMecanico = (id, datos) =>
+  request(`/notificaciones/mecanicos/${id}`, { method: "PUT", body: datos });
+
+export const eliminarMecanico = (id) =>
+  request(`/notificaciones/mecanicos/${id}`, { method: "DELETE" });
+
+export const enviarCodigoMecanico = (id) =>
+  request(`/notificaciones/mecanicos/${id}/enviar-codigo`, { method: "POST" });
+
+export const verificarCodigoMecanico = (id, codigo) =>
+  request(`/notificaciones/mecanicos/${id}/verificar`, { method: "POST", body: { codigo } });
+
+export const obtenerPropuestaMecanico = (incidenciaId) =>
+  request(`/notificaciones/mecanicos/propuesta/${incidenciaId}`);
+
+export const listarPlantillas = () =>
+  request("/notificaciones/plantillas");
+
+export const actualizarPlantilla = (id, datos) =>
+  request(`/notificaciones/plantillas/${id}`, { method: "PUT", body: datos });
+
+
 // Descarga un adjunto de correo (autenticado). Recibe id y nombre.
 export async function descargarAdjunto(id, nombre) {
   const token = getToken();

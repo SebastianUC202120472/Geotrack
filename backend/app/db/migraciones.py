@@ -28,6 +28,15 @@ SENTENCIAS = [
     "ALTER TABLE solicitudes_recojo ADD COLUMN IF NOT EXISTS intentos_no_realizados INTEGER DEFAULT 0",
     # Ubicacion de captura de las fotos del recojo (C13-01).
     "ALTER TABLE evidencias_recojo ADD COLUMN IF NOT EXISTS latitud_longitud_captura VARCHAR(60)",
+    # Centro de notificaciones: trazabilidad, concesion temporal y reintentos.
+    "ALTER TABLE notificaciones_envios ADD COLUMN IF NOT EXISTS notificacion_id INTEGER REFERENCES notificaciones(id)",
+    "ALTER TABLE notificaciones_envios ADD COLUMN IF NOT EXISTS bloqueado_hasta TIMESTAMP",
+    "ALTER TABLE notificaciones_envios ADD COLUMN IF NOT EXISTS worker_id VARCHAR(80)",
+    "ALTER TABLE notificaciones_envios ADD COLUMN IF NOT EXISTS proximo_intento_en TIMESTAMP",
+    "CREATE INDEX IF NOT EXISTS ix_notificaciones_envios_notificacion_id ON notificaciones_envios (notificacion_id)",
+    # Directorio de mecanicos y auxilio
+    "ALTER TABLE notificaciones_mecanicos ADD COLUMN IF NOT EXISTS codigo_verificacion VARCHAR(10)",
+    "ALTER TABLE notificaciones_mecanicos ADD COLUMN IF NOT EXISTS codigo_expira_en TIMESTAMP",
 ]
 
 
