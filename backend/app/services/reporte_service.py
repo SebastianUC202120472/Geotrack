@@ -1,12 +1,19 @@
+import os
+import secrets
 from datetime import datetime
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.repositories import reporte_repository, conductor_repository
+from app.core import almacenamiento
+from app.core.imagenes import validar_imagen, gps_de_captura
+from app.repositories import reporte_repository, conductor_repository, ruta_repository
 from app.models.pedido import Pedido
 from app.models.conductor import PerfilConductor
 from app.schemas.reporte import ReporteCreate, ResponderReporte
-from app.services import notificaciones_service
+from app.services import notificaciones_service, pedido_service
+
+# Decision que acompana la respuesta al reporte (C31-01) -> texto guardado en "accion".
+ACCIONES = {"NINGUNA": None, "REPROGRAMAR": "Reprogramado", "CANCELAR": "Cancelado"}
 
 
 def _a_respuesta(db: Session, r) -> dict:
@@ -18,6 +25,7 @@ def _a_respuesta(db: Session, r) -> dict:
         "pedido_id": r.pedido_id,
         "pedido_codigo": r.pedido_codigo,
         "direccion_destino": pedido.direccion_destino if pedido else None,
+        "pedido_estado": pedido.estado if pedido else None,
         "conductor_id": r.conductor_id,
         "conductor_nombre": perfil.nombre if perfil else None,
         "motivo": r.motivo,
@@ -27,6 +35,8 @@ def _a_respuesta(db: Session, r) -> dict:
         "accion": r.accion,
         "creado_en": r.creado_en,
         "respondido_en": r.respondido_en,
+        "url_evidencia": r.url_evidencia,
+        "latitud_longitud_captura": r.latitud_longitud_captura,
     }
 
 
@@ -37,6 +47,10 @@ def crear(db: Session, conductor_id: int, datos: ReporteCreate) -> dict:
     pedido = db.query(Pedido).filter(Pedido.id == datos.pedido_id).first()
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    # Solo se reportan pedidos de la ruta que el conductor tiene en curso (C29-02).
+    ruta = ruta_repository.obtener_ruta_activa_por_conductor(db, conductor_id)
+    if not ruta or not ruta_repository.obtener_detalle_de_ruta(db, ruta.id, pedido.id):
+        raise HTTPException(status_code=403, detail="Este pedido no pertenece a tu ruta activa")
     reporte = reporte_repository.crear(
         db,
         pedido_id=datos.pedido_id,
@@ -54,6 +68,26 @@ def crear(db: Session, conductor_id: int, datos: ReporteCreate) -> dict:
     return _a_respuesta(db, reporte)
 
 
+def guardar_evidencia(db: Session, reporte_id: int, conductor_id: int, contenido: bytes,
+                      latitud: float | None = None, longitud: float | None = None) -> dict:
+    """CONDUCTOR: adjunta la foto que respalda la falla (domicilio cerrado, etc.) con su GPS (C29-01).
+    Recibe el id del reporte, el conductor, los bytes de la imagen y la posicion de la captura."""
+    reporte = reporte_repository.obtener(db, reporte_id)
+    if not reporte or reporte.conductor_id != conductor_id:
+        raise HTTPException(status_code=404, detail="Reporte no encontrado")
+    if reporte.estado != "ABIERTO":
+        raise HTTPException(status_code=409, detail="El reporte ya fue respondido; no se puede cambiar su foto")
+
+    # La extension sale del contenido real, no del nombre que manda el cliente.
+    extension = validar_imagen(contenido)
+    # Nombre no adivinable y, ademas, /media solo entrega enlaces firmados (EX-03).
+    nombre_final = f"rep_{reporte.id}_{secrets.token_hex(8)}{extension}"
+    reporte.url_evidencia = almacenamiento.guardar(f"reportes/{nombre_final}", contenido)
+    reporte.latitud_longitud_captura = gps_de_captura(latitud, longitud)
+    reporte_repository.guardar(db)
+    return _a_respuesta(db, reporte)
+
+
 def listar(db: Session, estado: str | None = None) -> list:
     """ADMIN: lista los reportes (abiertos primero)."""
     return [_a_respuesta(db, r) for r in reporte_repository.listar(db, estado)]
@@ -65,14 +99,25 @@ def listar_mios(db: Session, conductor_id: int) -> list:
 
 
 def responder(db: Session, reporte_id: int, admin_id: int, datos: ResponderReporte) -> dict:
-    """ADMIN: responde un reporte con la solución y lo marca resuelto."""
+    """ADMIN: responde el reporte y, en el mismo paso, decide sobre el pedido fallido (C31-01):
+    REPROGRAMAR (vuelve a reparto), CANCELAR (con motivo) o NINGUNA (solo responder)."""
     reporte = reporte_repository.obtener(db, reporte_id)
     if not reporte:
         raise HTTPException(status_code=404, detail="Reporte no encontrado")
     if not datos.respuesta.strip():
         raise HTTPException(status_code=400, detail="Escribe una respuesta")
+    accion = datos.accion
+    if accion != "NINGUNA":
+        pedido = db.query(Pedido).filter(Pedido.id == reporte.pedido_id).first()
+        if not pedido or pedido.estado != "FALLIDO":
+            raise HTTPException(status_code=409, detail="El pedido ya no está fallido: responde sin cambiarlo.")
+        if accion == "REPROGRAMAR":
+            pedido_service.reprogramar(db, pedido.id, admin_id)
+        else:
+            pedido_service.cancelar(db, pedido.id, admin_id, datos.motivo_cancelacion)
+        db.refresh(reporte)  # el servicio del pedido ya lo dejo resuelto
     reporte.respuesta = datos.respuesta.strip()
-    reporte.accion = datos.accion
+    reporte.accion = ACCIONES[accion]
     reporte.estado = (datos.estado or "RESUELTO").upper()
     reporte.respondido_en = datetime.utcnow()
     reporte.respondido_por = admin_id

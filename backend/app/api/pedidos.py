@@ -12,6 +12,9 @@ from app.schemas.pedido import (
     ZonasPorEnrutarResponse,
     UbicacionManualRequest,
     BuscarDireccionResponse,
+    CancelarPedidoRequest,
+    AtenderReprogramacionRequest,
+    SolicitudReprogramacionResponse,
 )
 from typing import List, Optional
 
@@ -33,8 +36,8 @@ def listar_pedidos(
 
 @router.post("/geocodificar", response_model=GeocodificacionResponse)
 def procesar_geocodificacion(db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
-    """Convierte direcciones en coordenadas y deduce el distrito."""
-    return pedido_service.procesar_geocodificacion(db, usuario_id=admin.id)
+    """Reprocesa una tanda de direcciones pendientes: las convierte en coordenadas y deduce el distrito."""
+    return pedido_service.procesar_geocodificacion(db, usuario_id=admin.id, limite=pedido_service.limite_por_tanda())
 
 
 @router.get("/zonas", response_model=ZonasResponse, dependencies=[Depends(get_current_admin)])
@@ -57,13 +60,13 @@ def listar_por_ubicar(db: Session = Depends(get_db)):
 
 @router.get("/buscar-direccion", response_model=BuscarDireccionResponse, dependencies=[Depends(get_current_admin)])
 def buscar_direccion(q: str, db: Session = Depends(get_db)):
-    """Geocodifica un texto de búsqueda para ubicar el pin en el mapa. Recibe q (texto)."""
+    """Geocodifica un texto de búsqueda y devuelve hasta 5 lugares posibles para el pin. Recibe q (texto)."""
     return pedido_service.buscar_direccion(q)
 
 
 @router.patch("/{pedido_id}/ubicacion")
 def fijar_ubicacion(pedido_id: int, datos: UbicacionManualRequest, db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
-    """Fija manualmente la ubicación de un pedido y lo deja listo para rutear. Recibe pedido_id y lat/lng."""
+    """Fija o corrige a mano la ubicación de un pedido no entregado. Recibe pedido_id y lat/lng."""
     return pedido_service.fijar_ubicacion(db, pedido_id, datos.latitud, datos.longitud, datos.direccion, usuario_id=admin.id)
 
 
@@ -74,6 +77,21 @@ def reprogramar_pedido(pedido_id: int, db: Session = Depends(get_db), admin: Usu
 
 
 @router.post("/{pedido_id}/cancelar")
-def cancelar_pedido(pedido_id: int, db: Session = Depends(get_db), admin: Usuario = Depends(get_current_admin)):
-    """Cancela definitivamente un pedido FALLIDO. Recibe pedido_id."""
-    return pedido_service.cancelar(db, pedido_id, usuario_id=admin.id)
+def cancelar_pedido(pedido_id: int, datos: CancelarPedidoRequest, db: Session = Depends(get_db),
+                    admin: Usuario = Depends(get_current_admin)):
+    """Cancela definitivamente un pedido FALLIDO con su motivo (obligatorio). Recibe pedido_id y {motivo}."""
+    return pedido_service.cancelar(db, pedido_id, usuario_id=admin.id, motivo=datos.motivo)
+
+
+@router.get("/{pedido_id}/reprogramaciones", response_model=List[SolicitudReprogramacionResponse],
+            dependencies=[Depends(get_current_admin)])
+def listar_reprogramaciones(pedido_id: int, db: Session = Depends(get_db)):
+    """Solicitudes de reprogramacion que hizo el cliente desde el portal. Recibe pedido_id."""
+    return pedido_service.listar_reprogramaciones(db, pedido_id)
+
+
+@router.post("/reprogramaciones/{solicitud_id}/atender")
+def atender_reprogramacion(solicitud_id: int, datos: AtenderReprogramacionRequest, db: Session = Depends(get_db),
+                           admin: Usuario = Depends(get_current_admin)):
+    """Acepta o rechaza una solicitud de reprogramacion del cliente. Recibe solicitud_id y {aceptar, nota}."""
+    return pedido_service.atender_reprogramacion(db, solicitud_id, datos.aceptar, datos.nota, usuario_id=admin.id)

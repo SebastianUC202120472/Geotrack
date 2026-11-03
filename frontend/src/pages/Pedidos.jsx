@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Search, X, Package, MapPin, Eye, ChevronLeft, ChevronRight, Loader2, RotateCcw, User, Truck, Filter, List, Building2, AlertTriangle, Ban } from "lucide-react";
+import { Search, X, Package, MapPin, Eye, ChevronLeft, ChevronRight, Loader2, RotateCcw, User, Truck, Filter, List, Building2, AlertTriangle, Ban, RefreshCw, CheckCircle2 } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -13,7 +13,9 @@ import ResolverDireccionModal from "../components/ResolverDireccionModal";
 import VistaPorRuta from "../components/seguimiento/VistaPorRuta";
 import VistaPorCliente from "../components/seguimiento/VistaPorCliente";
 import TabTrazabilidad from "../components/TabTrazabilidad";
-import { listarTodosLosPedidos, listarZonas, obtenerHistorial, reprogramarPedido, cancelarPedido, listarReportes } from "../services/api";
+import SolicitudesReprogramacion from "../components/SolicitudesReprogramacion";
+import ConfirmDialog from "../components/ui/ConfirmDialog";
+import { listarTodosLosPedidos, listarZonas, obtenerHistorial, reprogramarPedido, cancelarPedido, listarReportes, reprocesarDirecciones } from "../services/api";
 
 const POR_PAGINA = 12;
 const fmt = (f) => (f ? new Date(f).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—");
@@ -36,6 +38,11 @@ const VISTAS = [
   { id: "trazabilidad", label: "Trazabilidad", icon: Search },
 ];
 
+// Estados que el servidor reprocesa al pulsar «Reprocesar direcciones pendientes».
+const ESTADOS_REPROCESABLES = ["LISTO_PARA_ENVIO", "GEOCODIFICACION_FALLIDA"];
+// Un pedido entregado o cancelado ya no admite corregir su ubicación.
+const ESTADOS_CERRADOS = ["ENTREGADO", "CANCELADO"];
+
 // Página de pedidos con filtros, KPIs, tabla paginada y detalle lateral.
 export default function Pedidos() {
   const navigate = useNavigate();
@@ -47,12 +54,33 @@ export default function Pedidos() {
   const [reportePorPedido, setReportePorPedido] = useState({});
 
   const [busqueda, setBusqueda] = useState("");
-  const [distrito, setDistrito] = useState(params.get("distrito") || "");
-  const [estado, setEstado] = useState(params.get("estado") || "");
+  // Zona y estado viven en la URL: un enlace (o el tablero) abre la lista ya filtrada.
+  const distrito = params.get("distrito") || "";
+  const estado = params.get("estado") || "";
   const [fecha, setFecha] = useState("todos");
   const [sinUbicar, setSinUbicar] = useState(false);
   const [pagina, setPagina] = useState(1);
   const [seleccionado, setSeleccionado] = useState(null);
+  const [reprocesando, setReprocesando] = useState(false);
+  const [avisoReproceso, setAvisoReproceso] = useState(null);
+
+  // Pedido a abrir desde la URL (?codigo=PD-001), p. ej. al pulsar el aviso de una reprogramación (C37-02).
+  const codigoUrl = (params.get("codigo") || "").toUpperCase();
+  const pedidoDeUrl = useMemo(
+    () => (codigoUrl ? pedidos.find((p) => (p.codigo || "").toUpperCase() === codigoUrl) || null : null),
+    [codigoUrl, pedidos]
+  );
+  const abierto = seleccionado || pedidoDeUrl;
+
+  // Cierra el detalle y quita el código de la URL para no volver a abrirlo. Sin parámetros.
+  const cerrarDetalle = () => {
+    setSeleccionado(null);
+    if (codigoUrl) {
+      const siguientes = new URLSearchParams(params);
+      siguientes.delete("codigo");
+      setParams(siguientes, { replace: true });
+    }
+  };
 
   // Carga reportes abiertos y construye mapa pedido_id → reporte.
   const cargarReportes = () => {
@@ -63,18 +91,13 @@ export default function Pedidos() {
     }).catch((err) => console.error("Error al cargar reportes:", err.message));
   };
 
-  const cargar = async () => {
-    setCargando(true);
-    try {
-      const [ped, z] = await Promise.all([listarTodosLosPedidos(), listarZonas()]);
-      setPedidos(ped);
-      setZonas(z.zonas_operativas || []);
-    } catch (err) {
-      console.error("Error al cargar pedidos:", err.message);
-    } finally {
-      setCargando(false);
-    }
-  };
+  // Carga pedidos y zonas. Las recargas son silenciosas (la tabla no parpadea); el estado se
+  // fija dentro de los callbacks de la promesa (regla de lint "setState en effect").
+  const cargar = () =>
+    Promise.all([listarTodosLosPedidos(), listarZonas()])
+      .then(([ped, z]) => { setPedidos(ped); setZonas(z.zonas_operativas || []); })
+      .catch((err) => console.error("Error al cargar pedidos:", err.message))
+      .finally(() => setCargando(false));
 
   // Recarga completa: pedidos + zonas + reportes abiertos.
   const cargarTodo = () => { cargar(); cargarReportes(); };
@@ -83,12 +106,6 @@ export default function Pedidos() {
     cargar();
     cargarReportes();
   }, []);
-
-  // Sincroniza filtros con los query params de la URL.
-  useEffect(() => {
-    setDistrito(params.get("distrito") || "");
-    setEstado(params.get("estado") || "");
-  }, [params]);
 
   const estados = useMemo(
     () => [...new Set(pedidos.map((p) => p.estado).filter(Boolean))].sort(),
@@ -118,10 +135,33 @@ export default function Pedidos() {
     });
   }, [pedidos, busqueda, distrito, estado, fecha, sinUbicar]);
 
+  // Pedidos que esperan ser despachados y aún no tienen ubicación (los que reprocesa el servidor).
+  const porUbicar = useMemo(
+    () => pedidos.filter((p) => (p.latitud == null || p.longitud == null) && ESTADOS_REPROCESABLES.includes(p.estado)).length,
+    [pedidos]
+  );
+
+  // Pide al servidor que vuelva a geocodificar una tanda de direcciones pendientes (C16-03).
+  const reprocesar = () => {
+    setReprocesando(true);
+    setAvisoReproceso(null);
+    reprocesarDirecciones()
+      .then((r) => {
+        const ubicados = r.pedidos_exitosos || 0;
+        const sinUbicar = r.pedidos_fallidos || 0;
+        const partes = [`${ubicados} pedido(s) ubicado(s)`];
+        if (sinUbicar) partes.push(`${sinUbicar} siguen sin ubicar: ábrelos y usa «Resolver dirección»`);
+        if (r.pedidos_restantes) partes.push(`quedan ${r.pedidos_restantes} para la siguiente tanda`);
+        setAvisoReproceso({ ok: sinUbicar === 0, texto: `${partes.join("; ")}.` });
+        cargar();
+      })
+      .catch((err) => setAvisoReproceso({ ok: false, texto: err.message }))
+      .finally(() => setReprocesando(false));
+  };
+
   const aplicarBusqueda = (v) => { setBusqueda(v); setPagina(1); };
   const aplicarFecha = (v) => { setFecha(v); setPagina(1); };
 
-  useEffect(() => { setPagina(1); }, [busqueda, distrito, estado, fecha]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
   const visibles = filtrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA);
@@ -131,10 +171,11 @@ export default function Pedidos() {
     if (valor) nuevos.set(clave, valor);
     else nuevos.delete(clave);
     setParams(nuevos);
+    setPagina(1);
   };
 
   const limpiar = () => {
-    setBusqueda(""); setFecha("todos"); setSinUbicar(false); setParams({});
+    setBusqueda(""); setFecha("todos"); setSinUbicar(false); setParams({}); setPagina(1);
   };
 
   const hayFiltros = busqueda || distrito || estado || fecha !== "todos" || sinUbicar;
@@ -199,10 +240,36 @@ export default function Pedidos() {
       <PageHeader
         titulo="Pedidos"
         subtitulo="Busca, filtra por zona/estado/fecha y abre la trazabilidad de cada pedido."
-      />
+      >
+        {vista === "lista" && (
+          <Button variant="secondary" icon={reprocesando ? Loader2 : RefreshCw} onClick={reprocesar}
+            disabled={reprocesando || porUbicar === 0}
+            className={`shrink-0 whitespace-nowrap ${reprocesando ? "[&>svg]:animate-spin" : ""}`}
+            title={porUbicar === 0 ? "No hay direcciones pendientes de ubicar" : undefined}>
+            {reprocesando ? "Reprocesando…" : "Reprocesar direcciones pendientes"}
+            {!reprocesando && porUbicar > 0 && (
+              <span className="rounded-full bg-warning-soft px-2 py-0.5 text-xs font-bold text-warning-strong nums">{porUbicar}</span>
+            )}
+          </Button>
+        )}
+      </PageHeader>
+
+      {vista === "lista" && avisoReproceso && (
+        <div className={`flex items-start gap-3 rounded-xl px-4 py-3 text-sm animate-fade-up ${
+          avisoReproceso.ok
+            ? "bg-success-soft text-success-strong border border-success/20"
+            : "bg-warning-soft text-warning-strong border border-warning/30"
+        }`}>
+          {avisoReproceso.ok ? <CheckCircle2 size={18} className="mt-0.5 shrink-0" /> : <AlertTriangle size={18} className="mt-0.5 shrink-0" />}
+          <span className="flex-1">{avisoReproceso.texto}</span>
+          <button onClick={() => setAvisoReproceso(null)} aria-label="Cerrar aviso" className="rounded p-0.5 opacity-70 hover:opacity-100">
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       <div className="animate-fade-up">
-        <div className="inline-flex items-center gap-1 rounded-2xl border border-warm-200 bg-white p-1 shadow-card">
+        <div className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-2xl border border-warm-200 bg-white p-1 shadow-card">
           {VISTAS.map((v) => {
             const Ico = v.icon;
             const activo = vista === v.id;
@@ -319,15 +386,16 @@ export default function Pedidos() {
         </div>
       )}
 
-      <Modal open={!!seleccionado} onClose={() => setSeleccionado(null)} variant="right">
-        {seleccionado && (
+      <Modal open={!!abierto} onClose={cerrarDetalle} variant="right">
+        {abierto && (
           <DetallePedido
-            pedido={seleccionado}
-            reporte={reportePorPedido[seleccionado.id] || null}
-            onCerrar={() => setSeleccionado(null)}
-            onIrARuta={() => { setSeleccionado(null); setVista("ruta"); }}
-            onAccion={() => { setSeleccionado(null); cargarTodo(); }}
-            onDireccionResuelta={() => { setSeleccionado(null); cargar(); }}
+            key={abierto.id}
+            pedido={abierto}
+            reporte={reportePorPedido[abierto.id] || null}
+            onCerrar={cerrarDetalle}
+            onIrARuta={() => { cerrarDetalle(); setVista("ruta"); }}
+            onAccion={() => { cerrarDetalle(); cargarTodo(); }}
+            onDireccionResuelta={() => { cerrarDetalle(); cargar(); }}
             onVerReporte={(codigo) => navigate(`/panel/reportes?pedido=${encodeURIComponent(codigo)}`)}
           />
         )}
@@ -344,10 +412,14 @@ function DetallePedido({ pedido, reporte, onCerrar, onIrARuta, onAccion, onDirec
   const [error, setError] = useState("");
   const [accionando, setAccionando] = useState(false);
   const [mostrarResolver, setMostrarResolver] = useState(false);
+  const [confirmarCancelar, setConfirmarCancelar] = useState(false);
+  const [motivo, setMotivo] = useState("");
+  const sinUbicacion = pedido.latitud == null || pedido.longitud == null;
+  const corregible = !ESTADOS_CERRADOS.includes(pedido.estado);
 
+  // El detalle se monta de nuevo por pedido (key), asi que "cargando" ya arranca en true.
   useEffect(() => {
     let activo = true;
-    setCargando(true);
     obtenerHistorial(pedido.codigo)
       .then((h) => { if (activo) setHistorial(h); })
       .catch((e) => { if (activo) setError(e.message); })
@@ -363,12 +435,12 @@ function DetallePedido({ pedido, reporte, onCerrar, onIrARuta, onAccion, onDirec
       .catch((e) => { setError(e.message); setAccionando(false); });
   };
 
-  // Cancela el pedido y resuelve el reporte asociado.
+  // Cancela el pedido con el motivo escrito (C31-02) y resuelve el reporte asociado.
   const cancelar = () => {
     setAccionando(true);
-    cancelarPedido(pedido.id)
+    cancelarPedido(pedido.id, motivo.trim())
       .then(() => onAccion())
-      .catch((e) => { setError(e.message); setAccionando(false); });
+      .catch((e) => { setError(e.message); setAccionando(false); setConfirmarCancelar(false); });
   };
 
   return (
@@ -414,7 +486,7 @@ function DetallePedido({ pedido, reporte, onCerrar, onIrARuta, onAccion, onDirec
               <Button size="sm" icon={RotateCcw} onClick={reprogramar} disabled={accionando}>
                 {accionando ? "Procesando…" : "Reprogramar"}
               </Button>
-              <Button size="sm" variant="danger" icon={Ban} onClick={cancelar} disabled={accionando}>
+              <Button size="sm" variant="danger" icon={Ban} onClick={() => setConfirmarCancelar(true)} disabled={accionando}>
                 Cancelar pedido
               </Button>
               <Button size="sm" variant="secondary" icon={Eye}
@@ -427,17 +499,31 @@ function DetallePedido({ pedido, reporte, onCerrar, onIrARuta, onAccion, onDirec
 
         {pedido.estado === "FALLIDO" && !reporte && (
           <div className="rounded-xl border border-warning/30 bg-warning-soft p-4">
-            <p className="text-sm text-warning-strong">Este pedido está fallido. Puedes reprogramarlo para reasignarlo.</p>
+            <p className="text-sm text-warning-strong">Este pedido está fallido. Puedes reprogramarlo para reasignarlo o cancelarlo.</p>
             {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
-            <div className="mt-3">
+            <div className="mt-3 flex flex-wrap gap-2">
               <Button variant="secondary" icon={RotateCcw} onClick={reprogramar} disabled={accionando}>
                 {accionando ? "Procesando…" : "Reprogramar → Listo p/envío"}
+              </Button>
+              <Button variant="danger" icon={Ban} onClick={() => setConfirmarCancelar(true)} disabled={accionando}>
+                Cancelar pedido
               </Button>
             </div>
           </div>
         )}
 
-        {(pedido.latitud == null || pedido.longitud == null) && (
+        {pedido.estado === "CANCELADO" && pedido.motivo_cancelacion && (
+          <Dato etiqueta="Motivo de la cancelación" valor={pedido.motivo_cancelacion} icono={Ban} />
+        )}
+
+        <SolicitudesReprogramacion
+          pedidoId={pedido.id}
+          pedidoEstado={pedido.estado}
+          permitirAtender={pedido.estado !== "FALLIDO" && corregible}
+          onAtendida={() => onAccion()}
+        />
+
+        {sinUbicacion ? (
           <div className="rounded-xl border border-brand-200 bg-brand-50 p-4">
             <p className="text-sm text-brand-800">Este pedido no tiene ubicación geocodificada.</p>
             <div className="mt-3">
@@ -445,6 +531,13 @@ function DetallePedido({ pedido, reporte, onCerrar, onIrARuta, onAccion, onDirec
                 Resolver dirección
               </Button>
             </div>
+          </div>
+        ) : corregible && (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-sm text-slate-600">¿El punto en el mapa está mal?</p>
+            <Button size="sm" variant="secondary" icon={MapPin} className="shrink-0 whitespace-nowrap" onClick={() => setMostrarResolver(true)}>
+              Corregir ubicación
+            </Button>
           </div>
         )}
 
@@ -470,6 +563,29 @@ function DetallePedido({ pedido, reporte, onCerrar, onIrARuta, onAccion, onDirec
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmarCancelar}
+        titulo={`¿Cancelar el pedido ${pedido.codigo}?`}
+        mensaje="El pedido queda cancelado de forma definitiva y sale de su ruta. Indica el motivo: quedará en su historial."
+        textoConfirmar="Cancelar pedido"
+        tono="danger"
+        cargando={accionando}
+        deshabilitado={motivo.trim().length < 5}
+        onConfirmar={cancelar}
+        onCancelar={() => setConfirmarCancelar(false)}
+      >
+        <Input
+          as="textarea"
+          label="Motivo de la cancelación"
+          rows={3}
+          maxLength={255}
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value)}
+          placeholder="Ej. El cliente desistió de la compra"
+          hint="Mínimo 5 caracteres."
+        />
+      </ConfirmDialog>
 
       <Modal open={mostrarResolver} onClose={() => setMostrarResolver(false)} variant="center">
         {mostrarResolver && (

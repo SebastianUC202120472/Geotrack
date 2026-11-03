@@ -136,8 +136,33 @@ export const generarAccesoPortal = (id, correoPortal) =>
 export const revocarAccesoPortal = (id) =>
   request(`/clientes/${id}/acceso-portal`, { method: "DELETE" });
 
-// Lista los reclamos del Libro de Reclamaciones. Sin parametros.
+// Lista los reclamos del Libro de Reclamaciones con su plazo legal. Sin parametros.
 export const listarReclamos = () => request("/reclamos/");
+
+// Registra la respuesta al consumidor (C41-02). Recibe id y respuesta.
+export const responderReclamo = (id, respuesta) =>
+  request(`/reclamos/${id}/responder`, { method: "POST", body: { respuesta } });
+
+// Lista los contactos comerciales del landing (C39-01). Sin parametros.
+export const listarContactos = () => request("/contactos/");
+
+// Descarga los contactos comerciales en Excel (autenticado). Sin parametros.
+export async function descargarContactos() {
+  const token = getToken();
+  const resp = await fetch(`${API_URL}/contactos/excel`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!resp.ok) throw new Error("No se pudo descargar el Excel de contactos");
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = "contactos_comerciales.xlsx";
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  URL.revokeObjectURL(url);
+}
 
 export const listarUsuarios = () => request("/usuarios/");
 
@@ -218,6 +243,9 @@ export const listarZonasPorEnrutar = () => request("/pedidos/zonas/por-enrutar")
 // Lista pedidos sin geocodificacion valida (para ubicar a mano).
 export const listarPorUbicar = () => request("/pedidos/por-ubicar");
 
+// Vuelve a geocodificar una tanda de pedidos sin ubicacion. No recibe nada.
+export const reprocesarDirecciones = () => request("/pedidos/geocodificar", { method: "POST" });
+
 // Geocodifica un texto de busqueda. Recibe q (string).
 export const buscarDireccion = (q) => request(`/pedidos/buscar-direccion?q=${encodeURIComponent(q)}`);
 
@@ -271,6 +299,33 @@ export async function descargarManifiesto(rutaId, nombre) {
 
 export const obtenerResumen = () => request("/dashboard/resumen");
 
+// KPIs del tablero por periodo: "dia", "semana" o "mes" (C34-01, C34-02).
+export const obtenerKpis = (periodo) => request(`/dashboard/kpis?periodo=${encodeURIComponent(periodo)}`);
+
+// Indicadores del proyecto In.OE.1-4 en el periodo (C34-03).
+export const obtenerIndicadores = (periodo) => request(`/dashboard/indicadores?periodo=${encodeURIComponent(periodo)}`);
+
+// Liquidaciones generadas antes, para volver a descargarlas (C36-02). Sin parametros.
+export const historialLiquidaciones = () => request("/dashboard/liquidaciones");
+
+// Descarga el reporte de indicadores en Excel (autenticado). Recibe el periodo.
+export async function descargarIndicadores(periodo) {
+  const token = getToken();
+  const resp = await fetch(`${API_URL}/dashboard/indicadores/excel?periodo=${encodeURIComponent(periodo)}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!resp.ok) throw new Error("No se pudo descargar el reporte de indicadores");
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = `indicadores_${periodo}.xlsx`;
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  URL.revokeObjectURL(url);
+}
+
 export const obtenerFlota = () => request("/dashboard/flota");
 
 // Historial de un pedido por su codigo. Recibe codigo (string).
@@ -320,6 +375,29 @@ export const obtenerEficienciaConductores = () => request("/dashboard/eficiencia
 
 export const obtenerCombustible = () => request("/parametros/combustible");
 
+// Meses que se conservan los datos del destinatario (EX-04). Sin parametros.
+export const obtenerPrivacidad = () => request("/parametros/privacidad");
+
+// Cambia los meses de retención (0 = no retirar). Recibe los meses.
+export const actualizarPrivacidad = (retencion_meses) =>
+  request("/parametros/privacidad", { method: "PUT", body: { retencion_meses } });
+
+// Aplica ahora la política de retención. Sin parametros.
+export const aplicarPrivacidad = () => request("/parametros/privacidad/aplicar", { method: "POST" });
+
+// Franjas que el portal ofrece para reprogramar una entrega (C43-03). Sin parametros.
+export const obtenerFranjas = () => request("/parametros/franjas");
+
+// Guarda las franjas de reprogramacion del portal. Recibe la lista de franjas.
+export const actualizarFranjas = (franjas) => request("/parametros/franjas", { method: "PUT", body: { franjas } });
+
+// Telefono de coordinacion que ve el conductor en la app (EX-13). Sin parametros.
+export const obtenerContacto = () => request("/parametros/contacto");
+
+// Guarda el telefono de coordinacion (vacio lo borra). Recibe telefono_coordinacion.
+export const actualizarContacto = (telefono_coordinacion) =>
+  request("/parametros/contacto", { method: "PUT", body: { telefono_coordinacion } });
+
 // Actualiza parametros de combustible. Recibe consumo_l_100km y precio_soles_litro.
 export const actualizarCombustible = (consumo_l_100km, precio_soles_litro) =>
   request("/parametros/combustible", { method: "PUT", body: { consumo_l_100km, precio_soles_litro } });
@@ -327,8 +405,15 @@ export const actualizarCombustible = (consumo_l_100km, precio_soles_litro) =>
 // Reprograma un pedido fallido (vuelve a LISTO_PARA_ENVIO). Recibe id.
 export const reprogramarPedido = (id) => request(`/pedidos/${id}/reprogramar`, { method: "POST" });
 
-// Cancela un pedido. Recibe id.
-export const cancelarPedido = (id) => request(`/pedidos/${id}/cancelar`, { method: "POST" });
+// Cancela un pedido fallido con su motivo (obligatorio, C31-02). Recibe id y motivo.
+export const cancelarPedido = (id, motivo) => request(`/pedidos/${id}/cancelar`, { method: "POST", body: { motivo } });
+
+// Solicitudes de reprogramación que hizo el cliente desde el portal (C43-01). Recibe el id del pedido.
+export const listarReprogramaciones = (pedidoId) => request(`/pedidos/${pedidoId}/reprogramaciones`);
+
+// Acepta o rechaza una solicitud de reprogramación. Recibe su id y { aceptar, nota }.
+export const atenderReprogramacion = (id, datos) =>
+  request(`/pedidos/reprogramaciones/${id}/atender`, { method: "POST", body: datos });
 
 // Acepta una solicitud de recojo y crea pedidos en POR_RECOGER. Recibe clienteId, archivo y extras.
 export const aceptarSolicitud = (clienteId, archivo, extras = {}) => {

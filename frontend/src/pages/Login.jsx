@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { LogIn, ArrowLeft, KeyRound, CheckCircle2, Smartphone } from "lucide-react";
 import { loginAdmin, solicitarRestablecimiento } from "../services/api";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import Logo from "../components/ui/Logo";
 import EscenaReparto from "../components/EscenaReparto";
 import Input from "../components/ui/Input";

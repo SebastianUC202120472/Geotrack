@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { User, AlertTriangle } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import { obtenerResumen, listarRecojosAlmacen, obtenerMiPerfil } from "../services/api";
 import Modal from "./ui/Modal";
 import MiPerfil from "./MiPerfil";

@@ -10,6 +10,7 @@ import Card from "../components/ui/Card";
 import { EstadoBadge } from "../components/ui/Badge";
 import { SkeletonStat } from "../components/ui/Skeleton";
 import EmptyState from "../components/ui/EmptyState";
+import EficienciaPeriodo from "../components/dashboard/EficienciaPeriodo";
 import { agruparPedidosPorDia } from "../utils/dashboard";
 import { obtenerResumen, listarTodosLosPedidos, obtenerSeguimientoClientes, obtenerUbicacionesFlota } from "../services/api";
 
@@ -36,6 +37,7 @@ export default function Dashboard() {
   const [actualizando, setActualizando] = useState(false);
   const [pendientesPorCliente, setPendientesPorCliente] = useState([]);
   const [conductoresEnLinea, setConductoresEnLinea] = useState(0);
+  const [version, setVersion] = useState(0); // refresca la eficiencia del periodo junto con el resto
 
   // Lleva a la lista de Pedidos ya filtrada por estado (clic en gráfica).
   const irAEstado = (estadoRaw) => estadoRaw && navigate(`/panel/pedidos?estado=${encodeURIComponent(estadoRaw)}`);
@@ -58,6 +60,7 @@ export default function Dashboard() {
         obtenerSeguimientoClientes().then(actualizarClientes),
         obtenerUbicacionesFlota().then(actualizarFlota),
       ]).finally(() => {
+        setVersion((v) => v + 1);
         if (silencioso) setActualizando(false);
         else setCargando(false);
       });
@@ -137,7 +140,11 @@ export default function Dashboard() {
         )}
       </div>
 
-      <div className="animate-fade-up grid gap-6 lg:grid-cols-3" style={{ animationDelay: "120ms" }}>
+      <div className="animate-fade-up" style={{ animationDelay: "90ms" }}>
+        <EficienciaPeriodo version={version} />
+      </div>
+
+      <div className="animate-fade-up grid grid-cols-1 gap-6 lg:grid-cols-3" style={{ animationDelay: "120ms" }}>
         <Card title="Pedidos por estado" subtitle="Toca un estado para ver esos pedidos" className="lg:col-span-2">
           {datosEstado.length === 0 ? (
             <EmptyState icon={Package} title="Aún no hay datos" description="Importa un Excel de pedidos para ver los gráficos." />
@@ -201,7 +208,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="animate-fade-up grid gap-6 lg:grid-cols-2" style={{ animationDelay: "240ms" }}>
+      <div className="animate-fade-up grid grid-cols-1 gap-6 lg:grid-cols-2" style={{ animationDelay: "240ms" }}>
         <Card title="Pedidos pendientes por cliente" subtitle="Top 6 · toca para ver los pedidos">
           {pendientesPorCliente.length === 0 ? (
             <EmptyState icon={Package} title="Sin pendientes" description="No hay pedidos pendientes por cliente." />

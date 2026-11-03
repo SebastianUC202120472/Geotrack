@@ -99,7 +99,10 @@ export default function AuxilioMecanico() {
         ? (
           <div className="text-xs text-slate-600">
             <p className="font-medium">{i.ayuda_detalle || "Enviada"}</p>
-            <p className="text-slate-400 nums">{fmt(i.ayuda_enviada_en)}</p>
+            <p className="text-slate-400 nums">
+              {fmt(i.ayuda_enviada_en)}
+              {(i.ayudas?.length ?? 0) > 1 && ` · ${i.ayudas.length} envíos`}
+            </p>
           </div>
         )
         : <span className="text-xs text-slate-400">—</span>
@@ -117,7 +120,7 @@ export default function AuxilioMecanico() {
     <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
       <PageHeader titulo="Auxilio mecánico" subtitulo="Incidencias mecánicas reportadas por los conductores en ruta. Ábrelas para mandar ayuda." />
 
-      <div className="grid grid-cols-3 gap-4 animate-fade-up">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 animate-fade-up">
         <KpiCard label="Total" value={kpis.total} icon={Wrench} tone="brand" />
         <KpiCard label="Abiertas" value={kpis.abiertas} icon={Wrench} tone="danger" />
         <KpiCard label="Resueltas" value={kpis.resueltas} icon={CheckCircle2} tone="success" />
@@ -158,7 +161,7 @@ export default function AuxilioMecanico() {
 
 // Detalle de una incidencia con formulario de envío de ayuda. Recibe incidencia, onCerrar, onAyudaEnviada.
 function DetalleIncidencia({ incidencia: i, onCerrar, onAyudaEnviada }) {
-  const [mostrarForm, setMostrarForm] = useState(!i.ayuda_enviada_en);
+  const [mostrarForm, setMostrarForm] = useState(!i.ayuda_enviada_en && !i.puede_solucionar_solo);
   const [tipo, setTipo] = useState(TIPOS_AYUDA[0]);
   const [nota, setNota] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -178,6 +181,7 @@ function DetalleIncidencia({ incidencia: i, onCerrar, onAyudaEnviada }) {
 
   const puedeSolo = i.puede_solucionar_solo;
   const yaEnviada = !!i.ayuda_enviada_en;
+  const ayudas = i.ayudas ?? [];
 
   // Envía o reenvía la ayuda al backend. Recibe tipo y nota opcionales.
   const enviarAyuda = (tipoOverride, notaOverride) => {
@@ -234,88 +238,93 @@ function DetalleIncidencia({ incidencia: i, onCerrar, onAyudaEnviada }) {
           <p className="rounded-xl bg-danger-soft px-4 py-2.5 text-sm text-danger-strong">{error}</p>
         )}
 
-        {i.estado === "ABIERTA" && (
-          <>
-            {puedeSolo && (
-              <div className="flex items-start gap-2 rounded-xl border border-info/30 bg-info-soft p-4 text-sm text-info-strong">
-                <ShieldCheck size={18} className="mt-0.5 shrink-0" />
-                <span>El conductor indicó que puede resolverlo solo.</span>
-              </div>
+        {i.estado === "ABIERTA" && puedeSolo && (
+          <div className="flex items-start gap-2 rounded-xl border border-info/30 bg-info-soft p-4 text-sm text-info-strong">
+            <ShieldCheck size={18} className="mt-0.5 shrink-0" />
+            <span>El conductor indicó que puede resolverlo solo. Si luego te pide apoyo, igual puedes mandarle ayuda.</span>
+          </div>
+        )}
+
+        {yaEnviada && (
+          <div className="rounded-xl border border-success/30 bg-success-soft p-4">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-success-strong">
+              <CheckCircle2 size={16} /> {ayudas.length > 1 ? `Ayudas enviadas (${ayudas.length})` : "Ayuda enviada"}
+            </p>
+            <ol className="mt-2 space-y-1.5">
+              {ayudas.map((a, n) => (
+                <li key={`${a.enviada_en}-${n}`} className="flex gap-2 text-sm text-slate-700">
+                  <span className="shrink-0 text-xs text-slate-500 nums leading-5">{fmt(a.enviada_en)}</span>
+                  <span className="min-w-0">{a.detalle}</span>
+                </li>
+              ))}
+            </ol>
+            {i.estado === "ABIERTA" && !mostrarForm && (
+              <Button size="sm" variant="secondary" className="mt-3" onClick={() => setMostrarForm(true)}>
+                Mandar otra ayuda
+              </Button>
             )}
+          </div>
+        )}
 
-            {!puedeSolo && (
-              <>
-                {yaEnviada && (
-                  <div className="rounded-xl border border-success/30 bg-success-soft p-4">
-                    <p className="flex items-center gap-1.5 text-sm font-semibold text-success-strong">
-                      <CheckCircle2 size={16} /> Ayuda enviada — {i.ayuda_detalle || "—"}
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-500 nums">{fmt(i.ayuda_enviada_en)}</p>
-                    {!mostrarForm && (
-                      <Button size="sm" variant="secondary" className="mt-3" onClick={() => setMostrarForm(true)}>
-                        Reenviar / editar ayuda
-                      </Button>
-                    )}
-                  </div>
-                )}
+        {i.estado === "ABIERTA" && propuesta && (
+          <div className="rounded-xl border border-brand-200 bg-brand-50/50 p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-wider text-brand-700">
+                {propuesta.es_siguiente ? "Siguiente Mecánico Sugerido" : "Mecánico Sugerido por Cercanía"}
+              </p>
+              {propuesta.distancia_km != null && (
+                <span className="text-xs font-semibold bg-brand-100 text-brand-800 px-2 py-0.5 rounded-full">
+                  A {propuesta.distancia_km} km
+                </span>
+              )}
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-900">{propuesta.nombre}</p>
+              <p className="text-xs text-slate-500">{propuesta.empresa_taller || "Taller Independiente"} · Tel: {propuesta.telefono}</p>
+            </div>
+            <Button
+              size="sm"
+              block
+              onClick={() => {
+                const t = propuesta.tipo_servicio || "Mecánico";
+                const n = `Asignado a: ${propuesta.nombre} (${propuesta.telefono})`;
+                setTipo(t);
+                setNota(n);
+                enviarAyuda(t, n);
+              }}
+              disabled={enviando}
+            >
+              Confirmar y enviar auxilio a {propuesta.nombre}
+            </Button>
+          </div>
+        )}
 
-                {propuesta && (
-                  <div className="rounded-xl border border-brand-200 bg-brand-50/50 p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-bold uppercase tracking-wider text-brand-700">
-                        {propuesta.es_siguiente ? "Siguiente Mecánico Sugerido" : "Mecánico Sugerido por Cercanía"}
-                      </p>
-                      {propuesta.distancia_km != null && (
-                        <span className="text-xs font-semibold bg-brand-100 text-brand-800 px-2 py-0.5 rounded-full">
-                          A {propuesta.distancia_km} km
-                        </span>
-                      )}
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-900">{propuesta.nombre}</p>
-                      <p className="text-xs text-slate-500">{propuesta.empresa_taller || "Taller Independiente"} · Tel: {propuesta.telefono}</p>
-                    </div>
-                    <Button
-                      size="sm"
-                      block
-                      onClick={() => {
-                        const t = propuesta.tipo_servicio || "Mecánico";
-                        const n = `Asignado a: ${propuesta.nombre} (${propuesta.telefono})`;
-                        setTipo(t);
-                        setNota(n);
-                        enviarAyuda(t, n);
-                      }}
-                      disabled={enviando}
-                    >
-                      Confirmar y enviar auxilio a {propuesta.nombre}
-                    </Button>
-                  </div>
-                )}
+        {i.estado === "ABIERTA" && !mostrarForm && !yaEnviada && (
+          <Button variant="secondary" icon={Send} block onClick={() => setMostrarForm(true)}>
+            Mandar ayuda
+          </Button>
+        )}
 
-                {mostrarForm && (
-                  <div className="space-y-3 rounded-xl border border-warning/40 bg-warning-soft p-4">
-                    <p className="text-sm font-semibold text-warning-strong">{yaEnviada ? "Editar ayuda" : "Mandar ayuda"}</p>
-                    <Input as="select" label="Tipo de ayuda" value={tipo} onChange={(e) => setTipo(e.target.value)}>
-                      {TIPOS_AYUDA.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </Input>
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-500">Nota (opcional)</label>
-                      <textarea
-                        value={nota}
-                        onChange={(e) => setNota(e.target.value)}
-                        placeholder="Detalle de la ayuda enviada (ej. proveedor, hora estimada)…"
-                        rows={3}
-                        className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 resize-none"
-                      />
-                    </div>
-                    <Button icon={Send} block onClick={enviarAyuda} disabled={enviando}>
-                      {enviando ? "Enviando…" : yaEnviada ? "Reenviar ayuda" : "Mandar ayuda"}
-                    </Button>
-                  </div>
-                )}
-              </>
-            )}
-          </>
+        {i.estado === "ABIERTA" && mostrarForm && (
+          <div className="space-y-3 rounded-xl border border-warning/40 bg-warning-soft p-4">
+            <p className="text-sm font-semibold text-warning-strong">{yaEnviada ? "Mandar otra ayuda" : "Mandar ayuda"}</p>
+            <Input as="select" label="Tipo de ayuda" value={tipo} onChange={(e) => setTipo(e.target.value)}>
+              {TIPOS_AYUDA.map((t) => <option key={t} value={t}>{t}</option>)}
+            </Input>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-500">Nota (opcional)</label>
+              <textarea
+                value={nota}
+                onChange={(e) => setNota(e.target.value)}
+                placeholder="Detalle de la ayuda enviada (ej. proveedor, hora estimada)…"
+                rows={3}
+                className="w-full rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 resize-none"
+              />
+            </div>
+            <Button icon={Send} block onClick={enviarAyuda} disabled={enviando}>
+              {enviando ? "Enviando…" : "Mandar ayuda"}
+            </Button>
+          </div>
         )}
 
         {i.estado === "RESUELTA" && (

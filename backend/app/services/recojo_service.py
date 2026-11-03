@@ -6,15 +6,18 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core import almacenamiento
 from app.core.imagenes import validar_imagen
 from app.models.solicitud_recojo import SolicitudRecojo, ESTADOS_RECOGIDO, ESTADOS_GESTIONADOS
 from app.models.pedido import Pedido
 from app.models.cliente import ClienteCorporativo
 from app.models.ruta import Ruta
 from app.repositories import recojo_repository, ruta_repository, incidencia_repository, pedido_repository
-from app.services.geocoder import obtener_coordenadas
+from app.services.geocoder import geocodificar
+from app.core.distritos import resolver_distrito
 from app.services import notificaciones_service
-from app.services.router import optimizar_secuencia_pedidos, distancia_total
+from app.services.router import optimizar_secuencia_pedidos, registrar_km, km_sin_optimizar
+from app.services.ruta_service import resumen_optimizacion
 from app.schemas.recojo import (
     SolicitudRecojoCreate,
     SolicitudRecojoUpdate,
@@ -32,13 +35,15 @@ from app.core.fechas import hoy_local
 from app.services import pedido_service as _pedido_svc
 from app.schemas.ruta import OptimizacionRequest, CierreRutaResponse
 
-DIR_GUIAS = os.path.join("uploads", "guias")
 
 
-def _distrito_de(direccion: str) -> str:
-    """Extrae el distrito de una dirección tomando el texto tras la primera coma. Recibe: direccion."""
-    partes = (direccion or "").split(",")
-    return partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
+def _ubicar_origen(direccion: str):
+    """Geocodifica la dirección de recojo y deduce su distrito con el mapa (C16-01). Recibe la
+    dirección. Devuelve (lat, lng, distrito), o (None, None, None) si no se ubica."""
+    resultado = geocodificar(direccion)
+    if resultado is None:
+        return None, None, None
+    return resultado.latitud, resultado.longitud, resolver_distrito(resultado.distrito, direccion)
 
 
 def crear_solicitud(db: Session, datos: SolicitudRecojoCreate, usuario_id: int | None = None) -> SolicitudRecojo:
@@ -54,12 +59,12 @@ def crear_solicitud(db: Session, datos: SolicitudRecojoCreate, usuario_id: int |
         raise HTTPException(status_code=400, detail="El volumen estimado no puede ser negativo")
     _validar_fecha_programada(datos.fecha_programada)
 
-    lat, lng = obtener_coordenadas(direccion)
+    lat, lng, distrito = _ubicar_origen(direccion)
     recojo = SolicitudRecojo(
         cliente_id=cliente.id,
         cliente_origen=cliente.razon_social,
         direccion_origen=direccion,
-        distrito=_distrito_de(direccion) if (lat and lng) else None,
+        distrito=distrito,
         latitud=lat,
         longitud=lng,
         volumen_estimado_m3=datos.volumen_estimado_m3,
@@ -115,10 +120,7 @@ def editar_solicitud(db: Session, recojo_id: int, datos: SolicitudRecojoUpdate) 
         if not direccion:
             raise HTTPException(status_code=400, detail="La dirección de origen es obligatoria")
         recojo.direccion_origen = direccion
-        lat, lng = obtener_coordenadas(direccion)
-        recojo.latitud = lat
-        recojo.longitud = lng
-        recojo.distrito = _distrito_de(direccion) if (lat and lng) else None
+        recojo.latitud, recojo.longitud, recojo.distrito = _ubicar_origen(direccion)
     if datos.volumen_estimado_m3 is not None:
         if datos.volumen_estimado_m3 < 0:
             raise HTTPException(status_code=400, detail="El volumen estimado no puede ser negativo")
@@ -319,12 +321,11 @@ def geocodificar_pedidos_recojo(recojo_id: int) -> None:
         )
         pendientes_commit = 0
         for pedido in pedidos:
-            lat, lng = obtener_coordenadas(pedido.direccion_destino, db)  # con caché de direcciones
-            if lat and lng:
-                pedido.latitud = lat
-                pedido.longitud = lng
-                partes = pedido.direccion_destino.split(",")
-                pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
+            resultado = geocodificar(pedido.direccion_destino, db)  # con caché de direcciones
+            if resultado is not None:
+                pedido.latitud = resultado.latitud
+                pedido.longitud = resultado.longitud
+                pedido.distrito = resolver_distrito(resultado.distrito, pedido.direccion_destino)
                 pendientes_commit += 1
                 if pendientes_commit >= 20:
                     db.commit()
@@ -463,21 +464,19 @@ def optimizar_recojo(db: Session, datos: OptimizacionRequest, conductor_id: int)
         raise HTTPException(status_code=400, detail="Esta ruta no es de recojo")
 
     recojos = recojo_repository.obtener_por_ruta(db, ruta.id)
-    validos = [r for r in recojos if r.latitud is not None]
+    # Los recojos ya gestionados conservan su lugar: solo se reordena lo que falta visitar.
+    hechos = sum(1 for r in recojos if r.estado in ESTADOS_GESTIONADOS)
+    validos = [r for r in recojos if r.latitud is not None and r.estado not in ESTADOS_GESTIONADOS]
+    sin_ubicacion = [r for r in recojos if r.latitud is None and r.estado not in ESTADOS_GESTIONADOS]
     if not validos:
-        raise HTTPException(status_code=400, detail="La ruta no tiene puntos válidos para optimizar")
+        raise HTTPException(status_code=400, detail="La ruta no tiene puntos pendientes con ubicación para optimizar")
 
     ordenados = optimizar_secuencia_pedidos(
         validos, datos.latitud_actual_conductor, datos.longitud_actual_conductor
     )
+    registrar_km(ruta, datos.latitud_actual_conductor, datos.longitud_actual_conductor, validos, ordenados)
 
-    origen = (datos.latitud_actual_conductor, datos.longitud_actual_conductor)
-    km_base = distancia_total(origen[0], origen[1], validos)
-    km_opt = distancia_total(origen[0], origen[1], ordenados)
-    ruta.km_estimado = round(km_opt, 2)
-    ruta.km_ahorrado = round(max(0.0, km_base - km_opt), 2)
-
-    secuencia = 1
+    secuencia = hechos + 1
     for recojo in ordenados:
         recojo.secuencia = secuencia
         if recojo.estado == "ASIGNADO":
@@ -489,7 +488,7 @@ def optimizar_recojo(db: Session, datos: OptimizacionRequest, conductor_id: int)
         ruta.estado = "EN_PROGRESO"
 
     ruta_repository.guardar_cambios(db)
-    return {"mensaje": "Ruta de recojo optimizada", "total_paradas": len(ordenados)}
+    return resumen_optimizacion("Ruta de recojo optimizada", ordenados, ruta, sin_ubicacion)
 
 
 def registrar_recepcion(db: Session, conductor_id: int, recojo_id: int, cantidad_declarada: int,
@@ -519,15 +518,11 @@ def registrar_recepcion(db: Session, conductor_id: int, recojo_id: int, cantidad
     extensiones = [validar_imagen(contenido) for contenido, _ in archivos]
 
     gps = f"{latitud:.6f},{longitud:.6f}" if latitud is not None and longitud is not None else None
-    os.makedirs(DIR_GUIAS, exist_ok=True)
     urls: list[str] = []
     for i, ((contenido, _), extension) in enumerate(zip(archivos, extensiones), start=1):
-        # Sufijo aleatorio: /media es estatico, un nombre secuencial dejaria las
-        # fotos de recojo al alcance de cualquiera que itere enteros.
+        # Nombre no adivinable y, ademas, /media solo entrega enlaces firmados (EX-03).
         nombre_final = f"guia_{ruta.id}_{recojo_id}_{i}_{secrets.token_hex(8)}{extension}"
-        with open(os.path.join(DIR_GUIAS, nombre_final), "wb") as f:
-            f.write(contenido)
-        url = f"/media/guias/{nombre_final}"
+        url = almacenamiento.guardar(f"guias/{nombre_final}", contenido)
         urls.append(url)
         recojo_repository.agregar_evidencia(db, recojo_id, url, i, gps)
 
@@ -603,10 +598,7 @@ def finalizar_ruta_recojo(db: Session, ruta: Ruta) -> CierreRutaResponse:
     ruta.estado = "FINALIZADA"
     ruta.fecha_fin = datetime.utcnow()
     if ruta.km_estimado is None and recojos:
-        primero = next((r for r in recojos if r.latitud is not None), None)
-        if primero is not None:
-            ruta.km_estimado = round(distancia_total(primero.latitud, primero.longitud, recojos), 2)
-            ruta.km_ahorrado = 0.0
+        km_sin_optimizar(ruta, recojos)
     total = len(recojos)
     liberados = _liberar_no_realizados(db, recojos)
 

@@ -26,4 +26,16 @@ class Incidencia(Base):
     puede_solucionar_solo = Column(Boolean, default=False)  # el conductor indica si puede resolverla solo
     ayuda_enviada_en = Column(DateTime, nullable=True)
     ayuda_enviada_por = Column(Integer, nullable=True)  # admin que mando la ayuda
-    ayuda_detalle = Column(String(255), nullable=True)
+    ayuda_detalle = Column(String(255), nullable=True)  # ultima ayuda enviada (el historial esta en incidencia_ayudas)
+
+
+class IncidenciaAyuda(Base):
+    """Cada ayuda que el admin envia a una incidencia; se conserva el historial completo (C30-01)."""
+
+    __tablename__ = "incidencia_ayudas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    incidencia_id = Column(Integer, ForeignKey("incidencias.id"), nullable=False, index=True)
+    detalle = Column(String(255), nullable=False)  # "Grua: llega en 30 min"
+    enviada_en = Column(DateTime, default=datetime.utcnow)
+    enviada_por = Column(Integer, nullable=True)   # admin que la mando

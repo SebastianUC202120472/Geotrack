@@ -132,7 +132,7 @@ export default function Bandeja() {
       )}
 
       {pestana === "correos" && (
-        <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
           <SectionCard title="Conversaciones" className="lg:col-span-1">
             {conversaciones.length === 0 ? (
               <EmptyState

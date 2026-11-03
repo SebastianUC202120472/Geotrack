@@ -15,10 +15,11 @@ import { Aparecer, ItemLista, BarraProgreso, Contador, IndicadorEnVivo } from "@
 import { Texto } from "@/components/Texto";
 import { RutaRecojoView } from "@/features/recojo/RutaRecojoView";
 import { abrirNavegacionRuta } from "@/services/navegacion";
+import { mensajeOptimizacion } from "@/services/routeService";
+import { KmRuta } from "@/components/KmRuta";
 import { useRutaActiva, useManifiesto, useNavegacion, useIniciarRuta, useFinalizarRuta, claves } from "@/features/ruta/hooks";
 import { useUbicacionActual } from "@/hooks/useUbicacionActual";
 import { useRastreoUbicacion } from "@/hooks/useRastreoUbicacion";
-import { useEnviarUbicacion } from "@/hooks/useEnviarUbicacion";
 import { useReanudarRuta } from "@/features/incidencia/hooks";
 import { usePendientesPorPedido } from "@/features/sync/hooks";
 import { mensajeDeError } from "@/api/client";
@@ -50,7 +51,6 @@ function RutaEntregaView() {
   // Rastrea y envía la posición mientras la ruta esté en curso.
   const rutaEnCurso = !!ruta.data && ruta.data.estado !== "FINALIZADA";
   useRastreoUbicacion(rutaEnCurso);
-  useEnviarUbicacion(rutaEnCurso);
 
   useFocusEffect(
     useCallback(() => {
@@ -93,7 +93,7 @@ function RutaEntregaView() {
     iniciar.mutate(
       { rutaId: ruta.data.ruta_id, coords },
       {
-        onSuccess: (total) => Alert.alert("Ruta lista", `Se ordenaron ${total} paradas desde tu ubicación.`),
+        onSuccess: (r) => Alert.alert("Ruta lista", mensajeOptimizacion(r)),
         onError: (e) => Alert.alert("Error", mensajeDeError(e)),
       }
     );
@@ -149,6 +149,7 @@ function RutaEntregaView() {
               🕑 Salida {horaLocal(ruta.data.fecha_salida)}
             </Texto>
           )}
+          <KmRuta kmEstimado={ruta.data.km_estimado} kmAhorrado={ruta.data.km_ahorrado} />
 
           <View style={{ marginTop: spacing.lg }}>
             <BarraProgreso valor={ruta.data.entregadas} total={ruta.data.total_paradas} porEstado />

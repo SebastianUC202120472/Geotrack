@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { obtenerManifiestoRecojo, optimizarRecojo, registrarRecepcion, marcarRecojoNoRealizado } from "@/api/conductor";
 import { claves as clavesRuta } from "@/features/ruta/hooks";
+import { conCopiaOffline } from "@/store/rutaOffline";
 import type { Coordenadas } from "@/types/api";
 
 export const clavesRecojo = { manifiesto: ["manifiesto-recojo"] as const };
@@ -12,9 +13,12 @@ const sinReintentarEn404 = (intentos: number, error: unknown): boolean => {
   return intentos < 2;
 };
 
+// Guarda la última respuesta en el teléfono para abrir la ruta de recojo sin señal (C27-02).
+const manifiestoRecojoOffline = conCopiaOffline("manifiesto-recojo", obtenerManifiestoRecojo);
+
 // Manifiesto de la ruta de recojo activa. Devuelve: query de ManifiestoRecojo.
 export function useManifiestoRecojo() {
-  return useQuery({ queryKey: clavesRecojo.manifiesto, queryFn: obtenerManifiestoRecojo, retry: sinReintentarEn404, refetchInterval: INTERVALO, refetchOnMount: "always" });
+  return useQuery({ queryKey: clavesRecojo.manifiesto, queryFn: manifiestoRecojoOffline, retry: sinReintentarEn404, refetchInterval: INTERVALO, refetchOnMount: "always" });
 }
 
 // Inicia/optimiza la ruta de recojo desde la ubicación actual.

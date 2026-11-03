@@ -69,6 +69,7 @@ def obtener_sin_coordenadas(db: Session) -> List[Pedido]:
             Pedido.latitud == None,  # noqa: E711 (SQLAlchemy exige '== None')
             Pedido.estado.in_(("LISTO_PARA_ENVIO", "GEOCODIFICACION_FALLIDA")),
         )
+        .order_by(Pedido.id)
         .all()
     )
 
@@ -99,13 +100,16 @@ def listar_sin_ubicacion_resoluble(db: Session) -> List[Pedido]:
     )
 
 
-def obtener_pendientes_por_distrito(db: Session, distrito: str) -> List[Pedido]:
-    """Devuelve pedidos LISTO_PARA_ENVIO de un distrito. Recibe db y distrito."""
-    return (
+def obtener_pendientes_por_distrito(db: Session, distrito: str, bloquear: bool = False) -> List[Pedido]:
+    """Devuelve pedidos LISTO_PARA_ENVIO de un distrito. Recibe db, distrito y bloquear: si es True
+    las filas quedan bloqueadas hasta el commit (un despacho simultaneo de la misma zona espera y
+    luego ya no las ve, porque dejaron de estar LISTO_PARA_ENVIO)."""
+    consulta = (
         db.query(Pedido)
         .filter(Pedido.distrito == distrito, Pedido.estado == "LISTO_PARA_ENVIO")
-        .all()
+        .order_by(Pedido.id)  # mismo orden de bloqueo en todos los despachos: evita interbloqueos
     )
+    return consulta.with_for_update().all() if bloquear else consulta.all()
 
 
 def agrupar_por_zona(db: Session):
@@ -138,15 +142,17 @@ def contar_por_estado(db: Session):
 
 
 def listar_por_cliente(db: Session, cliente: str, desde=None, hasta=None, estados=None) -> List[Pedido]:
-    """Pedidos de un cliente filtrados por rango de fechas y estados. Recibe db, cliente, desde, hasta y estados."""
-    from datetime import datetime, time
+    """Pedidos de un cliente filtrados por rango de fechas y estados. Los dias son de la zona horaria
+    de la operacion (no UTC): un pedido de las 23:00 de Lima cuenta en ese dia. Recibe db, cliente,
+    desde, hasta y estados."""
+    from app.core.fechas import rango_utc_del_dia
     consulta = db.query(Pedido).filter(Pedido.cliente_origen == cliente)
     if estados:
         consulta = consulta.filter(Pedido.estado.in_(tuple(estados)))
     if desde is not None:
-        consulta = consulta.filter(Pedido.fecha_creacion >= datetime.combine(desde, time.min))
+        consulta = consulta.filter(Pedido.fecha_creacion >= rango_utc_del_dia(desde)[0])
     if hasta is not None:
-        consulta = consulta.filter(Pedido.fecha_creacion <= datetime.combine(hasta, time.max))
+        consulta = consulta.filter(Pedido.fecha_creacion <= rango_utc_del_dia(hasta)[1])
     return consulta.order_by(Pedido.codigo.asc()).all()
 
 

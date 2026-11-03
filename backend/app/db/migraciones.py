@@ -28,6 +28,34 @@ SENTENCIAS = [
     "ALTER TABLE solicitudes_recojo ADD COLUMN IF NOT EXISTS intentos_no_realizados INTEGER DEFAULT 0",
     # Ubicacion de captura de las fotos del recojo (C13-01).
     "ALTER TABLE evidencias_recojo ADD COLUMN IF NOT EXISTS latitud_longitud_captura VARCHAR(60)",
+    # Distrito que devuelve el geocodificador, guardado junto a la coordenada (C16-01).
+    "ALTER TABLE geocodificaciones_cache ADD COLUMN IF NOT EXISTS distrito VARCHAR(100)",
+    # Quien recibio la entrega (C26-02) y foto que respalda un reporte de falla (C29-01).
+    "ALTER TABLE evidencias_entrega ADD COLUMN IF NOT EXISTS receptor_nombre VARCHAR(120)",
+    "ALTER TABLE evidencias_entrega ADD COLUMN IF NOT EXISTS receptor_documento VARCHAR(12)",
+    "ALTER TABLE reportes ADD COLUMN IF NOT EXISTS url_evidencia VARCHAR(255)",
+    "ALTER TABLE reportes ADD COLUMN IF NOT EXISTS latitud_longitud_captura VARCHAR(60)",
+    # Motivo obligatorio al cancelar un pedido (C31-02).
+    "ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS motivo_cancelacion VARCHAR(255)",
+    # Libro de Reclamaciones completo y su respuesta (C40-01, C41-02).
+    "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS pedido_consumidor TEXT",
+    "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS apoderado_nombre VARCHAR(150)",
+    "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS apoderado_dni VARCHAR(20)",
+    "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS respuesta TEXT",
+    "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS respondido_en TIMESTAMP",
+    "ALTER TABLE reclamos ADD COLUMN IF NOT EXISTS respondido_por INTEGER",
+    # Historial de liquidaciones (C36-02).
+    "ALTER TABLE liquidaciones ADD COLUMN IF NOT EXISTS cliente_nombre VARCHAR(150)",
+    "ALTER TABLE liquidaciones ADD COLUMN IF NOT EXISTS total_pedidos INTEGER",
+    # Retencion de datos del destinatario (EX-04).
+    "ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS datos_retirados_en TIMESTAMP",
+    # Consumo de bateria del celular en la jornada (EX-15).
+    "ALTER TABLE rutas ADD COLUMN IF NOT EXISTS bateria_inicio DOUBLE PRECISION",
+    "ALTER TABLE rutas ADD COLUMN IF NOT EXISTS bateria_inicio_en TIMESTAMP",
+    "ALTER TABLE rutas ADD COLUMN IF NOT EXISTS bateria_fin DOUBLE PRECISION",
+    "ALTER TABLE rutas ADD COLUMN IF NOT EXISTS bateria_fin_en TIMESTAMP",
+    # Linea base del ahorro de rutas: plan empirico del conductor (C20-02).
+    "ALTER TABLE rutas ADD COLUMN IF NOT EXISTS km_linea_base DOUBLE PRECISION",
     # Centro de notificaciones: trazabilidad, concesion temporal y reintentos.
     "ALTER TABLE notificaciones_envios ADD COLUMN IF NOT EXISTS notificacion_id INTEGER REFERENCES notificaciones(id)",
     "ALTER TABLE notificaciones_envios ADD COLUMN IF NOT EXISTS bloqueado_hasta TIMESTAMP",

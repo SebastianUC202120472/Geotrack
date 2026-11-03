@@ -1,7 +1,7 @@
 import re
 from datetime import date
 from typing import Optional
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.core.fechas import hoy_local
 
@@ -148,9 +148,11 @@ class ConductorResetContrasena(BaseModel):
 
 
 class UbicacionRequest(BaseModel):
-    """Posicion actual reportada por la app del conductor. Recibe: latitud y longitud."""
+    """Posicion actual reportada por la app del conductor. Recibe: latitud, longitud y el nivel de
+    bateria del celular (0 a 1, opcional) para medir el consumo de la jornada (EX-15)."""
     latitud: float
     longitud: float
+    bateria: Optional[float] = Field(None, ge=0, le=1)
 
 
 class VehiculoAsignado(BaseModel):

@@ -62,6 +62,10 @@ class ConductorUbicacion(BaseModel):
     actualizado_en: Optional[datetime] = None
     en_linea: bool = False  # True si la ultima senal es reciente (< 2 min)
     pausado: bool = False  # tiene una incidencia (auxilio mecanico) abierta
+    placa: Optional[str] = None             # vehiculo de la ruta (C33-01)
+    total_paradas: int = 0                  # paradas o puntos de recojo de sus rutas activas
+    gestionadas: int = 0                    # ya entregadas/fallidas (o recogidas/no realizadas)
+    avance_porcentaje: float = 0.0
     paradas: List[ParadaMapa] = []
     clientes: List[ClienteMapa] = []
 
@@ -114,6 +118,9 @@ class HistorialPedidoResponse(BaseModel):
     secuencia: Optional[int] = None
     url_evidencia: Optional[str] = None
     motivo_fallo: Optional[str] = None
+    recibido_por: Optional[str] = None       # "Nombre · DNI 12345678" (C26-02)
+    motivo_cancelacion: Optional[str] = None  # (C31-02)
+    ubicacion_evidencia: Optional[str] = None  # "lat,lng" donde se tomo la foto POD (C26-01)
     eventos: List[EventoHistorial]
 
 

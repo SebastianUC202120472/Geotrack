@@ -17,10 +17,11 @@ import {
   Wrench,
   BookText,
   AlertOctagon,
+  Handshake,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import Logo from "./ui/Logo";
 import ConfirmDialog from "./ui/ConfirmDialog";
 import CampanaNotificaciones from "./CampanaNotificaciones";
@@ -55,6 +56,7 @@ const secciones = [
       { icon: ClipboardList, label: "Reportes de pedido", path: "/panel/reportes" },
       { icon: Wrench, label: "Auxilio mecánico", path: "/panel/auxilio" },
       { icon: BookText, label: "Libro de Reclamaciones", path: "/panel/reclamos" },
+      { icon: Handshake, label: "Contactos comerciales", path: "/panel/contactos" },
     ],
   },
   {

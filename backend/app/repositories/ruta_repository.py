@@ -116,6 +116,12 @@ def mapa_ruta_por_pedidos(db: Session, pedido_ids: List[int]) -> dict:
     return {pid: (nombre, conductor_id) for pid, nombre, conductor_id in filas}
 
 
+def bloquear_detalles_de_pedido(db: Session, pedido_id: int) -> List[RutaDetalle]:
+    """Toma con candado las paradas del pedido hasta el commit: evita que el conductor la gestione
+    mientras el admin la saca de la ruta. Recibe pedido_id."""
+    return db.query(RutaDetalle).filter(RutaDetalle.pedido_id == pedido_id).with_for_update().all()
+
+
 def eliminar_detalles_de_pedido(db: Session, pedido_id: int) -> None:
     """Elimina el pedido de cualquier ruta. Recibe pedido_id."""
     db.query(RutaDetalle).filter(RutaDetalle.pedido_id == pedido_id).delete(synchronize_session=False)

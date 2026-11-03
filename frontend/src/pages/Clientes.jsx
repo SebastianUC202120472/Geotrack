@@ -150,7 +150,7 @@ export default function Clientes() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
         <SectionCard title="Registrar cliente" className="lg:col-span-1">
           <form onSubmit={registrar} noValidate className="space-y-4">
             <Input label="Razón social" required value={form.razon_social}

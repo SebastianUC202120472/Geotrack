@@ -7,14 +7,15 @@ import { Button } from "@/components/Button";
 import { Cabecera } from "@/components/Cabecera";
 import { Aparecer } from "@/components/Animations";
 import { Texto } from "@/components/Texto";
+import { useTelefonoCoordinacion } from "@/hooks/useTelefonoCoordinacion";
 import { useTheme, spacing, radius } from "@/theme";
-
-const TELEFONO_COORDINACION = process.env.EXPO_PUBLIC_COORDINACION_TEL ?? "+51999888777";
 
 export default function AyudaScreen() {
   const { colors } = useTheme();
-  const llamar = () => Linking.openURL(`tel:${TELEFONO_COORDINACION.replace(/\s/g, "")}`);
-  const whatsapp = () => Linking.openURL(`https://wa.me/${TELEFONO_COORDINACION.replace(/[^\d]/g, "")}`);
+  const { telefono, cargando } = useTelefonoCoordinacion();
+  // Abre el marcador o WhatsApp con el teléfono de coordinación configurado en el panel.
+  const llamar = () => telefono && Linking.openURL(`tel:${telefono.replace(/\s/g, "")}`);
+  const whatsapp = () => telefono && Linking.openURL(`https://wa.me/${telefono.replace(/[^\d]/g, "")}`);
 
   return (
     <Screen conPadding={false}>
@@ -33,10 +34,25 @@ export default function AyudaScreen() {
         </Aparecer>
 
         <Aparecer delay={60}>
-          <View style={estilos.botones}>
-            <View style={{ flex: 1 }}><Button titulo="Llamar" variante="secondary" onPress={llamar} /></View>
-            <View style={{ flex: 1 }}><Button titulo="WhatsApp" variante="secondary" onPress={whatsapp} /></View>
-          </View>
+          {telefono ? (
+            <>
+              <Texto variante="caption" color={colors.muted} style={{ textAlign: "center", marginBottom: spacing.sm }}>
+                Coordinación: {telefono}
+              </Texto>
+              <View style={estilos.botones}>
+                <View style={{ flex: 1 }}><Button titulo="Llamar" variante="secondary" onPress={llamar} /></View>
+                <View style={{ flex: 1 }}><Button titulo="WhatsApp" variante="secondary" onPress={whatsapp} /></View>
+              </View>
+            </>
+          ) : (
+            <Card>
+              <Texto variante="body" color={colors.muted}>
+                {cargando
+                  ? "Buscando el teléfono de coordinación…"
+                  : "Coordinación aún no registró su teléfono. Pide al administrador que lo configure en el panel (Parámetros)."}
+              </Texto>
+            </Card>
+          )}
         </Aparecer>
       </ScrollView>
     </Screen>

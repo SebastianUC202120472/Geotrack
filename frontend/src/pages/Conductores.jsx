@@ -34,29 +34,26 @@ export default function Conductores() {
   const [guardando, setGuardando] = useState(false);
 
   // Recarga conductores, eficiencia e incidencias abiertas.
-  const cargar = async () => {
-    setCargando(true);
-    try {
-      setConductores(await listarConductores());
-      try {
-        const efs = await obtenerEficienciaConductores();
-        setEficiencia(Object.fromEntries(efs.map((e) => [e.conductor_id, e])));
-      } catch { /* si falla el endpoint de eficiencia, la tabla sigue mostrando "—" */ }
-      listarIncidencias("ABIERTA")
-        .then((lista) => {
-          const mapa = {};
-          lista.forEach((inc) => { mapa[inc.conductor_id] = inc; });
-          setIncidenciasAbiertas(mapa);
-        })
-        .catch(() => { /* si falla, no se muestra el botón de auxilio */ });
-      listarVehiculos()
-        .then((vs) => setVehiculosLibres(vs.filter((v) => !v.conductor_id)))
-        .catch(() => { /* sin la lista, el alta sigue sin vehículo */ });
-    } catch (err) {
-      console.error("No se pudo cargar conductores:", err.message);
-    } finally {
-      setCargando(false);
-    }
+  // Carga los datos; las recargas tras una accion son silenciosas (la tabla no parpadea).
+  // El estado se fija dentro de los callbacks de la promesa (regla de lint "setState en effect").
+  const cargar = () => {
+    obtenerEficienciaConductores()
+      .then((efs) => setEficiencia(Object.fromEntries(efs.map((e) => [e.conductor_id, e]))))
+      .catch(() => { /* si falla el endpoint de eficiencia, la tabla sigue mostrando "—" */ });
+    listarIncidencias("ABIERTA")
+      .then((lista) => {
+        const mapa = {};
+        lista.forEach((inc) => { mapa[inc.conductor_id] = inc; });
+        setIncidenciasAbiertas(mapa);
+      })
+      .catch(() => { /* si falla, no se muestra el botón de auxilio */ });
+    listarVehiculos()
+      .then((vs) => setVehiculosLibres(vs.filter((v) => !v.conductor_id)))
+      .catch(() => { /* sin la lista, el alta sigue sin vehículo */ });
+    return listarConductores()
+      .then((lista) => setConductores(lista))
+      .catch((err) => console.error("No se pudo cargar conductores:", err.message))
+      .finally(() => setCargando(false));
   };
 
   useEffect(() => {
@@ -231,7 +228,7 @@ export default function Conductores() {
         <KpiCard label="Inactivos" value={kpis.inactivos} icon={Users} tone="danger" />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
         <SectionCard title="Registrar conductor" className="lg:col-span-1">
           <form onSubmit={registrar} noValidate className="space-y-4">
             <Input label="Nombre completo" required value={form.nombre} onChange={set("nombre")}
