@@ -11,6 +11,7 @@ class Limitador:
     """Ventana deslizante por clave con memoria acotada. Recibe una funcion de reloj (para pruebas)."""
 
     def __init__(self, reloj=time.monotonic, max_claves: int = _MAX_CLAVES):
+        """Prepara el registro de eventos por clave. Recibe el reloj (pruebas) y el tope de claves."""
         self._reloj = reloj
         self._max_claves = max_claves
         self._eventos: OrderedDict[str, deque] = OrderedDict()

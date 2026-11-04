@@ -24,6 +24,7 @@ export default function AsistenteFlotante() {
   // Cierra con Escape mientras esta abierto.
   useEffect(() => {
     if (!visible) return undefined;
+    // Cierra el chat con la tecla Escape. Recibe el evento del teclado.
     const alPresionar = (e) => e.key === "Escape" && setAbierto(false);
     window.addEventListener("keydown", alPresionar);
     return () => window.removeEventListener("keydown", alPresionar);

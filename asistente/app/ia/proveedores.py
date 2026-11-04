@@ -25,6 +25,7 @@ class ErrorProveedor(Exception):
     la pena reintentar con el mismo (fallo puntual del modelo, no del servicio)."""
 
     def __init__(self, mensaje: str, pausa_seg: float = 20.0, reintentar: bool = False):
+        """Guarda el motivo, la pausa y si conviene reintentar. Recibe los tres."""
         super().__init__(mensaje)
         self.pausa_seg = pausa_seg
         self.reintentar = reintentar
@@ -128,6 +129,7 @@ class _AcumuladorLlamadas:
     """Une los fragmentos de llamadas a funciones que llegan por partes en el streaming."""
 
     def __init__(self):
+        """Empieza sin llamadas a funciones acumuladas. Sin input."""
         self._lista: list[dict] = []
         self._por_id: dict[str, dict] = {}
         self._por_indice: dict[int, dict] = {}
@@ -213,6 +215,7 @@ class CadenaProveedores:
     """Prueba los proveedores en orden y salta los que estan en pausa. Recibe la lista y un reloj (pruebas)."""
 
     def __init__(self, proveedores: list[Proveedor], reloj=time.monotonic):
+        """Guarda los proveedores en orden y el reloj. Recibe ambos."""
         self.proveedores = proveedores
         self._reloj = reloj
         self._pausados: dict[str, float] = {}

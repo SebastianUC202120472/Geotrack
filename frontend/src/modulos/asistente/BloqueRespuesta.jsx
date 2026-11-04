@@ -27,9 +27,9 @@ function Titulo({ titulo, fuente, onNavegar, className = "" }) {
   );
 }
 
+const LARGO_CELDA = 28;
 // Columnas cuyo texto pasa a otra linea en vez de estirar la tabla (Motivo de fallo, Detalle...):
 // las que tienen alguna celda de mas de LARGO_CELDA caracteres. Recibe el bloque.
-const LARGO_CELDA = 28;
 function columnasLargas(bloque) {
   return bloque.columnas.map((_, j) => bloque.filas.some((fila) => String(fila[j] ?? "").length > LARGO_CELDA));
 }

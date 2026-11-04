@@ -78,6 +78,7 @@ class Seudonimos:
     """Cambia DNI y telefonos escritos por el usuario por marcas y los restituye despues."""
 
     def __init__(self):
+        """Empieza sin marcas guardadas. Sin input."""
         self._valores: dict[str, str] = {}   # marca -> valor real
         self._marcas: dict[str, str] = {}    # valor normalizado -> marca
         self._contador = {"DNI": 0, "TEL": 0}
@@ -137,6 +138,7 @@ class FiltroSalida:
     Recibe el mapa {nombre_interno: nombre_visible}."""
 
     def __init__(self, nombres: dict[str, str]):
+        """Prepara el reemplazo de nombres internos por visibles. Recibe el mapa de nombres."""
         self._nombres = nombres
         alternativas = "|".join(sorted(map(re.escape, nombres), key=len, reverse=True))
         self._patron = re.compile(rf"`?(?<![\w])({alternativas})(?![\w])`?") if nombres else None
@@ -186,6 +188,7 @@ class FiltroTablas:
     Solo retiene la linea en curso si empieza como una tabla; el resto pasa al instante."""
 
     def __init__(self):
+        """Empieza sin linea retenida. Sin input."""
         self._linea = ""      # inicio de la linea en curso, retenido hasta saber si es tabla
         self._libre = False   # la linea en curso ya se sabe que no es tabla: pasa directo
         self._previa_tabla = False
@@ -244,6 +247,7 @@ class RestituidorFlujo:
     """Restituye marcas en un texto que llega por partes (streaming) sin cortar una marca a la mitad."""
 
     def __init__(self, seudonimos: Seudonimos):
+        """Guarda los seudonimos y el texto pendiente. Recibe los seudonimos."""
         self._seudonimos = seudonimos
         self._pendiente = ""
 

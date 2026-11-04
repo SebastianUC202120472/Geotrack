@@ -167,6 +167,7 @@ class _Turno:
     """Lo que el servidor recuerda durante una respuesta para limitar las propuestas de accion."""
 
     def __init__(self):
+        """Empieza el turno sin propuestas de accion. Sin input."""
         self.propuestas = 0
         self.texto_sospechoso = False   # alguna consulta trajo texto de terceros con ordenes
 

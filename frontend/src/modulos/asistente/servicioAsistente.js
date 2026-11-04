@@ -91,11 +91,14 @@ export async function transcribirAudio(audio) {
 // Confirma o cancela una accion propuesta por el asistente. Solo se llama desde el clic en la
 // tarjeta; la cabecera propia del widget la exige el servidor. Recibe el id de la propuesta.
 const CABECERA_ACCION = { "X-Asistente-Confirmacion": "si" };
+// Confirma la accion propuesta. Recibe su id.
 export const confirmarAccion = (id) =>
   pedirJson(`/acciones/${encodeURIComponent(id)}/confirmar`, { method: "POST", headers: CABECERA_ACCION });
+// Cancela la accion propuesta. Recibe su id.
 export const cancelarAccion = (id) =>
   pedirJson(`/acciones/${encodeURIComponent(id)}/cancelar`, { method: "POST", headers: CABECERA_ACCION });
 
+// Lista las conversaciones guardadas del usuario. Sin parametros.
 export const listarConversaciones = () => pedirJson("/conversaciones");
 
 // Mensajes de una conversacion propia. Recibe su id.

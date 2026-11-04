@@ -113,6 +113,7 @@ class Contexto:
     """Todo lo que la bateria necesita saber del sistema para evaluar: tokens, datos reales y catalogo."""
 
     def __init__(self, args):
+        """Guarda los argumentos y la URL del sistema a probar. Recibe los argumentos."""
         self.args = args
         self.url = args.url
         self.token_admin = iniciar_sesion(self.url, args.env)
@@ -473,6 +474,7 @@ class Bateria:
     """Corre las fases y junta los resultados. Recibe el contexto y el JSON de ataques."""
 
     def __init__(self, ctx: Contexto, datos: dict):
+        """Guarda el contexto y los ataques a correr. Recibe ambos."""
         self.ctx = ctx
         self.datos = datos
         self.resultados: list[dict] = []

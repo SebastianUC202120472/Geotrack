@@ -78,6 +78,7 @@ class ErrorApi(Exception):
     """Respuesta HTTP con error. Guarda el codigo y el detalle legible."""
 
     def __init__(self, codigo: int, detalle: str):
+        """Guarda el codigo HTTP y el detalle del error. Recibe ambos."""
         super().__init__(f"HTTP {codigo}: {detalle}")
         self.codigo = codigo
         self.detalle = detalle

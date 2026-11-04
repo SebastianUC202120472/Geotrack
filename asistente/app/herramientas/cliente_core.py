@@ -82,6 +82,7 @@ class ClienteCore:
     """Consulta la API del nucleo con el token del usuario. Recibe token y un cliente httpx opcional (pruebas)."""
 
     def __init__(self, token: str, http: httpx.AsyncClient | None = None):
+        """Guarda el token del usuario y el cliente HTTP. Recibe ambos."""
         self._token = token
         self._http = http
         self.consultas = 0

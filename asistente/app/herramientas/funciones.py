@@ -238,6 +238,7 @@ async def _motivos_fallo(core: ClienteCore, pedidos: list) -> dict:
     semaforo = asyncio.Semaphore(_CONCURRENCIA_MOTIVOS)
 
     async def uno(codigo: str):
+        """Trae el motivo de fallo de un pedido respetando el tope de consultas a la vez. Recibe el codigo."""
         async with semaforo:
             try:
                 h = await core.get(f"/dashboard/pedidos/{quote(codigo, safe='')}/historial")
@@ -285,6 +286,7 @@ async def buscar_pedidos(ctx: Contexto, a: dict) -> Resultado:
     motivos = await _motivos_fallo(ctx.core, pedidos) if conteo.get("FALLIDO") else {}
 
     def fila(p: dict) -> dict:
+        """Fila de la tabla de un pedido, con su motivo de fallo si lo tiene. Recibe el pedido."""
         f = _fila_pedido(p)
         if p.get("codigo") in motivos:
             f["motivo_fallo"] = motivos[p["codigo"]] or _SIN_MOTIVO

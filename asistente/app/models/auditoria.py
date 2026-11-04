@@ -1,4 +1,4 @@
-﻿from sqlalchemy import JSON, Column, DateTime, Integer, String, Text
+from sqlalchemy import JSON, Column, DateTime, Integer, String, Text
 
 from app.core.fechas import ahora_utc
 from app.db.database import Base

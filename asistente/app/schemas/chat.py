@@ -17,6 +17,7 @@ class ChatRequest(BaseModel):
     @field_validator("mensaje")
     @classmethod
     def _v_mensaje(cls, v: str) -> str:
+        """Quita caracteres de control y exige texto. Recibe el mensaje."""
         v = "".join(c for c in v if c not in _CONTROL).strip()
         if not v:
             raise ValueError("El mensaje está vacío")
