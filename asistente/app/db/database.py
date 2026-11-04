@@ -5,11 +5,23 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 
 from app.core.config import settings
 
-_opciones = {"pool_pre_ping": True}
+# Pocas conexiones: el asistente solo guarda historial y auditoria, y el pooler de Supabase
+# en modo sesion admite 15 clientes en total (compartidos con el backend y el equipo).
+_opciones = {"pool_pre_ping": True, "pool_size": 2, "max_overflow": 3}
 if settings.ASISTENTE_DATABASE_URL.startswith("sqlite"):
     _opciones = {"connect_args": {"check_same_thread": False}}
 
-engine = create_engine(settings.ASISTENTE_DATABASE_URL, **_opciones)
+
+def url_con_driver(url: str) -> str:
+    """Fija el driver psycopg2 en las URL "postgresql://" (desde SQLAlchemy 2.1 usan psycopg 3,
+    que no esta instalado). Recibe la URL de la BD."""
+    for prefijo in ("postgresql://", "postgres://"):
+        if url.startswith(prefijo):
+            return "postgresql+psycopg2://" + url[len(prefijo):]
+    return url
+
+
+engine = create_engine(url_con_driver(settings.ASISTENTE_DATABASE_URL), **_opciones)
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 Base = declarative_base(metadata=MetaData(schema=settings.esquema_db))
 
