@@ -1,0 +1,852 @@
+# Pruebas de las correcciones del Excel de tareas (logica pura, sin base de datos).
+from datetime import date, timedelta
+
+import pytest
+
+from app.schemas.cliente import normalizar_ruc, digito_ruc_valido, normalizar_razon_social
+from app.schemas.conductor import validar_licencia, ConductorCreate
+from app.services.verificacion_portal_service import segundos_de_bloqueo, ESCALONES_BLOQUEO_SEG
+
+
+# --- C03-03: licencia de conducir ---
+
+def test_licencia_se_normaliza():
+    """La licencia acepta minusculas, espacios y guiones y se guarda limpia."""
+    assert validar_licencia("q-1234 5678") == "Q12345678"
+
+
+def test_licencia_mal_formada_se_rechaza():
+    """Una licencia sin la letra inicial o con menos digitos no pasa."""
+    with pytest.raises(ValueError):
+        validar_licencia("12345678")
+
+
+def test_alta_con_licencia_vencida_se_rechaza():
+    """No se puede dar de alta a un conductor con la licencia vencida."""
+    with pytest.raises(ValueError):
+        ConductorCreate(correo="a@b.pe", contrasena="Clave12345!", nombre="Ana Pérez",
+                        licencia_numero="Q12345678", licencia_vencimiento=date.today() - timedelta(days=2))
+
+
+# --- C07-01: RUC y razon social ---
+
+def test_ruc_valido_de_empresa_real():
+    """Un RUC real de SUNAT cumple formato y digito verificador."""
+    assert normalizar_ruc(" 20100128056 ") == "20100128056"
+    assert digito_ruc_valido("20100128056")
+
+
+def test_ruc_con_digito_errado():
+    """Si se cambia el ultimo digito, el verificador ya no coincide."""
+    assert not digito_ruc_valido("20100128057")
+
+
+@pytest.mark.parametrize("ruc", ["2010012805", "201001280561", "30100128056", "20A00128056"])
+def test_ruc_mal_formado(ruc):
+    """Largo distinto de 11, prefijo invalido o letras: se rechaza."""
+    with pytest.raises(ValueError):
+        normalizar_ruc(ruc)
+
+
+def test_razon_social_corta_se_rechaza():
+    """La razon social exige al menos 3 caracteres utiles."""
+    with pytest.raises(ValueError):
+        normalizar_razon_social("  A ")
+    assert normalizar_razon_social("  Saga   Falabella ") == "Saga Falabella"
+
+
+# --- C42-01: bloqueo progresivo ---
+
+def test_primer_bloqueo_usa_el_base():
+    """El primer bloqueo dura lo de siempre (30 s DNI / 45 s OTP)."""
+    assert segundos_de_bloqueo(30, 0) == 30
+
+
+def test_bloqueos_seguidos_se_alargan_hasta_el_tope():
+    """Cada bloqueo seguido dura mas y nunca pasa del ultimo escalon."""
+    duraciones = [segundos_de_bloqueo(30, n) for n in range(8)]
+    assert duraciones == sorted(duraciones)
+    assert duraciones[-1] == ESCALONES_BLOQUEO_SEG[-1]
+
+
+# --- F3: solicitudes de recojo ---
+from fastapi import HTTPException  # noqa: E402
+from app.models.solicitud_recojo import ESTADOS_GESTIONADOS  # noqa: E402
+from app.schemas.recojo import PedidoManualIn, SolicitudManualCreate, NoRealizadoRequest  # noqa: E402
+from app.services.recojo_service import _exigir_filas_validas  # noqa: E402
+
+
+def test_pedido_manual_exige_referencia_y_direccion():
+    """Un pedido escrito a mano sin referencia o sin direccion no pasa (C11-02)."""
+    with pytest.raises(ValueError):
+        PedidoManualIn(referencia_externa="  ", direccion_destino="Av. Larco 100, Miraflores")
+    p = PedidoManualIn(referencia_externa=" SF-1 ", direccion_destino="Av.  Larco 100,  Miraflores")
+    assert p.referencia_externa == "SF-1" and p.direccion_destino == "Av. Larco 100, Miraflores"
+
+
+def test_solicitud_manual_sin_pedidos_se_rechaza():
+    """La solicitud manual necesita al menos un pedido."""
+    with pytest.raises(ValueError):
+        SolicitudManualCreate(cliente_id=1, pedidos=[])
+
+
+def test_reintento_con_todo_duplicado_es_409():
+    """Si todas las filas ya existian, el reintento responde 409 y no crea nada (C11-01)."""
+    with pytest.raises(HTTPException) as e:
+        _exigir_filas_validas([], ["Fila 1: el pedido SF-1 ya está registrado (PD-001)"], duplicadas=1)
+    assert e.value.status_code == 409
+
+
+def test_filas_invalidas_sin_duplicados_es_400():
+    """Si no hay filas validas por datos faltantes, responde 400 con el motivo."""
+    with pytest.raises(HTTPException) as e:
+        _exigir_filas_validas([], ["Fila 1: falta direccion_destino"], duplicadas=0)
+    assert e.value.status_code == 400 and "falta direccion_destino" in e.value.detail
+
+
+def test_no_realizado_cuenta_como_gestionado_y_exige_motivo():
+    """Un recojo no realizado ya no esta pendiente en la ruta y requiere motivo (C12-02)."""
+    assert "NO_REALIZADO" in ESTADOS_GESTIONADOS
+    with pytest.raises(ValueError):
+        NoRealizadoRequest(motivo=" a ")
+
+
+# --- F4: geocodificacion (C16-01, C16-02, C16-03, C17-01) ---
+
+from types import SimpleNamespace  # noqa: E402
+
+from app.core.distritos import normalizar_distrito, distrito_desde_texto, resolver_distrito, ZONA_DESCONOCIDA  # noqa: E402
+from app.services import geocoder, pedido_service  # noqa: E402
+
+
+@pytest.mark.parametrize("texto, esperado", [
+    ("Miraflores 15074", "Miraflores"),
+    ("jesus maria", "Jesús María"),
+    ("Distrito de Ate", "Ate"),
+    ("Surco", "Santiago de Surco"),
+    ("SJL", "San Juan de Lurigancho"),
+    ("Provincia Constitucional del Callao", "Callao"),
+    ("Arequipa", None),
+])
+def test_distrito_se_normaliza_con_la_lista_de_lima(texto, esperado):
+    """Tildes, codigo postal, prefijos y abreviaturas llevan al nombre oficial; fuera de Lima, None."""
+    assert normalizar_distrito(texto) == esperado
+
+
+def test_distrito_desde_texto_mira_todos_los_tramos():
+    """El distrito puede venir en cualquier tramo; "Lima" solo cuenta si no hay otro distrito."""
+    assert distrito_desde_texto("Av. Aviación 1030, San Borja, Lima, Perú") == "San Borja"
+    assert distrito_desde_texto("Urb. Las Flores Mz A Lt 5, Lima, San Juan de Lurigancho") == "San Juan de Lurigancho"
+    assert distrito_desde_texto("Jr. Ucayali 200, Lima") == "Cercado de Lima"
+    assert distrito_desde_texto("Av. Miraflores 300") is None
+
+
+def test_resolver_distrito_prefiere_el_del_mapa():
+    """Manda el distrito del geocodificador; si no hay, el del texto; si no, zona desconocida."""
+    assert resolver_distrito("Surquillo", "Av. Angamos 1200, Miraflores") == "Surquillo"
+    assert resolver_distrito(None, "Av. Angamos 1200, Miraflores") == "Miraflores"
+    assert resolver_distrito("Cercado de Lima", "Calle 5, Breña") == "Breña"
+    assert resolver_distrito(None, "Calle sin distrito 123") == ZONA_DESCONOCIDA
+
+
+def test_distrito_de_google_y_de_osm():
+    """Se lee el distrito de los componentes del resultado; la provincia ("Lima") no cuenta en OSM."""
+    google = {"address_components": [
+        {"long_name": "Provincia de Lima", "types": ["administrative_area_level_2"]},
+        {"long_name": "Santiago de Surco", "types": ["locality", "political"]},
+    ]}
+    assert geocoder._distrito_google(google) == "Santiago de Surco"
+    assert geocoder._distrito_osm({"address": {"suburb": "Lince", "city": "Lima"}}) == "Lince"
+    assert geocoder._distrito_osm({"address": {"city": "Lima"}}) is None
+
+
+def test_si_google_falla_se_usa_openstreetmap(monkeypatch):
+    """Ante un error de Google (o sin resultados) se intenta con OpenStreetMap (C16-02)."""
+    punto = geocoder.ResultadoGeo(-12.1, -77.0, "Lince", "Lince, Lima", "nominatim")
+
+    class GoogleCaido:
+        def geocode(self, *a, **k):
+            raise RuntimeError("OVER_QUERY_LIMIT")
+
+    monkeypatch.setattr(geocoder, "_google", GoogleCaido())
+    monkeypatch.setattr(geocoder, "_buscar_osm", lambda texto, maximo: [punto])
+    assert geocoder.buscar_coincidencias("Av. Arequipa 2000, Lince") == [punto]
+
+    monkeypatch.setattr(geocoder, "_buscar_google", lambda texto, maximo: [])
+    assert geocoder.buscar_coincidencias("Av. Arequipa 2000, Lince") == [punto]
+
+
+def _preparar_reproceso(monkeypatch, pedidos, encontrados):
+    """Simula repositorios y geocodificador para procesar_geocodificacion. Recibe los pedidos y
+    las direcciones que el mapa si encuentra. Devuelve la lista de cambios de estado registrados."""
+    cambios = []
+    monkeypatch.setattr(pedido_service.pedido_repository, "obtener_sin_coordenadas", lambda db: pedidos)
+    monkeypatch.setattr(pedido_service.pedido_repository, "guardar_cambios", lambda db: None)
+    monkeypatch.setattr(pedido_service.geocoding_cache_repository, "obtener_muchas", lambda db, d: {})
+    monkeypatch.setattr(pedido_service.historial_repository, "registrar",
+                        lambda db, pid, antes, despues, uid: cambios.append((pid, antes, despues)))
+    monkeypatch.setattr(pedido_service, "geocodificar", lambda d, db: (
+        geocoder.ResultadoGeo(-12.12, -77.03, "Miraflores") if d in encontrados else None))
+    return cambios
+
+
+def test_reprocesar_saca_de_fallida_y_marca_las_no_ubicadas(monkeypatch):
+    """Un pedido fallido que ahora se ubica vuelve a Listo; uno listo que no se ubica pasa a fallido (C16-03)."""
+    fallido = SimpleNamespace(id=1, estado="GEOCODIFICACION_FALLIDA", direccion_destino="Av. Larco 100",
+                              latitud=None, longitud=None, distrito=None)
+    listo = SimpleNamespace(id=2, estado="LISTO_PARA_ENVIO", direccion_destino="Calle Inexistente 9",
+                            latitud=None, longitud=None, distrito=None)
+    cambios = _preparar_reproceso(monkeypatch, [fallido, listo], {"Av. Larco 100"})
+
+    r = pedido_service.procesar_geocodificacion(db=None)
+
+    assert (r["pedidos_exitosos"], r["pedidos_fallidos"], r["pedidos_restantes"]) == (1, 1, 0)
+    assert fallido.estado == "LISTO_PARA_ENVIO" and fallido.distrito == "Miraflores"
+    assert listo.estado == "GEOCODIFICACION_FALLIDA"
+    assert cambios == [(1, "GEOCODIFICACION_FALLIDA", "LISTO_PARA_ENVIO"), (2, "LISTO_PARA_ENVIO", "GEOCODIFICACION_FALLIDA")]
+
+
+def test_reprocesar_por_tandas_informa_lo_que_queda(monkeypatch):
+    """Con tope por tanda solo se procesan los primeros y se informa cuantos quedan."""
+    pedidos = [SimpleNamespace(id=i, estado="GEOCODIFICACION_FALLIDA", direccion_destino=f"Dir {i}",
+                               latitud=None, longitud=None, distrito=None) for i in range(5)]
+    cambios = _preparar_reproceso(monkeypatch, pedidos, set())
+
+    r = pedido_service.procesar_geocodificacion(db=None, limite=2)
+
+    assert (r["pedidos_fallidos"], r["pedidos_restantes"]) == (2, 3)
+    assert cambios == []  # un fallido que sigue sin ubicarse no repite el historial
+
+
+def test_no_se_corrige_la_ubicacion_de_un_pedido_entregado(monkeypatch):
+    """Solo se puede corregir la ubicacion de pedidos no entregados ni cancelados (C17-01)."""
+    entregado = SimpleNamespace(id=1, estado="ENTREGADO")
+    monkeypatch.setattr(pedido_service.pedido_repository, "obtener_por_id", lambda db, pid: entregado)
+    with pytest.raises(HTTPException) as e:
+        pedido_service.fijar_ubicacion(None, 1, -12.1, -77.0)
+    assert e.value.status_code == 400
+
+
+def test_un_resultado_que_solo_ubica_el_pais_no_cuenta(monkeypatch):
+    """Si Google solo reconoce "Perú" (o la region), la direccion se trata como no encontrada."""
+    pais = SimpleNamespace(latitude=-9.19, longitude=-75.0, address="Perú", raw={"types": ["country", "political"]})
+
+    class GoogleVago:
+        def geocode(self, *a, **k):
+            return [pais]
+
+    monkeypatch.setattr(geocoder, "_google", GoogleVago())
+    assert geocoder._buscar_google("qqzz 999", 1) == []
+
+
+def test_busqueda_manual_suma_lugares_de_osm_sin_repetir(monkeypatch):
+    """La busqueda del admin junta Google y OpenStreetMap y descarta el mismo lugar repetido (C17-02)."""
+    g = geocoder.ResultadoGeo(-12.0464, -77.0300, "Cercado de Lima", "Plaza Mayor, Lima", "google")
+    mismo = geocoder.ResultadoGeo(-12.0465, -77.0301, "Cercado de Lima", "Plaza de Armas de Lima", "nominatim")
+    otro = geocoder.ResultadoGeo(-12.0700, -77.0000, "La Victoria", "Plaza de Armas, La Victoria", "nominatim")
+    monkeypatch.setattr(geocoder, "_google", object())
+    monkeypatch.setattr(geocoder, "_buscar_google", lambda texto, maximo: [g])
+    monkeypatch.setattr(geocoder, "_buscar_osm", lambda texto, maximo: [mismo, otro])
+    assert geocoder.buscar_lugares("Plaza de Armas") == [g, otro]
+
+
+# --- F5: despacho y rutas (C19-01, C19-02, C20-01, C20-03) ---
+
+from pydantic import ValidationError  # noqa: E402
+
+from app.schemas.ruta import AsignacionBloqueRequest, OptimizacionRequest  # noqa: E402
+from app.services import ruta_service  # noqa: E402
+
+
+def _despacho(monkeypatch, pedidos, validar=None):
+    """Simula los repositorios de asignar_bloque. Recibe los pedidos de la zona y un validador
+    opcional del conductor. Devuelve la lista de pasos en el orden en que ocurrieron."""
+    pasos = []
+    monkeypatch.setattr(ruta_service.usuario_repository, "bloquear", lambda db, cid: pasos.append("bloquear_conductor"))
+
+    def validar_ok(db, cid):
+        pasos.append("validar_conductor")
+        return SimpleNamespace(id=cid), SimpleNamespace(placa="ABC-123")
+    monkeypatch.setattr(ruta_service.conductor_service, "validar_para_ruta", validar or validar_ok)
+    monkeypatch.setattr(ruta_service.ruta_repository, "obtener_ruta_activa_por_conductor", lambda db, cid: None)
+
+    def pendientes(db, distrito, bloquear=False):
+        pasos.append(f"pedidos_bloqueados={bloquear}")
+        return pedidos
+    monkeypatch.setattr(ruta_service.pedido_repository, "obtener_pendientes_por_distrito", pendientes)
+    return pasos
+
+
+def test_despacho_bloquea_conductor_y_pedidos_antes_de_asignar(monkeypatch):
+    """Primero se bloquea y valida al conductor y luego se toman los pedidos con candado (C19-01)."""
+    pasos = _despacho(monkeypatch, [])
+    with pytest.raises(HTTPException) as e:
+        ruta_service.asignar_bloque(None, AsignacionBloqueRequest(distrito="Miraflores", conductor_id=7))
+    assert pasos == ["bloquear_conductor", "validar_conductor", "pedidos_bloqueados=True"]
+    assert e.value.status_code == 400 and "despacharla" in e.value.detail
+
+
+def test_despacho_a_conductor_sin_vehiculo_se_rechaza(monkeypatch):
+    """Si el conductor no pasa la validacion (sin vehiculo, de baja...) no se toca ningun pedido."""
+    def sin_vehiculo(db, cid):
+        raise HTTPException(status_code=400, detail="El conductor no tiene un vehículo asignado.")
+    pasos = _despacho(monkeypatch, [SimpleNamespace(id=1)], validar=sin_vehiculo)
+    with pytest.raises(HTTPException):
+        ruta_service.asignar_bloque(None, AsignacionBloqueRequest(distrito="Miraflores", conductor_id=7))
+    assert pasos == ["bloquear_conductor"]
+
+
+def test_nombre_de_ruta_largo_se_rechaza():
+    """El nombre personalizado de la ruta admite hasta 100 caracteres (C19-02)."""
+    with pytest.raises(ValidationError):
+        AsignacionBloqueRequest(nombre_ruta="R" * 101, distrito="Miraflores", conductor_id=1)
+
+
+def _detalle(estado, pid, lat=-12.1, codigo=None):
+    """Tupla (detalle, pedido) de una parada para las pruebas de optimizacion."""
+    return (SimpleNamespace(estado_entrega=estado, secuencia=0),
+            SimpleNamespace(id=pid, codigo=codigo or f"PD-{pid:03d}", latitud=lat, longitud=None if lat is None else -77.0))
+
+
+def test_paradas_sin_ubicacion_solo_cuenta_pendientes():
+    """Solo avisa de las paradas pendientes sin coordenadas; las ya cerradas no importan (C20-03)."""
+    detalles = [_detalle("PENDIENTE", 1, lat=None), _detalle("ENTREGADO", 2, lat=None), _detalle("PENDIENTE", 3)]
+    assert [p.id for p in ruta_service.paradas_sin_ubicacion(detalles)] == [1]
+
+
+def test_resumen_de_optimizacion_trae_km_y_sin_ubicacion():
+    """La respuesta al conductor incluye km, ahorro y los codigos sin ubicacion (C20-01, C20-03)."""
+    ruta = SimpleNamespace(km_estimado=12.4, km_ahorrado=3.1)
+    r = ruta_service.resumen_optimizacion("ok", [1, 2, 3], ruta, [SimpleNamespace(id=9, codigo="PD-009")])
+    assert r == {"mensaje": "ok", "total_paradas": 3, "km_estimado": 12.4, "km_ahorrado": 3.1,
+                 "paradas_sin_ubicacion": 1, "codigos_sin_ubicacion": ["PD-009"]}
+
+
+def test_optimizar_con_todas_las_paradas_sin_ubicacion_lo_explica(monkeypatch):
+    """Si ninguna parada pendiente tiene ubicacion, el error lo dice con sus codigos (C20-03)."""
+    ruta = SimpleNamespace(id=1, conductor_id=5)
+    monkeypatch.setattr(ruta_service.ruta_repository, "obtener_ruta_por_id", lambda db, rid: ruta)
+    monkeypatch.setattr(ruta_service.ruta_repository, "obtener_detalles_con_pedido",
+                        lambda db, rid: [_detalle("PENDIENTE", 4, lat=None), _detalle("ENTREGADO", 2)])
+    with pytest.raises(HTTPException) as e:
+        ruta_service.optimizar_ruta(None, OptimizacionRequest(ruta_id=1, latitud_actual_conductor=-12.1,
+                                                               longitud_actual_conductor=-77.0), conductor_id=5)
+    assert e.value.status_code == 400 and "PD-004" in e.value.detail
+
+
+# ---------------- F6: entrega en campo ----------------
+from app.core.imagenes import gps_de_captura  # noqa: E402
+from app.schemas.parametro import ContactoConfig  # noqa: E402
+from app.schemas.ruta import ActualizarEstadoRequest  # noqa: E402
+from app.services import reporte_service, incidencia_service, portal_service  # noqa: E402
+from app.schemas.reporte import ReporteCreate  # noqa: E402
+
+
+class _BDParada:
+    """Sesion falsa para actualizar_estado_parada: anota los pasos y devuelve el pedido."""
+
+    def __init__(self, pedido):
+        self.pedido, self.pasos = pedido, []
+
+    def refresh(self, obj, with_for_update=None):
+        self.pasos.append(f"bloqueo={bool(with_for_update)}")
+
+    def rollback(self):
+        self.pasos.append("rollback")
+
+    def commit(self):
+        self.pasos.append("commit")
+
+    def query(self, *a):
+        return self
+
+    def filter(self, *a):
+        return self
+
+    def first(self):
+        return self.pedido
+
+
+def _parada(monkeypatch, estado_entrega, url_evidencia="/media/evidencias/x.jpg"):
+    """Prepara una parada de la ruta del conductor con el estado dado. Devuelve (bd, detalle)."""
+    detalle = SimpleNamespace(id=1, ruta_id=3, estado_entrega=estado_entrega, url_evidencia=url_evidencia,
+                              motivo_fallo=None, fecha_gestion=None, ruta=SimpleNamespace(estado="EN_PROGRESO"))
+    pedido = SimpleNamespace(id=9, codigo="PD-009", estado="EN_RUTA", fecha_entrega=None)
+    monkeypatch.setattr(ruta_service, "_obtener_detalle_de_mi_ruta", lambda db, c, p: detalle)
+    monkeypatch.setattr(ruta_service.incidencia_repository, "tiene_abierta", lambda db, rid: False)
+    monkeypatch.setattr(ruta_service.historial_repository, "registrar", lambda *a: None)
+    receptores = []
+    monkeypatch.setattr(ruta_service.evidencia_repository, "fijar_receptor", lambda db, pid, n, d: receptores.append((n, d)))
+    bd = _BDParada(pedido)
+    bd.receptores = receptores
+    return bd, detalle
+
+
+def test_parada_entregada_no_puede_pasar_a_fallida(monkeypatch):
+    """Una parada ya gestionada no se modifica (C26-03): 409 y nada se guarda."""
+    bd, _ = _parada(monkeypatch, "ENTREGADO")
+    with pytest.raises(HTTPException) as e:
+        ruta_service.actualizar_estado_parada(bd, 5, 9, "FALLIDO", "Cliente ausente")
+    assert e.value.status_code == 409 and "entregada" in e.value.detail
+    assert "commit" not in bd.pasos
+
+
+def test_reintento_del_mismo_estado_responde_sin_repetir(monkeypatch):
+    """Si la cola offline reenvia la misma entrega, se responde OK sin volver a guardarla."""
+    bd, _ = _parada(monkeypatch, "FALLIDO")
+    r = ruta_service.actualizar_estado_parada(bd, 5, 9, "FALLIDO", "Cliente ausente")
+    assert r.estado_entrega == "FALLIDO" and bd.pasos == ["bloqueo=True", "rollback"]
+
+
+def test_entregar_exige_quien_recibe_y_lo_guarda(monkeypatch):
+    """ENTREGADO pide nombre y documento de quien recibe (C26-02) y los guarda con la parada bloqueada."""
+    bd, detalle = _parada(monkeypatch, "PENDIENTE")
+    with pytest.raises(HTTPException) as e:
+        ruta_service.actualizar_estado_parada(bd, 5, 9, "ENTREGADO", None)
+    assert e.value.status_code == 400 and "DNI" in e.value.detail
+    r = ruta_service.actualizar_estado_parada(bd, 5, 9, "ENTREGADO", None, "Ana Pérez", "45678912")
+    assert r.estado_entrega == "ENTREGADO" and bd.receptores == [("Ana Pérez", "45678912")]
+    assert bd.pasos[0] == "bloqueo=True" and "commit" in bd.pasos
+
+
+def test_no_se_cambia_la_foto_de_una_entrega_cerrada(monkeypatch):
+    """Subir otra foto POD a una parada ya entregada se rechaza antes de escribir nada."""
+    _parada(monkeypatch, "ENTREGADO")
+    with pytest.raises(HTTPException) as e:
+        ruta_service.guardar_evidencia(None, 5, 9, b"no-importa", "x.jpg")
+    assert e.value.status_code == 409
+
+
+@pytest.mark.parametrize("doc, valido", [("45678912", True), ("ce0012345", True), ("1234567", False),
+                                         ("45-678912", False), ("1234567890123", False)])
+def test_documento_de_quien_recibe(doc, valido):
+    """El documento es un DNI (8) o un carne de extranjeria: de 8 a 12 letras o numeros."""
+    if valido:
+        assert ActualizarEstadoRequest(estado="ENTREGADO", receptor_documento=doc).receptor_documento == doc.upper()
+    else:
+        with pytest.raises(ValidationError):
+            ActualizarEstadoRequest(estado="ENTREGADO", receptor_documento=doc)
+
+
+def test_gps_de_la_foto():
+    """La ubicacion de la foto se guarda como "lat,lng"; sin dato o fuera de rango queda vacia (C26-01)."""
+    assert gps_de_captura(-12.1, -77.03) == "-12.100000,-77.030000"
+    assert gps_de_captura(None, -77.0) is None
+    assert gps_de_captura(120.0, -77.0) is None
+
+
+def test_reporte_de_pedido_ajeno_a_la_ruta_se_rechaza(monkeypatch):
+    """Solo se reportan pedidos de la ruta activa del conductor (C29-02)."""
+    pedido = SimpleNamespace(id=9, codigo="PD-009")
+    bd = SimpleNamespace(query=lambda *a: SimpleNamespace(filter=lambda *b: SimpleNamespace(first=lambda: pedido)))
+    monkeypatch.setattr(reporte_service.ruta_repository, "obtener_ruta_activa_por_conductor", lambda db, c: SimpleNamespace(id=3))
+    monkeypatch.setattr(reporte_service.ruta_repository, "obtener_detalle_de_ruta", lambda db, r, p: None)
+    with pytest.raises(HTTPException) as e:
+        reporte_service.crear(bd, 5, ReporteCreate(pedido_id=9, motivo="Cliente ausente"))
+    assert e.value.status_code == 403
+
+
+def test_se_manda_ayuda_aunque_diga_que_puede_solo_y_queda_el_historial(monkeypatch):
+    """C30-02: marcar 'puedo solo' ya no bloquea la ayuda. C30-01: cada envio se suma al historial."""
+    inc = SimpleNamespace(id=4, estado="ABIERTA", puede_solucionar_solo=True,
+                          ayuda_enviada_en=None, ayuda_enviada_por=None, ayuda_detalle=None)
+    historial = []
+    monkeypatch.setattr(incidencia_service.incidencia_repository, "obtener", lambda db, i: inc)
+    monkeypatch.setattr(incidencia_service.incidencia_repository, "agregar_ayuda",
+                        lambda db, i, d, a: historial.append(d))
+    monkeypatch.setattr(incidencia_service.incidencia_repository, "guardar", lambda db: None)
+    monkeypatch.setattr(incidencia_service, "_a_respuesta", lambda db, i: i)
+    incidencia_service.mandar_ayuda(None, 4, 1, "Grúa", "llega en 30 min")
+    incidencia_service.mandar_ayuda(None, 4, 1, "Mecánico")
+    assert historial == ["Grúa: llega en 30 min", "Mecánico"] and inc.ayuda_detalle == "Mecánico"
+
+
+def test_ayuda_de_antes_del_historial_se_muestra_igual(monkeypatch):
+    """Una incidencia vieja (solo con la ultima ayuda en la propia fila) la devuelve como unica entrada."""
+    monkeypatch.setattr(incidencia_service.incidencia_repository, "listar_ayudas", lambda db, i: [])
+    vieja = SimpleNamespace(id=1, ayuda_enviada_en="2026-10-01", ayuda_detalle="Grúa")
+    assert incidencia_service._ayudas(None, vieja) == [{"detalle": "Grúa", "enviada_en": "2026-10-01"}]
+
+
+@pytest.mark.parametrize("tel, esperado", [("+51 987 654 321", "+51 987 654 321"), ("  ", None), (None, None)])
+def test_telefono_de_coordinacion_valido(tel, esperado):
+    """El telefono de coordinacion admite +, digitos y espacios; vacio lo borra (EX-13)."""
+    assert ContactoConfig(telefono_coordinacion=tel).telefono_coordinacion == esperado
+
+
+@pytest.mark.parametrize("tel", ["999-888-777", "12345", "llamar a Juan"])
+def test_telefono_de_coordinacion_invalido(tel):
+    """Un telefono con guiones, muy corto o con letras se rechaza."""
+    with pytest.raises(ValidationError):
+        ContactoConfig(telefono_coordinacion=tel)
+
+
+def test_portal_muestra_quien_recibio_de_verdad():
+    """El portal usa el nombre registrado por el conductor y enmascara el documento (C26-02)."""
+    pod = SimpleNamespace(receptor_nombre="Luis Rojas", receptor_documento="45678912")
+    assert portal_service._texto_recibido(pod) == "Recibido por Luis Rojas · Doc. ****912."
+    assert portal_service._texto_recibido(None) == "Entregado en la dirección de destino."
+
+
+# ---------------- F7: fallidos y reprogramacion ----------------
+from app.schemas.parametro import FranjasConfig  # noqa: E402
+from app.schemas.reporte import ResponderReporte  # noqa: E402
+
+
+def test_cancelar_sin_motivo_se_rechaza_antes_de_tocar_el_pedido():
+    """Cancelar exige un motivo de al menos 5 caracteres (C31-02); sin el no se consulta nada."""
+    for motivo in (None, "   ", "no"):
+        with pytest.raises(HTTPException) as e:
+            pedido_service.cancelar(None, 1, 1, motivo)
+        assert e.value.status_code == 400 and "motivo" in e.value.detail
+
+
+@pytest.mark.parametrize("accion, esperada", [("reprogramar", "REPROGRAMAR"), (None, "NINGUNA"), (" cancelar ", "CANCELAR")])
+def test_accion_de_la_respuesta_es_una_decision(accion, esperada):
+    """La accion ya no es texto libre: REPROGRAMAR, CANCELAR o NINGUNA (C31-01)."""
+    assert ResponderReporte(respuesta="ok", accion=accion).accion == esperada
+
+
+def test_accion_desconocida_se_rechaza():
+    with pytest.raises(ValidationError):
+        ResponderReporte(respuesta="ok", accion="Traer a base")
+
+
+def _reporte_abierto(monkeypatch, estado_pedido):
+    """Prepara un reporte abierto de un pedido con el estado dado. Devuelve (bd, reporte, llamadas)."""
+    reporte = SimpleNamespace(id=1, pedido_id=9, pedido_codigo="PD-009", conductor_id=5, motivo="Cliente ausente",
+                              descripcion=None, estado="ABIERTO", respuesta=None, accion=None, creado_en=None,
+                              respondido_en=None, respondido_por=None, url_evidencia=None, latitud_longitud_captura=None)
+    pedido = SimpleNamespace(id=9, estado=estado_pedido, direccion_destino="Calle 1")
+    llamadas = []
+    monkeypatch.setattr(reporte_service.reporte_repository, "obtener", lambda db, i: reporte)
+    monkeypatch.setattr(reporte_service.reporte_repository, "guardar", lambda db: llamadas.append("guardar"))
+    monkeypatch.setattr(reporte_service.pedido_service, "reprogramar", lambda db, pid, uid: llamadas.append(("reprogramar", pid)))
+    monkeypatch.setattr(reporte_service.pedido_service, "cancelar", lambda db, pid, uid, m: llamadas.append(("cancelar", m)))
+    monkeypatch.setattr(reporte_service, "_a_respuesta", lambda db, r: r)
+    bd = _BDParada(pedido)
+    return bd, reporte, llamadas
+
+
+def test_responder_y_reprogramar_en_un_paso(monkeypatch):
+    """Responder con REPROGRAMAR reprograma el pedido fallido y guarda la respuesta (C31-01)."""
+    bd, reporte, llamadas = _reporte_abierto(monkeypatch, "FALLIDO")
+    r = reporte_service.responder(bd, 1, 7, ResponderReporte(respuesta="Se reintenta mañana", accion="REPROGRAMAR"))
+    assert ("reprogramar", 9) in llamadas and r.accion == "Reprogramado" and r.respuesta == "Se reintenta mañana"
+
+
+def test_responder_y_cancelar_pasa_el_motivo(monkeypatch):
+    bd, _, llamadas = _reporte_abierto(monkeypatch, "FALLIDO")
+    reporte_service.responder(bd, 1, 7, ResponderReporte(respuesta="Se cancela", accion="CANCELAR",
+                                                         motivo_cancelacion="Dirección inexistente"))
+    assert ("cancelar", "Dirección inexistente") in llamadas
+
+
+def test_no_se_decide_sobre_un_pedido_que_ya_no_esta_fallido(monkeypatch):
+    """Si el pedido ya se reprogramo (p. ej. desde Pedidos), solo se puede responder."""
+    bd, _, llamadas = _reporte_abierto(monkeypatch, "LISTO_PARA_ENVIO")
+    with pytest.raises(HTTPException) as e:
+        reporte_service.responder(bd, 1, 7, ResponderReporte(respuesta="x", accion="REPROGRAMAR"))
+    assert e.value.status_code == 409 and llamadas == []
+    reporte_service.responder(bd, 1, 7, ResponderReporte(respuesta="Visto", accion="NINGUNA"))
+    assert llamadas == ["guardar"]
+
+
+def _portal_reprog(monkeypatch, estado):
+    """Prepara registrar_reprogramacion con un pedido en el estado dado. Devuelve (avisos, guardadas)."""
+    pedido = SimpleNamespace(id=9, codigo="PD-009", estado=estado)
+    avisos, guardadas = [], []
+    monkeypatch.setattr(portal_service.repo, "pedido_por_codigo", lambda db, c: pedido)
+    monkeypatch.setattr(portal_service.reprogramacion_repository, "registrar",
+                        lambda db, pid, f: guardadas.append(f) or SimpleNamespace(franja=f, estado="PENDIENTE"))
+    from app.services import notificaciones_service, parametro_service
+    monkeypatch.setattr(parametro_service, "obtener_franjas", lambda db: ["Mañana · 9 am – 1 pm", "Sábado · 9 am – 1 pm"])
+    monkeypatch.setattr(notificaciones_service, "registrar", lambda db, tipo, titulo, msg, ruta, eid: avisos.append(ruta))
+    return avisos, guardadas
+
+
+def test_reprogramacion_antes_de_la_visita_se_guarda_y_enlaza_al_pedido(monkeypatch):
+    """Un pedido aun no entregado puede pedir otra franja (C43-02); queda guardada (C43-01)
+    y el aviso al admin lleva al pedido, no a Reportes (C37-02)."""
+    avisos, guardadas = _portal_reprog(monkeypatch, "ASIGNADO")
+    bd = SimpleNamespace(commit=lambda: None)
+    r = portal_service.registrar_reprogramacion(bd, "PD-009", "Mañana · 9 am – 1 pm")
+    assert guardadas == ["Mañana · 9 am – 1 pm"] and avisos == ["/pedidos?codigo=PD-009"]
+    assert r["reprogramacion"] == {"franja": "Mañana · 9 am – 1 pm", "estado": "PENDIENTE"}
+
+
+def test_reprogramacion_con_franja_inventada_o_pedido_entregado_se_rechaza(monkeypatch):
+    """Solo valen las franjas configuradas (C43-03) y nunca un pedido ya entregado."""
+    _portal_reprog(monkeypatch, "LISTO_PARA_ENVIO")
+    with pytest.raises(HTTPException) as e:
+        portal_service.registrar_reprogramacion(None, "PD-009", "A las 3 am")
+    assert e.value.status_code == 400
+    _portal_reprog(monkeypatch, "ENTREGADO")
+    with pytest.raises(HTTPException) as e:
+        portal_service.registrar_reprogramacion(None, "PD-009", "Mañana · 9 am – 1 pm")
+    assert e.value.status_code == 409
+
+
+def _solicitud(monkeypatch, estado_pedido, estado_solicitud="PENDIENTE"):
+    """Prepara atender_reprogramacion. Devuelve (bd, solicitud, pedido, pasos)."""
+    solicitud = SimpleNamespace(id=3, pedido_id=9, franja="Sábado · 9 am – 1 pm", estado=estado_solicitud,
+                                creado_en=None, respuesta=None, atendida_en=None, atendida_por=None)
+    pedido = SimpleNamespace(id=9, codigo="PD-009", estado=estado_pedido)
+    pasos = []
+    monkeypatch.setattr(pedido_service.reprogramacion_repository, "obtener", lambda db, i, bloquear=False: solicitud)
+    monkeypatch.setattr(pedido_service.ruta_repository, "bloquear_detalles_de_pedido", lambda db, pid: pasos.append("bloquear"))
+    monkeypatch.setattr(pedido_service.ruta_repository, "eliminar_detalles_de_pedido", lambda db, pid: pasos.append("sacar_de_ruta"))
+    monkeypatch.setattr(pedido_service.historial_repository, "registrar", lambda *a: pasos.append("historial"))
+    return _BDParada(pedido), solicitud, pedido, pasos
+
+
+def test_aceptar_antes_de_la_visita_saca_el_pedido_de_su_ruta(monkeypatch):
+    """Aceptar la franja de un pedido ya asignado lo devuelve a su zona (C43-02)."""
+    bd, solicitud, pedido, pasos = _solicitud(monkeypatch, "ASIGNADO")
+    r = pedido_service.atender_reprogramacion(bd, 3, True, None, 1)
+    assert pasos == ["bloquear", "sacar_de_ruta", "historial"] and pedido.estado == "LISTO_PARA_ENVIO"
+    assert solicitud.estado == "ACEPTADA" and "salió de su ruta" in r["mensaje"]
+
+
+def test_aceptar_un_pedido_que_se_acaba_de_entregar_se_rechaza(monkeypatch):
+    """Con la parada bloqueada se relee el estado: si el conductor ya entrego, no se reprograma."""
+    bd, solicitud, _, pasos = _solicitud(monkeypatch, "ENTREGADO")
+    with pytest.raises(HTTPException) as e:
+        pedido_service.atender_reprogramacion(bd, 3, True, None, 1)
+    assert e.value.status_code == 409 and pasos == ["bloquear"] and solicitud.estado == "PENDIENTE"
+
+
+def test_rechazar_y_no_atender_dos_veces(monkeypatch):
+    bd, solicitud, pedido, pasos = _solicitud(monkeypatch, "LISTO_PARA_ENVIO")
+    pedido_service.atender_reprogramacion(bd, 3, False, "  Sin cupo el sábado ", 1)
+    assert solicitud.estado == "RECHAZADA" and solicitud.respuesta == "Sin cupo el sábado" and pasos == []
+    with pytest.raises(HTTPException) as e:
+        pedido_service.atender_reprogramacion(bd, 3, True, None, 1)
+    assert e.value.status_code == 409
+
+
+def test_franjas_configurables():
+    """Las franjas se limpian y deduplican; entre 1 y 6, de 3 a 60 caracteres (C43-03)."""
+    assert FranjasConfig(franjas=[" Lunes  9-13 ", "Lunes 9-13", "", "Martes 14-18"]).franjas == ["Lunes 9-13", "Martes 14-18"]
+    for malas in ([], ["ok"], [f"F{i} mañana" for i in range(7)]):
+        with pytest.raises(ValidationError):
+            FranjasConfig(franjas=malas)
+
+
+# ---------------- F8: reclamos y contactos ----------------
+from datetime import date, datetime  # noqa: E402
+
+from app.core.plazos import sumar_dias_habiles, dias_habiles_entre, es_feriado  # noqa: E402
+from app.schemas.portal import ContactoIn, ReclamoIn  # noqa: E402
+from app.services import reclamo_service, publico_forms_service  # noqa: E402
+
+
+def test_dias_habiles_saltan_fines_de_semana_y_feriados():
+    """El plazo legal se cuenta en dias habiles: sin sabados, domingos ni feriados (C41-03)."""
+    assert sumar_dias_habiles(date(2026, 12, 7), 3) == date(2026, 12, 14)  # 8 y 9 de dic son feriados
+    assert dias_habiles_entre(date(2026, 12, 14), date(2026, 12, 7)) == -3
+    assert es_feriado(date(2026, 4, 2)) and es_feriado(date(2026, 4, 3))  # Jueves y Viernes Santo 2026
+    assert not es_feriado(date(2026, 4, 6))
+
+
+def _reclamo(creado, respondido=None):
+    return SimpleNamespace(creado_en=creado, respondido_en=respondido)
+
+
+def test_estado_del_plazo_del_reclamo():
+    """15 dias habiles: en plazo, por vencer (3 o menos), vencido y respondido a tiempo."""
+    r = _reclamo(datetime(2026, 10, 1, 15, 0))  # jueves 1-oct (10:00 en Lima)
+    vence = reclamo_service.vence_el(r)
+    assert vence == date(2026, 10, 23)  # el 8-oct es feriado
+    assert reclamo_service.plazo(r, date(2026, 10, 5))["estado"] == "EN_PLAZO"
+    assert reclamo_service.plazo(r, date(2026, 10, 20))["estado"] == "POR_VENCER"
+    assert reclamo_service.plazo(r, date(2026, 10, 27))["estado"] == "VENCIDO"
+    r.respondido_en = datetime(2026, 10, 22, 15, 0)
+    assert reclamo_service.plazo(r, date(2026, 11, 30)) == {"venceEl": "2026-10-23", "diasRestantes": None,
+                                                             "estado": "RESPONDIDO", "aTiempo": True}
+
+
+def _hoja(**cambios):
+    """Hoja de reclamacion valida con cambios opcionales."""
+    base = {
+        "tipo": "RECLAMO",
+        "consumidor": {"nombre": "Luis Rojas", "dni": "45678912", "domicilio": "Av. Larco 120, Miraflores",
+                       "email": "luis@correo.pe", "telefono": "987 654 321"},
+        "bien": {"tipo": "servicio", "descripcion": "Entrega a domicilio", "monto": 25.5},
+        "detalle": "El paquete llegó abierto y faltaba un producto.",
+        "pedidoConsumidor": "Que repongan el producto faltante",
+    }
+    for k, v in cambios.items():
+        base[k] = v
+    return base
+
+
+def test_hoja_de_reclamacion_completa_es_valida():
+    hoja = ReclamoIn(**_hoja())
+    assert hoja.bien.tipo == "SERVICIO" and hoja.consumidor.apoderadoNombre is None
+
+
+@pytest.mark.parametrize("cambio", [
+    {"consumidor": {"nombre": "Luis Rojas", "dni": "45678912", "email": "luis@correo.pe", "telefono": "987654321"}},
+    {"consumidor": {"nombre": "Ana", "dni": "45678912", "domicilio": "Jr. Lima 1", "email": "ana@correo.pe",
+                    "telefono": "987654321", "esMenor": True}},
+    {"bien": {"tipo": "OTRO", "descripcion": "x"}},
+    {"pedidoConsumidor": ""},
+    {"consumidor": {"nombre": "Luis Rojas", "dni": "45678912", "domicilio": "Av. Larco 120",
+                    "email": "no-es-correo", "telefono": "987654321"}},
+])
+def test_hoja_incompleta_se_rechaza_en_el_servidor(cambio):
+    """Domicilio, apoderado del menor, bien contratado, pedido del consumidor y correo valido son obligatorios (C40-01)."""
+    with pytest.raises(ValidationError):
+        ReclamoIn(**_hoja(**cambio))
+
+
+def test_contacto_con_correo_invalido_se_rechaza():
+    """El servidor valida el correo del formulario de contacto (C39-02)."""
+    with pytest.raises(ValidationError):
+        ContactoIn(nombre="Ana", email="ana(at)empresa")
+    assert ContactoIn(nombre="Ana", email="ana@empresa.pe").email == "ana@empresa.pe"
+
+
+def test_nuevo_contacto_avisa_en_la_campana(monkeypatch):
+    """Un contacto comercial genera un aviso que lleva a la pantalla de contactos (C37-01)."""
+    avisos = []
+    monkeypatch.setattr(publico_forms_service.repo, "crear_contacto", lambda db, d: SimpleNamespace(id=7))
+    monkeypatch.setattr(publico_forms_service.notificaciones_service, "registrar",
+                        lambda db, tipo, titulo, msg, ruta, eid: avisos.append((tipo, ruta)))
+    monkeypatch.setattr(publico_forms_service.correo_service, "enviar_simple", lambda *a: False)
+    publico_forms_service.registrar_contacto(None, ContactoIn(nombre="Ana", empresa="Tienda", email="ana@tienda.pe"))
+    assert avisos == [("contactos", "/contactos")]
+
+
+def test_un_reclamo_respondido_no_se_vuelve_a_responder(monkeypatch):
+    """La respuesta queda registrada con su fecha y no se reescribe (C41-02)."""
+    r = SimpleNamespace(id=1, respondido_en=datetime(2026, 10, 2), respuesta="Ya respondido")
+    monkeypatch.setattr(reclamo_service.repo, "obtener_reclamo", lambda db, i: r)
+    with pytest.raises(HTTPException) as e:
+        reclamo_service.responder(None, 1, "Otra respuesta más", 1)
+    assert e.value.status_code == 409 and r.respuesta == "Ya respondido"
+
+
+# ---------------- F9: tablero, KPIs y liquidaciones ----------------
+from app.core.excel import celda_segura  # noqa: E402
+from app.services import indicadores_service  # noqa: E402
+
+
+@pytest.mark.parametrize("periodo, esperado", [
+    ("dia", (date(2026, 10, 29), date(2026, 10, 29))),
+    ("semana", (date(2026, 10, 26), date(2026, 10, 29))),   # lunes a hoy (jueves)
+    ("mes", (date(2026, 10, 1), date(2026, 10, 29))),
+])
+def test_periodo_del_tablero(monkeypatch, periodo, esperado):
+    """El tablero se filtra por hoy, semana (lunes a hoy) o mes (dia 1 a hoy) (C34-01)."""
+    monkeypatch.setattr(indicadores_service.fechas, "hoy_local", lambda: date(2026, 10, 29))
+    assert indicadores_service.rango(periodo) == esperado
+
+
+def test_periodo_invalido_o_rango_al_reves():
+    with pytest.raises(HTTPException):
+        indicadores_service.rango("anio")
+    with pytest.raises(HTTPException):
+        indicadores_service.rango(desde=date(2026, 10, 5), hasta=date(2026, 10, 1))
+
+
+@pytest.mark.parametrize("valor, esperado", [("=HYPERLINK(\"x\")", "'=HYPERLINK(\"x\")"), ("+51 987", "'+51 987"),
+                                             ("-2", "'-2"), ("@SUM(A1)", "'@SUM(A1)"), ("Ana", "Ana"), (120, 120), (None, None)])
+def test_excel_no_ejecuta_formulas_de_terceros(valor, esperado):
+    """Lo que escriben terceros (formularios, Excel del cliente) se exporta como texto, nunca como formula."""
+    assert celda_segura(valor) == esperado
+
+
+# ---------------- F10: archivos protegidos ----------------
+import json as _json  # noqa: E402
+
+from app.core import almacenamiento, media_firmada  # noqa: E402
+from app.services import privacidad_service  # noqa: E402
+
+
+def test_url_firmada_vence_y_no_se_puede_alterar():
+    """/media solo entrega enlaces firmados y vigentes (EX-03)."""
+    url = media_firmada.firmar("/media/evidencias/pod_1.jpg", ahora=1_000_000)
+    ruta, _, query = url.partition("?")
+    params = dict(p.split("=") for p in query.split("&"))
+    exp, firma = int(params["exp"]), params["firma"]
+    assert media_firmada.verificar(ruta, exp, firma, ahora=1_000_000)
+    assert not media_firmada.verificar("/media/evidencias/pod_2.jpg", exp, firma, ahora=1_000_000)
+    assert not media_firmada.verificar(ruta, exp + 3600, firma, ahora=1_000_000)
+    assert not media_firmada.verificar(ruta, exp, firma, ahora=exp + 1)
+
+
+def test_la_misma_foto_conserva_la_url_dentro_de_la_hora():
+    """El vencimiento se redondea por hora: el panel y la app aprovechan la cache entre refrescos."""
+    a = media_firmada.firmar("/media/x/a.jpg", ahora=7200 + 10)
+    b = media_firmada.firmar("/media/x/a.jpg", ahora=7200 + 3000)
+    assert a == b
+
+
+def test_se_firman_todas_las_urls_del_json_y_nada_mas():
+    cuerpo = _json.dumps({"url_evidencia": "/media/evidencias/a.jpg", "otra": "/api/x",
+                          "lista": [{"foto_url": "/media/conductores/c.jpg?v=5"}]}).encode()
+    datos = _json.loads(media_firmada.firmar_cuerpo(cuerpo))
+    assert "firma=" in datos["url_evidencia"] and datos["otra"] == "/api/x"
+    assert datos["lista"][0]["foto_url"].startswith("/media/conductores/c.jpg?v=5&exp=")
+    assert media_firmada.firmar_cuerpo(b'{"a": 1}') is None
+
+
+@pytest.mark.parametrize("clave", ["../secreto.txt", "C:\\x\\..\\y", "evidencias/../../x", "a//b", ""])
+def test_el_almacenamiento_rechaza_rutas_fuera_de_su_carpeta(clave):
+    with pytest.raises(ValueError):
+        almacenamiento._validar_clave(clave)
+
+
+def test_supabase_storage_sube_y_si_falta_lee_del_disco(monkeypatch, tmp_path):
+    """Con ALMACENAMIENTO=supabase se sube a la nube; lo que aun esta en disco se sigue leyendo (EX-08)."""
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "ALMACENAMIENTO", "supabase")
+    monkeypatch.setattr(settings, "SUPABASE_URL", "https://proyecto.supabase.co")
+    monkeypatch.setattr(settings, "SUPABASE_SERVICE_KEY", "clave-servicio")
+    monkeypatch.setattr(settings, "SUPABASE_BUCKET", "geotrack")
+    monkeypatch.setattr(settings, "UPLOADS_DIR", str(tmp_path))
+    peticiones = []
+
+    class _Resp:
+        def __init__(self, datos):
+            self.datos = datos
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return self.datos
+
+    def falso_urlopen(req, timeout=None):
+        peticiones.append((req.get_method(), req.full_url, req.get_header("Authorization"), req.get_header("X-upsert")))
+        if req.get_method() == "GET":
+            raise almacenamiento.urllib.error.HTTPError(req.full_url, 404, "no", {}, None)
+        return _Resp(b"{}")
+
+    monkeypatch.setattr(almacenamiento.urllib.request, "urlopen", falso_urlopen)
+    url = almacenamiento.guardar("evidencias/pod_9.jpg", b"jpg")
+    assert url == "/media/evidencias/pod_9.jpg"
+    assert peticiones[0] == ("POST", "https://proyecto.supabase.co/storage/v1/object/geotrack/evidencias/pod_9.jpg",
+                             "Bearer clave-servicio", "true")
+    (tmp_path / "evidencias").mkdir()
+    (tmp_path / "evidencias" / "vieja.jpg").write_bytes(b"de-disco")
+    assert almacenamiento.leer("evidencias/vieja.jpg") == b"de-disco"
+
+
+def test_retencion_deja_solo_iniciales_y_quita_contacto_y_ubicacion():
+    """Pasado el plazo se retiran los datos personales del destinatario y de quien recibio (EX-04)."""
+    pedido = SimpleNamespace(nombre_destinatario="Luis Alberto Rojas", telefono_destinatario="987654321",
+                             dni_destinatario="45678912", direccion_destino="Av. Larco 120", distrito="Miraflores",
+                             latitud=-12.1, longitud=-77.0, datos_retirados_en=None)
+    pod = SimpleNamespace(receptor_nombre="Ana Pérez", receptor_documento="12345678", latitud_longitud_captura="-12,-77")
+    ahora = datetime(2027, 5, 1)
+    privacidad_service._retirar(pedido, pod, ahora)
+    assert pedido.nombre_destinatario == "L. A. R." and pedido.telefono_destinatario is None and pedido.dni_destinatario is None
+    assert pedido.direccion_destino == "Dirección retirada por antigüedad · Miraflores" and pedido.latitud is None
+    assert pod.receptor_nombre == "A. P." and pod.receptor_documento is None and pod.latitud_longitud_captura is None
+    assert pedido.datos_retirados_en == ahora

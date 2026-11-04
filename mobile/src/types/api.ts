@@ -25,6 +25,8 @@ export interface RutaActiva {
   ayuda_enviada_en?: string | null;
   ayuda_detalle?: string | null;
   tipo?: string; // "ENTREGA" | "RECOJO"
+  km_estimado?: number | null;   // se llena al optimizar
+  km_ahorrado?: number | null;
 }
 
 // Una parada del manifiesto de entrega.
@@ -83,6 +85,10 @@ export interface GestionParada {
 export interface OptimizacionResultado {
   mensaje: string;
   total_paradas: number;
+  km_estimado?: number | null;      // recorrido calculado desde tu ubicación
+  km_ahorrado?: number | null;      // frente al orden en que se cargaron las paradas
+  paradas_sin_ubicacion?: number;   // pendientes sin coordenadas: quedan fuera del orden
+  codigos_sin_ubicacion?: string[];
 }
 
 export interface CierreRuta {
@@ -115,6 +121,8 @@ export interface PerfilConductor {
   dni?: string | null;
   vehiculo?: { id: number; codigo?: string | null; placa: string } | null;
   foto_url?: string | null;
+  licencia_numero?: string | null;
+  licencia_vencimiento?: string | null; // "AAAA-MM-DD"
 }
 
 // Reporte de falla de un pedido.
@@ -130,6 +138,18 @@ export interface Reporte {
   accion?: string | null;
   creado_en?: string | null;
   respondido_en?: string | null;
+  url_evidencia?: string | null;  // foto que respalda la falla (C29-01)
+}
+
+// Quien recibe el paquete al entregar (C26-02).
+export interface Receptor {
+  nombre: string;
+  documento: string; // DNI (8 dígitos) o carné de extranjería
+}
+
+// Teléfono de coordinación configurado en el panel (EX-13).
+export interface Contacto {
+  telefono_coordinacion?: string | null;
 }
 
 // Incidencia de auxilio mecánico.
@@ -166,9 +186,12 @@ export interface ParadaRecojo {
   latitud?: number | null;
   longitud?: number | null;
   volumen_estimado_m3?: number | null;
-  estado: string; // SOLICITADO | ASIGNADO | EN_RUTA | RECOGIDO
+  estado: string; // SOLICITADO | ASIGNADO | EN_RUTA | RECOGIDO | NO_REALIZADO
   cantidad_declarada?: number | null;
   url_guia?: string | null;
+  contacto_origen?: string | null;
+  motivo_no_realizado?: string | null;
+  num_pedidos?: number;
 }
 
 export interface ManifiestoRecojo {

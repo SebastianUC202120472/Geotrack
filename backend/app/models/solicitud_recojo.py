@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, Date, DateTime, ForeignKey
 from app.db.database import Base
 
 
@@ -34,8 +34,15 @@ class SolicitudRecojo(Base):
 
     fecha_creacion = Column(DateTime, default=datetime.utcnow)
     fecha_recojo = Column(DateTime, nullable=True)          # se sella al pasar a RECOGIDO
+    fecha_programada = Column(Date, nullable=True)          # dia pedido por el cliente para el recojo (C11-04)
+    motivo_no_realizado = Column(String(255), nullable=True)  # ultimo motivo por el que no se pudo recoger (C12-02)
+    intentos_no_realizados = Column(Integer, default=0)       # veces que la visita no se concreto
 
 
 # Estados en los que el conductor YA levantó el recojo: recogido, o ya ingresado en
 # almacén. Para el conductor ambos cuentan como "recogido" (no pendiente).
 ESTADOS_RECOGIDO = ("RECOGIDO", "INGRESADO")
+
+# Estados que ya no estan pendientes en la ruta: recogidos o marcados "no realizado"
+# (tienda cerrada, sin mercaderia). Un no realizado vuelve a SOLICITADO al cerrar la ruta.
+ESTADOS_GESTIONADOS = ESTADOS_RECOGIDO + ("NO_REALIZADO",)

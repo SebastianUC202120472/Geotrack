@@ -8,6 +8,7 @@ from app.api.deps import get_current_conductor
 from app.core.config import settings
 from app.core.imagenes import leer_imagen_subida
 from app.models.usuario import Usuario
+from app.schemas.parametro import ContactoConfig
 from app.services import ruta_service, reporte_service, conductor_service, parametro_service, incidencia_service, recojo_service
 from app.schemas.ruta import (
     RutaActivaResponse,
@@ -19,7 +20,7 @@ from app.schemas.ruta import (
     OptimizacionRequest,
     OptimizacionResponse,
 )
-from app.schemas.recojo import ManifiestoRecojoResponse, RecepcionResponse
+from app.schemas.recojo import ManifiestoRecojoResponse, RecepcionResponse, NoRealizadoRequest
 from app.schemas.reporte import ReporteCreate, ReporteResponse
 from app.schemas.incidencia import IncidenciaCreate, ResolverIncidenciaRequest, IncidenciaResponse
 from app.schemas.conductor import ConductorResponse, UbicacionRequest
@@ -63,12 +64,35 @@ def crear_reporte(
     return reporte_service.crear(db, conductor.id, datos)
 
 
+@router.post("/reportes/{reporte_id}/evidencia", response_model=ReporteResponse)
+async def cargar_evidencia_reporte(
+    reporte_id: int,
+    file: UploadFile = File(...),
+    latitud: float | None = Form(None),
+    longitud: float | None = Form(None),
+    db: Session = Depends(get_db),
+    conductor: Usuario = Depends(get_current_conductor),
+):
+    """Adjunta la foto que respalda una entrega fallida. Recibe reporte_id, archivo y lat/lng opcionales."""
+    contenido = await leer_imagen_subida(file)
+    return reporte_service.guardar_evidencia(db, reporte_id, conductor.id, contenido, latitud, longitud)
+
+
 @router.get("/reportes", response_model=List[ReporteResponse])
 def mis_reportes(
     db: Session = Depends(get_db),
     conductor: Usuario = Depends(get_current_conductor),
 ):
     return reporte_service.listar_mios(db, conductor.id)
+
+
+@router.get("/contacto", response_model=ContactoConfig)
+def consultar_contacto(
+    db: Session = Depends(get_db),
+    conductor: Usuario = Depends(get_current_conductor),
+):
+    """Telefono de coordinacion para las pantallas de Ayuda y Reportar un error (EX-13)."""
+    return parametro_service.obtener_contacto(db)
 
 
 @router.get("/ruta-activa", response_model=RutaActivaResponse)
@@ -102,8 +126,10 @@ def actualizar_estado_parada(
     db: Session = Depends(get_db),
     conductor: Usuario = Depends(get_current_conductor),
 ):
+    """Marca la parada como ENTREGADO (con quien recibe) o FALLIDO (con motivo). Recibe pedido_id y la solicitud."""
     return ruta_service.actualizar_estado_parada(
-        db, conductor.id, pedido_id, solicitud.estado, solicitud.motivo_fallo
+        db, conductor.id, pedido_id, solicitud.estado, solicitud.motivo_fallo,
+        solicitud.receptor_nombre, solicitud.receptor_documento,
     )
 
 
@@ -111,12 +137,15 @@ def actualizar_estado_parada(
 async def cargar_evidencia(
     pedido_id: int,
     file: UploadFile = File(...),
+    latitud: float | None = Form(None),
+    longitud: float | None = Form(None),
     db: Session = Depends(get_db),
     conductor: Usuario = Depends(get_current_conductor),
 ):
+    """Sube la foto POD con la posicion GPS de la captura. Recibe pedido_id, archivo y lat/lng opcionales."""
     contenido = await leer_imagen_subida(file)
     return ruta_service.guardar_evidencia(
-        db, conductor.id, pedido_id, contenido, file.filename
+        db, conductor.id, pedido_id, contenido, file.filename, latitud, longitud
     )
 
 
@@ -185,14 +214,27 @@ async def registrar_recepcion(
     recojo_id: int,
     cantidad_declarada: int = Form(...),
     files: list[UploadFile] = File(...),
+    latitud: float | None = Form(None),
+    longitud: float | None = Form(None),
     db: Session = Depends(get_db),
     conductor: Usuario = Depends(get_current_conductor),
 ):
-    """Registra el recojo con cantidad declarada y fotos de evidencia."""
+    """Registra el recojo con cantidad declarada, fotos de evidencia y la posicion GPS de la captura."""
     # Se corta antes de leer para no cargar en memoria un lote desmedido.
     if len(files) > settings.RECOJO_MAX_FOTOS:
         raise HTTPException(status_code=400, detail=f"Puedes adjuntar como máximo {settings.RECOJO_MAX_FOTOS} fotos")
     archivos = [(await leer_imagen_subida(f), f.filename) for f in files]
     return recojo_service.registrar_recepcion(
-        db, conductor.id, recojo_id, cantidad_declarada, archivos
+        db, conductor.id, recojo_id, cantidad_declarada, archivos, latitud, longitud
     )
+
+
+@router.post("/recojo/{recojo_id}/no-realizado")
+def marcar_recojo_no_realizado(
+    recojo_id: int,
+    datos: NoRealizadoRequest,
+    db: Session = Depends(get_db),
+    conductor: Usuario = Depends(get_current_conductor),
+):
+    """Marca que el recojo no se pudo hacer (tienda cerrada, sin mercadería...). Recibe el motivo."""
+    return recojo_service.marcar_no_realizado(db, conductor.id, recojo_id, datos.motivo)

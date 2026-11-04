@@ -15,4 +15,5 @@ class GeocodificacionCache(Base):
     latitud = Column(Float, nullable=False)
     longitud = Column(Float, nullable=False)
     proveedor = Column(String(20), nullable=True)   # 'google' | 'nominatim'
+    distrito = Column(String(100), nullable=True)   # distrito que dio el mapa (C16-01)
     creado_en = Column(DateTime, default=datetime.utcnow)

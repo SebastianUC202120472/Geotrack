@@ -5,12 +5,14 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.imagenes import validar_imagen
+from app.core import almacenamiento
+from app.core.imagenes import validar_imagen, gps_de_captura
 from app.models.ruta import Ruta, RutaDetalle
 from app.models.pedido import Pedido
 from app.models.solicitud_recojo import ESTADOS_RECOGIDO
-from app.repositories import ruta_repository, pedido_repository, historial_repository, evidencia_repository, incidencia_repository, recojo_repository, vehiculo_repository
-from app.services.router import optimizar_secuencia_pedidos, distancia_total
+from app.repositories import ruta_repository, pedido_repository, historial_repository, evidencia_repository, incidencia_repository, recojo_repository, usuario_repository
+from app.services import conductor_service
+from app.services.router import optimizar_secuencia_pedidos, registrar_km, km_sin_optimizar
 from app.schemas.ruta import (
     RutaActivaResponse,
     ManifiestoResponse,
@@ -23,8 +25,6 @@ from app.schemas.ruta import (
     OptimizacionRequest,
 )
 
-# Directorio de fotos POD, servido en /media.
-DIR_EVIDENCIAS = os.path.join("uploads", "evidencias")
 
 
 def _construir_parada(detalle: RutaDetalle, pedido: Pedido) -> ParadaManifiesto:
@@ -65,14 +65,16 @@ def obtener_resumen_ruta_activa(db: Session, conductor_id: int) -> RutaActivaRes
         recojos = recojo_repository.obtener_por_ruta(db, ruta.id)
         total = len(recojos)
         recogidas = sum(1 for r in recojos if r.estado in ESTADOS_RECOGIDO)
+        no_realizadas = sum(1 for r in recojos if r.estado == "NO_REALIZADO")
         return RutaActivaResponse(
             ruta_id=ruta.id, codigo=ruta.codigo, nombre=ruta.nombre, estado=ruta.estado,
             fecha_creacion=ruta.fecha_creacion, fecha_salida=ruta.fecha_salida,
-            vehiculo_placa=ruta.vehiculo_placa, total_paradas=total, pendientes=total - recogidas,
-            entregadas=recogidas, fallidas=0, pausada=abierta is not None,
+            vehiculo_placa=ruta.vehiculo_placa, total_paradas=total, pendientes=total - recogidas - no_realizadas,
+            entregadas=recogidas, fallidas=no_realizadas, pausada=abierta is not None,
             incidencia_id=abierta.id if abierta else None,
             ayuda_enviada_en=abierta.ayuda_enviada_en if abierta else None,
             ayuda_detalle=abierta.ayuda_detalle if abierta else None, tipo=ruta.tipo,
+            km_estimado=ruta.km_estimado, km_ahorrado=ruta.km_ahorrado,
         )
 
     detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
@@ -88,6 +90,7 @@ def obtener_resumen_ruta_activa(db: Session, conductor_id: int) -> RutaActivaRes
         incidencia_id=abierta.id if abierta else None,
         ayuda_enviada_en=abierta.ayuda_enviada_en if abierta else None,
         ayuda_detalle=abierta.ayuda_detalle if abierta else None, tipo=ruta.tipo,
+        km_estimado=ruta.km_estimado, km_ahorrado=ruta.km_ahorrado,
     )
 
 
@@ -146,14 +149,40 @@ def _obtener_detalle_de_mi_ruta(
     return detalle
 
 
+def _respuesta_gestion(detalle: RutaDetalle, pedido: Pedido, mensaje: str) -> GestionParadaResponse:
+    """Arma la respuesta de una parada gestionada. Recibe el detalle, el pedido y el mensaje."""
+    return GestionParadaResponse(
+        pedido_id=pedido.id,
+        codigo=pedido.codigo,
+        estado_entrega=detalle.estado_entrega,
+        motivo_fallo=detalle.motivo_fallo,
+        url_evidencia=detalle.url_evidencia,
+        fecha_gestion=detalle.fecha_gestion,
+        mensaje=mensaje,
+    )
+
+
+def validar_parada_pendiente(detalle: RutaDetalle) -> None:
+    """Rechaza cambios sobre una parada ya entregada o fallida (C26-03). Recibe el detalle de ruta."""
+    if detalle.estado_entrega != "PENDIENTE":
+        texto = "entregada" if detalle.estado_entrega == "ENTREGADO" else "reportada como fallida"
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Esta parada ya fue {texto} y no se puede modificar.",
+        )
+
+
 def actualizar_estado_parada(
     db: Session,
     conductor_id: int,
     pedido_id: int,
     estado: str,
     motivo_fallo: str | None,
+    receptor_nombre: str | None = None,
+    receptor_documento: str | None = None,
 ) -> GestionParadaResponse:
-    """Marca un pedido como ENTREGADO o FALLIDO. Recibe: id del conductor, pedido, estado y motivo."""
+    """Marca un pedido como ENTREGADO o FALLIDO. Recibe: id del conductor, pedido, estado, motivo
+    y, si se entrega, el nombre y documento de quien recibe."""
     if estado == "FALLIDO" and not (motivo_fallo and motivo_fallo.strip()):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -161,6 +190,16 @@ def actualizar_estado_parada(
         )
 
     detalle = _obtener_detalle_de_mi_ruta(db, conductor_id, pedido_id)
+    # Bloquea la fila: dos envios a la vez (p. ej. la cola offline y la pantalla) no pueden
+    # gestionar la misma parada dos veces.
+    db.refresh(detalle, with_for_update=True)
+    pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
+
+    # Un reintento del mismo cambio (respuesta perdida por la señal) se responde sin repetirlo.
+    if detalle.estado_entrega == estado:
+        db.rollback()
+        return _respuesta_gestion(detalle, pedido, f"Pedido marcado como {estado}")
+    validar_parada_pendiente(detalle)
 
     if incidencia_repository.tiene_abierta(db, detalle.ruta_id):
         raise HTTPException(status_code=400, detail="La ruta está pausada por una incidencia. Reanúdala antes de continuar.")
@@ -171,8 +210,11 @@ def actualizar_estado_parada(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Adjunta la foto de evidencia (POD) antes de marcar la entrega como ENTREGADO.",
         )
-
-    pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
+    if estado == "ENTREGADO" and not (receptor_nombre and len(receptor_nombre) >= 3 and receptor_documento):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Indica el nombre y el DNI de quien recibe el paquete.",
+        )
 
     ahora = datetime.utcnow()
     estado_anterior = pedido.estado
@@ -186,20 +228,15 @@ def actualizar_estado_parada(
     if detalle.ruta and detalle.ruta.estado == "CREADA":
         detalle.ruta.estado = "EN_PROGRESO"
 
+    if estado == "ENTREGADO":
+        evidencia_repository.fijar_receptor(db, pedido.id, receptor_nombre, receptor_documento)
+
     historial_repository.registrar(db, pedido.id, estado_anterior, estado, conductor_id)
 
     db.commit()
     db.refresh(detalle)
 
-    return GestionParadaResponse(
-        pedido_id=pedido.id,
-        codigo=pedido.codigo,
-        estado_entrega=detalle.estado_entrega,
-        motivo_fallo=detalle.motivo_fallo,
-        url_evidencia=detalle.url_evidencia,
-        fecha_gestion=detalle.fecha_gestion,
-        mensaje=f"Pedido marcado como {estado}",
-    )
+    return _respuesta_gestion(detalle, pedido, f"Pedido marcado como {estado}")
 
 
 def guardar_evidencia(
@@ -208,39 +245,29 @@ def guardar_evidencia(
     pedido_id: int,
     contenido: bytes,
     nombre_archivo: str,
+    latitud: float | None = None,
+    longitud: float | None = None,
 ) -> GestionParadaResponse:
-    """Guarda la foto POD y la asocia al detalle de ruta. Recibe: id conductor, pedido, bytes e imagen."""
+    """Guarda la foto POD y la asocia al detalle de ruta. Recibe: id conductor, pedido, bytes,
+    nombre de la imagen y la posicion GPS donde se tomo (C26-01)."""
     detalle = _obtener_detalle_de_mi_ruta(db, conductor_id, pedido_id)
+    # Una entrega ya cerrada no puede cambiar su foto de evidencia (C26-03).
+    validar_parada_pendiente(detalle)
 
     # La extension sale del contenido real, no del nombre que manda el cliente.
     extension = validar_imagen(contenido)
 
-    os.makedirs(DIR_EVIDENCIAS, exist_ok=True)
-    # El sufijo aleatorio evita que la foto sea adivinable: /media se sirve como
-    # estatico y un nombre secuencial (pod_1_1.jpg) permitiria descargar evidencias
-    # ajenas iterando enteros, saltandose la verificacion por DNI del portal.
+    # Nombre no adivinable y, ademas, /media solo entrega enlaces firmados (EX-03).
     nombre_final = f"pod_{detalle.ruta_id}_{pedido_id}_{secrets.token_hex(8)}{extension}"
-    ruta_fisica = os.path.join(DIR_EVIDENCIAS, nombre_final)
-    with open(ruta_fisica, "wb") as f:
-        f.write(contenido)
-
-    url = f"/media/evidencias/{nombre_final}"
+    url = almacenamiento.guardar(f"evidencias/{nombre_final}", contenido)
     detalle.url_evidencia = url
     db.commit()
     db.refresh(detalle)
 
-    evidencia_repository.registrar_foto(db, pedido_id, url)
+    evidencia_repository.registrar_foto(db, pedido_id, url, gps_de_captura(latitud, longitud))
 
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
-    return GestionParadaResponse(
-        pedido_id=pedido.id,
-        codigo=pedido.codigo,
-        estado_entrega=detalle.estado_entrega,
-        motivo_fallo=detalle.motivo_fallo,
-        url_evidencia=detalle.url_evidencia,
-        fecha_gestion=detalle.fecha_gestion,
-        mensaje="Evidencia (POD) cargada correctamente",
-    )
+    return _respuesta_gestion(detalle, pedido, "Evidencia (POD) cargada correctamente")
 
 
 def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
@@ -271,11 +298,7 @@ def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
 
     # Estima km si la ruta nunca se optimizó.
     if ruta.km_estimado is None and detalles:
-        pedidos_ordenados = [pedido for _, pedido in detalles]
-        primero = next((p for p in pedidos_ordenados if p.latitud is not None and p.longitud is not None), None)
-        if primero is not None:
-            ruta.km_estimado = round(distancia_total(primero.latitud, primero.longitud, pedidos_ordenados), 2)
-            ruta.km_ahorrado = 0.0
+        km_sin_optimizar(ruta, [pedido for _, pedido in detalles])
 
     hora_inicio = ruta.fecha_salida or ruta.fecha_creacion
     duracion_minutos = None
@@ -304,27 +327,33 @@ def finalizar_ruta(db: Session, conductor_id: int) -> CierreRutaResponse:
 
 
 def asignar_bloque(db: Session, datos: AsignacionBloqueRequest, usuario_id: int | None = None) -> dict:
-    """Crea una ruta con todos los pedidos LISTO_PARA_ENVIO de un distrito. Recibe: datos de asignacion e id del admin."""
-    pedidos = pedido_repository.obtener_pendientes_por_distrito(db, datos.distrito)
-    if not pedidos:
-        raise HTTPException(status_code=400, detail="No hay pedidos pendientes para esa zona")
+    """Crea una ruta con todos los pedidos LISTO_PARA_ENVIO de un distrito. Bloquea al conductor y
+    a los pedidos hasta el commit: dos despachos simultaneos de la misma zona no duplican paradas
+    y un conductor no recibe dos rutas a la vez (C19-01). Recibe: datos de asignacion e id del admin."""
+    # 1) Candado del conductor: un segundo despacho a la misma persona espera al primero y luego ve su ruta.
+    usuario_repository.bloquear(db, datos.conductor_id)
+    _, vehiculo = conductor_service.validar_para_ruta(db, datos.conductor_id)  # existe, activo, con vehiculo
+    activa = ruta_repository.obtener_ruta_activa_por_conductor(db, datos.conductor_id)
+    if activa:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El conductor ya tiene una ruta activa ('{activa.nombre}'). Debe cerrarla antes de asignar otra.",
+        )
 
-    if datos.conductor_id:
-        activa = ruta_repository.obtener_ruta_activa_por_conductor(db, datos.conductor_id)
-        if activa:
-            raise HTTPException(
-                status_code=400,
-                detail=f"El conductor ya tiene una ruta activa ('{activa.nombre}'). Debe cerrarla antes de asignar otra.",
-            )
+    # 2) Candado de los pedidos: si otra persona despacho la zona a la vez, aqui ya no quedan.
+    pedidos = pedido_repository.obtener_pendientes_por_distrito(db, datos.distrito, bloquear=True)
+    if not pedidos:
+        raise HTTPException(
+            status_code=400,
+            detail="No quedan pedidos pendientes en esa zona: puede que alguien acabe de despacharla. Actualiza la lista.",
+        )
 
     nombre = (datos.nombre_ruta or "").strip() or f"Ruta {datos.distrito or 'sin zona'}"
 
     ruta = ruta_repository.crear_ruta(db, nombre=nombre, conductor_id=datos.conductor_id)
     # La ruta hereda el vehiculo asignado al conductor: sin esto la placa queda vacia
     # en el seguimiento del panel, en el portal del cliente y en los reportes de auxilio.
-    vehiculo = vehiculo_repository.obtener_por_conductor(db, datos.conductor_id)
-    if vehiculo:
-        ruta.vehiculo_placa = vehiculo.placa
+    ruta.vehiculo_placa = vehiculo.placa
 
     for pedido in pedidos:
         ruta_repository.agregar_detalle(db, ruta_id=ruta.id, pedido_id=pedido.id, secuencia=0)
@@ -355,6 +384,26 @@ def separar_paradas_a_optimizar(detalles):
     return hechas, pendientes
 
 
+def paradas_sin_ubicacion(detalles) -> list:
+    """Pedidos pendientes de la ruta que no tienen coordenadas y por eso no entran al orden
+    optimizado (C20-03). Recibe la lista de tuplas (detalle, pedido)."""
+    return [pedido for detalle, pedido in detalles
+            if pedido.latitud is None and detalle.estado_entrega == "PENDIENTE"]
+
+
+def resumen_optimizacion(mensaje: str, ordenados: list, ruta, sin_ubicacion: list) -> dict:
+    """Respuesta comun de optimizar (entrega o recojo): paradas ordenadas, km y ahorro, y las
+    paradas sin ubicacion. Recibe el mensaje, la lista ordenada, la ruta y los sin ubicacion."""
+    return {
+        "mensaje": mensaje,
+        "total_paradas": len(ordenados),
+        "km_estimado": ruta.km_estimado,
+        "km_ahorrado": ruta.km_ahorrado,
+        "paradas_sin_ubicacion": len(sin_ubicacion),
+        "codigos_sin_ubicacion": [x.codigo or f"#{x.id}" for x in sin_ubicacion],
+    }
+
+
 def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -> dict:
     """Optimiza el orden de entrega de la ruta del conductor (vecino mas cercano). Recibe: datos de posicion e id del conductor."""
     ruta = ruta_repository.obtener_ruta_por_id(db, datos.ruta_id)
@@ -367,7 +416,12 @@ def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -
     detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
     detalle_por_pedido = {pedido.id: detalle for detalle, pedido in detalles}
     hechas, pedidos_validos = separar_paradas_a_optimizar(detalles)
+    sin_ubicacion = paradas_sin_ubicacion(detalles)
     if not pedidos_validos:
+        if sin_ubicacion:
+            raise HTTPException(status_code=400, detail=(
+                f"Las paradas pendientes no tienen ubicación en el mapa ({', '.join(p.codigo or str(p.id) for p in sin_ubicacion)}). "
+                "Avisa a la central para que las ubiquen."))
         raise HTTPException(status_code=400, detail="No quedan paradas pendientes por optimizar en esta ruta")
 
     ordenados = optimizar_secuencia_pedidos(
@@ -376,11 +430,7 @@ def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -
         datos.longitud_actual_conductor,
     )
 
-    origen = (datos.latitud_actual_conductor, datos.longitud_actual_conductor)
-    km_base = distancia_total(origen[0], origen[1], pedidos_validos)
-    km_opt = distancia_total(origen[0], origen[1], ordenados)
-    ruta.km_estimado = round(km_opt, 2)
-    ruta.km_ahorrado = round(max(0.0, km_base - km_opt), 2)
+    registrar_km(ruta, datos.latitud_actual_conductor, datos.longitud_actual_conductor, pedidos_validos, ordenados)
 
     # Las paradas ya cerradas conservan su lugar al inicio; las pendientes se
     # renumeran a continuacion, para que "parada X de Y" siga siendo coherente.
@@ -395,6 +445,10 @@ def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -
         eventos.append({"pedido_id": pedido.id, "estado_anterior": estado_anterior,
                         "estado_nuevo": "EN_RUTA", "usuario_id": conductor_id})
         secuencia += 1
+    # Las paradas sin ubicacion van al final: siguen en la ruta, pero fuera del orden calculado.
+    for pedido in sin_ubicacion:
+        detalle_por_pedido[pedido.id].secuencia = secuencia
+        secuencia += 1
     historial_repository.registrar_bulk(db, eventos)
 
     # Sella la salida la primera vez que el conductor optimiza.
@@ -404,7 +458,7 @@ def optimizar_ruta(db: Session, datos: OptimizacionRequest, conductor_id: int) -
 
     ruta_repository.guardar_cambios(db)
 
-    return {"mensaje": "Ruta optimizada matemáticamente", "total_paradas": len(ordenados)}
+    return resumen_optimizacion("Ruta optimizada matemáticamente", ordenados, ruta, sin_ubicacion)
 
 
 def _ruta_o_404(db: Session, ruta_id: int) -> Ruta:
@@ -538,36 +592,70 @@ def quitar_parada(db: Session, ruta_id: int, pedido_id: int, usuario_id: int | N
 
 
 COLUMNAS_MANIFIESTO = ["Secuencia", "Código", "Cliente", "Destinatario", "Dirección", "Distrito", "Teléfono", "Estado"]
+COLUMNAS_MANIFIESTO_RECOJO = ["Secuencia", "Código", "Cliente", "Dirección de recojo", "Distrito", "Contacto",
+                              "Pedidos", "Volumen (m³)", "Fecha pedida", "Estado"]
+
+
+def _encabezado_manifiesto(db: Session, ruta) -> list[list]:
+    """Filas de cabecera del manifiesto: ruta, conductor, placa y fecha (C22-01). Recibe la ruta."""
+    from app.core.fechas import fecha_local_de
+    from app.repositories import conductor_repository
+    perfil = conductor_repository.obtener_perfil(db, ruta.conductor_id) if ruta.conductor_id else None
+    tipo = "recojo" if ruta.tipo == "RECOJO" else "carga"
+    fecha = fecha_local_de(ruta.fecha_salida or ruta.fecha_creacion)
+    return [
+        [f"Manifiesto de {tipo} · {ruta.nombre} ({ruta.codigo or ruta.id})"],
+        ["Conductor", perfil.nombre if perfil else "—", "Placa", ruta.vehiculo_placa or "—",
+         "Fecha", fecha.strftime("%d/%m/%Y") if fecha else "—"],
+        [],
+    ]
 
 
 def generar_manifiesto_excel(db: Session, ruta_id: int) -> tuple[bytes, str]:
-    """Genera el manifiesto de carga como Excel en memoria. Recibe: id de ruta. Devuelve: (bytes, nombre)."""
+    """Genera el manifiesto de la ruta (de entrega o de recojo, C22-02) como Excel en memoria, con
+    conductor y placa en el encabezado (C22-01). Recibe: id de ruta. Devuelve: (bytes, nombre)."""
     import io
     from openpyxl import Workbook
     from openpyxl.styles import Font
 
     ruta = _ruta_o_404(db, ruta_id)
-    detalles = ruta_repository.obtener_detalles_con_pedido(db, ruta.id)
 
     wb = Workbook()
     hoja = wb.active
     hoja.title = "Manifiesto"
-    hoja.append([f"Manifiesto de carga · {ruta.nombre} ({ruta.codigo or ruta.id})"])
-    hoja.append(COLUMNAS_MANIFIESTO)
-    for celda in hoja[2]:
-        celda.font = Font(bold=True)
+    for fila in _encabezado_manifiesto(db, ruta):
+        hoja.append(fila)
+    hoja["A1"].font = Font(bold=True, size=13)
+    for celda in ("A2", "C2", "E2"):
+        hoja[celda].font = Font(bold=True)
 
-    for detalle, pedido in detalles:
-        hoja.append([
-            detalle.secuencia,
-            pedido.codigo or "",
-            pedido.cliente_origen or "",
-            pedido.nombre_destinatario or "",
-            pedido.direccion_destino or "",
-            pedido.distrito or "",
-            pedido.telefono_destinatario or "",
-            detalle.estado_entrega or "",
-        ])
+    if ruta.tipo == "RECOJO":
+        hoja.append(COLUMNAS_MANIFIESTO_RECOJO)
+        recojos = recojo_repository.obtener_por_ruta(db, ruta.id)
+        totales = pedido_repository.totales_por_recojo(db, [r.id for r in recojos])
+        for r in recojos:
+            n, volumen, _ = totales.get(r.id, (0, 0.0, 0.0))
+            hoja.append([
+                r.secuencia or "", r.codigo or "", r.cliente_origen or "", r.direccion_origen or "",
+                r.distrito or "", r.contacto_origen or "", n, round(volumen or (r.volumen_estimado_m3 or 0), 3),
+                r.fecha_programada.strftime("%d/%m/%Y") if r.fecha_programada else "",
+                r.estado or "",
+            ])
+    else:
+        hoja.append(COLUMNAS_MANIFIESTO)
+        for detalle, pedido in ruta_repository.obtener_detalles_con_pedido(db, ruta.id):
+            hoja.append([
+                detalle.secuencia,
+                pedido.codigo or "",
+                pedido.cliente_origen or "",
+                pedido.nombre_destinatario or "",
+                pedido.direccion_destino or "",
+                pedido.distrito or "",
+                pedido.telefono_destinatario or "",
+                detalle.estado_entrega or "",
+            ])
+    for celda in hoja[4]:
+        celda.font = Font(bold=True)
 
     buffer = io.BytesIO()
     wb.save(buffer)

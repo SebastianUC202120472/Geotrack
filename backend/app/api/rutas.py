@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.api.deps import get_current_admin, get_current_conductor
+from app.api.deps import get_current_admin, get_current_almacen, get_current_conductor
 from app.models.usuario import Usuario
 from app.services import ruta_service
 from app.schemas.ruta import (
@@ -68,9 +68,9 @@ def mover_parada(
     return ruta_service.mover_parada(db, ruta_id, pedido_id, datos.ruta_destino_id, usuario_id=admin.id)
 
 
-@router.get("/{ruta_id}/manifiesto", dependencies=[Depends(get_current_admin)])
+@router.get("/{ruta_id}/manifiesto", dependencies=[Depends(get_current_almacen)])
 def descargar_manifiesto(ruta_id: int, db: Session = Depends(get_db)):
-    """Genera y descarga el manifiesto de carga de una ruta en Excel. Recibe ruta_id."""
+    """Genera y descarga el manifiesto (de carga o de recojo) de una ruta en Excel; lo usan el admin y el almacén. Recibe ruta_id."""
     contenido, nombre = ruta_service.generar_manifiesto_excel(db, ruta_id)
     return Response(
         content=contenido,

@@ -69,6 +69,7 @@ def obtener_sin_coordenadas(db: Session) -> List[Pedido]:
             Pedido.latitud == None,  # noqa: E711 (SQLAlchemy exige '== None')
             Pedido.estado.in_(("LISTO_PARA_ENVIO", "GEOCODIFICACION_FALLIDA")),
         )
+        .order_by(Pedido.id)
         .all()
     )
 
@@ -99,13 +100,16 @@ def listar_sin_ubicacion_resoluble(db: Session) -> List[Pedido]:
     )
 
 
-def obtener_pendientes_por_distrito(db: Session, distrito: str) -> List[Pedido]:
-    """Devuelve pedidos LISTO_PARA_ENVIO de un distrito. Recibe db y distrito."""
-    return (
+def obtener_pendientes_por_distrito(db: Session, distrito: str, bloquear: bool = False) -> List[Pedido]:
+    """Devuelve pedidos LISTO_PARA_ENVIO de un distrito. Recibe db, distrito y bloquear: si es True
+    las filas quedan bloqueadas hasta el commit (un despacho simultaneo de la misma zona espera y
+    luego ya no las ve, porque dejaron de estar LISTO_PARA_ENVIO)."""
+    consulta = (
         db.query(Pedido)
         .filter(Pedido.distrito == distrito, Pedido.estado == "LISTO_PARA_ENVIO")
-        .all()
+        .order_by(Pedido.id)  # mismo orden de bloqueo en todos los despachos: evita interbloqueos
     )
+    return consulta.with_for_update().all() if bloquear else consulta.all()
 
 
 def agrupar_por_zona(db: Session):
@@ -138,15 +142,17 @@ def contar_por_estado(db: Session):
 
 
 def listar_por_cliente(db: Session, cliente: str, desde=None, hasta=None, estados=None) -> List[Pedido]:
-    """Pedidos de un cliente filtrados por rango de fechas y estados. Recibe db, cliente, desde, hasta y estados."""
-    from datetime import datetime, time
+    """Pedidos de un cliente filtrados por rango de fechas y estados. Los dias son de la zona horaria
+    de la operacion (no UTC): un pedido de las 23:00 de Lima cuenta en ese dia. Recibe db, cliente,
+    desde, hasta y estados."""
+    from app.core.fechas import rango_utc_del_dia
     consulta = db.query(Pedido).filter(Pedido.cliente_origen == cliente)
     if estados:
         consulta = consulta.filter(Pedido.estado.in_(tuple(estados)))
     if desde is not None:
-        consulta = consulta.filter(Pedido.fecha_creacion >= datetime.combine(desde, time.min))
+        consulta = consulta.filter(Pedido.fecha_creacion >= rango_utc_del_dia(desde)[0])
     if hasta is not None:
-        consulta = consulta.filter(Pedido.fecha_creacion <= datetime.combine(hasta, time.max))
+        consulta = consulta.filter(Pedido.fecha_creacion <= rango_utc_del_dia(hasta)[1])
     return consulta.order_by(Pedido.codigo.asc()).all()
 
 
@@ -162,5 +168,57 @@ def agrupar_por_cliente(db: Session):
         )
         .outerjoin(RutaDetalle, RutaDetalle.pedido_id == Pedido.id)
         .group_by(Pedido.cliente_origen, estado_efectivo)
+        .all()
+    )
+
+
+def referencias_existentes(db: Session, cliente_id: int, referencias: list) -> dict:
+    """Pedidos vigentes (no cancelados) de un cliente con esas referencias del retail (C11-01).
+    Recibe el id del cliente y la lista de referencias. Devuelve {referencia: codigo PD}."""
+    refs = [r for r in {(r or "").strip() for r in referencias} if r]
+    if not refs:
+        return {}
+    filas = (
+        db.query(Pedido.referencia_externa, Pedido.codigo)
+        .filter(Pedido.cliente_id == cliente_id, Pedido.referencia_externa.in_(refs), Pedido.estado != "CANCELADO")
+        .all()
+    )
+    return {ref: codigo for ref, codigo in filas}
+
+
+def totales_por_recojo(db: Session, recojo_ids: list) -> dict:
+    """Cantidad, volumen y peso de los pedidos de cada recojo en una sola consulta (C12-03).
+    Recibe la lista de ids de recojo. Devuelve {recojo_id: (cantidad, volumen_m3, peso_kg)}."""
+    from sqlalchemy import func
+    if not recojo_ids:
+        return {}
+    filas = (
+        db.query(Pedido.recojo_id, func.count(Pedido.id),
+                 func.coalesce(func.sum(Pedido.volumen_m3), 0), func.coalesce(func.sum(Pedido.peso_kg), 0))
+        .filter(Pedido.recojo_id.in_(recojo_ids))
+        .group_by(Pedido.recojo_id)
+        .all()
+    )
+    return {rid: (int(n), float(vol or 0), float(peso or 0)) for rid, n, vol, peso in filas}
+
+
+def listar_observados(db: Session) -> list:
+    """Pedidos OBSERVADO con su lote (recojo) y desde cuando estan observados (C15-01).
+    Devuelve [(pedido, codigo del recojo, fecha en que paso a OBSERVADO)] del mas antiguo al mas nuevo."""
+    from sqlalchemy import func
+    from app.models.historial import HistorialPedido
+    from app.models.solicitud_recojo import SolicitudRecojo
+    desde = (
+        db.query(HistorialPedido.pedido_id, func.max(HistorialPedido.fecha_utc).label("desde"))
+        .filter(HistorialPedido.estado_nuevo == "OBSERVADO")
+        .group_by(HistorialPedido.pedido_id)
+        .subquery()
+    )
+    return (
+        db.query(Pedido, SolicitudRecojo.codigo, desde.c.desde)
+        .outerjoin(SolicitudRecojo, SolicitudRecojo.id == Pedido.recojo_id)
+        .outerjoin(desde, desde.c.pedido_id == Pedido.id)
+        .filter(Pedido.estado == "OBSERVADO")
+        .order_by(desde.c.desde.asc().nullsfirst(), Pedido.id.asc())
         .all()
     )

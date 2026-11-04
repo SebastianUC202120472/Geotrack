@@ -1,15 +1,20 @@
 import asyncio
+import mimetypes
 import os
+import secrets
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse, Response
 
+from app.core import produccion, almacenamiento, media_firmada
 from app.core.config import settings
-from app.db.database import engine, Base, SessionLocal
-from app.models import Usuario, Pedido, Ruta, RutaDetalle
-from app.services import usuario_service, parametro_service
+from app.core.registro import configurar_registro
+from app.db.database import engine, SessionLocal
+from app.db.migraciones import preparar_esquema
+from app.models import Usuario, Pedido, Ruta, RutaDetalle  # noqa: F401  (registra los modelos)
+from app.services import usuario_service, parametro_service, privacidad_service
 
 from app.api.auth import router as auth_router
 from app.api.pedidos import router as pedidos_router
@@ -29,41 +34,56 @@ from app.api.almacen import router as almacen_router
 from app.api.notificaciones import router as notificaciones_router
 from app.api.portal import router as portal_router
 from app.api.reclamos import router as reclamos_router
+from app.api.contactos import router as contactos_router
+
+log = configurar_registro()
+
+
+def _retencion_una_vez() -> None:
+    """Aplica la politica de retencion de datos con su propia sesion (EX-04)."""
+    db = SessionLocal()
+    try:
+        privacidad_service.aplicar_retencion(db)
+    except Exception:
+        log.exception("No se pudo aplicar la retención de datos")
+    finally:
+        db.close()
+
+
+async def _retencion_diaria() -> None:
+    """Corre la retencion al arrancar y luego cada 24 h, fuera del hilo de peticiones."""
+    while True:
+        await asyncio.to_thread(_retencion_una_vez)
+        await asyncio.sleep(24 * 3600)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Ciclo de vida: inicializa BD, admin y catalogos al arrancar."""
-    print("Esperando 5 segundos a que PostgreSQL esté 100% listo...")
+    log.info("Esperando 5 segundos a que PostgreSQL esté 100% listo...")
     await asyncio.sleep(5)
 
-    print("Creando tablas en la base de datos...")
-    Base.metadata.create_all(bind=engine)
-
-    # Migracion idempotente: columnas de acceso al portal en clientes existentes
-    # (create_all no altera tablas ya creadas en Postgres/Supabase).
-    from sqlalchemy import text
-    with engine.begin() as conn:
-        conn.execute(text("ALTER TABLE clientes_corporativos ADD COLUMN IF NOT EXISTS codigo_acceso VARCHAR(30)"))
-        conn.execute(text("ALTER TABLE clientes_corporativos ADD COLUMN IF NOT EXISTS clave_hash VARCHAR(255)"))
-        conn.execute(text("ALTER TABLE clientes_corporativos ADD COLUMN IF NOT EXISTS correo_portal VARCHAR(150)"))
-        conn.execute(text("ALTER TABLE clientes_corporativos ADD COLUMN IF NOT EXISTS acceso_activo BOOLEAN DEFAULT FALSE"))
-        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_clientes_codigo_acceso ON clientes_corporativos (codigo_acceso)"))
+    log.info("Preparando el esquema de la base de datos...")
+    preparar_esquema(engine)
 
     db = SessionLocal()
     try:
         usuario_service.crear_admin_inicial(db, settings.ADMIN_EMAIL, settings.ADMIN_PASSWORD)
-        print(f"Admin inicial asegurado: {settings.ADMIN_EMAIL}")
+        log.info("Admin inicial asegurado: %s", settings.ADMIN_EMAIL)
         parametro_service.asegurar_motivos_iniciales(db)
-        print("Catálogo de motivos de rechazo asegurado.")
+        log.info("Catálogo de motivos de rechazo asegurado.")
         parametro_service.asegurar_combustible_inicial(db)
-        print("Parámetros de combustible asegurados.")
-    except Exception as e:
-        print(f"No se pudo completar la inicialización: {e}")
+        log.info("Parámetros de combustible asegurados.")
+        for aviso in produccion.advertencias(db):
+            log.warning("PRODUCCIÓN: %s", aviso)
+    except Exception:
+        log.exception("No se pudo completar la inicialización")
     finally:
         db.close()
 
+    tarea_retencion = asyncio.create_task(_retencion_diaria())
     yield
+    tarea_retencion.cancel()
 
 
 app = FastAPI(
@@ -96,8 +116,46 @@ async def compat_prefijo_api(request: Request, call_next):
     return await call_next(request)
 
 
-os.makedirs(os.path.join("uploads", "evidencias"), exist_ok=True)
-app.mount("/media", StaticFiles(directory="uploads"), name="media")
+@app.exception_handler(Exception)
+async def error_no_controlado(request: Request, exc: Exception):
+    """Registra cualquier error no controlado (fecha, ruta y traza) y responde 500 con un codigo de referencia."""
+    referencia = secrets.token_hex(4).upper()
+    log.error("Error %s en %s %s", referencia, request.method, request.url.path, exc_info=exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Ocurrió un error interno. Código de referencia: {referencia}"},
+    )
+
+
+os.makedirs(settings.UPLOADS_DIR, exist_ok=True)
+
+
+@app.middleware("http")
+async def firmar_urls_de_media(request: Request, call_next):
+    """Firma con vencimiento cada URL "/media/..." de las respuestas JSON de la API (EX-03). Recibe la peticion."""
+    respuesta = await call_next(request)
+    if not request.url.path.startswith("/api/") or "application/json" not in respuesta.headers.get("content-type", ""):
+        return respuesta
+    cuerpo = b"".join([trozo async for trozo in respuesta.body_iterator])
+    firmado = media_firmada.firmar_cuerpo(cuerpo)
+    cabeceras = {k: v for k, v in respuesta.headers.items() if k.lower() != "content-length"}
+    return Response(content=firmado if firmado is not None else cuerpo, status_code=respuesta.status_code,
+                    headers=cabeceras, media_type="application/json")
+
+
+@app.get("/media/{clave:path}", include_in_schema=False)
+def servir_media(clave: str, exp: int = 0, firma: str = ""):
+    """Entrega una foto solo con enlace firmado y vigente; nunca la carpeta privada (EX-03). Recibe la clave y la firma."""
+    if clave.startswith(almacenamiento.CARPETA_PRIVADA) or not media_firmada.verificar(f"/media/{clave}", exp, firma):
+        return JSONResponse(status_code=403, content={"detail": "Enlace vencido o no válido"})
+    try:
+        contenido = almacenamiento.leer(clave)
+    except ValueError:
+        contenido = None
+    if contenido is None:
+        return JSONResponse(status_code=404, content={"detail": "Archivo no encontrado"})
+    return Response(content=contenido, media_type=mimetypes.guess_type(clave)[0] or "application/octet-stream",
+                    headers={"Cache-Control": "private, max-age=3600"})
 
 app.include_router(auth_router, prefix="/api/auth", tags=["Autenticación"])
 app.include_router(clientes_router, prefix="/api/clientes", tags=["Clientes Corporativos"])
@@ -117,6 +175,7 @@ app.include_router(almacen_router, prefix="/api/almacen", tags=["Almacén (Ingre
 app.include_router(notificaciones_router, prefix="/api/notificaciones", tags=["Notificaciones"])
 app.include_router(portal_router, prefix="/api/portal", tags=["Portal Público"])
 app.include_router(reclamos_router, prefix="/api/reclamos", tags=["Libro de Reclamaciones"])
+app.include_router(contactos_router, prefix="/api/contactos", tags=["Contactos comerciales"])
 
 
 @app.get("/")

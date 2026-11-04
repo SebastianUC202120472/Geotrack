@@ -7,6 +7,7 @@ import {
   finalizarRuta,
 } from "@/api/conductor";
 import { optimizarDesdeUbicacion } from "@/services/routeService";
+import { conCopiaOffline } from "@/store/rutaOffline";
 import type { Coordenadas } from "@/types/api";
 
 // Claves de caché para invalidar tras una acción.
@@ -27,19 +28,24 @@ const sinReintentarEn404 = (intentos: number, error: unknown): boolean => {
 // Refresco automático cada 10 s (además del refresco al enfocar la pantalla/app).
 const INTERVALO = 10_000;
 
+// Consultas que guardan su última respuesta en el teléfono para abrir la ruta sin señal (C27-02).
+const rutaActivaOffline = conCopiaOffline("ruta-activa", obtenerRutaActiva);
+const manifiestoOffline = conCopiaOffline("manifiesto", obtenerManifiesto);
+const navegacionOffline = conCopiaOffline("navegacion", obtenerNavegacion);
+
 // Resumen de la ruta activa. Devuelve: query de RutaActiva.
 export function useRutaActiva() {
-  return useQuery({ queryKey: claves.rutaActiva, queryFn: obtenerRutaActiva, retry: sinReintentarEn404, refetchInterval: INTERVALO, refetchOnMount: "always" });
+  return useQuery({ queryKey: claves.rutaActiva, queryFn: rutaActivaOffline, retry: sinReintentarEn404, refetchInterval: INTERVALO, refetchOnMount: "always" });
 }
 
 // Manifiesto (paradas). Devuelve: query de Manifiesto.
 export function useManifiesto() {
-  return useQuery({ queryKey: claves.manifiesto, queryFn: obtenerManifiesto, retry: sinReintentarEn404, refetchInterval: INTERVALO, refetchOnMount: "always" });
+  return useQuery({ queryKey: claves.manifiesto, queryFn: manifiestoOffline, retry: sinReintentarEn404, refetchInterval: INTERVALO, refetchOnMount: "always" });
 }
 
 // Waypoints para el mapa. Devuelve: query de Navegacion.
 export function useNavegacion() {
-  return useQuery({ queryKey: claves.navegacion, queryFn: obtenerNavegacion, retry: sinReintentarEn404, refetchInterval: INTERVALO, refetchOnMount: "always" });
+  return useQuery({ queryKey: claves.navegacion, queryFn: navegacionOffline, retry: sinReintentarEn404, refetchInterval: INTERVALO, refetchOnMount: "always" });
 }
 
 // Inicia/optimiza la ruta desde la ubicación actual y refresca los datos.

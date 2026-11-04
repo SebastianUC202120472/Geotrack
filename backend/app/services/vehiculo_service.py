@@ -26,13 +26,27 @@ def listar_vehiculos(db: Session):
     return salida
 
 
+def validar_conductor_activo(db: Session, conductor_id: int):
+    """Comprueba que el id sea de un conductor activo; si no, lanza 400. Recibe el conductor_id."""
+    conductor = usuario_repository.obtener_por_id(db, conductor_id)
+    if conductor is None or conductor.rol != "conductor" or not conductor.estado:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El conductor indicado no existe o no está activo",
+        )
+    return conductor
+
+
 def crear_vehiculo(db: Session, datos: VehiculoCreate):
-    """Registra un vehículo; rechaza si la placa ya existe."""
+    """Registra un vehículo; rechaza placas repetidas y, si viene con conductor, le libera el vehículo anterior (C09-01)."""
     if vehiculo_repository.obtener_por_placa(db, datos.placa):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Ya existe un vehículo con esa placa",
         )
+    if datos.conductor_id is not None:
+        validar_conductor_activo(db, datos.conductor_id)
+        vehiculo_repository.liberar_otros_de(db, datos.conductor_id)
     vehiculo = vehiculo_repository.crear(
         db,
         placa=datos.placa,
@@ -76,12 +90,7 @@ def actualizar_vehiculo(db: Session, vehiculo_id: int, datos: VehiculoUpdate):
     if "conductor_id" in campos:
         conductor_id = campos["conductor_id"]
         if conductor_id is not None:
-            conductor = usuario_repository.obtener_por_id(db, conductor_id)
-            if conductor is None or conductor.rol != "conductor" or not conductor.estado:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="El conductor indicado no existe o no está activo",
-                )
+            validar_conductor_activo(db, conductor_id)
         vehiculo_repository.reasignar_conductor(db, vehiculo, conductor_id)
     else:
         db.commit()

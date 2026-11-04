@@ -5,6 +5,8 @@ import EmptyState from "./EmptyState";
 export default function DataTable({ columns, rows, rowKey, loading = false, empty, onRowClick }) {
   return (
     <div className="overflow-hidden rounded-card border border-slate-200 bg-white shadow-card">
+      {/* En pantallas chicas la tabla se desplaza sola, sin ensanchar la página (EX-17). */}
+      <div className="overflow-x-auto">
       <table className="w-full border-collapse text-sm">
         <thead className="sticky top-0 z-10 bg-warm-50">
           <tr>
@@ -44,6 +46,7 @@ export default function DataTable({ columns, rows, rowKey, loading = false, empt
               ))}
         </tbody>
       </table>
+      </div>
       {!loading && rows.length === 0 && empty && (
         <EmptyState icon={empty.icon} title={empty.title} description={empty.description} />
       )}

@@ -226,7 +226,8 @@ DATABASE_URL=postgresql://sava_admin:sava_password123@db:5432/siol_sava_db
 # --- Seguridad / JWT ---
 SECRET_KEY=cambia-esto-por-una-clave-larga-y-aleatoria
 ACCESS_TOKEN_EXPIRE_MINUTES=480
-CORS_ORIGINS=*
+# Vacío = solo mismo origen (todo llega por Nginx). Nunca '*' en producción.
+CORS_ORIGINS=
 
 # --- Admin inicial (se crea en el primer arranque si no existe) ---
 ADMIN_EMAIL=admin@siol.com
@@ -254,6 +255,8 @@ PORTAL_OTP_DEMO=false
 | **Geocodificación** | `GOOGLE_GEOCODING_KEY` | Vacía = Nominatim/OSM (gratis, menos preciso). Con clave = Google. |
 | **Correo** | `MAIL_ENABLED`, `MAIL_ADDRESS`, `MAIL_PASSWORD` y opcionales `IMAP_HOST`, `IMAP_PORT`, `SMTP_HOST`, `SMTP_PORT`, `MAIL_FOLDER`, `MAIL_FROM_NAME`, `MAIL_SIGNATURE` | Por defecto apunta a Gmail. Sin correo, el login de empresa del portal responde 503 (no puede enviar el OTP), salvo que actives `PORTAL_OTP_DEMO`. |
 | **Demo del portal** | `PORTAL_OTP_DEMO` | En `true` y sin correo, el backend devuelve el OTP y el portal lo muestra. **Nunca en producción:** expone un factor de autenticación. |
+
+> Antes de un despliegue real, recorre la [lista de verificación de producción](docs/CHECKLIST_PRODUCCION.md): el backend avisa en su registro (`PRODUCCIÓN: …`) de cada punto pendiente.
 
 > **Nunca subas `.env`.** Restringe tus claves de Google por referente y por API, y ponles tope de cuota: una clave facturable sin restringir en un repo público es la forma más rápida de perder una cuenta de Google Cloud.
 

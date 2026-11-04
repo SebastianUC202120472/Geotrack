@@ -49,11 +49,24 @@ export default function PerfilScreen() {
             <Dato icono="card-outline" etiqueta="DNI" valor={p?.dni || "—"} c={colors} />
             <Dato icono="call-outline" etiqueta="Teléfono" valor={p?.telefono || "—"} c={colors} />
             <Dato icono="car-outline" etiqueta="Vehículo" valor={p?.vehiculo ? p.vehiculo.placa : "Sin asignar"} c={colors} />
+            <Dato icono="id-card-outline" etiqueta="Licencia de conducir" valor={textoLicencia(p?.licencia_numero, p?.licencia_vencimiento)} c={colors} />
           </Card>
         </Aparecer>
       </ScrollView>
     </Screen>
   );
+}
+
+// Texto de la licencia con su vencimiento y un aviso si vencio o vence pronto. Recibe numero y fecha "AAAA-MM-DD".
+function textoLicencia(numero?: string | null, vence?: string | null): string {
+  if (!numero) return "Sin registrar";
+  if (!vence) return numero;
+  const fecha = vence.split("-").reverse().join("/");
+  const hoy = new Date(new Date().toLocaleDateString("en-CA"));
+  const dias = Math.round((new Date(vence).getTime() - hoy.getTime()) / 86_400_000);
+  if (dias < 0) return `${numero} · venció el ${fecha}`;
+  if (dias <= 30) return `${numero} · vence el ${fecha} (en ${dias} días)`;
+  return `${numero} · vence el ${fecha}`;
 }
 
 // Fila etiqueta/valor con icono. Recibe: { icono, etiqueta, valor, c (paleta) }.

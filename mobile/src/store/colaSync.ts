@@ -1,5 +1,6 @@
-// Cola persistente de acciones de entrega offline; guarda fotos POD en disco.
+// Cola persistente de acciones de entrega offline, cifrada en el teléfono (EX-23); guarda fotos POD en disco.
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { cifrar, descifrar } from "@/store/cifrado";
 import * as FileSystem from "expo-file-system/legacy";
 
 export type TipoAccion = "ENTREGA" | "FALLIDO";
@@ -10,12 +11,17 @@ export interface AccionPendiente {
   pedidoId: number;
   motivo?: string;
   descripcion?: string;
-  fotoUri?: string;   // ruta persistida en disco
+  fotoUri?: string;   // ruta persistida en disco (POD o foto del reporte de falla)
+  latitud?: number;   // dónde se tomó la foto
+  longitud?: number;
+  receptorNombre?: string;     // quién recibió (solo ENTREGA)
+  receptorDocumento?: string;
   creadoEn: number;
   // Progreso por sub-paso para reintentos idempotentes: no se re-ejecutan los POST ya hechos.
   estadoAplicado?: boolean;
   evidenciaSubida?: boolean;
   reporteCreado?: boolean;
+  reporteId?: number;          // id del reporte creado, para adjuntarle la foto después
 }
 
 const CLAVE = "cola_sync_v1";
@@ -36,7 +42,8 @@ function _serializar<T>(op: () => Promise<T>): Promise<T> {
 async function _leer(): Promise<AccionPendiente[]> {
   if (cache) return cache;
   const raw = await AsyncStorage.getItem(CLAVE);
-  try { cache = raw ? (JSON.parse(raw) as AccionPendiente[]) : []; }
+  const texto = raw ? await descifrar(raw) : null;
+  try { cache = texto ? (JSON.parse(texto) as AccionPendiente[]) : []; }
   catch { cache = []; }
   return cache;
 }
@@ -44,7 +51,7 @@ async function _leer(): Promise<AccionPendiente[]> {
 // Persiste la cola y notifica suscriptores.
 async function _guardar(items: AccionPendiente[]): Promise<void> {
   cache = items;
-  await AsyncStorage.setItem(CLAVE, JSON.stringify(items));
+  await AsyncStorage.setItem(CLAVE, await cifrar(JSON.stringify(items)));
   suscriptores.forEach((cb) => cb());
 }
 
@@ -57,6 +64,7 @@ async function _asegurarDir(): Promise<void> {
 // Encola una acción; copia la foto a disco si viene adjunta. Devuelve el ítem encolado.
 export function encolar(params: {
   tipo: TipoAccion; pedidoId: number; motivo?: string; descripcion?: string; fotoUri?: string;
+  latitud?: number; longitud?: number; receptorNombre?: string; receptorDocumento?: string;
 }): Promise<AccionPendiente> {
   return _serializar(async () => {
     const items = await _leer();
@@ -74,7 +82,10 @@ export function encolar(params: {
     }
     const item: AccionPendiente = {
       id, tipo: params.tipo, pedidoId: params.pedidoId,
-      motivo: params.motivo, descripcion: params.descripcion, fotoUri, creadoEn: Date.now(),
+      motivo: params.motivo, descripcion: params.descripcion, fotoUri,
+      latitud: params.latitud, longitud: params.longitud,
+      receptorNombre: params.receptorNombre, receptorDocumento: params.receptorDocumento,
+      creadoEn: Date.now(),
     };
     await _guardar([...items, item]);
     return item;

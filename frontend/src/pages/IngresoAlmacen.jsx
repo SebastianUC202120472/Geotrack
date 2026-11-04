@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PackageCheck, ArrowLeft, CheckCircle2, AlertCircle, ImageOff, X } from "lucide-react";
+import { PackageCheck, ArrowLeft, CheckCircle2, AlertCircle, ImageOff, Info, X } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import SectionCard from "../components/ui/SectionCard";
 import DataTable from "../components/ui/DataTable";
@@ -170,7 +170,10 @@ function PanelIngreso({ recojoId, onVolver }) {
   };
 
   const conteo = conc?.conteo ?? { esperados: 0, listos: 0, observados: 0, por_recoger: 0 };
-  const enRecogido = conc?.estado_recojo === "RECOGIDO";
+  // SOLICITADO solo llega aquí en modo demostración (ALMACEN_INGRESO_DIRECTO): recepción
+  // directa, sin ruta de recojo del conductor. Se ingresa igual que un RECOGIDO.
+  const recepcionDirecta = conc?.estado_recojo === "SOLICITADO";
+  const enRecogido = conc?.estado_recojo === "RECOGIDO" || recepcionDirecta;
   const pedidos = conc?.pedidos ?? [];
   const fotos = conc?.fotos ?? [];
   const observados = pedidos.filter((p) => p.estado === "OBSERVADO");
@@ -212,12 +215,23 @@ function PanelIngreso({ recojoId, onVolver }) {
         </div>
       )}
 
+      {recepcionDirecta && (
+        <div className="flex items-center gap-2 rounded-xl bg-info-soft px-3.5 py-3 text-sm text-info-strong animate-fade-up">
+          <Info size={18} />
+          <span>Recepción directa (modo demostración): este recojo no pasó por la ruta del conductor.</span>
+        </div>
+      )}
+
       {/* Galería de fotos que tomó el conductor durante el recojo */}
       <SectionCard title={`Fotos del recojo (${fotos.length})`}>
         {fotos.length === 0 ? (
           <div className="flex items-center gap-2 py-2 text-sm text-slate-400">
             <ImageOff size={18} />
-            <span>El conductor no adjuntó fotos de este recojo.</span>
+            <span>
+              {recepcionDirecta
+                ? "Recibido directo en almacén: no hay fotos del conductor."
+                : "El conductor no adjuntó fotos de este recojo."}
+            </span>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">

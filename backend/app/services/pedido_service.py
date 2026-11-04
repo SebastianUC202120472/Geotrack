@@ -8,12 +8,16 @@ from app.models.pedido import Pedido
 from app.models.conductor import PerfilConductor
 from app.repositories import (
     pedido_repository, cliente_repository, historial_repository, ruta_repository, usuario_repository,
-    reporte_repository, geocoding_cache_repository,
+    reporte_repository, geocoding_cache_repository, reprogramacion_repository,
 )
-from app.services.geocoder import obtener_coordenadas
+from app.services.geocoder import geocodificar, buscar_lugares, distrito_de_punto, usando_google
 from app.core.codigos import asignar_codigo, generar_codigo, PREFIJO_PEDIDO
+from app.core.distritos import resolver_distrito
 
 COLUMNAS_REQUERIDAS = ["direccion_destino"]
+
+# Un pedido ya cerrado no admite que se cambie su ubicacion (C17-01).
+ESTADOS_SIN_CORRECCION = ("ENTREGADO", "CANCELADO")
 
 
 def _valor(fila, df, *nombres):
@@ -67,7 +71,7 @@ def crear_pedido_desde_fila(
     recojo_id: int | None,
     estado: str,
     usuario_id: int | None,
-    geocodificar: bool = True,
+    geocodificar_ahora: bool = True,
 ) -> Pedido:
     """Crea y persiste un Pedido a partir de una fila normalizada y el cliente ya resuelto."""
     pedido = Pedido(
@@ -88,13 +92,10 @@ def crear_pedido_desde_fila(
     asignar_codigo(db, pedido, PREFIJO_PEDIDO)
     historial_repository.registrar(db, pedido.id, None, estado, usuario_id)
 
-    if geocodificar:
-        lat, lng = obtener_coordenadas(pedido.direccion_destino, db)
-        if lat and lng:
-            pedido.latitud = lat
-            pedido.longitud = lng
-            partes = pedido.direccion_destino.split(",")
-            pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
+    if geocodificar_ahora:
+        resultado = geocodificar(pedido.direccion_destino, db)
+        if resultado is not None:
+            _ubicar(pedido, resultado.latitud, resultado.longitud, resultado.distrito)
 
     return pedido
 
@@ -180,13 +181,29 @@ def _str_o_none(valor):
     return str(valor) if valor is not None else None
 
 
-def procesar_geocodificacion(db: Session, usuario_id: int | None = None) -> dict:
+def _ubicar(pedido, latitud: float, longitud: float, distrito_geo: str | None) -> None:
+    """Fija las coordenadas del pedido y su zona: el distrito que dio el mapa o, si no, el que
+    aparezca en la direccion (C16-01). Recibe el pedido, lat/lng y el distrito del geocodificador."""
+    pedido.latitud = latitud
+    pedido.longitud = longitud
+    pedido.distrito = resolver_distrito(distrito_geo, pedido.direccion_destino)
+
+
+def limite_por_tanda() -> int:
+    """Cuantos pedidos se geocodifican por clic en «Reprocesar»: OpenStreetMap atiende uno por
+    segundo, asi que sin clave de Google la tanda es menor para no exceder el tiempo de espera."""
+    return 100 if usando_google() else 30
+
+
+def procesar_geocodificacion(db: Session, usuario_id: int | None = None, limite: int | None = None) -> dict:
     """Geocodifica los pedidos sin coordenadas usando el caché de direcciones (una sola
-    consulta trae las ya cacheadas, para no repetir llamadas al proveedor); marca
-    GEOCODIFICACION_FALLIDA si no se encuentra la dirección."""
-    pendientes = pedido_repository.obtener_sin_coordenadas(db)
-    if not pendientes:
+    consulta trae las ya cacheadas, para no repetir llamadas al proveedor). Un pedido que se
+    ubica sale de GEOCODIFICACION_FALLIDA; uno listo para envío que no se encuentra pasa a ese
+    estado. Recibe la sesión, el usuario y un tope opcional de pedidos por tanda (C16-03)."""
+    todos = pedido_repository.obtener_sin_coordenadas(db)
+    if not todos:
         return {"mensaje": "Todos los pedidos ya están geocodificados"}
+    pendientes = todos[:limite] if limite else todos
 
     # Una sola consulta: coordenadas ya cacheadas de todas las direcciones del lote.
     cacheadas = geocoding_cache_repository.obtener_muchas(db, [p.direccion_destino for p in pendientes])
@@ -197,24 +214,23 @@ def procesar_geocodificacion(db: Session, usuario_id: int | None = None) -> dict
     for pedido in pendientes:
         norm = geocoding_cache_repository.normalizar(pedido.direccion_destino)
         hit = cacheadas.get(norm)
-        if hit:
-            lat, lng = hit
-        else:
-            # No estaba en caché: geocodifica (Google/Nominatim) y lo guarda para la próxima.
-            lat, lng = obtener_coordenadas(pedido.direccion_destino, db)
-            if lat and lng:
-                cacheadas[norm] = (lat, lng)  # reutiliza si el mismo lote repite la dirección
+        if not (hit and hit[2]):
+            # Sin caché (o caché antiguo sin distrito): geocodifica y lo guarda para la próxima.
+            resultado = geocodificar(pedido.direccion_destino, db)
+            hit = (resultado.latitud, resultado.longitud, resultado.distrito) if resultado else None
+            if hit:
+                cacheadas[norm] = hit  # reutiliza si el mismo lote repite la dirección
 
-        if lat and lng:
-            pedido.latitud = lat
-            pedido.longitud = lng
-            partes = pedido.direccion_destino.split(",")
-            pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
+        if hit:
+            _ubicar(pedido, *hit)
+            if pedido.estado == "GEOCODIFICACION_FALLIDA":
+                historial_repository.registrar(db, pedido.id, pedido.estado, "LISTO_PARA_ENVIO", usuario_id)
+                pedido.estado = "LISTO_PARA_ENVIO"
             exitosos += 1
-        elif pedido.estado != "POR_RECOGER":
-            estado_anterior = pedido.estado
-            pedido.estado = "GEOCODIFICACION_FALLIDA"
-            historial_repository.registrar(db, pedido.id, estado_anterior, "GEOCODIFICACION_FALLIDA", usuario_id)
+        else:
+            if pedido.estado == "LISTO_PARA_ENVIO":
+                historial_repository.registrar(db, pedido.id, pedido.estado, "GEOCODIFICACION_FALLIDA", usuario_id)
+                pedido.estado = "GEOCODIFICACION_FALLIDA"
             fallidos += 1
 
     pedido_repository.guardar_cambios(db)
@@ -223,6 +239,7 @@ def procesar_geocodificacion(db: Session, usuario_id: int | None = None) -> dict
         "mensaje": "Proceso de geocodificación finalizado",
         "pedidos_exitosos": exitosos,
         "pedidos_fallidos": fallidos,
+        "pedidos_restantes": len(todos) - len(pendientes),
     }
 
 
@@ -278,7 +295,8 @@ def _exigir_fallido(pedido) -> None:
 
 
 def reprogramar(db: Session, pedido_id: int, usuario_id: int | None = None) -> dict:
-    """Reprograma un pedido FALLIDO: vuelve a LISTO_PARA_ENVIO y lo saca de su ruta. Recibe pedido_id y usuario_id."""
+    """Reprograma un pedido FALLIDO: vuelve a LISTO_PARA_ENVIO y lo saca de su ruta. Las solicitudes
+    del cliente pendientes quedan aceptadas. Recibe pedido_id y usuario_id."""
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     _exigir_fallido(pedido)
     estado_anterior = pedido.estado
@@ -286,23 +304,87 @@ def reprogramar(db: Session, pedido_id: int, usuario_id: int | None = None) -> d
     pedido.estado = "LISTO_PARA_ENVIO"
     pedido.fecha_entrega = None
     historial_repository.registrar(db, pedido.id, estado_anterior, "LISTO_PARA_ENVIO", usuario_id)
+    reprogramacion_repository.cerrar_pendientes(
+        db, pedido_id, "ACEPTADA", "Pedido reprogramado: vuelve a salir a reparto.", usuario_id)
     db.commit()
     reporte_repository.cerrar_abierto_de_pedido(db, pedido_id, "Reprogramado", usuario_id)
     return {"mensaje": "Pedido reprogramado. Volvió a su zona para reasignarlo.", "codigo": pedido.codigo}
 
 
-def cancelar(db: Session, pedido_id: int, usuario_id: int | None = None) -> dict:
-    """Cancela un pedido FALLIDO (estado terminal). Recibe pedido_id y usuario_id."""
+def cancelar(db: Session, pedido_id: int, usuario_id: int | None = None, motivo: str | None = None) -> dict:
+    """Cancela un pedido FALLIDO (estado terminal) guardando el motivo, que es obligatorio (C31-02).
+    Recibe pedido_id, usuario_id y motivo."""
+    motivo = " ".join((motivo or "").split())
+    if len(motivo) < 5:
+        raise HTTPException(status_code=400, detail="Escribe el motivo de la cancelación (mínimo 5 caracteres).")
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
     _exigir_fallido(pedido)
     estado_anterior = pedido.estado
     ruta_repository.eliminar_detalles_de_pedido(db, pedido_id)
     pedido.estado = "CANCELADO"
     pedido.fecha_entrega = None
+    pedido.motivo_cancelacion = motivo[:255]
     historial_repository.registrar(db, pedido.id, estado_anterior, "CANCELADO", usuario_id)
+    reprogramacion_repository.cerrar_pendientes(db, pedido_id, "RECHAZADA", "El pedido fue cancelado.", usuario_id)
     db.commit()
     reporte_repository.cerrar_abierto_de_pedido(db, pedido_id, "Cancelado", usuario_id)
     return {"mensaje": "Pedido cancelado.", "codigo": pedido.codigo}
+
+
+def _solicitud_a_dict(s) -> dict:
+    """Serializa una solicitud de reprogramacion para el panel. Recibe la solicitud."""
+    return {
+        "id": s.id, "pedido_id": s.pedido_id, "franja": s.franja, "estado": s.estado,
+        "creado_en": s.creado_en, "respuesta": s.respuesta, "atendida_en": s.atendida_en,
+    }
+
+
+def listar_reprogramaciones(db: Session, pedido_id: int) -> list:
+    """Solicitudes de reprogramacion del pedido, la mas reciente primero (C43-01). Recibe pedido_id."""
+    return [_solicitud_a_dict(s) for s in reprogramacion_repository.listar_de(db, pedido_id)]
+
+
+def atender_reprogramacion(db: Session, solicitud_id: int, aceptar: bool, nota: str | None,
+                           usuario_id: int | None = None) -> dict:
+    """Acepta o rechaza la solicitud de reprogramacion del cliente (C43-01/02). Al aceptar:
+    - FALLIDO: se reprograma (vuelve a LISTO_PARA_ENVIO);
+    - ASIGNADO o EN_RUTA (antes de la visita): sale de su ruta y vuelve a su zona;
+    - aun no despachado: queda anotada para despacharlo en esa franja.
+    Recibe solicitud_id, aceptar, nota opcional y el admin."""
+    nota = " ".join((nota or "").split()) or None
+    solicitud = reprogramacion_repository.obtener(db, solicitud_id, bloquear=True)
+    if not solicitud:
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    if solicitud.estado != "PENDIENTE":
+        raise HTTPException(status_code=409, detail="Esta solicitud ya fue atendida.")
+    pedido = db.query(Pedido).filter(Pedido.id == solicitud.pedido_id).first()
+
+    if not aceptar:
+        reprogramacion_repository.atender(solicitud, "RECHAZADA", nota, usuario_id)
+        db.commit()
+        return {"mensaje": "Solicitud rechazada.", "codigo": pedido.codigo, "solicitud": _solicitud_a_dict(solicitud)}
+
+    # Candado sobre sus paradas y estado releido: el conductor podria estar entregandolo ahora mismo.
+    ruta_repository.bloquear_detalles_de_pedido(db, pedido.id)
+    db.refresh(pedido)
+    if pedido.estado in ESTADOS_SIN_CORRECCION:
+        raise HTTPException(status_code=409, detail="El pedido ya fue entregado o cancelado; no se puede reprogramar.")
+
+    reprogramacion_repository.atender(solicitud, "ACEPTADA", nota, usuario_id)
+    if pedido.estado == "FALLIDO":
+        resultado = reprogramar(db, pedido.id, usuario_id)
+        return {**resultado, "solicitud": _solicitud_a_dict(solicitud)}
+
+    if pedido.estado in ("ASIGNADO", "EN_RUTA"):
+        estado_anterior = pedido.estado
+        ruta_repository.eliminar_detalles_de_pedido(db, pedido.id)
+        pedido.estado = "LISTO_PARA_ENVIO"
+        historial_repository.registrar(db, pedido.id, estado_anterior, "LISTO_PARA_ENVIO", usuario_id)
+        mensaje = "Solicitud aceptada: el pedido salió de su ruta y volvió a su zona para despacharlo en la nueva franja."
+    else:
+        mensaje = "Solicitud aceptada: tenla en cuenta al despachar el pedido."
+    db.commit()
+    return {"mensaje": mensaje, "codigo": pedido.codigo, "solicitud": _solicitud_a_dict(solicitud)}
 
 
 def agrupar_por_zona(db: Session) -> dict:
@@ -331,27 +413,34 @@ def listar_para_ubicar(db: Session):
     return pedido_repository.listar_sin_ubicacion_resoluble(db)
 
 
-def buscar_direccion(direccion: str) -> dict:
-    """Geocodifica un texto de dirección. Devuelve {encontrado, latitud, longitud}."""
-    lat, lng = obtener_coordenadas((direccion or "").strip())
-    if lat is None or lng is None:
-        return {"encontrado": False, "latitud": None, "longitud": None}
-    return {"encontrado": True, "latitud": lat, "longitud": lng}
+def buscar_direccion(direccion: str, maximo: int = 5) -> dict:
+    """Geocodifica un texto y devuelve hasta `maximo` coincidencias para que el admin elija la
+    correcta (C17-02). Recibe el texto. Devuelve {encontrado, latitud, longitud, coincidencias}."""
+    coincidencias = [
+        {"direccion": r.direccion or direccion, "latitud": r.latitud, "longitud": r.longitud, "distrito": r.distrito}
+        for r in buscar_lugares(direccion, maximo)
+    ]
+    if not coincidencias:
+        return {"encontrado": False, "latitud": None, "longitud": None, "coincidencias": []}
+    primera = coincidencias[0]
+    return {"encontrado": True, "latitud": primera["latitud"], "longitud": primera["longitud"],
+            "coincidencias": coincidencias}
 
 
 def fijar_ubicacion(db: Session, pedido_id: int, latitud: float, longitud: float,
                     direccion: str | None = None, usuario_id: int | None = None) -> dict:
-    """Fija manualmente las coordenadas de un pedido; si estaba en GEOCODIFICACION_FALLIDA lo pasa a LISTO_PARA_ENVIO."""
+    """Fija o corrige a mano la ubicación de un pedido no entregado (C17-01) y recalcula su zona
+    con el distrito del punto marcado; si estaba en GEOCODIFICACION_FALLIDA lo pasa a
+    LISTO_PARA_ENVIO. Recibe el id, lat/lng, la dirección opcional y el usuario."""
     pedido = pedido_repository.obtener_por_id(db, pedido_id)
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    if pedido.estado in ESTADOS_SIN_CORRECCION:
+        raise HTTPException(status_code=400, detail="No se puede cambiar la ubicación de un pedido entregado o cancelado")
 
-    pedido.latitud = latitud
-    pedido.longitud = longitud
     if direccion and direccion.strip():
         pedido.direccion_destino = direccion.strip()
-    partes = (pedido.direccion_destino or "").split(",")
-    pedido.distrito = partes[1].strip() if len(partes) >= 2 else "ZONA_DESCONOCIDA"
+    _ubicar(pedido, latitud, longitud, distrito_de_punto(latitud, longitud))
 
     if pedido.estado == "GEOCODIFICACION_FALLIDA":
         historial_repository.registrar(db, pedido.id, pedido.estado, "LISTO_PARA_ENVIO", usuario_id)

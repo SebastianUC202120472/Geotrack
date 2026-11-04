@@ -4,6 +4,7 @@ export const ETIQUETAS_ESTADO = {
   OBSERVADO: "Observado",
   LISTO_PARA_ENVIO: "Listo para envío",
   GEOCODIFICACION_FALLIDA: "Sin ubicar",
+  NO_REALIZADO: "No realizado",
 };
 
 // Devuelve la etiqueta legible de un estado. Recibe el codigo de estado (string).

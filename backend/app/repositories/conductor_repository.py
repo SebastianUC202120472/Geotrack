@@ -26,16 +26,22 @@ def vehiculo_de(db: Session, usuario_id: int) -> Optional[Vehiculo]:
     return db.query(Vehiculo).filter(Vehiculo.conductor_id == usuario_id).first()
 
 
-def crear_perfil(db: Session, usuario_id: int, nombre: str, telefono=None, dni=None) -> PerfilConductor:
-    perfil = PerfilConductor(usuario_id=usuario_id, nombre=nombre, telefono=telefono, dni=dni)
+def crear_perfil(db: Session, usuario_id: int, nombre: str, telefono=None, dni=None,
+                 licencia_numero=None, licencia_vencimiento=None) -> PerfilConductor:
+    """Crea la ficha del conductor. Recibe: usuario_id, nombre y datos opcionales (incluida la licencia)."""
+    perfil = PerfilConductor(
+        usuario_id=usuario_id, nombre=nombre, telefono=telefono, dni=dni,
+        licencia_numero=licencia_numero, licencia_vencimiento=licencia_vencimiento,
+    )
     db.add(perfil)
     db.commit()
     db.refresh(perfil)
     return perfil
 
 
-def actualizar_perfil(db: Session, usuario_id: int, nombre=None, telefono=None, dni=None) -> Optional[PerfilConductor]:
-    """Actualiza nombre, telefono y DNI del perfil. Recibe: usuario_id y campos opcionales."""
+def actualizar_perfil(db: Session, usuario_id: int, nombre=None, telefono=None, dni=None,
+                      licencia: Optional[dict] = None) -> Optional[PerfilConductor]:
+    """Actualiza nombre, telefono, DNI y (si viene) la licencia del perfil. Recibe: usuario_id, campos y dict de licencia."""
     perfil = obtener_perfil(db, usuario_id)
     if perfil is None:
         return None
@@ -43,6 +49,8 @@ def actualizar_perfil(db: Session, usuario_id: int, nombre=None, telefono=None, 
         perfil.nombre = nombre
     perfil.telefono = telefono
     perfil.dni = dni
+    for campo, valor in (licencia or {}).items():
+        setattr(perfil, campo, valor)
     db.commit()
     db.refresh(perfil)
     return perfil

@@ -6,7 +6,8 @@ from app.db.database import get_db
 from app.api.deps import get_current_admin, get_current_almacen
 from app.models.usuario import Usuario
 from app.services import usuario_service
-from app.schemas.usuario import UsuarioResponse, PersonalCreate, PersonalUpdate, PersonalResetContrasena
+from app.schemas.usuario import UsuarioResponse, PersonalCreate, PersonalUpdate, PersonalResetContrasena, CambioContrasenaPropia
+from app.core.rate_limit import limite_publico
 
 router = APIRouter()
 
@@ -14,7 +15,17 @@ router = APIRouter()
 @router.get("/yo", response_model=UsuarioResponse)
 def mi_perfil(usuario: Usuario = Depends(get_current_almacen)):
     """Devuelve los datos del usuario de panel autenticado (admin o almacén)."""
-    return usuario
+    return usuario_service.mi_perfil(usuario)
+
+
+@router.post("/yo/contrasena", dependencies=[Depends(limite_publico(maximo=5, ventana_seg=60))])
+def cambiar_mi_contrasena(
+    datos: CambioContrasenaPropia,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_almacen),
+):
+    """Cambia la contraseña del usuario de panel autenticado. Recibe la clave actual y la nueva."""
+    return usuario_service.cambiar_contrasena_propia(db, usuario, datos)
 
 
 @router.get("/", response_model=List[UsuarioResponse], dependencies=[Depends(get_current_admin)])

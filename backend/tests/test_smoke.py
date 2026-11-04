@@ -21,8 +21,9 @@ from app.schemas.ruta import ActualizarEstadoRequest
 
 
 def _paths():
-    """Devuelve el conjunto de rutas registradas en la app."""
-    return {getattr(r, "path", "") for r in app.routes}
+    """Devuelve el conjunto de rutas registradas en la app. Desde FastAPI 0.14x los routers
+    incluidos ya no aparecen como rutas sueltas en app.routes, asi que tambien se leen del esquema."""
+    return {getattr(r, "path", "") for r in app.routes} | set(app.openapi()["paths"])
 
 
 def test_la_app_se_construye():

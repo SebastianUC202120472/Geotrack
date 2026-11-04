@@ -4,7 +4,8 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core import fechas
-from app.repositories import portal_repository as repo
+from app.core.excel import fila_segura
+from app.repositories import portal_repository as repo, reprogramacion_repository
 from app.services import estado_portal, enmascarado
 
 # Etiquetas amables por estado destino de cada transicion del historial.
@@ -113,9 +114,11 @@ def detalle_pedido(db: Session, codigo: str) -> dict:
         "eventos": eventos,
     }
     if est == "ENTREGADO":
-        data["recibido"] = _texto_recibido(p)
+        data["recibido"] = _texto_recibido(pod)
     if est == "REPROGRAMADO":
         data["motivo"] = detalle.motivo_fallo if detalle and detalle.motivo_fallo else "No se pudo entregar en el intento anterior"
+    data["puedeReprogramar"] = puede_reprogramar(p)
+    data["reprogramacion"] = _reprogramacion_portal(reprogramacion_repository.ultima_de(db, p.id))
     return data
 
 
@@ -150,23 +153,59 @@ def _nota(est: str) -> str:
     }.get(est, "")
 
 
-def _texto_recibido(p) -> str:
-    """Texto de 'recibido por' para entregas. Recibe el pedido."""
-    nombre = p.nombre_destinatario or "el destinatario"
-    return f"Recibido por {nombre}."
+def _texto_recibido(pod) -> str:
+    """Texto de 'recibido por' con quien firmo la entrega en la app (C26-02); el documento va
+    enmascarado. Las entregas anteriores a ese registro no tienen el dato. Recibe la evidencia (o None)."""
+    nombre = (getattr(pod, "receptor_nombre", None) or "").strip()
+    if not nombre:
+        return "Entregado en la dirección de destino."
+    documento = getattr(pod, "receptor_documento", None) or ""
+    sufijo = f" · Doc. ****{documento[-3:]}" if len(documento) >= 3 else ""
+    return f"Recibido por {nombre}{sufijo}."
 
 
-def tabla_empresa(db: Session, cliente_id: int) -> dict:
-    """Filas + contadores de los pedidos de hoy de un cliente. Recibe el id del cliente."""
+def _estado_visible(p, det) -> str:
+    """Estado del portal de un pedido. Recibe el pedido y su detalle de ruta de entrega (o None).
+    estado_entrega del detalle solo es terminal (ENTREGADO/FALLIDO) o PENDIENTE; para el estado
+    en curso (EN_RUTA, etc.) se usa el del pedido. Si se usara el detalle en curso, un EN_RUTA
+    se mostraria como POR_SALIR (bug corregido)."""
+    base = det.estado_entrega if (det and det.estado_entrega in ("ENTREGADO", "FALLIDO")) else p.estado
+    return estado_portal.mapear_estado(base)
+
+
+def _momento_local(momento, dia) -> str:
+    """Hora local de un evento; si no es del dia consultado antepone la fecha (dd/mm). Recibe el datetime UTC y el dia."""
+    if momento is None:
+        return ""
+    if fechas.fecha_local_de(momento) == dia:
+        return hora_local(momento)
+    m = momento.replace(tzinfo=timezone.utc).astimezone(fechas.zona())
+    return m.strftime("%d/%m %H:%M")
+
+
+def _eventos_empresa(historial, dia) -> list:
+    """Linea de tiempo REAL de un pedido para el panel corporativo. Recibe su historial y el dia consultado."""
+    eventos = []
+    for h in historial:
+        est = (h.estado_nuevo or "").upper()
+        titulo, _ = _ETIQUETAS.get(est, _ETIQUETA_GENERICA)
+        eventos.append({
+            "h": _momento_local(h.fecha_utc, dia), "t": titulo,
+            "ok": est == "ENTREGADO", "alerta": est in ("FALLIDO", "OBSERVADO", "CANCELADO"),
+        })
+    return eventos
+
+
+def filas_empresa(db: Session, cliente_id: int, dia=None) -> list:
+    """Pedidos de un cliente en una fecha (C45-01) con su estado visible y linea de tiempo real.
+    Recibe el id del cliente y la fecha local (por defecto hoy). Devuelve una lista de filas."""
+    dia = dia or fechas.hoy_local()
+    pares = repo.pedidos_de_cliente_en_fecha(db, cliente_id, dia)
+    historiales = repo.historial_de_pedidos(db, [p.id for p, _ in pares])
     filas = []
-    contadores = {}
-    for p, det in repo.pedidos_de_cliente_hoy(db, cliente_id):
-        # estado_entrega del detalle solo es terminal (ENTREGADO/FALLIDO) o PENDIENTE;
-        # para el estado en curso (EN_RUTA, etc.) se usa el estado del pedido. Si se usara
-        # el detalle en curso, un EN_RUTA se mostraria como POR_SALIR (bug corregido).
-        base = det.estado_entrega if (det and det.estado_entrega in ("ENTREGADO", "FALLIDO")) else p.estado
-        est = estado_portal.mapear_estado(base)
-        hora = (hora_local(p.fecha_entrega) if est == "ENTREGADO" else "") or "—"
+    for p, det in pares:
+        est = _estado_visible(p, det)
+        hora = (_momento_local(p.fecha_entrega, dia) if est == "ENTREGADO" else "") or "—"
         extra = ""
         if est == "EN_RUTA" and det:
             extra = f"Parada {det.secuencia}"
@@ -174,30 +213,99 @@ def tabla_empresa(db: Session, cliente_id: int) -> dict:
             extra = "Sale en el proximo bloque"
         elif est == "OBSERVADO":
             extra = "En gestion"
+        elif est == "REPROGRAMADO":
+            extra = (det.motivo_fallo if det and det.motivo_fallo else "Intento sin éxito")
         filas.append({
-            "cod": p.codigo, "cliente": p.nombre_destinatario or "—",
+            "cod": p.codigo, "ref": p.referencia_externa or "", "cliente": p.nombre_destinatario or "—",
             "dir": p.direccion_destino or "", "dist": p.distrito or "—",
             "estado": est, "h": hora, "extra": extra,
+            "eventos": _eventos_empresa(historiales.get(p.id, []), dia),
         })
-        contadores[est] = contadores.get(est, 0) + 1
-    return {"filas": filas, "contadores": contadores}
+    return filas
+
+
+def tabla_empresa(db: Session, cliente_id: int, dia=None) -> dict:
+    """Filas + contadores de los pedidos de un cliente en una fecha. Recibe el id del cliente y la fecha (por defecto hoy)."""
+    dia = dia or fechas.hoy_local()
+    filas = filas_empresa(db, cliente_id, dia)
+    contadores = {}
+    for f in filas:
+        contadores[f["estado"]] = contadores.get(f["estado"], 0) + 1
+    return {"fecha": dia.isoformat(), "esHoy": dia == fechas.hoy_local(), "filas": filas, "contadores": contadores}
+
+
+_ESTADO_LEGIBLE = {
+    "ENTREGADO": "Entregado", "EN_RUTA": "En ruta", "POR_SALIR": "Por salir",
+    "OBSERVADO": "Observado", "REPROGRAMADO": "Reprogramado", "CANCELADO": "Cancelado",
+}
+
+
+def excel_empresa(db: Session, cliente, dia=None) -> tuple[bytes, str]:
+    """Exporta a Excel los pedidos de un cliente en una fecha (C45-02). Recibe el cliente y la fecha.
+    Devuelve (bytes del .xlsx, nombre del archivo)."""
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    dia = dia or fechas.hoy_local()
+    filas = filas_empresa(db, cliente.id, dia)
+    wb = Workbook()
+    hoja = wb.active
+    hoja.title = "Pedidos"
+    hoja.append([f"Pedidos de {cliente.razon_social} · {dia.strftime('%d/%m/%Y')}"])
+    hoja["A1"].font = Font(bold=True, size=13)
+    hoja.append([f"Generado desde el portal de clientes SAVA · {len(filas)} pedidos"])
+    hoja.append([])
+    columnas = ["Código SAVA", "Referencia", "Destinatario", "Dirección", "Distrito", "Estado", "Hora de entrega", "Detalle"]
+    hoja.append(columnas)
+    for celda in hoja[4]:
+        celda.font = Font(bold=True)
+    for f in filas:
+        hoja.append(fila_segura([
+            f["cod"], f["ref"], f["cliente"], f["dir"], f["dist"],
+            _ESTADO_LEGIBLE.get(f["estado"], f["estado"]), "" if f["h"] == "—" else f["h"], f["extra"],
+        ]))
+    for letra, ancho in zip("ABCDEFGH", (14, 16, 26, 42, 18, 14, 16, 30)):
+        hoja.column_dimensions[letra].width = ancho
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    codigo = (cliente.codigo_acceso or str(cliente.id)).replace("/", "-")
+    return buffer.getvalue(), f"pedidos_{codigo}_{dia.isoformat()}.xlsx"
+
+
+def _reprogramacion_portal(solicitud) -> dict | None:
+    """Estado de la solicitud de reprogramacion para el cliente (sin notas internas). Recibe la solicitud."""
+    if not solicitud:
+        return None
+    return {"franja": solicitud.franja, "estado": solicitud.estado}
+
+
+def puede_reprogramar(p) -> bool:
+    """True si el cliente aun puede pedir otra fecha: antes de la visita o tras un intento fallido
+    (C43-02). Recibe el pedido."""
+    return p.estado not in ("ENTREGADO", "CANCELADO")
 
 
 def registrar_reprogramacion(db: Session, codigo: str, franja: str) -> dict:
-    """Registra la franja pedida por el cliente + notifica al admin. Recibe codigo y franja.
-    No cambia el pipeline (la reprogramacion real la decide el admin)."""
-    from app.services import notificaciones_service
+    """Guarda la solicitud de reprogramacion ligada al pedido (C43-01) y avisa al admin con un enlace
+    al pedido (C37-02). Solo acepta franjas configuradas (C43-03). No cambia el pipeline: la
+    reprogramacion la decide el admin. Recibe codigo y franja."""
+    from app.services import notificaciones_service, parametro_service
     p = repo.pedido_por_codigo(db, codigo)
     if not p:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
-    try:
-        notificaciones_service.registrar(
-            db, "reportes", "Reprogramacion solicitada por el cliente",
-            f"Pedido {codigo}: el cliente pide la franja «{franja}»", "/reportes?pendientes=1", p.id)
-    except Exception:
-        pass
+    if not puede_reprogramar(p):
+        raise HTTPException(status_code=409, detail="Este pedido ya no se puede reprogramar.")
+    franja = " ".join((franja or "").split())
+    if franja not in parametro_service.obtener_franjas(db):
+        raise HTTPException(status_code=400, detail="Elija una de las franjas disponibles.")
+    solicitud = reprogramacion_repository.registrar(db, p.id, franja)
     db.commit()
-    return {"ok": True}
+    notificaciones_service.registrar(
+        db, "reportes", "Reprogramación solicitada por el cliente",
+        f"Pedido {p.codigo}: pide la franja «{franja}»", f"/pedidos?codigo={p.codigo}", p.id)
+    return {"ok": True, "reprogramacion": _reprogramacion_portal(solicitud)}
 
 
 # Cache en memoria de las estadisticas publicas (TTL corto): el landing hace polling
@@ -284,4 +392,43 @@ def ayuda_demo(db: Session, demo: bool) -> dict:
     datos = repo.ayuda_demo(db)
     if not datos:
         return {"activo": False}
-    return {"activo": True, **datos}
+    empresas = datos.get("empresas") or []
+    # Los pedidos se leen EN VIVO de las empresas de la ayuda (no de una lista guardada):
+    # asi nunca muestra pedidos borrados y su estado avanza junto con la demostracion.
+    ids = [c.id for c in (repo.cliente_por_codigo_acceso(db, e.get("codigo", "")) for e in empresas) if c]
+    filas = [_fila_ayuda(p, det) for p, det in repo.pedidos_de_clientes(db, ids)]
+    return {"activo": True, "empresas": empresas, "pedidos": seleccionar_pedidos_ayuda(filas)}
+
+
+# Etiqueta corta de cada estado del portal para la ayuda de la demostracion.
+ETIQUETAS_AYUDA = {
+    "POR_SALIR": "Por salir", "EN_RUTA": "En camino", "ENTREGADO": "Entregado",
+    "REPROGRAMADO": "Reprogramado", "OBSERVADO": "En gestión", "CANCELADO": "Cancelado",
+}
+MAX_PEDIDOS_AYUDA = 12
+
+
+def _fila_ayuda(p, det) -> dict:
+    """Fila de la ayuda: tienda, codigos, estado visible y ultimos 4 del DNI. Recibe pedido y detalle."""
+    est = _estado_visible(p, det)
+    return {
+        "retail": p.cliente_origen or "",
+        "codigo": p.codigo or "",
+        "referencia": p.referencia_externa or "",
+        "estado": ETIQUETAS_AYUDA.get(est, est.capitalize()),
+        "dni": (p.dni_destinatario or "")[-4:] or "—",
+    }
+
+
+def seleccionar_pedidos_ayuda(filas: list, maximo: int = MAX_PEDIDOS_AYUDA) -> list:
+    """Si caben, devuelve todos los pedidos; si son muchos, uno por tienda y estado (hasta el
+    maximo). Recibe las filas ya armadas y el maximo a mostrar."""
+    if len(filas) <= maximo:
+        return filas
+    vistos, salida = set(), []
+    for f in filas:
+        clave = (f["retail"], f["estado"])
+        if clave not in vistos:
+            vistos.add(clave)
+            salida.append(f)
+    return salida[:maximo]

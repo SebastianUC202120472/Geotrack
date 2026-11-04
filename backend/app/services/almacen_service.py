@@ -3,16 +3,24 @@ from datetime import datetime
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.repositories import almacen_repository, recojo_repository, historial_repository
+from app.core.config import settings
+from app.repositories import almacen_repository, recojo_repository, historial_repository, pedido_repository
 from app.schemas.almacen import (
     ConteoConciliacion,
     ConciliacionResponse,
     PedidoIngresoItem,
     RecojoAlmacenItem,
     ConfirmarIngresoResponse,
+    ObservadoItem,
 )
 
-ESTADOS_INGRESABLES = ("RECOGIDO", "INGRESADO")
+
+def estados_ingresables() -> tuple:
+    """Estados de recojo que el almacen puede ingresar. Con ALMACEN_INGRESO_DIRECTO (modo
+    demostracion) suma SOLICITADO: la solicitud recien aceptada se recibe sin ruta de recojo."""
+    if settings.ALMACEN_INGRESO_DIRECTO:
+        return ("SOLICITADO", "RECOGIDO", "INGRESADO")
+    return ("RECOGIDO", "INGRESADO")
 
 
 def _recojo_ingresable(db: Session, recojo_id: int, bloquear: bool = False):
@@ -24,7 +32,7 @@ def _recojo_ingresable(db: Session, recojo_id: int, bloquear: bool = False):
     )
     if not recojo:
         raise HTTPException(status_code=404, detail="Recojo no encontrado")
-    if recojo.estado not in ESTADOS_INGRESABLES:
+    if recojo.estado not in estados_ingresables():
         raise HTTPException(
             status_code=400,
             detail=f"El recojo debe estar RECOGIDO para ingresarlo (estado: {recojo.estado})",
@@ -106,8 +114,9 @@ def confirmar_ingreso(db: Session, recojo_id: int, referencias_faltantes: list[s
 
 
 def listar_recojos(db: Session, estado: str | None = None) -> list:
-    """Lista recojos RECOGIDO/INGRESADO con su conteo de pedidos. Recibe estado opcional para filtrar."""
-    estados = [estado] if estado else ["RECOGIDO", "INGRESADO"]
+    """Lista los recojos ingresables (RECOGIDO/INGRESADO, y SOLICITADO en modo demostracion)
+    con su conteo de pedidos. Recibe estado opcional para filtrar."""
+    estados = [estado] if estado else list(estados_ingresables())
     items = []
     for e in estados:
         for r in recojo_repository.listar(db, e):
@@ -120,3 +129,17 @@ def listar_recojos(db: Session, estado: str | None = None) -> list:
                 conteo=_conteo(db, r.id),
             ))
     return items
+
+
+def listar_observados(db: Session) -> list[ObservadoItem]:
+    """Todos los pedidos OBSERVADO con su lote y antigüedad del caso, del mas antiguo al mas nuevo (C15-01). Recibe la sesion."""
+    ahora = datetime.utcnow()
+    salida = []
+    for pedido, lote, desde in pedido_repository.listar_observados(db):
+        salida.append(ObservadoItem(
+            pedido_id=pedido.id, codigo=pedido.codigo, referencia=pedido.referencia_externa,
+            cliente=pedido.cliente_origen, destinatario=pedido.nombre_destinatario,
+            direccion_destino=pedido.direccion_destino, lote=lote, recojo_id=pedido.recojo_id,
+            observado_desde=desde, dias=max(0, (ahora - desde).days) if desde else 0,
+        ))
+    return salida

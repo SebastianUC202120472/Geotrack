@@ -11,6 +11,14 @@ import { EstadoBadge } from "../components/ui/Badge";
 import { listarVehiculos, crearVehiculo, listarConductores, actualizarVehiculo, eliminarVehiculo } from "../services/api";
 import { validarPlaca, validarCapacidad } from "../utils/validaciones";
 
+// Texto de ayuda cuando el conductor elegido ya maneja otro vehiculo (regla 1 a 1, C09-01).
+// Recibe la lista de conductores, el id elegido y el id del vehiculo que se edita (si aplica).
+function avisoReasignacion(conductores, conductorId, vehiculoActualId = null) {
+  const c = conductores.find((x) => String(x.usuario_id) === String(conductorId));
+  if (!c?.vehiculo || c.vehiculo.id === vehiculoActualId) return undefined;
+  return `Se le quitará el vehículo ${c.vehiculo.placa}: cada conductor maneja un solo vehículo.`;
+}
+
 // Página de flota: lista y registro de vehículos con asignación de conductor.
 export default function Flota() {
   const [vehiculos, setVehiculos] = useState([]);
@@ -26,18 +34,13 @@ export default function Flota() {
   const [aviso, setAviso] = useState(null);
   const [editando, setEditando] = useState(null);
 
-  const cargar = async () => {
-    setCargando(true);
-    try {
-      const [v, c] = await Promise.all([listarVehiculos(), listarConductores()]);
-      setVehiculos(v);
-      setConductores(c);
-    } catch (err) {
-      console.error("No se pudo cargar la flota:", err.message);
-    } finally {
-      setCargando(false);
-    }
-  };
+  // Carga los datos; las recargas tras una accion son silenciosas (la tabla no parpadea).
+  // El estado se fija dentro de los callbacks de la promesa (regla de lint "setState en effect").
+  const cargar = () =>
+    Promise.all([listarVehiculos(), listarConductores()])
+      .then(([v, c]) => { setVehiculos(v); setConductores(c); })
+      .catch((err) => console.error("No se pudo cargar la flota:", err.message))
+      .finally(() => setCargando(false));
 
   useEffect(() => {
     cargar();
@@ -146,7 +149,7 @@ export default function Flota() {
         <KpiCard label="En ruta" value={kpis.enRuta} icon={Truck} tone="warning" />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
         <SectionCard title="Registrar vehículo" subtitle="El conductor es opcional (vacío = de la empresa)." className="lg:col-span-1">
           <form onSubmit={altaVehiculo} noValidate className="space-y-4">
             <Input label="Placa" required value={placa}
@@ -160,11 +163,12 @@ export default function Flota() {
             </div>
             <Input label="Capacidad (cajas)" type="number" min="0" step="1" value={cajas}
               onChange={(e) => setCajas(e.target.value)} placeholder="200" hint="Cuántas cajas soporta (opcional)" />
-            <Input as="select" label="Conductor asignado" value={conductorId} onChange={(e) => setConductorId(e.target.value)}>
+            <Input as="select" label="Conductor asignado" value={conductorId} onChange={(e) => setConductorId(e.target.value)}
+              hint={avisoReasignacion(conductores, conductorId)}>
               <option value="">Sin conductor (de la empresa)</option>
               {conductores.map((c) => (
                 <option key={c.usuario_id} value={c.usuario_id}>
-                  {c.nombre || c.correo} {c.codigo ? `· ${c.codigo}` : ""}
+                  {c.nombre || c.correo} {c.codigo ? `· ${c.codigo}` : ""}{c.vehiculo ? ` (tiene ${c.vehiculo.placa})` : ""}
                 </option>
               ))}
             </Input>
@@ -274,11 +278,12 @@ function EditarVehiculo({ vehiculo, conductores, onCerrar, onCambios }) {
             <Input label="Capacidad (cajas)" type="number" min="0" step="1" value={cajas}
               onChange={(e) => setCajas(e.target.value)} placeholder="200" />
           </div>
-          <Input as="select" label="Conductor asignado" value={conductorId} onChange={(e) => setConductorId(e.target.value)}>
+          <Input as="select" label="Conductor asignado" value={conductorId} onChange={(e) => setConductorId(e.target.value)}
+            hint={avisoReasignacion(conductores, conductorId, vehiculo.id)}>
             <option value="">Sin conductor (de la empresa)</option>
             {conductores.map((c) => (
               <option key={c.usuario_id} value={c.usuario_id}>
-                {c.nombre || c.correo} {c.codigo ? `· ${c.codigo}` : ""}
+                {c.nombre || c.correo} {c.codigo ? `· ${c.codigo}` : ""}{c.vehiculo && c.vehiculo.id !== vehiculo.id ? ` (tiene ${c.vehiculo.placa})` : ""}
               </option>
             ))}
           </Input>

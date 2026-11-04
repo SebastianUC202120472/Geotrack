@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { obtenerManifiestoRecojo, optimizarRecojo, registrarRecepcion } from "@/api/conductor";
+import { obtenerManifiestoRecojo, optimizarRecojo, registrarRecepcion, marcarRecojoNoRealizado } from "@/api/conductor";
 import { claves as clavesRuta } from "@/features/ruta/hooks";
+import { conCopiaOffline } from "@/store/rutaOffline";
 import type { Coordenadas } from "@/types/api";
 
 export const clavesRecojo = { manifiesto: ["manifiesto-recojo"] as const };
@@ -12,9 +13,12 @@ const sinReintentarEn404 = (intentos: number, error: unknown): boolean => {
   return intentos < 2;
 };
 
+// Guarda la última respuesta en el teléfono para abrir la ruta de recojo sin señal (C27-02).
+const manifiestoRecojoOffline = conCopiaOffline("manifiesto-recojo", obtenerManifiestoRecojo);
+
 // Manifiesto de la ruta de recojo activa. Devuelve: query de ManifiestoRecojo.
 export function useManifiestoRecojo() {
-  return useQuery({ queryKey: clavesRecojo.manifiesto, queryFn: obtenerManifiestoRecojo, retry: sinReintentarEn404, refetchInterval: INTERVALO, refetchOnMount: "always" });
+  return useQuery({ queryKey: clavesRecojo.manifiesto, queryFn: manifiestoRecojoOffline, retry: sinReintentarEn404, refetchInterval: INTERVALO, refetchOnMount: "always" });
 }
 
 // Inicia/optimiza la ruta de recojo desde la ubicación actual.
@@ -29,12 +33,24 @@ export function useIniciarRecojo() {
   });
 }
 
-// Registra la recepción condicionada. Recibe: recojoId, cantidad y array de uris de fotos.
+// Registra la recepción condicionada. Recibe: recojoId, cantidad, array de uris de fotos y coords de la captura.
 export function useRegistrarRecepcion() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ recojoId, cantidad, uris }: { recojoId: number; cantidad: number; uris: string[] }) =>
-      registrarRecepcion(recojoId, cantidad, uris),
+    mutationFn: ({ recojoId, cantidad, uris, coords }: { recojoId: number; cantidad: number; uris: string[]; coords?: Coordenadas | null }) =>
+      registrarRecepcion(recojoId, cantidad, uris, coords),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: clavesRuta.rutaActiva });
+      qc.invalidateQueries({ queryKey: clavesRecojo.manifiesto });
+    },
+  });
+}
+
+// Marca un recojo como no realizado (C12-02). Recibe: recojoId y motivo.
+export function useMarcarNoRealizado() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ recojoId, motivo }: { recojoId: number; motivo: string }) => marcarRecojoNoRealizado(recojoId, motivo),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: clavesRuta.rutaActiva });
       qc.invalidateQueries({ queryKey: clavesRecojo.manifiesto });

@@ -17,7 +17,8 @@ from app.schemas.almacen import (
     RetornoRutaResponse,
     EscaneoRetornoResponse,
 )
-from app.schemas.recojo import SolicitudArmarItem, AsignarRutaRecojoRequest, AsignarRutaRecojoResponse
+from app.schemas.recojo import SolicitudArmarItem, AsignarRutaRecojoRequest, AsignarRutaRecojoResponse, RutaRecojoItem
+from app.schemas.almacen import ObservadoItem
 from app.schemas.dashboard import ConductorUbicacion
 
 router = APIRouter()
@@ -83,6 +84,18 @@ def listar_solicitudes_armar(db: Session = Depends(get_db), usuario: Usuario = D
 def asignar_ruta_recojo(datos: AsignarRutaRecojoRequest, db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
     """Arma la ruta de recojo asignando conductor y vehículo a las solicitudes seleccionadas."""
     return recojo_service.asignar_ruta_recojo(db, datos, usuario.id)
+
+
+@router.get("/observados", response_model=List[ObservadoItem])
+def listar_observados(db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
+    """Todos los pedidos OBSERVADO con su lote y antigüedad, del más antiguo al más nuevo."""
+    return almacen_service.listar_observados(db)
+
+
+@router.get("/rutas-recojo", response_model=List[RutaRecojoItem])
+def listar_rutas_recojo(dias: int = Query(7, ge=1, le=60), db: Session = Depends(get_db), usuario: Usuario = Depends(get_current_almacen)):
+    """Rutas de recojo activas y de los últimos días, para seguirlas y descargar su manifiesto."""
+    return recojo_service.listar_rutas_recojo(db, dias)
 
 
 @router.get("/flota/ubicaciones-recojo", response_model=List[ConductorUbicacion])

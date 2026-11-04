@@ -50,7 +50,7 @@ CORREOS_CONDUCTORES = (
 # parametros_sistema ni correo_*.
 TABLAS_A_VACIAR = (
     "ruta_detalles", "evidencias_entrega", "evidencias_recojo", "historial_pedidos",
-    "incidencias", "reportes", "liquidaciones", "ubicaciones_conductor",
+    "incidencias", "incidencia_ayudas", "solicitudes_reprogramacion", "reportes", "liquidaciones", "ubicaciones_conductor",
     "notificaciones", "verificaciones_portal", "solicitudes_restablecimiento",
     "pedidos", "rutas", "solicitudes_recojo", "clientes_corporativos",
 )
@@ -132,15 +132,18 @@ def momentos_de_cierre(pedidos) -> dict:
     }
 
 
-def crear_pedidos(db, empresas) -> list:
-    """Crea los 250 pedidos del dia con su estado, destinatario y coordenadas.
-    Recibe la sesion y la lista de empresas. Devuelve [[pedido, estado, indice], ...]."""
+def crear_pedidos(db, empresas, excluir=()) -> list:
+    """Crea los pedidos del dia (50 por empresa) con su estado, destinatario y coordenadas.
+    Recibe la sesion, la lista de empresas y los codigos de acceso de las empresas que se
+    dejan SIN pedidos (p. ej. la que se usa para el flujo en vivo). Devuelve [[pedido, estado, indice], ...]."""
     inicio_dia, _ = fechas.rango_utc_del_dia()
     azar = random.Random(20260918)   # semilla fija: la siembra es reproducible
     distritos = list(cat.DISTRITOS)
     pedidos = []
     indice = 0
     for pos_empresa, (empresa, datos) in enumerate(zip(empresas, cat.EMPRESAS)):
+        if datos["codigo_acceso"] in excluir:
+            continue
         for i, estado in enumerate(cat.reparto_estados(50)):
             # Los pendientes se concentran en pocas zonas; el resto se reparte por toda Lima.
             if estado == "LISTO_PARA_ENVIO":
@@ -329,7 +332,8 @@ def crear_evidencias(db, pedidos, detalles, cierres):
         url = f"/media/evidencias/{archivo}"
         db.add(EvidenciaEntrega(
             pedido_id=p.id, url_foto=url,
-            latitud_longitud_captura=f"{p.latitud},{p.longitud}", fecha_hora=momento))
+            latitud_longitud_captura=f"{p.latitud},{p.longitud}", fecha_hora=momento,
+            receptor_nombre=p.nombre_destinatario, receptor_documento=p.dni_destinatario))
         p.fecha_entrega = momento
         if p.id in detalles:
             detalles[p.id].url_evidencia = url
@@ -456,8 +460,9 @@ def main():
     _sembrar()
 
 
-def _sembrar():
-    """Hace la siembra completa (borrado + empresas + pedidos + rutas + POD). Sin input."""
+def _sembrar(excluir=()):
+    """Hace la siembra completa (borrado + empresas + pedidos + rutas + POD). Recibe los codigos
+    de acceso de las empresas que quedan sin pedidos (por defecto ninguna)."""
     db = SessionLocal()
     # Tras cada commit los objetos siguen usables sin volver a consultarlos: la hoja de
     # credenciales y la generacion de POD leen los 250 pedidos ya cargados, y con el
@@ -475,7 +480,7 @@ def _sembrar():
         empresas = crear_empresas(db)
 
         print("Creando pedidos...")
-        pedidos = crear_pedidos(db, empresas)
+        pedidos = crear_pedidos(db, empresas, excluir)
 
         cierres = momentos_de_cierre(pedidos)
 

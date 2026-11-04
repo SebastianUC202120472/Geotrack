@@ -3,11 +3,13 @@
 
 const BASE = "/api/portal";
 
-// pedir: hace un fetch JSON y normaliza el error como { status, data }.
+// pedir: hace un fetch JSON y normaliza el error como { status, data }. Las cabeceras se
+// combinan DESPUÉS de las opciones: si no, un Authorization borraba el Content-Type y el
+// backend recibía el cuerpo como texto (422 al reprogramar).
 async function pedir(url, opciones = {}) {
   const res = await fetch(url, {
-    headers: { "Content-Type": "application/json", ...(opciones.headers || {}) },
     ...opciones,
+    headers: { "Content-Type": "application/json", ...(opciones.headers || {}) },
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) return Promise.reject({ status: res.status, data });
@@ -36,6 +38,12 @@ export const reprogramar = (codigo, franja, token) =>
     body: JSON.stringify({ franja }),
   });
 
+// Razón social, RUC y dirección de SAVA para el Libro de Reclamaciones (C40-02). Sin parametros.
+export const datosLibro = () => pedir(`${BASE}/libro`);
+
+// Franjas que se pueden elegir al reprogramar (C43-03). Sin parametros.
+export const obtenerFranjas = () => pedir(`${BASE}/franjas`);
+
 export const urlPod = (codigo) => `${BASE}/pedidos/${encodeURIComponent(codigo)}/pod`;
 
 // --- Empresa ---
@@ -51,10 +59,33 @@ export const empresaVerificar = (codigoAcceso, otp) =>
     body: JSON.stringify({ codigoAcceso, otp }),
   });
 
-export const empresaPedidos = (token) =>
-  pedir(`${BASE}/empresa/pedidos`, {
+// Pedidos de la empresa en una fecha ("AAAA-MM-DD"; vacia = hoy). Recibe token y fecha.
+export const empresaPedidos = (token, fecha) =>
+  pedir(`${BASE}/empresa/pedidos${fecha ? `?fecha=${encodeURIComponent(fecha)}` : ""}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
+
+// Descarga en Excel los pedidos de la empresa en una fecha y lo guarda en el equipo.
+// Recibe token y fecha ("AAAA-MM-DD"). Rechaza con { status, data } como pedir().
+export async function descargarExcelEmpresa(token, fecha) {
+  const res = await fetch(`${BASE}/empresa/pedidos/excel?fecha=${encodeURIComponent(fecha)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return Promise.reject({ status: res.status, data });
+  }
+  const blob = await res.blob();
+  const nombre = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") || "")?.[1] || `pedidos_${fecha}.xlsx`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nombre;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 // --- Ayuda de la demostración (vacía si el backend no está en modo demo) ---
 export const ayudaDemo = () => pedir(`${BASE}/demo`);

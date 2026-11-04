@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
-import { User, X, Mail, IdCard, Phone, Briefcase, ShieldCheck } from "lucide-react";
-import { obtenerMiPerfil } from "../services/api";
+import { User, X, Mail, IdCard, Phone, Briefcase, ShieldCheck, KeyRound, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { obtenerMiPerfil, cambiarMiContrasena } from "../services/api";
+import { validarPassword } from "../utils/validaciones";
+import PasswordInput from "./ui/PasswordInput";
+import Button from "./ui/Button";
 
 // Etiqueta legible del rol del panel.
 const etiquetaRol = (r) =>
@@ -29,11 +32,69 @@ function Dato({ icon: Icon, label, value }) {
   );
 }
 
-// Modal de solo lectura con los datos del usuario autenticado. Recibe onCerrar (fn).
+// Formulario para cambiar la contrasena propia (pide la actual). Recibe onListo (fn al terminar).
+function CambiarClave({ onListo }) {
+  const [actual, setActual] = useState("");
+  const [nueva, setNueva] = useState("");
+  const [repetir, setRepetir] = useState("");
+  const [error, setError] = useState("");
+  const [guardando, setGuardando] = useState(false);
+  const [ok, setOk] = useState(false);
+
+  // Valida y envia el cambio de contrasena. Recibe el evento del formulario.
+  const guardar = async (e) => {
+    e.preventDefault();
+    const problema = !actual ? "Escribe tu contraseña actual"
+      : validarPassword(nueva) || (nueva !== repetir ? "Las contraseñas nuevas no coinciden" : "");
+    if (problema) { setError(problema); return; }
+    setGuardando(true);
+    setError("");
+    try {
+      await cambiarMiContrasena(actual, nueva);
+      setOk(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  if (ok) {
+    return (
+      <div className="mt-6 space-y-4">
+        <div className="flex items-start gap-3 rounded-xl bg-success-soft px-4 py-3 text-sm text-success-strong">
+          <CheckCircle2 size={20} className="shrink-0" />
+          <span>Contraseña actualizada. Úsala la próxima vez que inicies sesión.</span>
+        </div>
+        <Button block onClick={() => onListo(true)}>Listo</Button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={guardar} noValidate className="mt-6 space-y-4">
+      <PasswordInput label="Contraseña actual" value={actual} autoComplete="current-password"
+        onChange={(e) => { setActual(e.target.value); setError(""); }} />
+      <PasswordInput label="Nueva contraseña" value={nueva} autoComplete="new-password"
+        onChange={(e) => { setNueva(e.target.value); setError(""); }}
+        hint="8+, con mayúscula, minúscula, número y carácter especial" />
+      <PasswordInput label="Repite la nueva contraseña" value={repetir} autoComplete="new-password"
+        onChange={(e) => { setRepetir(e.target.value); setError(""); }} />
+      {error && <p className="rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger-strong">{error}</p>}
+      <div className="flex gap-2">
+        <Button type="button" variant="secondary" block onClick={() => onListo(false)} disabled={guardando}>Cancelar</Button>
+        <Button type="submit" icon={KeyRound} block disabled={guardando}>{guardando ? "Guardando…" : "Cambiar"}</Button>
+      </div>
+    </form>
+  );
+}
+
+// Modal con los datos del usuario autenticado y el cambio de su contrasena. Recibe onCerrar (fn).
 export default function MiPerfil({ onCerrar }) {
   const [perfil, setPerfil] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
+  const [cambiando, setCambiando] = useState(false);
 
   useEffect(() => {
     let activo = true;
@@ -67,8 +128,21 @@ export default function MiPerfil({ onCerrar }) {
         <p className="mt-6 text-center text-sm text-slate-500">Cargando perfil…</p>
       ) : error ? (
         <p className="mt-6 rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger-strong">{error}</p>
+      ) : cambiando ? (
+        <CambiarClave
+          onListo={(cambio) => {
+            setCambiando(false);
+            if (cambio) setPerfil((p) => ({ ...p, clave_por_defecto: false }));
+          }}
+        />
       ) : (
         <div className="mt-6 space-y-3">
+          {perfil.clave_por_defecto && (
+            <div className="flex items-start gap-2 rounded-xl bg-warning-soft px-3.5 py-3 text-sm text-warning-strong">
+              <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+              <span>Tu cuenta sigue con la <b>contraseña de fábrica</b>, que es pública. Cámbiala ahora.</span>
+            </div>
+          )}
           <Dato icon={User} label="Nombre completo" value={perfil.nombre} />
           <div className="grid grid-cols-2 gap-3">
             <Dato icon={IdCard} label="DNI" value={perfil.dni} />
@@ -77,6 +151,9 @@ export default function MiPerfil({ onCerrar }) {
           <Dato icon={Briefcase} label="Cargo" value={perfil.cargo} />
           <Dato icon={Mail} label="Correo" value={perfil.correo} />
           <Dato icon={ShieldCheck} label="Rol" value={etiquetaRol(perfil.rol)} />
+          <Button variant="secondary" icon={KeyRound} block className="mt-2" onClick={() => setCambiando(true)}>
+            Cambiar contraseña
+          </Button>
         </div>
       )}
     </>

@@ -41,6 +41,12 @@ def obtener_por_id(db: Session, usuario_id: int) -> Optional[Usuario]:
     return db.query(Usuario).filter(Usuario.id == usuario_id).first()
 
 
+def bloquear(db: Session, usuario_id: int) -> Optional[Usuario]:
+    """Lee el usuario y bloquea su fila hasta el commit (SELECT ... FOR UPDATE), para que dos
+    operaciones simultaneas sobre la misma persona se hagan una tras otra. Recibe: usuario_id."""
+    return db.query(Usuario).filter(Usuario.id == usuario_id).with_for_update().first()
+
+
 def crear_usuario(db: Session, correo: str, hash_contrasena: str, rol: str,
                   nombre: str | None = None, dni: str | None = None,
                   telefono: str | None = None, cargo: str | None = None) -> Usuario:

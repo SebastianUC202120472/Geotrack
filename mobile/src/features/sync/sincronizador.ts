@@ -1,11 +1,24 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { listar, quitar, actualizar } from "@/store/colaSync";
+import { listar, quitar, actualizar, type AccionPendiente } from "@/store/colaSync";
 import { estaOnline } from "@/hooks/useConexion";
-import { marcarEstadoParada, subirEvidencia, crearReporte } from "@/api/conductor";
+import { marcarEstadoParada, subirEvidencia, crearReporte, subirEvidenciaReporte } from "@/api/conductor";
 import { esErrorDeRed } from "@/api/client";
 import { claves } from "@/features/ruta/hooks";
+import type { Coordenadas, Receptor } from "@/types/api";
 
 let sincronizando = false;
+
+// Coordenadas guardadas con la foto del ítem, o null si no hubo GPS. Recibe el ítem de la cola.
+function coordsDe(item: AccionPendiente): Coordenadas | null {
+  return item.latitud != null && item.longitud != null ? { latitud: item.latitud, longitud: item.longitud } : null;
+}
+
+// Quién recibió la entrega encolada, si se registró. Recibe el ítem de la cola.
+function receptorDe(item: AccionPendiente): Receptor | undefined {
+  return item.receptorNombre && item.receptorDocumento
+    ? { nombre: item.receptorNombre, documento: item.receptorDocumento }
+    : undefined;
+}
 
 // Vacía la cola de sync si hay conexión. Recibe el QueryClient para invalidar queries al terminar.
 export async function sincronizar(qc: QueryClient): Promise<void> {
@@ -20,12 +33,12 @@ export async function sincronizar(qc: QueryClient): Promise<void> {
         if (item.tipo === "ENTREGA") {
           // La foto debe subirse antes de marcar ENTREGADO (el backend lo exige).
           if (item.fotoUri && !item.evidenciaSubida) {
-            await subirEvidencia(item.pedidoId, item.fotoUri);
+            await subirEvidencia(item.pedidoId, item.fotoUri, coordsDe(item));
             await actualizar(item.id, { evidenciaSubida: true });
             item.evidenciaSubida = true;
           }
           if (!item.estadoAplicado) {
-            await marcarEstadoParada(item.pedidoId, "ENTREGADO");
+            await marcarEstadoParada(item.pedidoId, "ENTREGADO", undefined, receptorDe(item));
             await actualizar(item.id, { estadoAplicado: true });
             item.estadoAplicado = true;
           }
@@ -36,9 +49,16 @@ export async function sincronizar(qc: QueryClient): Promise<void> {
             item.estadoAplicado = true;
           }
           if (!item.reporteCreado) {
-            await crearReporte(item.pedidoId, item.motivo ?? "Sin motivo", item.descripcion);
-            await actualizar(item.id, { reporteCreado: true });
+            const reporte = await crearReporte(item.pedidoId, item.motivo ?? "Sin motivo", item.descripcion);
+            await actualizar(item.id, { reporteCreado: true, reporteId: reporte.id });
             item.reporteCreado = true;
+            item.reporteId = reporte.id;
+          }
+          // La foto que respalda la falla se adjunta al reporte ya creado (C29-01).
+          if (item.fotoUri && item.reporteId && !item.evidenciaSubida) {
+            await subirEvidenciaReporte(item.reporteId, item.fotoUri, coordsDe(item));
+            await actualizar(item.id, { evidenciaSubida: true });
+            item.evidenciaSubida = true;
           }
         }
         await quitar(item.id);

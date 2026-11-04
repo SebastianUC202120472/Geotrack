@@ -16,5 +16,6 @@ class VerificacionPortal(Base):
     expira_en = Column(DateTime, nullable=True)
     intentos = Column(Integer, default=0)
     bloqueado_hasta = Column(DateTime, nullable=True)
+    bloqueos = Column(Integer, default=0)                # bloqueos seguidos: alarga el siguiente (C42-01)
     creado_en = Column(DateTime, default=datetime.utcnow)
     verificado_en = Column(DateTime, nullable=True)

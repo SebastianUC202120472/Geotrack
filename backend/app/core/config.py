@@ -16,9 +16,15 @@ class Settings(BaseSettings):
     # expone un factor de autenticacion, por eso viene apagada de fabrica.
     PORTAL_OTP_DEMO: bool = False
 
+    # Modo demostracion del almacen: encendida, una solicitud recien aceptada aparece
+    # en "Ingreso a Almacen" sin pasar por la ruta de recojo del conductor (recepcion
+    # directa, sin fotos). SOLO para presentaciones: se salta la evidencia del recojo.
+    ALMACEN_INGRESO_DIRECTO: bool = False
+
     DATABASE_URL: str = "postgresql://sava_admin:sava_password123@db:5432/siol_sava_db"  # nosec B105
 
-    CORS_ORIGINS: str = "*"
+    # Vacio = solo mismo origen (el panel llega por Nginx). Con dominios, separarlos por comas.
+    CORS_ORIGINS: str = ""
 
     # Zona horaria de la operacion. Define donde empieza y termina "el dia" en las
     # vistas diarias (panel corporativo, reporte del landing). Con UTC, el dia de una
@@ -28,6 +34,13 @@ class Settings(BaseSettings):
     # Limites de las fotos subidas (entrega, recojo, auxilio, conductor).
     IMAGEN_MAX_MB: int = 8
     RECOJO_MAX_FOTOS: int = 10
+
+    # Archivos subidos (EX-08): "local" (carpeta UPLOADS_DIR, volumen de Docker) o "supabase" (Supabase Storage).
+    ALMACENAMIENTO: str = "local"
+    UPLOADS_DIR: str = "uploads"
+    SUPABASE_URL: str = ""
+    SUPABASE_SERVICE_KEY: str = ""  # nosec B105 - clave de servicio, solo en el .env
+    SUPABASE_BUCKET: str = "geotrack"
 
     ADMIN_EMAIL: str = "admin@siol.com"
     ADMIN_PASSWORD: str = "admin123"  # nosec B105
@@ -42,6 +55,11 @@ class Settings(BaseSettings):
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
     MAIL_FOLDER: str = "INBOX"
+
+    # Datos del proveedor que exige el Libro de Reclamaciones (D.S. 011-2011-PCM, C40-02).
+    EMPRESA_RAZON_SOCIAL: str = "SAVA S.A.C."
+    EMPRESA_RUC: str = ""
+    EMPRESA_DIRECCION: str = "Calle Los Sinchis Nro. 166, Urb. Tahuantinsuyo Zona III, Independencia, Lima"
 
     MAIL_FROM_NAME: str = "SAVA S.A.C."
     MAIL_SIGNATURE: str = "Atentamente,\nEquipo de Logística\nSAVA S.A.C."

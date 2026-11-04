@@ -4,11 +4,16 @@ from sqlalchemy.orm import Session
 from app.repositories import usuario_repository, solicitud_restablecimiento_repository
 from app.core.security import get_password_hash, verify_password, create_access_token
 from app.models.usuario import Usuario
-from app.schemas.usuario import UsuarioCreate, PersonalCreate, PersonalUpdate, PersonalResetContrasena
+from app.schemas.usuario import UsuarioCreate, PersonalCreate, PersonalUpdate, PersonalResetContrasena, CambioContrasenaPropia
 from app.services import notificaciones_service
+from app.core import produccion
 
 # Mensaje genérico anti-enumeración: igual exista o no el correo.
-MENSAJE_SOLICITUD = "Si el correo corresponde a un conductor, el administrador recibió tu solicitud y te contactará con tu nueva contraseña."
+MENSAJE_SOLICITUD = "Si el correo corresponde a una cuenta activa, el administrador recibió tu solicitud y te contactará con tu nueva contraseña."
+
+# A dónde lleva el aviso de la campana según el rol de quien pide la clave.
+_RUTA_AVISO = {"conductor": "/conductores", "admin": "/usuarios", "almacen": "/usuarios"}
+_ETIQUETA_ROL = {"conductor": "Conductor", "admin": "Administrador", "almacen": "Almacén"}
 
 
 def registrar_usuario(db: Session, datos: UsuarioCreate) -> Usuario:
@@ -37,15 +42,15 @@ def crear_admin_inicial(db: Session, correo: str, contrasena: str) -> None:
 
 
 def solicitar_restablecimiento(db: Session, correo: str) -> dict:
-    """Registra solicitud de restablecimiento de conductor. Recibe el correo del login."""
+    """Registra la solicitud de nueva clave de un conductor o del personal del panel (C04-01). Recibe el correo del login."""
     correo = (correo or "").strip()
     usuario = usuario_repository.obtener_por_correo(db, correo)
-    if usuario and usuario.rol == "conductor" and usuario.estado:
+    if usuario and usuario.estado and usuario.rol in _RUTA_AVISO:
         solicitud_restablecimiento_repository.crear_o_refrescar(db, usuario.id, correo)
         try:
             notificaciones_service.registrar(
                 db, "restablecimientos", "Restablecimiento solicitado",
-                f"Conductor: {correo}", "/conductores")
+                f"{_ETIQUETA_ROL[usuario.rol]}: {correo}", _RUTA_AVISO[usuario.rol])
         except Exception:
             pass
     return {"mensaje": MENSAJE_SOLICITUD}
@@ -60,8 +65,29 @@ def _personal_o_404(db: Session, usuario_id: int) -> Usuario:
 
 
 def listar_personal(db: Session):
-    """Lista las cuentas del panel (admin/almacen)."""
-    return usuario_repository.listar_personal(db)
+    """Lista las cuentas del panel (admin/almacen) marcando quién pidió nueva clave. Recibe la sesión."""
+    pendientes = solicitud_restablecimiento_repository.ids_pendientes(db)
+    personal = usuario_repository.listar_personal(db)
+    for usuario in personal:
+        usuario.solicito_restablecimiento = usuario.id in pendientes
+    return personal
+
+
+def mi_perfil(usuario: Usuario) -> Usuario:
+    """Devuelve el usuario del panel indicando si aún usa la clave de fábrica (EX-01). Recibe el usuario autenticado."""
+    usuario.clave_por_defecto = produccion.usa_clave_de_fabrica(usuario)
+    return usuario
+
+
+def cambiar_contrasena_propia(db: Session, usuario: Usuario, datos: CambioContrasenaPropia) -> dict:
+    """Cambia la clave del usuario autenticado tras verificar la actual. Recibe sesión, usuario y claves."""
+    if not verify_password(datos.actual, usuario.hash_contrasena):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La contraseña actual no es correcta")
+    if datos.actual == datos.nueva:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La nueva contraseña debe ser distinta de la actual")
+    usuario_repository.actualizar_hash(db, usuario.id, get_password_hash(datos.nueva))
+    solicitud_restablecimiento_repository.marcar_atendidas(db, usuario.id)
+    return {"mensaje": "Contraseña actualizada"}
 
 
 def crear_personal(db: Session, datos: PersonalCreate) -> Usuario:
@@ -113,6 +139,7 @@ def restablecer_contrasena_personal(db: Session, usuario_id: int, datos: Persona
     """Fija nueva contraseña a un usuario del panel. Recibe id y PersonalResetContrasena."""
     usuario = _personal_o_404(db, usuario_id)
     usuario_repository.actualizar_hash(db, usuario.id, get_password_hash(datos.contrasena))
+    solicitud_restablecimiento_repository.marcar_atendidas(db, usuario.id)
     return {"mensaje": "Contraseña restablecida correctamente"}
 
 

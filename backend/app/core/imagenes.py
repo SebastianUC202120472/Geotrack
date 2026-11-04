@@ -67,3 +67,12 @@ def _no_es_imagen() -> HTTPException:
         status_code=status.HTTP_400_BAD_REQUEST,
         detail=f"El archivo no es una imagen válida. Usa: {_FORMATOS_TEXTO}",
     )
+
+
+def gps_de_captura(latitud, longitud):
+    """Devuelve "lat,lng" del lugar donde se tomo una foto, o None si falta o no es valido. Recibe latitud y longitud."""
+    if latitud is None or longitud is None:
+        return None
+    if not (-90 <= latitud <= 90 and -180 <= longitud <= 180):
+        return None
+    return f"{latitud:.6f},{longitud:.6f}"

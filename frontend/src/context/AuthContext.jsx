@@ -1,8 +1,6 @@
-import { createContext, useContext, useState } from "react";
+import { useState } from "react";
+import { AuthContext } from "./authContexto";
 import { getToken, guardarToken, borrarToken, leerRol } from "../services/api";
-
-// Contexto de sesión del admin: token en memoria y localStorage.
-const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => getToken());
@@ -29,4 +27,3 @@ export function AuthProvider({ children }) {
   return <AuthContext.Provider value={valor}>{children}</AuthContext.Provider>;
 }
 
-export const useAuth = () => useContext(AuthContext);
