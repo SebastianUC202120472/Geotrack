@@ -255,6 +255,7 @@ PORTAL_OTP_DEMO=false
 | **Geocodificación** | `GOOGLE_GEOCODING_KEY` | Vacía = Nominatim/OSM (gratis, menos preciso). Con clave = Google. |
 | **Correo** | `MAIL_ENABLED`, `MAIL_ADDRESS`, `MAIL_PASSWORD` y opcionales `IMAP_HOST`, `IMAP_PORT`, `SMTP_HOST`, `SMTP_PORT`, `MAIL_FOLDER`, `MAIL_FROM_NAME`, `MAIL_SIGNATURE` | Por defecto apunta a Gmail. Sin correo, el login de empresa del portal responde 503 (no puede enviar el OTP), salvo que actives `PORTAL_OTP_DEMO`. |
 | **Demo del portal** | `PORTAL_OTP_DEMO` | En `true` y sin correo, el backend devuelve el OTP y el portal lo muestra. **Nunca en producción:** expone un factor de autenticación. |
+| **Capacidad de vehículos** | `MODULO_CAPACIDAD_ENABLED` | `true` por defecto. En `false` se retira el módulo de catálogo y capacidad (Idea 3) sin tocar el resto; ver [docs/MODULO_CAPACIDAD.md](docs/MODULO_CAPACIDAD.md). |
 
 > Antes de un despliegue real, recorre la [lista de verificación de producción](docs/CHECKLIST_PRODUCCION.md): el backend avisa en su registro (`PRODUCCIÓN: …`) de cada punto pendiente.
 
