@@ -49,16 +49,19 @@ class ClienteCreate(BaseModel):
     @field_validator("razon_social")
     @classmethod
     def _v_razon(cls, v: str) -> str:
+        """Limpia la razón social y exige de 3 a 150 caracteres. Recibe el texto."""
         return normalizar_razon_social(v)
 
     @field_validator("identificador_unico")
     @classmethod
     def _v_ruc(cls, v: Optional[str]) -> Optional[str]:
+        """Valida el RUC (11 dígitos, prefijo y dígito verificador). Recibe el RUC o nada."""
         return normalizar_ruc(v)
 
     @field_validator("direccion_origen")
     @classmethod
     def _v_direccion(cls, v: str) -> str:
+        """Exige la dirección de recojo completa (al menos 5 caracteres). Recibe la dirección."""
         v = (v or "").strip()
         if len(v) < 5:
             raise ValueError("Escribe la dirección de recojo completa")
@@ -75,11 +78,13 @@ class ClienteUpdate(BaseModel):
     @field_validator("razon_social")
     @classmethod
     def _v_razon(cls, v: Optional[str]) -> Optional[str]:
+        """Si se envía, limpia la razón social y exige de 3 a 150 caracteres. Recibe el texto o nada."""
         return normalizar_razon_social(v)
 
     @field_validator("identificador_unico")
     @classmethod
     def _v_ruc(cls, v: Optional[str]) -> Optional[str]:
+        """Si se envía, valida el RUC (11 dígitos, prefijo y dígito verificador). Recibe el RUC o nada."""
         return normalizar_ruc(v)
 
 
@@ -91,6 +96,7 @@ class UbicacionClienteIn(BaseModel):
     @field_validator("latitud")
     @classmethod
     def _v_lat(cls, v: float) -> float:
+        """Rechaza una latitud fuera del Perú. Recibe la latitud."""
         if not -18.5 <= v <= 0.1:
             raise ValueError("La latitud está fuera del Perú")
         return v
@@ -98,6 +104,7 @@ class UbicacionClienteIn(BaseModel):
     @field_validator("longitud")
     @classmethod
     def _v_lng(cls, v: float) -> float:
+        """Rechaza una longitud fuera del Perú. Recibe la longitud."""
         if not -81.5 <= v <= -68.5:
             raise ValueError("La longitud está fuera del Perú")
         return v

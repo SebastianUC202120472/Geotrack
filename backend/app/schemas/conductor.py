@@ -49,11 +49,13 @@ class ConductorCreate(BaseModel):
     @field_validator("licencia_numero")
     @classmethod
     def _v_licencia(cls, v: Optional[str]) -> Optional[str]:
+        """Normaliza y valida el número de licencia (una letra + 8 dígitos). Recibe el número o nada."""
         return validar_licencia(v)
 
     @field_validator("licencia_vencimiento")
     @classmethod
     def _v_vencimiento(cls, v: Optional[date]) -> Optional[date]:
+        """Rechaza dar de alta a un conductor con la licencia vencida. Recibe la fecha de vencimiento o nada."""
         if v is not None and v < hoy_local():
             raise ValueError("La licencia está vencida: no se puede registrar al conductor")
         return v
@@ -104,6 +106,7 @@ class ConductorUpdate(BaseModel):
     @field_validator("licencia_numero")
     @classmethod
     def _v_licencia(cls, v: Optional[str]) -> Optional[str]:
+        """Si se envía, normaliza y valida el número de licencia. Recibe el número o nada."""
         return validar_licencia(v)
 
     @field_validator("nombre")

@@ -35,6 +35,7 @@ class PedidoManualIn(BaseModel):
     @field_validator("referencia_externa", "direccion_destino")
     @classmethod
     def _v_obligatorio(cls, v: str) -> str:
+        """Exige la referencia y la dirección de destino del pedido. Recibe el texto."""
         v = _texto_opcional(v)
         if not v:
             raise ValueError("Este dato es obligatorio")
@@ -43,6 +44,7 @@ class PedidoManualIn(BaseModel):
     @field_validator("nombre_destinatario", "telefono_destinatario", "dni_destinatario")
     @classmethod
     def _v_opcional(cls, v: Optional[str]) -> Optional[str]:
+        """Limpia los datos opcionales del destinatario (vacío = nada). Recibe el texto o nada."""
         return _texto_opcional(v)
 
 
@@ -158,6 +160,7 @@ class NoRealizadoRequest(BaseModel):
     @field_validator("motivo")
     @classmethod
     def _v_motivo(cls, v: str) -> str:
+        """Exige el motivo del recojo no realizado (al menos 3 caracteres). Recibe el motivo."""
         v = " ".join(v.split())
         if len(v) < 3:
             raise ValueError("Indica el motivo (al menos 3 caracteres)")
