@@ -26,6 +26,8 @@ import { useAuth } from "../hooks/useAuth";
 import Logo from "./ui/Logo";
 import ConfirmDialog from "./ui/ConfirmDialog";
 import CampanaNotificaciones from "./CampanaNotificaciones";
+import IconoAsistente from "../modulos/asistente/IconoAsistente";
+import { useAsistenteDisponible } from "../modulos/asistente/estadoServicio";
 
 // Secciones de navegacion agrupadas por rol.
 const secciones = [
@@ -38,6 +40,7 @@ const secciones = [
       { icon: Layers3, label: "Agrupación por Zonas", path: "/panel/agrupacion" },
       { icon: RouteIcon, label: "Asignación de Rutas", path: "/panel/asignacion-bloque" },
       { icon: Mail, label: "Bandeja de Solicitudes", path: "/panel/bandeja" },
+      { icon: IconoAsistente, label: "Asistente IA", path: "/panel/asistente", asistente: true },
     ],
   },
   {
@@ -79,6 +82,7 @@ const secciones = [
       { icon: Undo2, label: "Retornos de Ruta", path: "/panel/almacen/retornos" },
       { icon: MapPin, label: "Mapa de recojos", path: "/panel/almacen/mapa" },
       { icon: Scale, label: "Capacidad de Vehículos", path: "/panel/capacidad" }, // Consulta de solo lectura
+      { icon: IconoAsistente, label: "Asistente IA", path: "/panel/asistente", asistente: true },
     ],
   },
 ];
@@ -88,7 +92,11 @@ export default function Sidebar({ onNavigate }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { cerrarSesion, rol } = useAuth();
-  const visibles = secciones.filter((s) => !s.roles || s.roles.includes(rol));
+  // La entrada del asistente solo aparece si su servicio esta activo (igual que el boton flotante).
+  const asistenteDisponible = useAsistenteDisponible(rol);
+  const visibles = secciones
+    .filter((s) => !s.roles || s.roles.includes(rol))
+    .map((s) => ({ ...s, items: s.items.filter((i) => !i.asistente || asistenteDisponible) }));
   const [confirmandoSalida, setConfirmandoSalida] = useState(false);
 
   // Cierra la sesion tras confirmarla en el dialogo (C05-01). Sin input.
