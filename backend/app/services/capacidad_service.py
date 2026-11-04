@@ -13,6 +13,7 @@ from functools import lru_cache
 from typing import Dict, List, Optional, Tuple
 
 from fastapi import HTTPException, status
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 from app.models.ruta import Ruta
 
@@ -32,6 +33,7 @@ from app.schemas.capacidad import (
     ModeloVehiculo,
     VinculacionPlacaRequest,
     validar_fuente_tecnica,
+    validar_verificado,
 )
 
 # Tope duro de pedidos por calculo: evita que una peticion congele el servidor.
@@ -234,9 +236,14 @@ def actualizar_modelo(
 
     fusionado = actual.model_dump()
     fusionado.update(datos.model_dump(exclude_unset=True))
-    validado = ModeloVehiculo(**fusionado)
     try:
+        # ValidationError hereda de ValueError: una edicion incoherente responde 422, no 500.
+        validado = ModeloVehiculo(**fusionado)
         validar_fuente_tecnica(validado.fuente, validado.fuente_url)
+        validar_verificado(validado.verificado, validado.fuente_url)
+    except ValidationError as error:
+        detalle = error.errors()[0]["msg"].removeprefix("Value error, ")
+        raise HTTPException(status_code=422, detail=detalle) from error
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 

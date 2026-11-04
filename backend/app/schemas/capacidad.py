@@ -1,4 +1,3 @@
-
 # Esquemas Pydantic del modulo de catalogo y capacidad (Idea 3).
 from datetime import date, datetime
 from enum import Enum
@@ -97,6 +96,14 @@ def validar_fuente_tecnica(fuente: Optional[str], url_fuente: Optional[str]) -> 
         # Un nombre DNS normal no se puede interpretar como direccion IP.
 
 
+def validar_verificado(verificado: bool, url_fuente: Optional[str]) -> None:
+    """Solo deja marcar verificado si la URL enlaza la ficha del modelo, no la portada. Recibe ambos."""
+    if verificado and not urlparse((url_fuente or "").strip()).path.strip("/"):
+        raise ValueError(
+            "Para marcarlo como verificado enlaza la página de la ficha del modelo, no la portada de la marca."
+        )
+
+
 class ModeloCreateRequest(BaseModel):
     """Alta de un modelo. El id se genera desde marca/modelo si no se envia."""
 
@@ -120,6 +127,7 @@ class ModeloCreateRequest(BaseModel):
             self.largo_m, self.ancho_m, self.alto_m, self.volumen_util_m3
         )
         validar_fuente_tecnica(self.fuente, self.fuente_url)
+        validar_verificado(self.verificado, self.fuente_url)
         return self
 
 

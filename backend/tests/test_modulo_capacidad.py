@@ -1312,3 +1312,41 @@ def test_varias_celdas_no_rompen_los_limites_de_carga():
 
 
     assert len(plan["viajes"]) <= 3
+
+def test_editar_con_medidas_incoherentes_responde_422():
+    """Una edicion que deja el volumen lejos de largo x ancho x alto es un 422, no un error interno."""
+
+    db = SimpleNamespace()
+    capacidad_service.obtener_modelo = _obtener_base_para_editar
+    try:
+        with pytest.raises(HTTPException) as error:
+            capacidad_service.actualizar_modelo(db, "hino-500-fc-2024", ModeloUpdateRequest(largo_m=10), "admin")
+        assert error.value.status_code == 422
+        assert "volumen" in error.value.detail
+    finally:
+        capacidad_service.obtener_modelo = _OBTENER_MODELO_ORIGINAL
+
+
+def test_verificado_con_portada_se_rechaza():
+    """No se puede marcar verificado si la fuente es la portada de la marca."""
+
+    db = SimpleNamespace()
+    capacidad_service.obtener_modelo = _obtener_base_para_editar
+    try:
+        with pytest.raises(HTTPException) as error:
+            capacidad_service.actualizar_modelo(db, "hino-500-fc-2024", ModeloUpdateRequest(verificado=True), "admin")
+        assert error.value.status_code == 422
+    finally:
+        capacidad_service.obtener_modelo = _OBTENER_MODELO_ORIGINAL
+    with pytest.raises(ValidationError):
+        ModeloCreateRequest(marca="X", modelo="Y", tipo="van", largo_m=2, ancho_m=1.5, alto_m=1.2,
+                            volumen_util_m3=3.6, carga_util_kg=800, fuente="Ficha",
+                            fuente_url="https://marca.com/", verificado=True)
+
+
+_OBTENER_MODELO_ORIGINAL = capacidad_service.obtener_modelo
+
+
+def _obtener_base_para_editar(db, modelo_id):
+    """Devuelve el modelo del catalogo base sin consultar la BD. Recibe la sesion y el id."""
+    return next(m for m in capacidad_service.leer_catalogo_base().modelos if m.id == modelo_id)
