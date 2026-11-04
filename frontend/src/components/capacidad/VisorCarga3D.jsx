@@ -4,8 +4,10 @@ import { Box, MousePointer2 } from "lucide-react";
 // Colores de las cajas de carga (azul de marca + ámbar de acento).
 const PALETA = [0x2563eb, 0x3b82f6, 0x60a5fa, 0xf59e0b, 0xfbbf24, 0x0ea5e9];
 
+// Convierte un valor a número; 0 si no lo es. Recibe el valor.
 const limpiarNumero = (valor) => (Number.isFinite(Number(valor)) ? Number(valor) : 0);
 
+// Lleva el tipo del catálogo a una de las siluetas conocidas. Recibe el tipo.
 const NORMALIZAR_TIPO = (tipo) => {
   if (!tipo) return "generico";
   const t = String(tipo).toLowerCase().trim();
@@ -42,6 +44,7 @@ function VistaLateral({ modelo, utilizacionPct = 0, mensaje }) {
   const tipo = NORMALIZAR_TIPO(modelo?.tipo);
   const etiqueta = ETIQUETA_TIPO[tipo] || ETIQUETA_TIPO.generico;
 
+  // Dibuja la silueta 2D del vehículo según su tipo. Sin parámetros.
   const renderSilueta = () => {
     if (tipo === "sedan") {
       return (
@@ -248,6 +251,7 @@ export default function VisorCarga3D({
         const matRueda = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9, metalness: 0.0 });
         const matCristal = new THREE.MeshStandardMaterial({ color: 0x93c5fd, transparent: true, opacity: 0.25, roughness: 0.4 });
 
+        // Agrega una rueda al modelo 3D. Recibe su posición x y z.
         const agregarRueda = (x, z) => {
           const rueda = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.12, 16), matRueda);
           rueda.rotation.x = Math.PI / 2;
@@ -459,14 +463,17 @@ export default function VisorCarga3D({
         let arrastrando = false;
         let anterior = { x: 0, y: 0 };
 
+        // Redibuja la escena una vez (no hay animación continua). Sin parámetros.
         const dibujar = () => renderer.render(escena, camara);
         dibujar();
 
+        // Empieza a girar el modelo al presionar. Recibe el evento del puntero.
         const alPresionar = (evento) => {
           arrastrando = true;
           anterior = { x: evento.clientX, y: evento.clientY };
           if (renderer.domElement) renderer.domElement.style.cursor = "grabbing";
         };
+        // Gira el modelo mientras se arrastra. Recibe el evento del puntero.
         const alMover = (evento) => {
           if (!arrastrando) return;
           const dx = evento.clientX - anterior.x;
@@ -477,10 +484,12 @@ export default function VisorCarga3D({
           anterior = { x: evento.clientX, y: evento.clientY };
           dibujar();
         };
+        // Termina el giro al soltar. Sin parámetros.
         const alSoltar = () => {
           arrastrando = false;
           if (renderer.domElement) renderer.domElement.style.cursor = "grab";
         };
+        // Acerca o aleja la cámara con la rueda dentro de un rango. Recibe el evento de la rueda.
         const alRodar = (evento) => {
           evento.preventDefault();
           const factor = evento.deltaY > 0 ? 1.08 : 0.92;

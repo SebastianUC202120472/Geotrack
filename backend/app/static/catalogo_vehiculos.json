@@ -1,6 +1,6 @@
 {
-  "version": "1.2.0",
-  "actualizado_en": "2026-10-28",
+  "version": "1.3.0",
+  "actualizado_en": "2026-11-03",
   "modelos": [
     {
       "id": "toyota-hilux-2024",
@@ -12,9 +12,9 @@
       "alto_m": 0.48,
       "volumen_util_m3": 1.1,
       "carga_util_kg": 1000,
-      "fuente": "Ficha técnica oficial Toyota Hilux",
+      "fuente": "Toyota Hilux Pick-up: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.toyota.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "hyundai-h100-2026",
@@ -23,12 +23,12 @@
       "tipo": "camion_ligero",
       "largo_m": 3.2,
       "ancho_m": 1.8,
-      "alto_m": 0.4,
-      "volumen_util_m3": 2.3,
+      "alto_m": 1.9,
+      "volumen_util_m3": 10.94,
       "carga_util_kg": 1500,
-      "fuente": "Ficha técnica oficial Hyundai H100",
+      "fuente": "Hyundai H100 Baranda: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.hyundai.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "ford-ranger-2024",
@@ -40,9 +40,9 @@
       "alto_m": 0.51,
       "volumen_util_m3": 1.26,
       "carga_util_kg": 1000,
-      "fuente": "Ficha técnica oficial Ford Ranger",
+      "fuente": "Ford Ranger: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.ford.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "mitsubishi-l200-2024",
@@ -54,9 +54,9 @@
       "alto_m": 0.46,
       "volumen_util_m3": 1.03,
       "carga_util_kg": 1000,
-      "fuente": "Ficha técnica oficial Mitsubishi L200",
+      "fuente": "Mitsubishi L200: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.mitsubishi-motors.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "nissan-frontier-2024",
@@ -68,9 +68,9 @@
       "alto_m": 0.47,
       "volumen_util_m3": 1.11,
       "carga_util_kg": 1000,
-      "fuente": "Ficha técnica oficial Nissan Frontier",
+      "fuente": "Nissan Frontier: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.nissan-global.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "chevrolet-dmax-2024",
@@ -82,9 +82,9 @@
       "alto_m": 0.48,
       "volumen_util_m3": 1.09,
       "carga_util_kg": 1000,
-      "fuente": "Ficha técnica oficial Chevrolet D-Max",
+      "fuente": "Chevrolet D-Max: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.chevrolet.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "volkswagen-amarok-2024",
@@ -96,9 +96,9 @@
       "alto_m": 0.51,
       "volumen_util_m3": 1.29,
       "carga_util_kg": 1000,
-      "fuente": "Ficha técnica oficial Volkswagen Amarok",
+      "fuente": "Volkswagen Amarok: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.vw.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "mazda-bt50-2024",
@@ -110,9 +110,9 @@
       "alto_m": 0.49,
       "volumen_util_m3": 1.18,
       "carga_util_kg": 1000,
-      "fuente": "Ficha técnica oficial Mazda BT-50",
+      "fuente": "Mazda BT-50: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.mazda.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "great-wall-poer-2024",
@@ -124,9 +124,9 @@
       "alto_m": 0.47,
       "volumen_util_m3": 1.09,
       "carga_util_kg": 1000,
-      "fuente": "Ficha técnica oficial GWM Poer",
+      "fuente": "GWM Poer: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.gwm-global.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "jmc-vigus-2024",
@@ -138,9 +138,9 @@
       "alto_m": 0.46,
       "volumen_util_m3": 0.99,
       "carga_util_kg": 900,
-      "fuente": "Ficha técnica oficial JMC Vigus",
+      "fuente": "JMC Vigus: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.jmc.com.cn/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "kia-k2500-2024",
@@ -149,12 +149,12 @@
       "tipo": "camion_ligero",
       "largo_m": 2.81,
       "ancho_m": 1.63,
-      "alto_m": 0.35,
-      "volumen_util_m3": 1.6,
+      "alto_m": 1.4,
+      "volumen_util_m3": 6.41,
       "carga_util_kg": 1000,
-      "fuente": "Ficha técnica oficial Kia K2500",
+      "fuente": "Kia K2500 Baranda: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.kia.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "foton-tunland-2024",
@@ -166,9 +166,9 @@
       "alto_m": 0.44,
       "volumen_util_m3": 1.06,
       "carga_util_kg": 1000,
-      "fuente": "Ficha técnica oficial Foton Tunland",
+      "fuente": "Foton Tunland: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.foton.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "jac-t8-2024",
@@ -180,9 +180,9 @@
       "alto_m": 0.47,
       "volumen_util_m3": 1.09,
       "carga_util_kg": 900,
-      "fuente": "Ficha técnica oficial JAC T8",
+      "fuente": "JAC T8: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.jac.com.cn/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "maxus-t60-2024",
@@ -194,9 +194,9 @@
       "alto_m": 0.53,
       "volumen_util_m3": 1.18,
       "carga_util_kg": 900,
-      "fuente": "Ficha técnica oficial Maxus T60",
+      "fuente": "Maxus T60: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.maxus.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "isuzu-dmax-2024",
@@ -208,9 +208,9 @@
       "alto_m": 0.49,
       "volumen_util_m3": 1.12,
       "carga_util_kg": 1000,
-      "fuente": "Ficha técnica oficial Isuzu D-Max",
+      "fuente": "Isuzu D-Max: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.isuzu.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "toyota-hiace-panel-2024",
@@ -222,9 +222,9 @@
       "alto_m": 1.34,
       "volumen_util_m3": 5.78,
       "carga_util_kg": 1000,
-      "fuente": "Ficha técnica oficial Toyota Hiace",
+      "fuente": "Toyota Hiace Panel: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.toyota.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "hyundai-staria-cargo-2024",
@@ -236,9 +236,9 @@
       "alto_m": 1.37,
       "volumen_util_m3": 5.84,
       "carga_util_kg": 1000,
-      "fuente": "Ficha técnica oficial Hyundai Staria Cargo",
+      "fuente": "Hyundai Staria Cargo: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.hyundai.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "ford-transit-custom-2024",
@@ -250,9 +250,9 @@
       "alto_m": 1.4,
       "volumen_util_m3": 6.32,
       "carga_util_kg": 1200,
-      "fuente": "Ficha técnica oficial Ford Transit Custom",
+      "fuente": "Ford Transit Custom: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.ford.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "ford-transit-van-2024",
@@ -264,9 +264,9 @@
       "alto_m": 1.88,
       "volumen_util_m3": 11.04,
       "carga_util_kg": 1400,
-      "fuente": "Ficha técnica oficial Ford Transit",
+      "fuente": "Ford Transit Van: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.ford.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "mercedes-sprinter-311-2024",
@@ -278,9 +278,9 @@
       "alto_m": 1.65,
       "volumen_util_m3": 9.58,
       "carga_util_kg": 1200,
-      "fuente": "Ficha técnica oficial Mercedes-Benz Sprinter 311",
+      "fuente": "Mercedes-Benz Sprinter 311: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.mercedes-benz.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "mercedes-sprinter-415-2024",
@@ -292,9 +292,9 @@
       "alto_m": 1.85,
       "volumen_util_m3": 14.16,
       "carga_util_kg": 1500,
-      "fuente": "Ficha técnica oficial Mercedes-Benz Sprinter 415",
+      "fuente": "Mercedes-Benz Sprinter 415: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.mercedes-benz.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "renault-master-2024",
@@ -306,9 +306,9 @@
       "alto_m": 1.89,
       "volumen_util_m3": 10.24,
       "carga_util_kg": 1400,
-      "fuente": "Ficha técnica oficial Renault Master",
+      "fuente": "Renault Master Furgón: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.renault.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "fiat-ducato-2024",
@@ -320,9 +320,9 @@
       "alto_m": 1.66,
       "volumen_util_m3": 9.69,
       "carga_util_kg": 1400,
-      "fuente": "Ficha técnica oficial Fiat Ducato",
+      "fuente": "Fiat Ducato Furgón: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.fiat.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "peugeot-boxer-2024",
@@ -334,9 +334,9 @@
       "alto_m": 1.66,
       "volumen_util_m3": 9.69,
       "carga_util_kg": 1400,
-      "fuente": "Ficha técnica oficial Peugeot Boxer",
+      "fuente": "Peugeot Boxer Furgón: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.peugeot.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "citroen-jumper-2024",
@@ -348,9 +348,9 @@
       "alto_m": 1.66,
       "volumen_util_m3": 9.69,
       "carga_util_kg": 1400,
-      "fuente": "Ficha técnica oficial Citroën Jumper",
+      "fuente": "Citroën Jumper Furgón: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.citroen.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "volkswagen-crafter-2024",
@@ -362,9 +362,9 @@
       "alto_m": 1.96,
       "volumen_util_m3": 12.37,
       "carga_util_kg": 1400,
-      "fuente": "Ficha técnica oficial Volkswagen Crafter",
+      "fuente": "Volkswagen Crafter Furgón: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.vw.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "iveco-daily-35s14-2024",
@@ -376,9 +376,9 @@
       "alto_m": 1.9,
       "volumen_util_m3": 11.97,
       "carga_util_kg": 1500,
-      "fuente": "Ficha técnica oficial Iveco Daily 35S14",
+      "fuente": "Iveco Daily 35S14: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.iveco.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "nissan-urvan-panel-2024",
@@ -390,9 +390,9 @@
       "alto_m": 1.35,
       "volumen_util_m3": 5.65,
       "carga_util_kg": 1000,
-      "fuente": "Ficha técnica oficial Nissan Urvan",
+      "fuente": "Nissan Urvan Panel: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.nissan-global.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "maxus-v80-cargo-2024",
@@ -404,9 +404,9 @@
       "alto_m": 1.55,
       "volumen_util_m3": 7.6,
       "carga_util_kg": 1200,
-      "fuente": "Ficha técnica oficial Maxus V80",
+      "fuente": "Maxus V80 Cargo: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.maxus.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "foton-view-cs2-2024",
@@ -418,9 +418,9 @@
       "alto_m": 1.3,
       "volumen_util_m3": 4.68,
       "carga_util_kg": 900,
-      "fuente": "Ficha técnica oficial Foton View CS2",
+      "fuente": "Foton View CS2 Cargo: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.foton.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "kia-pregio-cargo-2024",
@@ -432,9 +432,9 @@
       "alto_m": 1.35,
       "volumen_util_m3": 5.06,
       "carga_util_kg": 1000,
-      "fuente": "Ficha técnica oficial Kia Pregio",
+      "fuente": "Kia Pregio Cargo: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.kia.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "chevrolet-n300-max-2024",
@@ -446,9 +446,9 @@
       "alto_m": 1.2,
       "volumen_util_m3": 3.08,
       "carga_util_kg": 700,
-      "fuente": "Ficha técnica oficial Chevrolet N300 Max",
+      "fuente": "Chevrolet N300 Max Cargo: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.chevrolet.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "suzuki-carry-2024",
@@ -457,12 +457,12 @@
       "tipo": "camion_ligero",
       "largo_m": 2,
       "ancho_m": 1.41,
-      "alto_m": 0.32,
-      "volumen_util_m3": 0.9,
+      "alto_m": 1.4,
+      "volumen_util_m3": 3.95,
       "carga_util_kg": 750,
-      "fuente": "Ficha técnica oficial Suzuki Carry",
+      "fuente": "Suzuki Carry: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.globalsuzuki.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "foton-aumark-s3-2024",
@@ -471,12 +471,12 @@
       "tipo": "camion_ligero",
       "largo_m": 3.3,
       "ancho_m": 1.8,
-      "alto_m": 0.45,
-      "volumen_util_m3": 2.67,
+      "alto_m": 1.9,
+      "volumen_util_m3": 11.29,
       "carga_util_kg": 2500,
-      "fuente": "Ficha técnica oficial Foton Aumark S3",
+      "fuente": "Foton Aumark S3: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.foton.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "foton-aumark-s5-2024",
@@ -485,12 +485,12 @@
       "tipo": "camion_mediano",
       "largo_m": 4.2,
       "ancho_m": 2,
-      "alto_m": 0.5,
-      "volumen_util_m3": 4.2,
+      "alto_m": 2.1,
+      "volumen_util_m3": 17.64,
       "carga_util_kg": 4000,
-      "fuente": "Ficha técnica oficial Foton Aumark S5",
+      "fuente": "Foton Aumark S5: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.foton.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "jac-x200-2024",
@@ -499,12 +499,12 @@
       "tipo": "camion_ligero",
       "largo_m": 3,
       "ancho_m": 1.7,
-      "alto_m": 0.4,
-      "volumen_util_m3": 2.04,
+      "alto_m": 1.9,
+      "volumen_util_m3": 9.69,
       "carga_util_kg": 1500,
-      "fuente": "Ficha técnica oficial JAC X200",
+      "fuente": "JAC X200 Baranda: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.jac.com.cn/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "jac-n55-2024",
@@ -513,12 +513,12 @@
       "tipo": "camion_ligero",
       "largo_m": 3.3,
       "ancho_m": 1.8,
-      "alto_m": 0.45,
-      "volumen_util_m3": 2.67,
+      "alto_m": 1.9,
+      "volumen_util_m3": 11.29,
       "carga_util_kg": 2500,
-      "fuente": "Ficha técnica oficial JAC N55",
+      "fuente": "JAC N55: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.jac.com.cn/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "isuzu-nlr-2024",
@@ -527,12 +527,12 @@
       "tipo": "camion_ligero",
       "largo_m": 3.3,
       "ancho_m": 1.8,
-      "alto_m": 0.45,
-      "volumen_util_m3": 2.67,
+      "alto_m": 1.9,
+      "volumen_util_m3": 11.29,
       "carga_util_kg": 2500,
-      "fuente": "Ficha técnica oficial Isuzu NLR",
+      "fuente": "Isuzu NLR: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.isuzu.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "isuzu-npr-2024",
@@ -541,12 +541,12 @@
       "tipo": "camion_mediano",
       "largo_m": 4.3,
       "ancho_m": 2,
-      "alto_m": 0.5,
-      "volumen_util_m3": 4.3,
+      "alto_m": 2.1,
+      "volumen_util_m3": 18.06,
       "carga_util_kg": 4000,
-      "fuente": "Ficha técnica oficial Isuzu NPR",
+      "fuente": "Isuzu NPR: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.isuzu.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "isuzu-nqr-2024",
@@ -555,12 +555,12 @@
       "tipo": "camion_mediano",
       "largo_m": 5,
       "ancho_m": 2.1,
-      "alto_m": 0.55,
-      "volumen_util_m3": 5.78,
+      "alto_m": 2.1,
+      "volumen_util_m3": 22.05,
       "carga_util_kg": 5000,
-      "fuente": "Ficha técnica oficial Isuzu NQR",
+      "fuente": "Isuzu NQR: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.isuzu.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "hino-300-616-2024",
@@ -569,12 +569,12 @@
       "tipo": "camion_ligero",
       "largo_m": 3.3,
       "ancho_m": 1.8,
-      "alto_m": 0.45,
-      "volumen_util_m3": 2.67,
+      "alto_m": 1.9,
+      "volumen_util_m3": 11.29,
       "carga_util_kg": 2500,
-      "fuente": "Ficha técnica oficial Hino 300 Serie 616",
+      "fuente": "Hino 300 Serie 616: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.hino.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "hino-300-816-2024",
@@ -583,12 +583,12 @@
       "tipo": "camion_ligero",
       "largo_m": 3.8,
       "ancho_m": 1.9,
-      "alto_m": 0.5,
-      "volumen_util_m3": 3.61,
+      "alto_m": 1.9,
+      "volumen_util_m3": 13.72,
       "carga_util_kg": 3500,
-      "fuente": "Ficha técnica oficial Hino 300 Serie 816",
+      "fuente": "Hino 300 Serie 816: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.hino.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "hino-500-fc-2024",
@@ -597,12 +597,12 @@
       "tipo": "camion_mediano",
       "largo_m": 5,
       "ancho_m": 2.1,
-      "alto_m": 0.55,
-      "volumen_util_m3": 5.78,
+      "alto_m": 2.1,
+      "volumen_util_m3": 22.05,
       "carga_util_kg": 6000,
-      "fuente": "Ficha técnica oficial Hino 500 FC",
+      "fuente": "Hino 500 FC: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.hino.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "hino-500-fg-2024",
@@ -611,12 +611,12 @@
       "tipo": "camion_mediano",
       "largo_m": 5.5,
       "ancho_m": 2.2,
-      "alto_m": 0.6,
-      "volumen_util_m3": 7.26,
+      "alto_m": 2.3,
+      "volumen_util_m3": 27.83,
       "carga_util_kg": 8000,
-      "fuente": "Ficha técnica oficial Hino 500 FG",
+      "fuente": "Hino 500 FG: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.hino.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "hyundai-mighty-ex8-2024",
@@ -625,12 +625,12 @@
       "tipo": "camion_ligero",
       "largo_m": 4,
       "ancho_m": 1.9,
-      "alto_m": 0.5,
-      "volumen_util_m3": 3.8,
+      "alto_m": 1.9,
+      "volumen_util_m3": 14.44,
       "carga_util_kg": 3500,
-      "fuente": "Ficha técnica oficial Hyundai Mighty EX8",
+      "fuente": "Hyundai Mighty EX8: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.hyundai.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "hyundai-mighty-ex10-2024",
@@ -639,12 +639,12 @@
       "tipo": "camion_mediano",
       "largo_m": 4.5,
       "ancho_m": 2,
-      "alto_m": 0.55,
-      "volumen_util_m3": 4.95,
+      "alto_m": 2.1,
+      "volumen_util_m3": 18.9,
       "carga_util_kg": 5000,
-      "fuente": "Ficha técnica oficial Hyundai Mighty EX10",
+      "fuente": "Hyundai Mighty EX10: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.hyundai.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "hyundai-mighty-ex11-2024",
@@ -653,12 +653,12 @@
       "tipo": "camion_mediano",
       "largo_m": 4.8,
       "ancho_m": 2.1,
-      "alto_m": 0.55,
-      "volumen_util_m3": 5.54,
+      "alto_m": 2.1,
+      "volumen_util_m3": 21.17,
       "carga_util_kg": 5500,
-      "fuente": "Ficha técnica oficial Hyundai Mighty EX11",
+      "fuente": "Hyundai Mighty EX11: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.hyundai.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "fuso-canter-515-2024",
@@ -667,12 +667,12 @@
       "tipo": "camion_ligero",
       "largo_m": 3.3,
       "ancho_m": 1.8,
-      "alto_m": 0.45,
-      "volumen_util_m3": 2.67,
+      "alto_m": 1.9,
+      "volumen_util_m3": 11.29,
       "carga_util_kg": 2500,
-      "fuente": "Ficha técnica oficial Mitsubishi Fuso Canter 515",
+      "fuente": "Mitsubishi Fuso Canter 515: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.mitsubishi-fuso.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "fuso-canter-615-2024",
@@ -681,12 +681,12 @@
       "tipo": "camion_ligero",
       "largo_m": 3.8,
       "ancho_m": 1.9,
-      "alto_m": 0.5,
-      "volumen_util_m3": 3.61,
+      "alto_m": 1.9,
+      "volumen_util_m3": 13.72,
       "carga_util_kg": 3000,
-      "fuente": "Ficha técnica oficial Mitsubishi Fuso Canter 615",
+      "fuente": "Mitsubishi Fuso Canter 615: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.mitsubishi-fuso.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "fuso-fighter-2024",
@@ -695,12 +695,12 @@
       "tipo": "camion_mediano",
       "largo_m": 5.5,
       "ancho_m": 2.2,
-      "alto_m": 0.6,
-      "volumen_util_m3": 7.26,
+      "alto_m": 2.3,
+      "volumen_util_m3": 27.83,
       "carga_util_kg": 8000,
-      "fuente": "Ficha técnica oficial Mitsubishi Fuso Fighter",
+      "fuente": "Mitsubishi Fuso Fighter: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.mitsubishi-fuso.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "volvo-fl-2024",
@@ -709,12 +709,12 @@
       "tipo": "camion_mediano",
       "largo_m": 5.5,
       "ancho_m": 2.2,
-      "alto_m": 0.6,
-      "volumen_util_m3": 7.26,
+      "alto_m": 2.3,
+      "volumen_util_m3": 27.83,
       "carga_util_kg": 8000,
-      "fuente": "Ficha técnica oficial Volvo FL",
+      "fuente": "Volvo FL: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.volvotrucks.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "volvo-fe-2024",
@@ -723,12 +723,12 @@
       "tipo": "camion_mediano",
       "largo_m": 6,
       "ancho_m": 2.3,
-      "alto_m": 0.65,
-      "volumen_util_m3": 8.97,
+      "alto_m": 2.3,
+      "volumen_util_m3": 31.74,
       "carga_util_kg": 10000,
-      "fuente": "Ficha técnica oficial Volvo FE",
+      "fuente": "Volvo FE: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.volvotrucks.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "scania-p250-2024",
@@ -737,12 +737,12 @@
       "tipo": "camion_mediano",
       "largo_m": 6,
       "ancho_m": 2.3,
-      "alto_m": 0.65,
-      "volumen_util_m3": 8.97,
+      "alto_m": 2.3,
+      "volumen_util_m3": 31.74,
       "carga_util_kg": 10000,
-      "fuente": "Ficha técnica oficial Scania P250",
+      "fuente": "Scania P250: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.scania.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "scania-p280-2024",
@@ -751,12 +751,12 @@
       "tipo": "camion_mediano",
       "largo_m": 6.2,
       "ancho_m": 2.3,
-      "alto_m": 0.65,
-      "volumen_util_m3": 9.27,
+      "alto_m": 2.3,
+      "volumen_util_m3": 32.8,
       "carga_util_kg": 12000,
-      "fuente": "Ficha técnica oficial Scania P280",
+      "fuente": "Scania P280: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.scania.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "mercedes-atego-1726-2024",
@@ -765,12 +765,12 @@
       "tipo": "camion_mediano",
       "largo_m": 6,
       "ancho_m": 2.3,
-      "alto_m": 0.65,
-      "volumen_util_m3": 8.97,
+      "alto_m": 2.3,
+      "volumen_util_m3": 31.74,
       "carga_util_kg": 10000,
-      "fuente": "Ficha técnica oficial Mercedes-Benz Atego 1726",
+      "fuente": "Mercedes-Benz Atego 1726: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.mercedes-benz.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "mercedes-atego-2426-2024",
@@ -779,12 +779,12 @@
       "tipo": "camion_mediano",
       "largo_m": 6.5,
       "ancho_m": 2.35,
-      "alto_m": 0.7,
-      "volumen_util_m3": 10.69,
+      "alto_m": 2.3,
+      "volumen_util_m3": 35.13,
       "carga_util_kg": 14000,
-      "fuente": "Ficha técnica oficial Mercedes-Benz Atego 2426",
+      "fuente": "Mercedes-Benz Atego 2426: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.mercedes-benz.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "iveco-eurocargo-160e-2024",
@@ -793,12 +793,12 @@
       "tipo": "camion_mediano",
       "largo_m": 6,
       "ancho_m": 2.3,
-      "alto_m": 0.65,
-      "volumen_util_m3": 8.97,
+      "alto_m": 2.3,
+      "volumen_util_m3": 31.74,
       "carga_util_kg": 10000,
-      "fuente": "Ficha técnica oficial Iveco Eurocargo 160E",
+      "fuente": "Iveco Eurocargo 160E: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.iveco.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "volkswagen-delivery-9-170-2024",
@@ -807,12 +807,12 @@
       "tipo": "camion_mediano",
       "largo_m": 4.5,
       "ancho_m": 2.1,
-      "alto_m": 0.55,
-      "volumen_util_m3": 5.2,
+      "alto_m": 2.1,
+      "volumen_util_m3": 19.85,
       "carga_util_kg": 5000,
-      "fuente": "Ficha técnica oficial Volkswagen Delivery 9.170",
+      "fuente": "Volkswagen Delivery 9.170: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.vw.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "volkswagen-delivery-11-180-2024",
@@ -821,12 +821,12 @@
       "tipo": "camion_mediano",
       "largo_m": 5,
       "ancho_m": 2.1,
-      "alto_m": 0.6,
-      "volumen_util_m3": 6.3,
+      "alto_m": 2.1,
+      "volumen_util_m3": 22.05,
       "carga_util_kg": 6500,
-      "fuente": "Ficha técnica oficial Volkswagen Delivery 11.180",
+      "fuente": "Volkswagen Delivery 11.180: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.vw.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "foton-aumark-tm-2024",
@@ -835,12 +835,12 @@
       "tipo": "camion_mediano",
       "largo_m": 4.5,
       "ancho_m": 2,
-      "alto_m": 0.55,
-      "volumen_util_m3": 4.95,
+      "alto_m": 2.1,
+      "volumen_util_m3": 18.9,
       "carga_util_kg": 4500,
-      "fuente": "Ficha técnica oficial Foton Aumark TM",
+      "fuente": "Foton Aumark TM: largo y ancho de plataforma de referencia; alto útil de carrocería furgón para paquetería (estimado). Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.foton.com/",
-      "verificado": true
+      "verificado": false
     },
     {
       "id": "jetour-x70-plus-2025",
@@ -852,7 +852,7 @@
       "alto_m": 0.5,
       "volumen_util_m3": 0.5,
       "carga_util_kg": 500,
-      "fuente": "Ficha tecnica de referencia Jetour X70 Plus",
+      "fuente": "Jetour X70 Plus: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.jetour.com/",
       "verificado": false
     },
@@ -866,7 +866,7 @@
       "alto_m": 0.5,
       "volumen_util_m3": 0.43,
       "carga_util_kg": 450,
-      "fuente": "Ficha tecnica de referencia Jetour X50",
+      "fuente": "Jetour X50: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.jetour.com/",
       "verificado": false
     },
@@ -880,7 +880,7 @@
       "alto_m": 0.5,
       "volumen_util_m3": 0.53,
       "carga_util_kg": 500,
-      "fuente": "Ficha tecnica de referencia Jetour Dashing",
+      "fuente": "Jetour Dashing: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.jetour.com/",
       "verificado": false
     },
@@ -894,7 +894,7 @@
       "alto_m": 0.5,
       "volumen_util_m3": 0.5,
       "carga_util_kg": 550,
-      "fuente": "Ficha tecnica de referencia DFSK Glory 580",
+      "fuente": "DFSK Glory 580: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.dfsk.com/",
       "verificado": false
     },
@@ -908,7 +908,7 @@
       "alto_m": 0.5,
       "volumen_util_m3": 0.43,
       "carga_util_kg": 450,
-      "fuente": "Ficha tecnica de referencia DFSK Seres 3",
+      "fuente": "DFSK Seres 3: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.dfsk.com/",
       "verificado": false
     },
@@ -922,7 +922,7 @@
       "alto_m": 1.1,
       "volumen_util_m3": 2.52,
       "carga_util_kg": 800,
-      "fuente": "Ficha tecnica de referencia DFSK C37",
+      "fuente": "DFSK C37: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.dfsk.com/",
       "verificado": false
     },
@@ -978,7 +978,7 @@
       "alto_m": 0.45,
       "volumen_util_m3": 0.41,
       "carga_util_kg": 400,
-      "fuente": "Ficha tecnica de referencia Toyota Corolla",
+      "fuente": "Toyota Corolla: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.toyota.com/",
       "verificado": false
     },
@@ -992,7 +992,7 @@
       "alto_m": 0.45,
       "volumen_util_m3": 0.38,
       "carga_util_kg": 400,
-      "fuente": "Ficha tecnica de referencia Hyundai Accent",
+      "fuente": "Hyundai Accent: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.hyundai.com/",
       "verificado": false
     },
@@ -1006,7 +1006,7 @@
       "alto_m": 0.45,
       "volumen_util_m3": 0.28,
       "carga_util_kg": 300,
-      "fuente": "Ficha tecnica de referencia Kia Picanto",
+      "fuente": "Kia Picanto: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.kia.com/",
       "verificado": false
     },
@@ -1020,7 +1020,7 @@
       "alto_m": 0.45,
       "volumen_util_m3": 0.3,
       "carga_util_kg": 350,
-      "fuente": "Ficha tecnica de referencia Suzuki Swift",
+      "fuente": "Suzuki Swift: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.globalsuzuki.com/",
       "verificado": false
     },
@@ -1034,7 +1034,7 @@
       "alto_m": 0.45,
       "volumen_util_m3": 0.38,
       "carga_util_kg": 400,
-      "fuente": "Ficha tecnica de referencia Chevrolet Onix",
+      "fuente": "Chevrolet Onix: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.chevrolet.com/",
       "verificado": false
     },
@@ -1048,7 +1048,7 @@
       "alto_m": 0.45,
       "volumen_util_m3": 0.41,
       "carga_util_kg": 400,
-      "fuente": "Ficha tecnica de referencia Nissan Versa",
+      "fuente": "Nissan Versa: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.nissan-global.com/",
       "verificado": false
     },
@@ -1062,7 +1062,7 @@
       "alto_m": 0.45,
       "volumen_util_m3": 0.3,
       "carga_util_kg": 350,
-      "fuente": "Ficha tecnica de referencia Toyota Yaris",
+      "fuente": "Toyota Yaris: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.toyota.com/",
       "verificado": false
     },
@@ -1076,7 +1076,7 @@
       "alto_m": 1.3,
       "volumen_util_m3": 5.2,
       "carga_util_kg": 1400,
-      "fuente": "Ficha tecnica de referencia Maxus V80",
+      "fuente": "Maxus V80: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.maxus.com/",
       "verificado": false
     },
@@ -1090,7 +1090,7 @@
       "alto_m": 1.2,
       "volumen_util_m3": 3.96,
       "carga_util_kg": 1200,
-      "fuente": "Ficha tecnica de referencia JAC Sunray",
+      "fuente": "JAC Sunray: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.jac.com.cn/",
       "verificado": false
     },
@@ -1104,7 +1104,7 @@
       "alto_m": 1.3,
       "volumen_util_m3": 5.04,
       "carga_util_kg": 1500,
-      "fuente": "Ficha tecnica de referencia Foton Toano",
+      "fuente": "Foton Toano: medidas de referencia. Falta enlazar la ficha técnica.",
       "fuente_url": "https://www.foton.com/",
       "verificado": false
     }

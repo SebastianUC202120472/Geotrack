@@ -61,8 +61,7 @@ CAMPOS_MODELO = (
 
 RUTA_CATALOGO = os.path.join(
     os.path.dirname(os.path.dirname(__file__)),
-    "api",
-    "modulo_capacidad",
+    "static",
     "catalogo_vehiculos.json",
 )
 
@@ -706,6 +705,7 @@ def calcular_plan(
         raise HTTPException(status_code=422, detail="Los limites deben ser positivos.")
 
     def comprobar_tiempo():
+        """Corta el calculo con 503 si supera el tiempo maximo. Sin input."""
         if time.monotonic() - inicio > max_segundos:
             raise HTTPException(
                 status_code=503,
@@ -713,6 +713,7 @@ def calcular_plan(
             )
 
     def zona(item):
+        """Celda (distrito, lat, lon redondeadas) de un pedido para agruparlo. Recibe el pedido."""
         distrito = str(item.get("distrito") or "SIN DISTRITO").strip().upper()
         lat, lon = item.get("latitud"), item.get("longitud")
         # Agrupacion aproximada; tolera coordenadas ausentes o invalidas.
@@ -768,9 +769,11 @@ def calcular_plan(
         )
 
     def prioridad_zona(z):
+        """Orden de atencion: primero las celdas con mas pedidos. Recibe la celda."""
         return (-len(grupos[z]), z[0], str(z[1:]))
 
     def cercania(zona_origen, zona_vecina):
+        """Clave de cercania entre dos celdas del mismo distrito. Recibe la celda origen y la vecina."""
         # Primero celdas con coordenadas; despues las que no tienen ubicacion.
         # Solo se compara dentro del MISMO distrito.
         lat1, lon1 = zona_origen[1:]

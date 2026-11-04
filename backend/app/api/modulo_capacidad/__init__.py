@@ -1,1 +1,0 @@
-# Paquete del modulo de capacidad (Idea 3).

@@ -17,10 +17,8 @@ núcleo y guarda sus cambios en tablas propias.
 
 ```
 backend/app/
-  api/modulo_capacidad/
-    __init__.py
-    router.py                 # endpoints + bandera MODULO_CAPACIDAD_ENABLED
-    catalogo_vehiculos.json   # catálogo base versionado (79 modelos)
+  api/capacidad.py            # endpoints + bandera MODULO_CAPACIDAD_ENABLED
+  static/catalogo_vehiculos.json  # catálogo base versionado (79 modelos)
   models/capacidad.py         # 4 tablas propias del módulo
   schemas/capacidad.py        # contratos Pydantic de entrada/salida
   repositories/capacidad_repository.py
@@ -59,15 +57,18 @@ usa migraciones versionadas para el resto del esquema.
 
 ## 3. Catálogo base
 
-- Archivo: `backend/app/api/modulo_capacidad/catalogo_vehiculos.json` (versión 1.2.0).
+- Archivo: `backend/app/static/catalogo_vehiculos.json` (versión 1.3.0).
 - 79 modelos de 29 marcas: pick-up, furgoneta, van/combi, SUV, sedán, hatchback,
   camión ligero, camión mediano y camión pesado.
 - Incluye Jetour, DFSK y Changan, pedidos en la revisión.
 - Cada ficha tiene `fuente`, `fuente_url`, dimensiones, volumen útil, carga útil y
   bandera `verificado`.
-- Los 60 modelos originales quedan como `verificado: true`; los 19 agregados para
-  completar marcas/tipos quedan como referencia (`verificado: false`) y se pueden
-  validar desde el panel.
+- `verificado: true` solo cuando `fuente_url` enlaza la página de la ficha técnica del
+  modelo (no la portada de la marca). Hoy los 79 quedan como referencia
+  (`verificado: false`) hasta enlazar cada ficha; se pueden validar desde el panel.
+- Camiones: largo y ancho de plataforma de referencia y alto útil de carrocería furgón
+  para paquetería según la carga útil (1,4 m hasta 1 t; 1,9 m hasta 3,5 t; 2,1 m hasta
+  6,5 t; 2,3 m más). Antes se usaba el alto de la baranda y subestimaba su volumen.
 - Reglas de validación: el volumen útil debe estar entre el 80% y el 120% del
   producto largo × ancho × alto.
 

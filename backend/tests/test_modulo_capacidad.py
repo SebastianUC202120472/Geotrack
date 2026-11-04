@@ -3,6 +3,7 @@
 # No necesitan PostgreSQL: usan SQLite en memoria y funciones puras.
 
 from types import SimpleNamespace
+from urllib.parse import urlparse
 
 import pytest
 from fastapi import FastAPI, HTTPException
@@ -11,7 +12,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.api.deps import get_current_admin, get_current_user
-from app.api.modulo_capacidad import router as capacidad_router
+from app.api import capacidad as capacidad_router
 from app.core.config import settings
 from app.db.database import Base
 from app.main import app
@@ -198,16 +199,24 @@ def test_todos_los_modelos_tienen_fuente():
         assert modelo.fuente_url
 
 
-def test_catalogo_tiene_modelos_verificados():
-    """Los 60 modelos originales quedan marcados como verificados."""
+def test_verificado_exige_ficha_enlazada():
+    """Un modelo solo cuenta como verificado si enlaza la pagina de su ficha, no la portada."""
 
-    verificados = [
-        m
-        for m in capacidad_service.leer_catalogo_base().modelos
-        if m.verificado
-    ]
+    for modelo in capacidad_service.leer_catalogo_base().modelos:
+        if modelo.verificado:
+            assert urlparse(modelo.fuente_url).path.strip("/"), modelo.id
 
-    assert len(verificados) >= 60
+
+def test_camiones_llevan_mas_volumen_que_furgonetas():
+    """El alto util de los camiones es el de carga para paqueteria, no el de la baranda."""
+
+    modelos = capacidad_service.leer_catalogo_base().modelos
+    furgonetas = [m.volumen_util_m3 for m in modelos if m.tipo == "furgoneta"]
+    medianos = [m.volumen_util_m3 for m in modelos if m.tipo == "camion_mediano"]
+    camiones = [m for m in modelos if m.tipo in ("camion_ligero", "camion_mediano")]
+
+    assert min(medianos) > max(furgonetas) * 0.9
+    assert all(m.alto_m >= 1.4 for m in camiones)
 
 
 def test_filtro_por_busqueda_marca_y_tipo():

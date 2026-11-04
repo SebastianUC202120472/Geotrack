@@ -45,9 +45,12 @@ const tabs = [
   ["calculadora", "Calculadora", Calculator], ["planificacion", "Planificación", CalendarRange],
   ["configuracion", "Configuración", Settings],
 ];
+// Pasa la configuración del módulo a texto para el formulario. Recibe la configuración.
 const formularioConfig = (config) => Object.fromEntries(CAMPOS.map((campo) => [campo, String(config?.[campo] ?? "")]));
+// Formatea un número a la manera peruana. Recibe el número.
 const natural = (n) => Number(n ?? 0).toLocaleString("es-PE");
 
+// Lista de alertas del cálculo con su color por nivel. Recibe las alertas.
 function Alertas({ alertas = [] }) {
   return alertas.length ? (
     <div className="space-y-2" role="status">
@@ -63,6 +66,7 @@ function Alertas({ alertas = [] }) {
   ) : null;
 }
 
+// Resultado del cálculo: viajes, visor 3D y resumen del viaje elegido. Recibe el plan, el viaje elegido y el catálogo.
 function TablaResultado({ plan, indice, cambiarIndice, modelos }) {
   const viajes = plan?.viajes || [];
   const viaje = viajes[indice] || null;
@@ -73,6 +77,7 @@ function TablaResultado({ plan, indice, cambiarIndice, modelos }) {
     largo_m: 2.6, ancho_m: 1.6, alto_m: 1.0, referencial: true,
   } : null);
   const resumen = plan.resumen;
+  // Nombre legible del vehículo de un viaje (marca y modelo, o su placa). Recibe el vehículo del viaje.
   const nombreVehiculo = (v) => {
     if (!v) return "Sin identificar";
 
@@ -193,9 +198,13 @@ export default function ModuloCapacidadPage() {
   const [planResultado, setPlanResultado] = useState(null);
   const [viajePlan, setViajePlan] = useState(0);
 
+  // Muestra un aviso arriba de la pantalla. Recibe si salió bien y el texto.
   const notificar = (ok, texto) => setAviso({ ok, texto });
+  // Muestra el error de una petición como aviso. Recibe el error.
   const manejarError = (error) => notificar(false, error?.message || "Se produjo un error en el módulo.");
+  // Vuelve a pedir el catálogo al servidor. Sin parámetros.
   const recargarCatalogo = async () => setModelos(await listarCatalogoCapacidad());
+  // Vuelve a pedir la flota y sus vinculaciones. Sin parámetros.
   const recargarFlota = async () => {
     const [a, b] = await Promise.all([listarFlotaCapacidad(), listarVinculacionesCapacidad()]);
     setFlota(a); setVinculaciones(b);
