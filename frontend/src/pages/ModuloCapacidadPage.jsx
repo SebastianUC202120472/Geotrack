@@ -217,15 +217,14 @@ export default function ModuloCapacidadPage() {
         if (!activo) return;
         setModelos(m); setFlota(f); setVinculaciones(v); setConfig(c); setFormConfig(formularioConfig(c));
       })
-.catch((e) => {
-  if (activo) {
-    setAviso({
-      ok: false,
-      texto: e?.message || "Error al cargar el módulo de capacidad.",
-    });
-  }
-})
-
+      .catch((e) => {
+        if (!activo) return;
+        // 404: el backend tiene el módulo apagado (MODULO_CAPACIDAD_ENABLED=false).
+        const texto = e?.status === 404
+          ? "El módulo de capacidad está apagado en el servidor (MODULO_CAPACIDAD_ENABLED)."
+          : e?.message || "Error al cargar el módulo de capacidad.";
+        setAviso({ ok: false, texto });
+      })
       .finally(() => { if (activo) setCargando(false); });
     return () => { activo = false; };
   }, []);

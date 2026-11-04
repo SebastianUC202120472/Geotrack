@@ -197,7 +197,7 @@ export default function VisorCarga3D({
       if (!modelo || !contenedor) return;
 
       try {
-        const THREE = await import("three");
+        const THREE = await import("./piezasThree");
         if (cancelado || !contenedorRef.current) return;
 
         const largo = Math.max(0.5, limpiarNumero(modelo.largo_m) || 1);
