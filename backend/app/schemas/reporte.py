@@ -21,6 +21,7 @@ class ResponderReporte(BaseModel):
     @field_validator("accion")
     @classmethod
     def validar_accion(cls, v: Optional[str]) -> str:
+        """Acepta REPROGRAMAR, CANCELAR o NINGUNA (por defecto NINGUNA). Recibe la acción o nada."""
         v = (v or "NINGUNA").strip().upper()
         if v not in ("REPROGRAMAR", "CANCELAR", "NINGUNA"):
             raise ValueError("La acción debe ser REPROGRAMAR, CANCELAR o NINGUNA")

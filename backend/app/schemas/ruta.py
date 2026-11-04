@@ -80,12 +80,14 @@ class ActualizarEstadoRequest(BaseModel):
     @field_validator("receptor_nombre")
     @classmethod
     def validar_receptor_nombre(cls, v: Optional[str]) -> Optional[str]:
+        """Limpia el nombre de quien recibe (vacío = nada). Recibe el nombre o nada."""
         v = " ".join((v or "").split())
         return v or None
 
     @field_validator("receptor_documento")
     @classmethod
     def validar_receptor_documento(cls, v: Optional[str]) -> Optional[str]:
+        """Valida el DNI o CE de quien recibe (8 a 12 letras o números). Recibe el documento o nada."""
         v = (v or "").strip().upper()
         if not v:
             return None

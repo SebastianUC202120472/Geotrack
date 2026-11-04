@@ -107,4 +107,5 @@ class CambioContrasenaPropia(BaseModel):
     @field_validator("nueva")
     @classmethod
     def _v_nueva(cls, v: str) -> str:
+        """Exige que la contraseña nueva sea segura. Recibe la contraseña nueva."""
         return validar_fuerza_contrasena(v)

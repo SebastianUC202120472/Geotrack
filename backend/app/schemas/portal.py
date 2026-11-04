@@ -58,6 +58,7 @@ class ContactoIn(BaseModel):
     @field_validator("nombre")
     @classmethod
     def _v_nombre(cls, v):
+        """Exige el nombre de quien escribe (al menos 2 caracteres). Recibe el nombre."""
         return _texto(v, 2, "Nombre")
 
 
@@ -75,25 +76,30 @@ class ReclamoConsumidor(BaseModel):
     @field_validator("nombre")
     @classmethod
     def _v_nombre(cls, v):
+        """Exige el nombre del consumidor (al menos 3 caracteres). Recibe el nombre."""
         return _texto(v, 3, "Nombre")
 
     @field_validator("dni")
     @classmethod
     def _v_dni(cls, v):
+        """Valida el DNI o carné de extranjería del consumidor. Recibe el documento."""
         return _documento(v)
 
     @field_validator("domicilio")
     @classmethod
     def _v_domicilio(cls, v):
+        """Exige el domicilio del consumidor (al menos 5 caracteres). Recibe el domicilio."""
         return _texto(v, 5, "Domicilio")
 
     @field_validator("telefono")
     @classmethod
     def _v_telefono(cls, v):
+        """Valida el teléfono del consumidor (7 a 15 dígitos). Recibe el teléfono."""
         return _telefono(v)
 
     @model_validator(mode="after")
     def _v_apoderado(self):
+        """Si el consumidor es menor, exige nombre y documento del padre o madre; si no, los borra. Sin input."""
         if self.esMenor:
             self.apoderadoNombre = _texto(self.apoderadoNombre, 3, "Nombre del padre o madre")
             self.apoderadoDni = _documento(self.apoderadoDni)
@@ -111,6 +117,7 @@ class ReclamoBien(BaseModel):
     @field_validator("tipo")
     @classmethod
     def _v_tipo(cls, v):
+        """Acepta solo PRODUCTO o SERVICIO como bien contratado. Recibe el tipo."""
         v = (v or "").strip().upper()
         if v not in ("PRODUCTO", "SERVICIO"):
             raise ValueError("El bien contratado debe ser PRODUCTO o SERVICIO")
@@ -119,6 +126,7 @@ class ReclamoBien(BaseModel):
     @field_validator("descripcion")
     @classmethod
     def _v_descripcion(cls, v):
+        """Exige la descripción del bien contratado (al menos 3 caracteres). Recibe la descripción."""
         return _texto(v, 3, "Descripción del bien")
 
 
@@ -135,11 +143,13 @@ class ReclamoIn(BaseModel):
     @field_validator("detalle")
     @classmethod
     def _v_detalle(cls, v):
+        """Exige el detalle del reclamo o queja (al menos 10 caracteres). Recibe el detalle."""
         return _texto(v, 10, "Detalle")
 
     @field_validator("pedidoConsumidor")
     @classmethod
     def _v_pedido_consumidor(cls, v):
+        """Exige lo que pide el consumidor (al menos 5 caracteres). Recibe el pedido."""
         return _texto(v, 5, "Pedido del consumidor")
 
 
@@ -150,4 +160,5 @@ class ResponderReclamo(BaseModel):
     @field_validator("respuesta")
     @classmethod
     def _v_respuesta(cls, v):
+        """Exige una respuesta al consumidor de al menos 10 caracteres. Recibe la respuesta."""
         return _texto(v, 10, "Respuesta")

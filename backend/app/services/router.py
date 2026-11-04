@@ -123,10 +123,12 @@ def plan_empirico(pedidos, lat_origen, lon_origen) -> list:
         distritos.setdefault(_distrito_de(p), {}).setdefault(via or f"#{p.id}", []).append((numero, p))
 
     def centro(grupos):
+        """Centro (latitud, longitud) de los pedidos de un distrito. Recibe sus grupos por vía."""
         pts = [p for g in grupos.values() for _, p in g]
         return sum(p.latitud for p in pts) / len(pts), sum(p.longitud for p in pts) / len(pts)
 
     def cerca(p):
+        """Distancia desde el punto actual hasta un pedido. Recibe el pedido."""
         return calcular_distancia(actual[0], actual[1], p.latitud, p.longitud)
 
     orden = []

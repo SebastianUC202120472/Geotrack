@@ -38,6 +38,7 @@ class ContactoConfig(BaseModel):
     @field_validator("telefono_coordinacion")
     @classmethod
     def _v_telefono(cls, v: Optional[str]) -> Optional[str]:
+        """Limpia el teléfono de coordinación y exige de 7 a 15 dígitos (vacío lo quita). Recibe el texto o nada."""
         v = " ".join((v or "").split())
         if not v:
             return None
@@ -54,6 +55,7 @@ class FranjasConfig(BaseModel):
     @field_validator("franjas")
     @classmethod
     def _v_franjas(cls, v: List[str]) -> List[str]:
+        """Limpia las franjas, quita las repetidas y exige de 1 a 6 de 3 a 60 caracteres. Recibe la lista."""
         limpias = []
         for franja in v or []:
             franja = " ".join((franja or "").split())
