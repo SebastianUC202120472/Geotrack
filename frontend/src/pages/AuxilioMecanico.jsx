@@ -9,7 +9,7 @@ import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
-import { listarIncidencias, mandarAyuda } from "../services/api";
+import { listarIncidencias, mandarAyuda, obtenerPropuestaMecanico } from "../services/api";
 
 // Fecha legible corta (es-PE). Entrada: fecha ISO. Salida: "dd/mm/aa hh:mm" o "—".
 const fmt = (f) => (f ? new Date(f).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—");
@@ -166,17 +166,31 @@ function DetalleIncidencia({ incidencia: i, onCerrar, onAyudaEnviada }) {
   const [nota, setNota] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState("");
+  const [propuesta, setPropuesta] = useState(null);
+  const [cargandoPropuesta, setCargandoPropuesta] = useState(false);
+
+  useEffect(() => {
+    if (i?.id && i.estado === "ABIERTA" && !i.puede_solucionar_solo) {
+      setCargandoPropuesta(true);
+      obtenerPropuestaMecanico(i.id)
+        .then((p) => setPropuesta(p))
+        .catch(() => setPropuesta(null))
+        .finally(() => setCargandoPropuesta(false));
+    }
+  }, [i?.id, i?.estado]);
 
   const puedeSolo = i.puede_solucionar_solo;
   const yaEnviada = !!i.ayuda_enviada_en;
   const ayudas = i.ayudas ?? [];
 
-  // Envía o reenvía la ayuda al backend. Recibe tipo y nota del estado local.
-  const enviarAyuda = () => {
-    if (!tipo) return;
+  // Envía o reenvía la ayuda al backend. Recibe tipo y nota opcionales.
+  const enviarAyuda = (tipoOverride, notaOverride) => {
+    const t = tipoOverride || tipo;
+    const n = notaOverride !== undefined ? notaOverride : nota;
+    if (!t) return;
     setEnviando(true);
     setError("");
-    mandarAyuda(i.id, { tipo, nota: nota.trim() || undefined })
+    mandarAyuda(i.id, { tipo: t, nota: (n || "").trim() || undefined })
       .then(() => onAyudaEnviada())
       .catch((e) => { setError(e.message); setEnviando(false); });
   };
@@ -249,6 +263,39 @@ function DetalleIncidencia({ incidencia: i, onCerrar, onAyudaEnviada }) {
                 Mandar otra ayuda
               </Button>
             )}
+          </div>
+        )}
+
+        {i.estado === "ABIERTA" && propuesta && (
+          <div className="rounded-xl border border-brand-200 bg-brand-50/50 p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-wider text-brand-700">
+                {propuesta.es_siguiente ? "Siguiente Mecánico Sugerido" : "Mecánico Sugerido por Cercanía"}
+              </p>
+              {propuesta.distancia_km != null && (
+                <span className="text-xs font-semibold bg-brand-100 text-brand-800 px-2 py-0.5 rounded-full">
+                  A {propuesta.distancia_km} km
+                </span>
+              )}
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-900">{propuesta.nombre}</p>
+              <p className="text-xs text-slate-500">{propuesta.empresa_taller || "Taller Independiente"} · Tel: {propuesta.telefono}</p>
+            </div>
+            <Button
+              size="sm"
+              block
+              onClick={() => {
+                const t = propuesta.tipo_servicio || "Mecánico";
+                const n = `Asignado a: ${propuesta.nombre} (${propuesta.telefono})`;
+                setTipo(t);
+                setNota(n);
+                enviarAyuda(t, n);
+              }}
+              disabled={enviando}
+            >
+              Confirmar y enviar auxilio a {propuesta.nombre}
+            </Button>
           </div>
         )}
 

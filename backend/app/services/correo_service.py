@@ -4,6 +4,7 @@ import re
 from datetime import datetime, timezone
 from email import message_from_bytes
 from email.header import decode_header, make_header
+from email.message import EmailMessage
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -16,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.repositories import correo_repository
 from app.services import notificaciones_service
+from app.services.notificaciones_automaticas.plantillas_email import renderizar_email
 
 _PREFIJOS = re.compile(r"^\s*(re|rv|fwd|fw)\s*:\s*", re.IGNORECASE)
 
@@ -190,7 +192,7 @@ def responder(db: Session, conversacion_id: int, cuerpo: str, admin_id: int | No
     )
     in_reply_to = ultimo_entrante.message_id if ultimo_entrante else None
 
-    mensaje = MIMEText(cuerpo_final, "plain", "utf-8")
+    mensaje = EmailMessage()
     mensaje["From"] = formataddr((settings.MAIL_FROM_NAME, settings.MAIL_ADDRESS))
     mensaje["To"] = conv.contraparte_email
     mensaje["Subject"] = asunto
@@ -199,6 +201,11 @@ def responder(db: Session, conversacion_id: int, cuerpo: str, admin_id: int | No
     if in_reply_to:
         mensaje["In-Reply-To"] = in_reply_to
         mensaje["References"] = in_reply_to
+    mensaje.set_content(cuerpo_final)
+    mensaje.add_alternative(
+        renderizar_email(asunto, cuerpo_final, "RESPUESTA_BANDEJA"),
+        subtype="html",
+    )
 
     try:
         if settings.SMTP_PORT == 465:
@@ -301,14 +308,16 @@ def enviar_confirmacion_recojo(db, conversacion, num_pedidos, admin_id=None):
 
 
 def enviar_simple(destino: str, asunto: str, cuerpo: str) -> bool:
-    """Envia un correo de texto plano puntual. Recibe destino, asunto y cuerpo. Devuelve True si se envio."""
+    """Envia un correo puntual con HTML y texto plano. Recibe destino, asunto y cuerpo."""
     if not _configurado() or not destino:
         return False
-    msg = MIMEText(cuerpo, "plain", "utf-8")
+    msg = EmailMessage()
     msg["From"] = formataddr((settings.MAIL_FROM_NAME, settings.MAIL_ADDRESS))
     msg["To"] = destino
     msg["Subject"] = asunto
     msg["Message-ID"] = make_msgid()
+    msg.set_content(cuerpo)
+    msg.add_alternative(renderizar_email(asunto, cuerpo, "CORREO"), subtype="html")
     try:
         if settings.SMTP_PORT == 465:
             servidor = smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=20)

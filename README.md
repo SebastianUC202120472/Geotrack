@@ -245,6 +245,15 @@ MAIL_PASSWORD=
 
 # --- Portal: muestra el código OTP en pantalla cuando no hay correo (SOLO para demos) ---
 PORTAL_OTP_DEMO=false
+
+# --- Centro de notificaciones automaticas (Idea 5; opcional) ---
+# En false no crea ni procesa avisos. La demo usa SMTP y Telegram.
+NOTIFICACIONES_HABILITADAS=false
+NOTIFICACIONES_INTERVALO_SEG=30
+NOTIFICACIONES_ADMIN_TELEGRAM_CHAT_ID=
+NOTIFICACIONES_ALMACEN_EMAIL=
+NOTIFICACIONES_URL_PORTAL=https://sava.pe/portal
+TELEGRAM_BOT_TOKEN=
 ```
 
 | Grupo | Variables | Notas |
@@ -258,6 +267,7 @@ PORTAL_OTP_DEMO=false
 | **Demo del portal** | `PORTAL_OTP_DEMO` | En `true` y sin correo, el backend devuelve el OTP y el portal lo muestra. **Nunca en producción:** expone un factor de autenticación. |
 | **Asistente con IA** | `ASISTENTE_ENABLED`, `ASISTENTE_ACCIONES_ENABLED` y al menos una clave: `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY` u `OLLAMA_URL` | Apagado por defecto. Con `ASISTENTE_ENABLED=true` y una clave aparece el chat del panel (`docker compose up -d --build asistente frontend`). Solo consulta; las acciones con confirmación requieren además `ASISTENTE_ACCIONES_ENABLED=true`. Ver [asistente/README.md](asistente/README.md). |
 | **Capacidad de vehículos** | `MODULO_CAPACIDAD_ENABLED` | `true` por defecto. En `false` se retira el módulo de catálogo y capacidad (Idea 3) sin tocar el resto; ver [docs/MODULO_CAPACIDAD.md](docs/MODULO_CAPACIDAD.md). |
+| **Notificaciones automáticas** | `NOTIFICACIONES_HABILITADAS`, `NOTIFICACIONES_INTERVALO_SEG`, `NOTIFICACIONES_ADMIN_TELEGRAM_CHAT_ID`, `NOTIFICACIONES_ALMACEN_EMAIL`, `NOTIFICACIONES_URL_PORTAL`, `TELEGRAM_BOT_TOKEN` | En `false` (por defecto) no crea ni procesa avisos. En la demo, el trabajador entrega por SMTP y Telegram. El SMTP reutiliza `MAIL_ADDRESS`, `MAIL_PASSWORD`, `SMTP_HOST` y `SMTP_PORT`. |
 
 > Antes de un despliegue real, recorre la [lista de verificación de producción](docs/CHECKLIST_PRODUCCION.md): el backend avisa en su registro (`PRODUCCIÓN: …`) de cada punto pendiente.
 

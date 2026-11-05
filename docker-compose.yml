@@ -54,6 +54,14 @@ services:
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-}
       SUPABASE_BUCKET: ${SUPABASE_BUCKET:-geotrack}
+      # Centro de notificaciones automaticas (Idea 5): crea avisos en BD y un trabajador
+      # los envia. Apagado por defecto; la demo usa SMTP y Telegram.
+      NOTIFICACIONES_HABILITADAS: ${NOTIFICACIONES_HABILITADAS:-false}
+      NOTIFICACIONES_INTERVALO_SEG: ${NOTIFICACIONES_INTERVALO_SEG:-30}
+      NOTIFICACIONES_ADMIN_TELEGRAM_CHAT_ID: ${NOTIFICACIONES_ADMIN_TELEGRAM_CHAT_ID:-}
+      NOTIFICACIONES_ALMACEN_EMAIL: ${NOTIFICACIONES_ALMACEN_EMAIL:-}
+      NOTIFICACIONES_URL_PORTAL: ${NOTIFICACIONES_URL_PORTAL:-https://sava.pe/portal}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
     volumes:
       - backend_uploads:/app/uploads
       # Registro de errores (EX-11): sobrevive a la reconstruccion del contenedor.
@@ -63,7 +71,32 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  notificador:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: python -m app.services.notificaciones_automaticas.servicio_notificador
+    environment:
+      DATABASE_URL: postgresql://geotrack:geotrack@db:5432/geotrack
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      MAIL_ENABLED: ${MAIL_ENABLED:-false}
+      MAIL_ADDRESS: ${MAIL_ADDRESS:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-SAVA S.A.C.}
+      NOTIFICACIONES_HABILITADAS: ${NOTIFICACIONES_HABILITADAS:-false}
+      NOTIFICACIONES_INTERVALO_SEG: ${NOTIFICACIONES_INTERVALO_SEG:-30}
+      NOTIFICACIONES_ADMIN_TELEGRAM_CHAT_ID: ${NOTIFICACIONES_ADMIN_TELEGRAM_CHAT_ID:-}
+      NOTIFICACIONES_ALMACEN_EMAIL: ${NOTIFICACIONES_ALMACEN_EMAIL:-}
+      NOTIFICACIONES_URL_PORTAL: ${NOTIFICACIONES_URL_PORTAL:-https://sava.pe/portal}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      ZONA_HORARIA: ${ZONA_HORARIA:-America/Lima}
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
 
   # Asistente virtual con IA del panel (Idea 1). Servicio aparte: consulta la API del
   # backend con el token del usuario y guarda su historial en el esquema "asistente" de la
