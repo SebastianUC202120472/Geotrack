@@ -14,6 +14,7 @@ from app.models.pedido import Pedido
 from app.models.reclamo import Reclamo
 from app.models.notificacion_envio import NotificacionEnvio
 from app.services.notificaciones_automaticas import operador
+from app.services.notificaciones_automaticas.modelos import Prioridad
 
 log = logging.getLogger("geotrack.notificador.planificador")
 
@@ -93,7 +94,7 @@ def evaluar_reclamos_por_vencer(db: Session, ahora_dt: datetime | None = None) -
                 from app.services.notificaciones_automaticas import destinatarios as dest
                 msg = _correo(
                     "RECLAMO_NUEVO", "administrador", dest.email_admin(),
-                    asunto, cuerpo, clave, prioridad=operador.Prioridad.URGENTE
+                    asunto, cuerpo, clave, prioridad=Prioridad.URGENTE
                 )
                 if msg:
                     from app.repositories import notificacion_envio_repository
@@ -138,7 +139,7 @@ def evaluar_timeout_mecanicos(db: Session, ahora_dt: datetime | None = None) -> 
             )
             msg = _correo(
                 "AUXILIO_MECANICO", "administrador", dest.email_admin(),
-                asunto, cuerpo, clave, prioridad=operador.Prioridad.URGENTE
+                asunto, cuerpo, clave, prioridad=Prioridad.URGENTE
             )
             if msg and notificacion_envio_repository.crear_si_no_existe(db, msg):
                 creados += 1

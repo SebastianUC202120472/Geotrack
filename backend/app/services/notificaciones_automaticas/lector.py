@@ -2,9 +2,10 @@
 Corre en el contenedor notificador independiente y lee en solo lectura las tablas del núcleo
 usando la tabla 'notificaciones_cursores' para garantizar que nada se duplique."""
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
+from app.repositories import notificacion_automatica_repository as repo
 from app.models.historial import HistorialPedido
 from app.models.pedido import Pedido
 from app.models.ruta import Ruta, RutaDetalle
@@ -16,6 +17,9 @@ from app.models.notificacion_cursor import NotificacionCursor
 from app.services.notificaciones_automaticas import operador
 
 log = logging.getLogger("geotrack.notificador.lector")
+
+# Recojos y rutas se revisan por fecha dentro de esta ventana (cambian de estado tras crearse).
+VENTANA = timedelta(days=3)
 
 
 def _obtener_cursor(db: Session, fuente: str) -> int:
@@ -128,56 +132,55 @@ def barrer_incidencias(db: Session) -> int:
 
 
 def barrer_solicitudes_recojo(db: Session) -> int:
-    """Detecta recojos completados (RECOGIDO) o ingresados a almacén con faltantes."""
-    ultimo_id = _obtener_cursor(db, "solicitudes_recojo")
+    """Detecta recojos recogidos (RECOJO_COMPLETADO) e ingresos con pedidos faltantes (PAQUETES_FALTANTES).
+    Un recojo cambia de estado despues de creado, por eso no sirve un cursor por id: se revisan los
+    recogidos en los ultimos dias (fecha_recojo) y la clave de cada aviso evita repetirlo."""
+    desde = datetime.utcnow() - VENTANA
     registros = (
         db.query(SolicitudRecojo)
-        .filter(SolicitudRecojo.id > ultimo_id)
+        .filter(SolicitudRecojo.fecha_recojo.isnot(None), SolicitudRecojo.fecha_recojo >= desde,
+                SolicitudRecojo.estado.in_(("RECOGIDO", "INGRESADO")))
         .order_by(SolicitudRecojo.id.asc())
-        .limit(50)
+        .limit(200)
         .all()
     )
-    if not registros:
-        return 0
-
-    max_id = ultimo_id
     creados = 0
     for rec in registros:
-        max_id = max(max_id, rec.id)
-        cliente = db.query(ClienteCorporativo).filter(ClienteCorporativo.id == rec.cliente_id).first()
-        if rec.estado == "RECOGIDO":
+        cliente = None
+        if not repo.claves_con_prefijo(db, f"RECOJO_COMPLETADO:{rec.codigo}:"):
+            cliente = db.query(ClienteCorporativo).filter(ClienteCorporativo.id == rec.cliente_id).first()
             creados += operador.registrar(db, "RECOJO_COMPLETADO", {"recojo": rec, "cliente": cliente})
-        elif rec.estado == "INGRESADO" and rec.intentos_no_realizados and rec.intentos_no_realizados > 0:
-            # Observado con faltantes
-            creados += operador.registrar(
-                db, "PAQUETES_FALTANTES", {
-                    "recojo": rec,
-                    "cliente": cliente,
-                    "faltantes": [f"Bultos no conformes ({rec.intentos_no_realizados})"]
-                }
+        if rec.estado == "INGRESADO" and not repo.claves_con_prefijo(db, f"PAQUETES_FALTANTES:{rec.codigo}:"):
+            observados = (
+                db.query(Pedido.codigo)
+                .filter(Pedido.recojo_id == rec.id, Pedido.estado == "OBSERVADO")
+                .order_by(Pedido.id.asc())
+                .all()
             )
-
-    _actualizar_cursor(db, "solicitudes_recojo", max_id)
+            if observados:
+                if cliente is None:
+                    cliente = db.query(ClienteCorporativo).filter(ClienteCorporativo.id == rec.cliente_id).first()
+                creados += operador.registrar(db, "PAQUETES_FALTANTES", {
+                    "recojo": rec, "cliente": cliente, "faltantes": [c for (c,) in observados],
+                })
     return creados
 
 
 def barrer_rutas_finalizadas(db: Session) -> int:
-    """Detecta rutas que acaban de finalizar y evalúa si dejaron retornos de pedidos fallidos."""
-    ultimo_id = _obtener_cursor(db, "rutas")
+    """Detecta rutas finalizadas en los ultimos dias que dejaron pedidos fallidos para retorno.
+    Se usa fecha_fin (no un cursor por id: una ruta vieja puede cerrar despues que una nueva)."""
+    desde = datetime.utcnow() - VENTANA
     registros = (
         db.query(Ruta)
-        .filter(Ruta.id > ultimo_id, Ruta.estado == "FINALIZADA")
+        .filter(Ruta.estado == "FINALIZADA", Ruta.fecha_fin.isnot(None), Ruta.fecha_fin >= desde)
         .order_by(Ruta.id.asc())
-        .limit(50)
+        .limit(200)
         .all()
     )
-    if not registros:
-        return 0
-
-    max_id = ultimo_id
     creados = 0
     for r in registros:
-        max_id = max(max_id, r.id)
+        if repo.existe_clave(db, f"RETORNOS_ALMACEN:{r.codigo}"):
+            continue
         detalles_fallidos = (
             db.query(RutaDetalle, Pedido)
             .join(Pedido, RutaDetalle.pedido_id == Pedido.id)
@@ -187,8 +190,6 @@ def barrer_rutas_finalizadas(db: Session) -> int:
         if detalles_fallidos:
             fallidos = [p for _, p in detalles_fallidos]
             creados += operador.registrar(db, "RETORNOS_ALMACEN", {"ruta": r, "fallidos": fallidos})
-
-    _actualizar_cursor(db, "rutas", max_id)
     return creados
 
 
@@ -225,70 +226,12 @@ def barrer_proximidad_rutas_activas(db: Session) -> int:
     return creados
 
 
-def barrer_ayudas_asignadas(db: Session) -> int:
-    """Detecta incidencias donde se mandó ayuda y dispara el aviso AYUDA_ASIGNADA al mecánico propuesto."""
-    from app.models.conductor import PerfilConductor
-    from app.models.notificacion_mecanico import NotificacionMecanico
-    from app.models.notificacion_envio import NotificacionEnvio
-    from app.services.router import calcular_distancia
-
-    incidencias = (
-        db.query(Incidencia)
-        .filter(Incidencia.estado == "ABIERTA", Incidencia.ayuda_enviada_en.isnot(None))
-        .all()
-    )
-    creados = 0
-    for inc in incidencias:
-        prefijo = f"AYUDA_ASIGNADA:{inc.codigo}:"
-        ya_enviado = (
-            db.query(NotificacionEnvio)
-            .filter(NotificacionEnvio.clave_idempotencia.like(f"{prefijo}%"))
-            .first()
-        )
-        if ya_enviado:
-            continue
-
-        mecanicos = (
-            db.query(NotificacionMecanico)
-            .filter(NotificacionMecanico.activo.is_(True), NotificacionMecanico.telefono_verificado.is_(True))
-            .all()
-        )
-        if not mecanicos:
-            continue
-
-        lat_inc, lon_inc = inc.latitud, inc.longitud
-        candidatos = []
-        for m in mecanicos:
-            dist = 999.0
-            if lat_inc is not None and lon_inc is not None and m.latitud is not None and m.longitud is not None:
-                dist = calcular_distancia(lat_inc, lon_inc, m.latitud, m.longitud)
-            candidatos.append((dist, m))
-        candidatos.sort(key=lambda x: x[0])
-        mejor_mecanico = candidatos[0][1]
-
-        perfil = db.query(PerfilConductor).filter(PerfilConductor.usuario_id == inc.conductor_id).first()
-        conductor_nombre = perfil.nombre if perfil else "Conductor"
-        conductor_tel = perfil.telefono if perfil else ""
-
-        creados += operador.registrar(
-            db, "AYUDA_ASIGNADA", {
-                "incidencia": inc,
-                "mecanico_id": mejor_mecanico.id,
-                "mecanico_nombre": mejor_mecanico.nombre,
-                "mecanico_chat_id": mejor_mecanico.telegram_chat_id,
-                "conductor_nombre": conductor_nombre,
-                "conductor_telefono": conductor_tel,
-            }
-        )
-    return creados
-
-
 def ejecutar_barrido(db: Session) -> int:
-    """Ejecuta una ronda de lectura sobre todas las fuentes del núcleo."""
+    """Ejecuta una ronda de lectura sobre todas las fuentes del núcleo. El auxilio al mecánico no se
+    asigna aquí: lo confirma el administrador en Auxilio mecánico (administracion.asignar_mecanico)."""
     total = 0
     total += barrer_historial_pedidos(db)
     total += barrer_incidencias(db)
-    total += barrer_ayudas_asignadas(db)
     total += barrer_proximidad_rutas_activas(db)
     total += barrer_solicitudes_recojo(db)
     total += barrer_rutas_finalizadas(db)

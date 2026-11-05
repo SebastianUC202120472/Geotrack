@@ -54,14 +54,20 @@ services:
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-}
       SUPABASE_BUCKET: ${SUPABASE_BUCKET:-geotrack}
-      # Centro de notificaciones automaticas (Idea 5): crea avisos en BD y un trabajador
-      # los envia. Apagado por defecto; la demo usa SMTP y Telegram.
+      # Centro de notificaciones automaticas (Idea 5): el backend atiende los webhooks y el
+      # panel; el servicio "notificador" detecta los eventos y envia. Apagado por defecto.
       NOTIFICACIONES_HABILITADAS: ${NOTIFICACIONES_HABILITADAS:-false}
       NOTIFICACIONES_INTERVALO_SEG: ${NOTIFICACIONES_INTERVALO_SEG:-30}
       NOTIFICACIONES_ADMIN_TELEGRAM_CHAT_ID: ${NOTIFICACIONES_ADMIN_TELEGRAM_CHAT_ID:-}
       NOTIFICACIONES_ALMACEN_EMAIL: ${NOTIFICACIONES_ALMACEN_EMAIL:-}
       NOTIFICACIONES_URL_PORTAL: ${NOTIFICACIONES_URL_PORTAL:-https://sava.pe/portal}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      # Secretos que prueban que la llamada al webhook viene de Telegram / Meta (vacios = se rechaza).
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
     volumes:
       - backend_uploads:/app/uploads
       # Registro de errores (EX-11): sobrevive a la reconstruccion del contenedor.
@@ -72,13 +78,15 @@ services:
       db:
         condition: service_healthy
 
+  # Notificador: lee las novedades del nucleo, arma los avisos y los envia (SMTP, Telegram,
+  # WhatsApp). Con NOTIFICACIONES_HABILITADAS=false solo espera y no abre conexiones.
   notificador:
     build:
       context: ./backend
       dockerfile: Dockerfile
     command: python -m app.services.notificaciones_automaticas.servicio_notificador
     environment:
-      DATABASE_URL: postgresql://geotrack:geotrack@db:5432/geotrack
+      DATABASE_URL: ${DATABASE_URL}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       MAIL_ENABLED: ${MAIL_ENABLED:-false}
       MAIL_ADDRESS: ${MAIL_ADDRESS:-}
@@ -92,6 +100,8 @@ services:
       NOTIFICACIONES_ALMACEN_EMAIL: ${NOTIFICACIONES_ALMACEN_EMAIL:-}
       NOTIFICACIONES_URL_PORTAL: ${NOTIFICACIONES_URL_PORTAL:-https://sava.pe/portal}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
+      WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
       ZONA_HORARIA: ${ZONA_HORARIA:-America/Lima}
     restart: unless-stopped
     depends_on:

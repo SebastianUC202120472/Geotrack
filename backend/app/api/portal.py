@@ -14,6 +14,7 @@ from app.core.security import verify_password
 from app.services import portal_service, verificacion_portal_service as verif, parametro_service
 from app.services import correo_service, enmascarado, publico_forms_service, reclamo_service
 from app.repositories import portal_repository as repo
+from app.services.notificaciones_automaticas import vinculos
 from app.schemas.portal import VerificarDni, Reprogramar, EmpresaLogin, EmpresaVerificar, ContactoIn, ReclamoIn
 
 router = APIRouter()
@@ -88,16 +89,12 @@ def detalle(codigo: str, _=Depends(portal_token.requiere_token_persona), db: Ses
     return portal_service.detalle_pedido(db, codigo.upper())
 
 
-@router.get("/pedidos/{codigo}/enlace-notificaciones")
-def obtener_enlace_notificaciones(codigo: str, _=Depends(portal_token.requiere_token_persona)):
-    """Devuelve el enlace profundo a Telegram para vincular avisos del pedido verificado."""
-    bot_token = settings.TELEGRAM_BOT_TOKEN
-    # Si no hay token configurado en settings devuelve bot demo
-    bot_user = "GeoTrackAvisosBot"
-    return {
-        "canal": "telegram",
-        "url": f"https://t.me/{bot_user}?start=PD_{codigo.upper()}",
-    }
+@router.get("/pedidos/{codigo}/enlace-notificaciones", dependencies=[Depends(limite_publico(10, 60))])
+def obtener_enlace_notificaciones(codigo: str, _=Depends(portal_token.requiere_token_persona),
+                                  db: Session = Depends(get_db)):
+    """Enlace a Telegram para recibir los avisos del pedido ya verificado (código + DNI): lleva un
+    token firmado que vence en 24 h. Recibe el codigo en la ruta."""
+    return vinculos.enlace_pedido(db, codigo.upper())
 
 
 @router.post("/pedidos/{codigo}/reprogramar")

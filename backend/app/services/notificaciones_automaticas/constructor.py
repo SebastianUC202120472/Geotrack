@@ -1,11 +1,15 @@
 """Construye los mensajes de cada aviso. Cada evento es una funcion decorada: dar de alta
 un aviso nuevo no exige tocar los demas (principio abierto/cerrado)."""
+import re
 from collections.abc import Callable
+from dataclasses import replace
 
+from app.repositories import notificacion_automatica_repository as repo
 from app.services.notificaciones_automaticas import destinatarios as dest
 from app.services.notificaciones_automaticas.modelos import Canal, Destinatario, Mensaje, Prioridad
 
 _CONSTRUCTORES: dict[str, Callable[[dict], list[Mensaje]]] = {}
+_VARIABLE = re.compile(r"\{(\w+)\}")
 
 
 def registrar(evento: str):
@@ -17,9 +21,67 @@ def registrar(evento: str):
 
 
 def construir_mensaje(evento: str, contexto: dict, db=None) -> list[Mensaje]:
-    """Devuelve los mensajes de un evento a partir de su contexto; vacio si no existe."""
+    """Devuelve los mensajes de un evento a partir de su contexto; vacio si no existe.
+    Con base de datos aplica lo configurado en el panel: no envia a quien pidio STOP, omite
+    los avisos cuya plantilla esta apagada y usa el texto editado de la plantilla."""
     fn = _CONSTRUCTORES.get(evento)
-    return fn(contexto, db) if fn else []
+    mensajes = fn(contexto, db) if fn else []
+    if db is None or not hasattr(db, "query"):
+        return mensajes
+    salida, variables = [], None
+    for m in mensajes:
+        if repo.esta_de_baja(db, m.canal.value, m.destinatario.valor):
+            continue
+        plantilla = repo.obtener_plantilla_evento(db, m.evento, m.canal.value)
+        if plantilla is not None:
+            if not plantilla.activo:
+                continue
+            variables = variables if variables is not None else _variables(evento, contexto)
+            asunto = _rellenar(plantilla.asunto, variables) if (plantilla.asunto and m.canal == Canal.CORREO) else m.asunto
+            m = replace(m, cuerpo=_rellenar(plantilla.cuerpo, variables), asunto=asunto)
+        salida.append(m)
+    return salida
+
+
+def _rellenar(texto: str, variables: dict) -> str:
+    """Reemplaza {variable} por su valor; deja tal cual las que no existen. Recibe texto y variables.
+    Es un reemplazo simple (no str.format): una plantilla editada no puede leer atributos internos."""
+    return _VARIABLE.sub(lambda m: str(variables.get(m.group(1), m.group(0))), texto or "")
+
+
+def _variables(evento: str, ctx: dict) -> dict:
+    """Valores que pueden usar las plantillas de cada evento. Recibe el evento y su contexto."""
+    v = {"enlace_portal": dest.enlace_portal()}
+    pedido = ctx.get("pedido")
+    if pedido is not None:
+        v.update(codigo=_codigo(pedido), nombre=getattr(pedido, "nombre_destinatario", None) or "",
+                 secuencia=ctx.get("secuencia", ""), total=ctx.get("total", ""),
+                 motivo=(ctx.get("motivo") or "").strip() or "no se pudo contactar al destinatario")
+    recojo = ctx.get("recojo")
+    if recojo is not None:
+        faltantes = [f for f in (ctx.get("faltantes") or []) if f]
+        v.update(codigo=getattr(recojo, "codigo", None) or "", cliente=getattr(recojo, "cliente_origen", None) or "cliente",
+                 cantidad=getattr(recojo, "cantidad_declarada", None) or 0, n=len(faltantes), faltantes=", ".join(faltantes))
+    ruta = ctx.get("ruta")
+    if evento == "RETORNOS_ALMACEN" and ruta is not None:
+        fallidos = [p for p in (ctx.get("fallidos") or []) if p]
+        v.update(codigo_ruta=getattr(ruta, "codigo", None) or "", n=len(fallidos),
+                 codigos=", ".join(_codigo(p) for p in fallidos))
+    inc = ctx.get("incidencia")
+    if inc is not None:
+        v.update(codigo=getattr(inc, "codigo", None) or "", placa=getattr(inc, "vehiculo_placa", None) or "sin placa",
+                 descripcion=getattr(inc, "descripcion", None) or "sin detalle",
+                 conductor=ctx.get("conductor_nombre") or "Conductor en ruta",
+                 mecanico=ctx.get("mecanico_nombre") or "un mecánico", telefono=ctx.get("mecanico_telefono") or "")
+    reclamo = ctx.get("reclamo")
+    if reclamo is not None:
+        v.update(codigo=getattr(reclamo, "codigo", None) or "", tipo=getattr(reclamo, "tipo", None) or "RECLAMO",
+                 detalle=(getattr(reclamo, "detalle", None) or "").strip())
+    if evento == "RESUMEN_DEL_DIA":
+        conteos = ctx.get("conteos") or {}
+        v.update(fecha=ctx.get("fecha") or "", entregados=conteos.get("entregados", 0),
+                 fallidos=conteos.get("fallidos", 0), pendientes=conteos.get("pendientes", 0))
+    return v
 
 
 def _telegram_pedido(ctx: dict, db, evento: str, cuerpo: str, clave: str) -> list[Mensaje]:

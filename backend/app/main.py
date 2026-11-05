@@ -83,21 +83,8 @@ async def lifespan(app: FastAPI):
         db.close()
 
     tarea_retencion = asyncio.create_task(_retencion_diaria())
-
-    # Trabajador en segundo plano: busca y procesa los avisos pendientes cada cierto tiempo.
-    tarea_trabajador = None
-    if settings.NOTIFICACIONES_HABILITADAS:
-        from app.services.notificaciones_automaticas.trabajador import ejecutar
-        tarea_trabajador = asyncio.create_task(
-            ejecutar(settings.NOTIFICACIONES_INTERVALO_SEG, settings.NOTIFICACIONES_HABILITADAS)
-        )
-        log.info("Trabajador de notificaciones activo cada %s s", settings.NOTIFICACIONES_INTERVALO_SEG)
-
     yield
     tarea_retencion.cancel()
-
-    if tarea_trabajador:
-        tarea_trabajador.cancel()
 
 
 app = FastAPI(
