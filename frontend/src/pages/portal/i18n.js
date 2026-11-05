@@ -135,6 +135,11 @@ export const EN = {
   "No se pudo registrar la solicitud — intente de nuevo": "The request could not be saved — please try again",
   "Mañana": "Tomorrow",
   "Sábado": "Saturday",
+  // Avisos por Telegram
+  "Reciba los avisos de su pedido por Telegram": "Get updates about your order on Telegram",
+  "Le escribiremos cuando su pedido salga, esté cerca y se entregue. Puede darse de baja escribiendo STOP.":
+    "We will message you when your order leaves, is close and is delivered. Reply STOP to unsubscribe.",
+  "Activar avisos en Telegram": "Turn on Telegram updates",
   // Ayuda de la demostración
   "Rastrear con el código de SAVA": "Track with the SAVA code",
   "Rastrear con el código de la tienda": "Track with the store code",
