@@ -403,6 +403,9 @@ export default function RastreoPersonal({ avisar, demo }) {
               confirmarReprog={confirmarReprog}
             />
           )}
+
+          {/* Avisos por Telegram: solo para el pedido ya verificado y aún en curso */}
+          {!["ENTREGADO", "CANCELADO"].includes(ped.estado) && <AvisosTelegram codigo={encontrado} token={token} />}
         </section>
       )}
     </>
@@ -710,6 +713,41 @@ function Evidencia({ ped, codigo, token }) {
           {t("Foto de entrega (POD)")}
         </div>
       )}
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// AvisosTelegram: ofrece recibir los avisos del pedido por Telegram. El enlace lo firma el
+// servidor solo para el pedido verificado (código + DNI); si el bot no está configurado no se
+// muestra nada. Input: codigo y token de persona.
+// ----------------------------------------------------------------------------
+function AvisosTelegram({ codigo, token }) {
+  const { t } = useIdioma();
+  const [url, setUrl] = useState(null);
+
+  // Pide el enlace firmado del pedido al abrir el detalle.
+  useEffect(() => {
+    if (!codigo || !token) return undefined;
+    let activo = true;
+    obtenerEnlaceNotificaciones(codigo, token)
+      .then((d) => activo && setUrl(d?.disponible ? d.url : null))
+      .catch(() => activo && setUrl(null));
+    return () => { activo = false; };
+  }, [codigo, token]);
+
+  if (!url) return null;
+  return (
+    <div style={{ margin: "16px 0 0", background: "#fff", border: "1.5px solid rgba(38,121,216,.25)", borderRadius: 20, padding: 22 }}>
+      <p style={{ margin: 0, fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 18, color: "#1b5fb3" }}>
+        {t("Reciba los avisos de su pedido por Telegram")}
+      </p>
+      <p style={{ margin: "8px 0 14px", fontSize: 14, lineHeight: 1.6, color: "#4f6580" }}>
+        {t("Le escribiremos cuando su pedido salga, esté cerca y se entregue. Puede darse de baja escribiendo STOP.")}
+      </p>
+      <a href={url} target="_blank" rel="noopener noreferrer" className="ptl-btn-rastrear" style={{ display: "inline-block", textDecoration: "none" }}>
+        {t("Activar avisos en Telegram")}
+      </a>
     </div>
   );
 }

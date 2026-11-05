@@ -14,6 +14,8 @@ import {
   KeyRound,
   ShieldCheck,
   AlertTriangle,
+  Users,
+  Copy,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import PageHeader from "../components/ui/PageHeader";
@@ -35,6 +37,9 @@ import {
   verificarCodigoMecanico,
   listarPlantillas,
   actualizarPlantilla,
+  listarConductores,
+  listarConductoresTelegram,
+  obtenerEnlaceTelegramConductor,
 } from "../services/api";
 import { haciaPanel } from "../utils/rutasPanel";
 
@@ -65,13 +70,13 @@ export default function Notificaciones() {
   // 2. Envíos (Bitácora Outbox)
   const [envios, setEnvios] = useState([]);
   const [totalEnvios, setTotalEnvios] = useState(0);
-  const [cargandoEnvios, setCargandoEnvios] = useState(false);
+  const [cargandoEnvios, setCargandoEnvios] = useState(true);
   const [filtroEstado, setFiltroEstado] = useState("");
   const [filtroCanal, setFiltroCanal] = useState("");
 
   // 3. Mecánicos
   const [mecanicos, setMecanicos] = useState([]);
-  const [cargandoMec, setCargandoMec] = useState(false);
+  const [cargandoMec, setCargandoMec] = useState(true);
   const [modalMec, setModalMec] = useState(false);
   const [modalOtp, setModalOtp] = useState(null);
   const [codigoOtp, setCodigoOtp] = useState("");
@@ -91,32 +96,77 @@ export default function Notificaciones() {
 
   // 4. Plantillas y Configuración
   const [plantillas, setPlantillas] = useState([]);
-  const [cargandoPlan, setCargandoPlan] = useState(false);
+  const [cargandoPlan, setCargandoPlan] = useState(true);
   const [modalEditPlan, setModalEditPlan] = useState(null);
   const [planCuerpo, setPlanCuerpo] = useState("");
   const [planAsunto, setPlanAsunto] = useState("");
   const [planActivo, setPlanActivo] = useState(true);
 
-  useEffect(() => {
-    cargarInternas();
-  }, []);
+  // 5. Conductores en Telegram
+  const [conductores, setConductores] = useState([]);
+  const [vinculados, setVinculados] = useState([]);
+  const [cargandoCond, setCargandoCond] = useState(true);
+  const [avisoCond, setAvisoCond] = useState("");
 
+  // Carga la campana al abrir la pantalla.
   useEffect(() => {
-    if (tab === "envios") cargarEnvios();
-    if (tab === "mecanicos") cargarMecanicos();
-    if (tab === "plantillas") cargarPlantillas();
-  }, [tab, filtroEstado, filtroCanal]);
-
-  const cargarInternas = () => {
-    setCargandoInternas(true);
+    let activo = true;
     obtenerNotificaciones(200)
       .then((d) => {
+        if (!activo) return;
         setInternas(Array.isArray(d?.items) ? d.items : []);
         setNoVistas(d?.no_vistas ?? 0);
       })
-      .finally(() => setCargandoInternas(false));
+      .catch(() => {})
+      .finally(() => activo && setCargandoInternas(false));
+    return () => { activo = false; };
+  }, []);
+
+  // Carga los datos de la pestaña abierta (y vuelve a pedir la bitácora si cambian sus filtros).
+  useEffect(() => {
+    let activo = true;
+    if (tab === "envios") {
+      listarEnviosNotificaciones({ estado: filtroEstado, canal: filtroCanal, limite: 50 })
+        .then((d) => {
+          if (!activo) return;
+          setEnvios(Array.isArray(d?.items) ? d.items : []);
+          setTotalEnvios(d?.total ?? 0);
+        })
+        .catch(() => {})
+        .finally(() => activo && setCargandoEnvios(false));
+    } else if (tab === "mecanicos") {
+      listarMecanicos()
+        .then((d) => activo && setMecanicos(Array.isArray(d) ? d : []))
+        .catch(() => {})
+        .finally(() => activo && setCargandoMec(false));
+    } else if (tab === "plantillas") {
+      listarPlantillas()
+        .then((d) => activo && setPlantillas(Array.isArray(d) ? d : []))
+        .catch(() => {})
+        .finally(() => activo && setCargandoPlan(false));
+    } else if (tab === "conductores") {
+      Promise.all([listarConductores(), listarConductoresTelegram()])
+        .then(([lista, vinc]) => {
+          if (!activo) return;
+          setConductores(Array.isArray(lista) ? lista.filter((c) => c.estado !== false) : []);
+          setVinculados(Array.isArray(vinc?.conductores) ? vinc.conductores : []);
+        })
+        .catch(() => {})
+        .finally(() => activo && setCargandoCond(false));
+    }
+    return () => { activo = false; };
+  }, [tab, filtroEstado, filtroCanal]);
+
+  // Copia el enlace firmado de Telegram de un conductor para enviárselo. Recibe el conductor.
+  const copiarEnlaceConductor = (c) => {
+    setAvisoCond("");
+    obtenerEnlaceTelegramConductor(c.usuario_id)
+      .then((d) => navigator.clipboard.writeText(d.url).then(() => d.url))
+      .then(() => setAvisoCond(`Enlace de ${c.nombre} copiado: envíaselo para que pulse "Iniciar" en Telegram (vence en 24 h).`))
+      .catch((err) => setAvisoCond(err.message));
   };
 
+  // Vuelve a pedir la bitácora de envíos (tras un reintento o con el botón Actualizar). Sin parámetros.
   const cargarEnvios = () => {
     setCargandoEnvios(true);
     listarEnviosNotificaciones({ estado: filtroEstado, canal: filtroCanal, limite: 50 })
@@ -127,6 +177,7 @@ export default function Notificaciones() {
       .finally(() => setCargandoEnvios(false));
   };
 
+  // Vuelve a pedir el directorio de mecánicos (tras crear, verificar o eliminar). Sin parámetros.
   const cargarMecanicos = () => {
     setCargandoMec(true);
     listarMecanicos()
@@ -134,6 +185,7 @@ export default function Notificaciones() {
       .finally(() => setCargandoMec(false));
   };
 
+  // Vuelve a pedir las plantillas (tras editar o encender/apagar una). Sin parámetros.
   const cargarPlantillas = () => {
     setCargandoPlan(true);
     listarPlantillas()
@@ -141,6 +193,7 @@ export default function Notificaciones() {
       .finally(() => setCargandoPlan(false));
   };
 
+  // Da de alta un mecánico desde el formulario. Recibe el evento del formulario.
   const handleCrearMecanico = (e) => {
     e.preventDefault();
     if (!nuevoMec.nombre || !nuevoMec.telefono_whatsapp) {
@@ -169,6 +222,7 @@ export default function Notificaciones() {
       .finally(() => setGuardandoMec(false));
   };
 
+  // Envía el código de verificación y abre el modal para ingresarlo. Recibe el mecánico.
   const handleEnviarOtp = (mec) => {
     enviarCodigoMecanico(mec.id)
       .then(() => {
@@ -178,6 +232,7 @@ export default function Notificaciones() {
       .catch((err) => alert(err.message));
   };
 
+  // Verifica el código ingresado del mecánico. Sin parámetros.
   const handleVerificarOtp = () => {
     if (!codigoOtp.trim()) return;
     verificarCodigoMecanico(modalOtp.id, codigoOtp.trim())
@@ -188,18 +243,21 @@ export default function Notificaciones() {
       .catch((err) => alert(err.message));
   };
 
+  // Vuelve a poner en cola un envío fallido. Recibe el id.
   const handleReintentar = (id) => {
     reintentarEnvio(id)
       .then(() => cargarEnvios())
       .catch((err) => alert(err.message));
   };
 
+  // Enciende o apaga el aviso de una plantilla. Recibe la plantilla.
   const handleTogglePlantilla = (p) => {
     actualizarPlantilla(p.id, { cuerpo: p.cuerpo, asunto: p.asunto, activo: !p.activo })
       .then(() => cargarPlantillas())
       .catch((err) => alert(err.message));
   };
 
+  // Guarda el texto editado de la plantilla. Recibe el evento del formulario.
   const handleGuardarPlantilla = (e) => {
     e.preventDefault();
     if (!modalEditPlan) return;
@@ -224,7 +282,7 @@ export default function Notificaciones() {
       />
 
       {/* Navegación por Pestañas */}
-      <div className="flex border-b border-slate-200 gap-6">
+      <div className="flex border-b border-slate-200 gap-6 overflow-x-auto whitespace-nowrap">
         <button
           onClick={() => setTab("internas")}
           className={`flex items-center gap-2 pb-3 font-semibold text-sm transition-colors border-b-2 -mb-px ${
@@ -263,6 +321,16 @@ export default function Notificaciones() {
         >
           <Sliders size={18} />
           Plantillas y Canales
+        </button>
+
+        <button
+          onClick={() => setTab("conductores")}
+          className={`flex items-center gap-2 pb-3 font-semibold text-sm transition-colors border-b-2 -mb-px ${
+            tab === "conductores" ? "border-brand-600 text-brand-600" : "border-transparent text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <Users size={18} />
+          Conductores en Telegram
         </button>
       </div>
 
@@ -431,7 +499,7 @@ export default function Notificaciones() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <p className="text-sm text-slate-500">
-              Proveedores de auxilio registrados para asignación automática por cercanía geográfica.
+              Proveedores de auxilio: en Auxilio mecánico se propone al más cercano y el administrador confirma el envío.
             </p>
             <Button onClick={() => setModalMec(true)}>
               <Plus size={16} /> Nuevo Proveedor
@@ -487,6 +555,45 @@ export default function Notificaciones() {
                   </div>
                 ))}
               </div>
+            )}
+          </SectionCard>
+        </div>
+      )}
+
+      {/* 5. Conductores en Telegram */}
+      {tab === "conductores" && (
+        <div className="space-y-6">
+          <p className="text-sm text-slate-500">
+            El conductor recibe por Telegram el aviso de que su auxilio va en camino. Copia su enlace y envíaselo:
+            al pulsar «Iniciar» en el bot su chat queda vinculado. El enlace es personal y vence en 24 horas.
+          </p>
+          {avisoCond && (
+            <p className="rounded-xl border border-brand-200 bg-brand-50/60 px-4 py-3 text-sm text-brand-800" role="status">{avisoCond}</p>
+          )}
+          <SectionCard title={`Conductores (${conductores.length})`}>
+            {cargandoCond ? (
+              <p className="py-8 text-center text-sm text-slate-500">Cargando conductores...</p>
+            ) : conductores.length === 0 ? (
+              <EmptyState icon={Users} title="Sin conductores" description="No hay conductores registrados." />
+            ) : (
+              <ul className="-mx-5 divide-y divide-slate-100">
+                {conductores.map((c) => (
+                  <li key={c.usuario_id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900">{c.nombre}</p>
+                      <p className="text-xs text-slate-500">{c.correo}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Badge tono={vinculados.includes(c.usuario_id) ? "success" : "neutral"}>
+                        {vinculados.includes(c.usuario_id) ? "Telegram vinculado" : "Sin vincular"}
+                      </Badge>
+                      <Button variante="secondary" size="sm" onClick={() => copiarEnlaceConductor(c)}>
+                        <Copy size={14} className="mr-1" /> Copiar enlace
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             )}
           </SectionCard>
         </div>

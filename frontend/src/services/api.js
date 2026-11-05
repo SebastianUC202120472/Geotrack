@@ -457,40 +457,64 @@ export const marcarNotificacionesVistas = () =>
   request("/notificaciones/marcar-vistas", { method: "POST" });
 
 // Centro de notificaciones automaticas (Idea 5)
+// Bitacora de envios externos. Recibe filtros opcionales { estado, canal, limite }.
 export const listarEnviosNotificaciones = (params = {}) => {
-  const q = new URLSearchParams(params).toString();
+  const limpios = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== "" && v != null));
+  const q = new URLSearchParams(limpios).toString();
   return request(`/notificaciones/envios${q ? `?${q}` : ""}`);
 };
 
+// Vuelve a poner en cola un envio fallido. Recibe el id.
 export const reintentarEnvio = (id) =>
   request(`/notificaciones/envios/${id}/reintentar`, { method: "POST" });
 
+// Directorio de mecanicos. Sin parametros.
 export const listarMecanicos = () =>
   request("/notificaciones/mecanicos");
 
+// Alta de un mecanico. Recibe sus datos.
 export const crearMecanico = (datos) =>
   request("/notificaciones/mecanicos", { method: "POST", body: datos });
 
+// Edita un mecanico. Recibe el id y los datos.
 export const actualizarMecanico = (id, datos) =>
   request(`/notificaciones/mecanicos/${id}`, { method: "PUT", body: datos });
 
+// Quita un mecanico del directorio. Recibe el id.
 export const eliminarMecanico = (id) =>
   request(`/notificaciones/mecanicos/${id}`, { method: "DELETE" });
 
+// Envia al mecanico su codigo de verificacion. Recibe el id.
 export const enviarCodigoMecanico = (id) =>
   request(`/notificaciones/mecanicos/${id}/enviar-codigo`, { method: "POST" });
 
+// Verifica el numero del mecanico. Recibe el id y el codigo.
 export const verificarCodigoMecanico = (id, codigo) =>
   request(`/notificaciones/mecanicos/${id}/verificar`, { method: "POST", body: { codigo } });
 
+// Mecanico verificado mas cercano a la averia (o el siguiente). Recibe la incidencia.
 export const obtenerPropuestaMecanico = (incidenciaId) =>
   request(`/notificaciones/mecanicos/propuesta/${incidenciaId}`);
 
+// Envia el auxilio al mecanico confirmado por el administrador. Recibe la incidencia y el mecanico.
+export const asignarMecanicoAuxilio = (incidenciaId, mecanicoId) =>
+  request(`/notificaciones/mecanicos/asignar/${incidenciaId}`, { method: "POST", body: { mecanico_id: mecanicoId } });
+
+// Plantillas de los avisos. Sin parametros.
 export const listarPlantillas = () =>
   request("/notificaciones/plantillas");
 
+// Cambia el texto o enciende/apaga una plantilla. Recibe el id y { cuerpo, asunto, activo }.
 export const actualizarPlantilla = (id, datos) =>
   request(`/notificaciones/plantillas/${id}`, { method: "PUT", body: datos });
+
+// Ids de conductores con Telegram vinculado. Sin parametros.
+export const listarConductoresTelegram = () =>
+  request("/notificaciones/telegram/conductores");
+
+// Enlace firmado para que un conductor vincule su Telegram. Recibe el id del conductor.
+export const obtenerEnlaceTelegramConductor = (conductorId) =>
+  request(`/notificaciones/telegram/conductores/${conductorId}/enlace`);
 
 
 // Descarga un adjunto de correo (autenticado). Recibe id y nombre.

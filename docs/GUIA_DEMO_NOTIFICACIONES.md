@@ -1,111 +1,101 @@
 # Guía de Demostración: Notificaciones Automáticas (Correo y Telegram)
 
-Esta guía describe el paso a paso exacto para realizar **2 demostraciones en vivo** durante tu presentación:
+Esta guía describe el paso a paso para realizar las demostraciones en vivo:
 1. **Flujo 1 (Correo)**: Notificación transaccional automática disparada desde el sistema con plantilla HTML.
-2. **Flujo 2 (Telegram)**: Verificación de mecánico y asignación interactiva de auxilio mecánico con botones en vivo.
+2. **Flujo 2 (Telegram)**: Verificación de mecánico y asignación de auxilio mecánico con botones en vivo.
+3. **Flujo 3 (Telegram)**: El destinatario se suscribe a los avisos de su pedido desde el portal.
 
 ---
 
-## Preparación previa (1 minuto antes de exponer)
+## Preparación previa
 
-Asegúrate de que los contenedores estén corriendo:
-```bash
-docker compose up -d
-```
-* **Panel Web**: [http://localhost:8080/panel](http://localhost:8080/panel)
-* **Portal de Rastreo y Landing**: [http://localhost:8080](http://localhost:8080)
-* **Telegram**: Ten abierta tu aplicación de Telegram en tu teléfono o en la PC con el chat de **`@geotrack_demo_bot`**.
-* **Correo**: Ten abierta tu bandeja de entrada de Gmail (`rios.jader.20.04@gmail.com`).
+1. En el `.env` de la raíz (nunca en el repositorio):
+   ```env
+   NOTIFICACIONES_HABILITADAS=true
+   MAIL_ENABLED=true            # con MAIL_ADDRESS y MAIL_PASSWORD (contraseña de aplicación)
+   TELEGRAM_BOT_TOKEN=<token que entrega @BotFather>
+   TELEGRAM_BOT_USERNAME=<usuario del bot, sin @>
+   TELEGRAM_WEBHOOK_SECRET=<texto largo al azar>
+   ```
+2. Levanta el sistema (el servicio `notificador` detecta los eventos y envía los avisos):
+   ```bash
+   docker compose up -d --build backend frontend notificador
+   ```
+3. **Registra el webhook de Telegram** para que los botones `VOY` / `NO PUEDO` y el comando
+   `/start` lleguen al sistema. Telegram necesita una URL pública (por ejemplo, el puerto 8000 de un
+   Codespace en *Public* o un túnel de ngrok) y el mismo `secret_token` del `.env`; sin él, el
+   backend rechaza la llamada con 403. Antes de registrarlo, obtén los chat ID que necesites con
+   `backend/scripts/telegram_obtener_chat_id.py` (con el webhook activo Telegram ya no los entrega así):
+   ```bash
+   curl "https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<url-publica>/api/notificaciones/webhook/telegram&secret_token=<TELEGRAM_WEBHOOK_SECRET>"
+   ```
+4. Ten abiertos:
+   * **Panel Web**: [http://localhost:8080/panel](http://localhost:8080/panel)
+   * **Portal de Rastreo**: [http://localhost:8080/portal](http://localhost:8080/portal)
+   * **Telegram** con el chat del bot y tu bandeja de correo de prueba.
 
 ---
 
-## Flujo 1: Generación de Correo Automático (Reclamo Legal / Acuse Transaccional)
+## Flujo 1: Generación de Correo Automático (Reclamo nuevo)
 
-Este flujo demuestra el evento **EVT-13** de la especificación: cómo un evento externo dispara correos automáticos sin intervención manual, con diseño profesional HTML y registro en el sistema.
+Este flujo demuestra cómo un evento del sistema dispara un correo automático sin intervención manual,
+con diseño HTML y registro en la bitácora.
 
 ### Pasos en vivo:
 
-1. **Abrir el Libro de Reclamaciones**:
-   * En tu navegador, ingresa a: **[http://localhost:8080/reclamos](http://localhost:8080/reclamos)** (o haz clic en *"Libro de Reclamaciones"* al pie de la página principal).
-
-2. **Llenar el formulario con datos de prueba**:
+1. **Abrir el Libro de Reclamaciones** desde el pie de la página principal.
+2. **Llenar el formulario con datos de prueba** (nunca datos reales):
    * **Nombre completo**: `Juan Pérez Demostración`
    * **DNI / CE**: `12345678`
-   * **Correo electrónico**: `rios.jader.20.04@gmail.com` *(tu correo para que lo veas llegar)*
+   * **Correo electrónico**: `<tu correo de prueba>`
    * **Teléfono**: `999888777`
-   * **Tipo de bien**: Selecciona `Servicio`
-   * **Monto reclamado**: `50.00`
-   * **Tipo**: Selecciona `Reclamo`
-   * **Detalle del reclamo**: `Demostración de notificación automática por correo: paquete entregado fuera de franja horaria pactada.`
+   * **Tipo de bien**: `Servicio` · **Monto**: `50.00` · **Tipo**: `Reclamo`
+   * **Detalle**: `Demostración de notificación automática por correo.`
+3. **Enviar**: verás el código generado del reclamo.
 
-3. **Enviar**:
-   * Pulsa el botón **«Enviar Reclamo»**.
-   * Verás en pantalla el código oficial generado: **`LR-2026-XXXX`**.
-
-### ¿Qué mostrar a los evaluadores?
-* Abre tu bandeja de Gmail (`rios.jader.20.04@gmail.com`):
-  * **Correo recibido**: Verás el correo transaccional de GeoTrack con el asunto *"Nuevo reclamo LR-2026-XXXX"* y el acuse al cliente.
-  * Muestra la **plantilla HTML responsive**: encabezado azul de GeoTrack, badge de estado, tipografía corporativa y pie legal según Ley 29571.
+### ¿Qué mostrar?
+* En el correo del administrador llega el aviso *"Nuevo reclamo …"* con la plantilla HTML de GeoTrack.
 
 ---
 
-## Flujo 2: Mensajería en Vivo por Telegram (Auxilio Mecánico y Verificación)
+## Flujo 2: Auxilio Mecánico por Telegram
 
-Este flujo demuestra las funcionalidades clave de la **Idea 5**:
-* Directorio de mecánicos protegidos con número verificado mediante código OTP.
-* Propuesta automática del mecánico más cercano por coordenadas.
-* Asignación con 1 clic y mensaje con botones interactivos `[ VOY ]` / `[ NO PUEDO ]`.
+Muestra el directorio de mecánicos con número verificado, la propuesta del mecánico más cercano, la
+confirmación del administrador con 1 clic y la respuesta del mecánico con botones `[ VOY ]` / `[ NO PUEDO ]`.
 
-### Pasos en vivo:
+#### Parte A: Alta y verificación del mecánico
+1. Entra a **Centro de Notificaciones → Directorio de Mecánicos** y pulsa **«+ Nuevo Proveedor»**:
+   * **Nombre**: `Taller Móvil San Isidro` · **Tipo de servicio**: `Mecánico`
+   * **Teléfono**: `+51999888777`
+   * **Chat ID de Telegram**: `<tu chat ID>` (lo obtienes con `backend/scripts/telegram_obtener_chat_id.py`)
+   * **Dirección**: `Av. República de Panamá 3500, San Isidro`
+2. En su tarjeta pulsa **«Verificar número»**: el bot te envía un código de 6 dígitos (vence en 15 min).
+   Ingrésalo y la tarjeta pasa a **«Verificado · Listo para auxilio»**.
 
-#### Parte A: Alta y Verificación del Mecánico en 1 clic
-1. **Ingresar al Panel de Notificaciones**:
-   * Entra a: **[http://localhost:8080/panel/notificaciones](http://localhost:8080/panel/notificaciones)** (inicia sesión con tu usuario administrador si te lo pide).
-2. **Ir a la pestaña «Directorio de Mecánicos»**:
-   * Haz clic en la 3ra pestaña: **Directorio de Mecánicos**.
-   * Pulsa el botón **«+ Nuevo Proveedor»** e ingresa:
-     * **Nombre**: `Taller Móvil San Isidro`
-     * **Empresa / Taller**: `Auxilio Mecánico Rápido`
-     * **Tipo de servicio**: `Mecánico`
-     * **Teléfono WhatsApp**: `+51999888777`
-     * **Chat ID de Telegram**: `8965045745` *(tu Chat ID verificado)*
-     * **Dirección**: `Av. República de Panamá 3500, San Isidro`
-     * **Distritos**: `San Isidro, Miraflores, Surquillo`
-   * Pulsa **«Registrar Mecánico»**. Aparecerá en la tarjeta con estado en amarillo *"No verificado"*.
-3. **Verificar el número**:
-   * En la tarjeta del mecánico creado, haz clic en **«Verificar número»**.
-   * **¡Mira tu Telegram!** Te llegará un mensaje de `@geotrack_demo_bot`:
-     > *"Hola Taller Móvil San Isidro, tu código de verificación para GeoTrack Auxilio Mecánico es: XXXXXX. Expira en 15 minutos."*
-   * Copia ese código de 6 dígitos, pégalo en el modal de la pantalla web y pulsa **«Confirmar Verificación»**.
-   * La tarjeta cambiará al badge verde: **«Verificado · Listo para auxilio»**.
-
-#### Parte B: Asignación de Auxilio con Botones Interactivos
-1. **Ir al módulo de Auxilio Mecánico**:
-   * Entra en el menú lateral a: **Auxilio mecánico** ([http://localhost:8080/panel/auxilio](http://localhost:8080/panel/auxilio)).
-2. **Seleccionar una incidencia**:
-   * Haz clic en una de las incidencias mecánicas abiertas (o en el botón *"Atender"* de la avería).
-3. **Observar la tarjeta inteligente**:
-   * Verás la tarjeta destacada:
-     > **MECÁNICO SUGERIDO POR CERCANÍA**  
-     > **Taller Móvil San Isidro** (A X.X km de la avería)
-4. **Confirmar con 1 clic**:
-   * Haz clic en el botón: **«Confirmar y enviar auxilio a Taller Móvil San Isidro»**.
-5. **Comprobar la llegada a Telegram**:
-   * Abre tu Telegram: te llegará en tiempo real la alerta urgente con:
-     * Placa del vehículo.
-     * Falla reportada.
-     * Nombre y teléfono del conductor.
-     * Enlace directo a Google Maps con la ubicación exacta de la avería.
-     * Dos botones interactivos en Telegram: **`[ ✅ VOY ]`** y **`[ ❌ NO PUEDO ]`**.
-6. **Interactuar**:
-   * Pulsa el botón **`✅ VOY`** desde Telegram para simular la confirmación del proveedor.
+#### Parte B: Asignación del auxilio
+1. Entra a **Auxilio mecánico** y abre una incidencia abierta.
+2. Verás la tarjeta **«Mecánico sugerido por cercanía»** (a X km de la avería).
+3. Pulsa **«Confirmar y enviar auxilio a …»**: se registra la ayuda y el bot le envía al mecánico la
+   placa, la falla, el conductor, el mapa de la avería y los botones `[ ✅ VOY ]` / `[ ❌ NO PUEDO ]`.
+4. Pulsa **`✅ VOY`**: si el conductor vinculó su Telegram (pestaña **Conductores en Telegram**),
+   recibe *"Tu auxilio va en camino"*. Solo cuenta la respuesta del mecánico asignado.
+5. Si pulsas **`❌ NO PUEDO`** (o pasan 10 minutos sin respuesta), el administrador recibe un correo y
+   la tarjeta muestra al **siguiente mecánico sugerido** para enviarle el auxilio con otro clic.
 
 ---
 
-## Bonus: Mostrar la Bitácora de Auditoría en el Panel
-Para cerrar tu presentación demostrando el cumplimiento de los requisitos de observabilidad:
-1. Regresa a **[http://localhost:8080/panel/notificaciones](http://localhost:8080/panel/notificaciones)**.
-2. Entra a la pestaña **«Bitácora de Envíos Externos»**:
-   * Muestra la tabla en vivo: se verán los mensajes recién enviados con su evento (`AUXILIO_MECANICO`, `VERIFICACION_NUMERO`, etc.), el canal (`telegram` / `correo`), el estado en verde `ENVIADO`, la fecha y los teléfonos protegidos con enmascaramiento por privacidad (`+51****77`).
-3. Muestra la pestaña **«Plantillas y Canales»**:
-   * Muestra cómo se pueden activar/desactivar avisos con interruptores y editar los textos sin necesidad de programar.
+## Flujo 3: El destinatario se suscribe desde el portal
+
+1. En el **Portal**, rastrea un pedido en curso con su código y verifica la identidad con el DNI.
+2. Aparece la tarjeta **«Reciba los avisos de su pedido por Telegram»**: pulsa **«Activar avisos en
+   Telegram»** y luego **«Iniciar»** en el bot. El enlace es personal, va firmado y vence en 24 horas.
+3. Desde ese momento llegan los avisos del pedido (programado, en camino, está cerca, entregado…).
+   Escribir `STOP` al bot da de baja el chat (Ley 29733); `AYUDA` devuelve el enlace al portal.
+
+---
+
+## Cierre: Bitácora y Plantillas
+1. En **Centro de Notificaciones → Bitácora de Envíos Externos** se ven los avisos con su evento, canal,
+   estado (`ENVIADO`, `PENDIENTE`, `FALLIDO`) y el destino enmascarado.
+2. En **Plantillas y Canales** se apaga un aviso o se edita su texto; el cambio se aplica a los
+   próximos avisos de ese evento.

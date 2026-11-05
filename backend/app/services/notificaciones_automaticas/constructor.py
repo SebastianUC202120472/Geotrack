@@ -15,6 +15,7 @@ _VARIABLE = re.compile(r"\{(\w+)\}")
 def registrar(evento: str):
     """Da de alta el constructor de un evento sin modificar este archivo."""
     def _wrap(fn):
+        """Guarda la funcion como constructor del evento. Recibe la funcion."""
         _CONSTRUCTORES[evento] = fn
         return fn
     return _wrap

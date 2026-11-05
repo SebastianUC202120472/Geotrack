@@ -23,6 +23,7 @@ VENTANA = timedelta(days=3)
 
 
 def _obtener_cursor(db: Session, fuente: str) -> int:
+    """Ultimo id leido de una fuente (crea el cursor en 0 si no existe). Recibe la fuente."""
     cursor = db.query(NotificacionCursor).filter(NotificacionCursor.fuente == fuente).first()
     if not cursor:
         cursor = NotificacionCursor(fuente=fuente, ultimo_id=0)
@@ -32,6 +33,7 @@ def _obtener_cursor(db: Session, fuente: str) -> int:
 
 
 def _actualizar_cursor(db: Session, fuente: str, nuevo_id: int) -> None:
+    """Guarda hasta que id se leyo una fuente. Recibe la fuente y el id."""
     cursor = db.query(NotificacionCursor).filter(NotificacionCursor.fuente == fuente).first()
     if cursor:
         cursor.ultimo_id = nuevo_id

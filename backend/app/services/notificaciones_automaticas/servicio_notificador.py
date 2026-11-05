@@ -15,6 +15,7 @@ log = logging.getLogger("geotrack.notificador")
 
 
 def ciclo_una_vez() -> None:
+    """Una vuelta del notificador: lee novedades, corre el planificador y despacha la cola. Sin input."""
     db = SessionLocal()
     try:
         # 1. Leer novedades de tablas núcleo
@@ -49,6 +50,7 @@ def ciclo_una_vez() -> None:
 
 
 def main() -> None:
+    """Bucle del contenedor notificador: una vuelta cada NOTIFICACIONES_INTERVALO_SEG. Sin input."""
     log.info("Iniciando servicio Notificador Independiente GeoTrack...")
     intervalo = getattr(settings, "NOTIFICACIONES_INTERVALO_SEG", 30)
     while True:

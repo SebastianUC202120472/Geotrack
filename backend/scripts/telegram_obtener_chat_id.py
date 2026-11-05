@@ -9,6 +9,7 @@ from urllib.request import urlopen
 
 
 def main() -> None:
+    """Muestra los chats que escribieron al bot para copiar su chat_id. Sin input."""
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     if not token:
         raise SystemExit("Falta TELEGRAM_BOT_TOKEN")

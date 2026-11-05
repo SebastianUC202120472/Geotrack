@@ -9,7 +9,7 @@ import Input from "../components/ui/Input";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
-import { listarIncidencias, mandarAyuda, obtenerPropuestaMecanico } from "../services/api";
+import { asignarMecanicoAuxilio, listarIncidencias, mandarAyuda, obtenerPropuestaMecanico } from "../services/api";
 
 // Fecha legible corta (es-PE). Entrada: fecha ISO. Salida: "dd/mm/aa hh:mm" o "—".
 const fmt = (f) => (f ? new Date(f).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—");
@@ -167,17 +167,17 @@ function DetalleIncidencia({ incidencia: i, onCerrar, onAyudaEnviada }) {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState("");
   const [propuesta, setPropuesta] = useState(null);
-  const [cargandoPropuesta, setCargandoPropuesta] = useState(false);
+  const necesitaMecanico = i?.estado === "ABIERTA" && !i?.puede_solucionar_solo;
 
+  // Pide el mecánico sugerido (el más cercano o, si ya se contactó a uno, el siguiente).
   useEffect(() => {
-    if (i?.id && i.estado === "ABIERTA" && !i.puede_solucionar_solo) {
-      setCargandoPropuesta(true);
-      obtenerPropuestaMecanico(i.id)
-        .then((p) => setPropuesta(p))
-        .catch(() => setPropuesta(null))
-        .finally(() => setCargandoPropuesta(false));
-    }
-  }, [i?.id, i?.estado]);
+    if (!i?.id || !necesitaMecanico) return undefined;
+    let activo = true;
+    obtenerPropuestaMecanico(i.id)
+      .then((p) => activo && setPropuesta(p))
+      .catch(() => activo && setPropuesta(null));
+    return () => { activo = false; };
+  }, [i?.id, necesitaMecanico]);
 
   const puedeSolo = i.puede_solucionar_solo;
   const yaEnviada = !!i.ayuda_enviada_en;
@@ -191,6 +191,18 @@ function DetalleIncidencia({ incidencia: i, onCerrar, onAyudaEnviada }) {
     setEnviando(true);
     setError("");
     mandarAyuda(i.id, { tipo: t, nota: (n || "").trim() || undefined })
+      .then(() => onAyudaEnviada())
+      .catch((e) => { setError(e.message); setEnviando(false); });
+  };
+
+  // Registra la ayuda en la incidencia y envía el auxilio por Telegram al mecánico sugerido. Sin parámetros.
+  const confirmarMecanico = () => {
+    const t = TIPOS_AYUDA.includes(propuesta.tipo_servicio) ? propuesta.tipo_servicio : TIPOS_AYUDA[0];
+    setTipo(t);
+    setEnviando(true);
+    setError("");
+    mandarAyuda(i.id, { tipo: t, nota: `Asignado a: ${propuesta.nombre} (${propuesta.telefono})` })
+      .then(() => asignarMecanicoAuxilio(i.id, propuesta.mecanico_id))
       .then(() => onAyudaEnviada())
       .catch((e) => { setError(e.message); setEnviando(false); });
   };
@@ -285,16 +297,12 @@ function DetalleIncidencia({ incidencia: i, onCerrar, onAyudaEnviada }) {
             <Button
               size="sm"
               block
-              onClick={() => {
-                const t = propuesta.tipo_servicio || "Mecánico";
-                const n = `Asignado a: ${propuesta.nombre} (${propuesta.telefono})`;
-                setTipo(t);
-                setNota(n);
-                enviarAyuda(t, n);
-              }}
-              disabled={enviando}
+              onClick={confirmarMecanico}
+              disabled={enviando || propuesta.ya_contactado}
             >
-              Confirmar y enviar auxilio a {propuesta.nombre}
+              {propuesta.ya_contactado
+                ? "Ya se contactó a todos los mecánicos verificados"
+                : `Confirmar y enviar auxilio a ${propuesta.nombre}`}
             </Button>
           </div>
         )}

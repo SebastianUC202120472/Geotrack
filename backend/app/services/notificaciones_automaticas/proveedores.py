@@ -39,6 +39,7 @@ def enviar(fila) -> None:
 
 
 def _enviar_correo(fila) -> None:
+    """Envia un aviso por SMTP (texto y HTML). Recibe la fila de la bitacora."""
     if not settings.MAIL_ENABLED:
         raise RuntimeError("El correo está desactivado: MAIL_ENABLED=false")
     if not settings.MAIL_ADDRESS or not settings.MAIL_PASSWORD:
@@ -67,6 +68,7 @@ def _enviar_correo(fila) -> None:
 
 
 def _enviar_telegram(fila) -> None:
+    """Envia un aviso por la API de Telegram (con botones VOY / NO PUEDO si es un auxilio). Recibe la fila."""
     if not settings.TELEGRAM_BOT_TOKEN:
         raise RuntimeError("Telegram no está configurado: falta TELEGRAM_BOT_TOKEN")
 
