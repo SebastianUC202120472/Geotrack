@@ -358,16 +358,6 @@ export default function RastreoPersonal({ avisar, demo }) {
               <span style={{ flex: "none", width: 16, height: 16, borderRadius: 99, background: "#22a35e", color: "#fff", display: "grid", placeItems: "center", fontSize: 10 }}>✓</span>
               <span>{t("Identidad verificada")}</span>
             </span>
-
-            <a
-              href={`https://t.me/GeoTrackAvisosBot?start=PD_${encodeURIComponent(encontrado)}`}
-              target="_blank"
-              rel="noreferrer"
-              style={{ display: "inline-flex", gap: 8, alignItems: "center", background: "#eaf4ff", color: "#1b5fb3", fontSize: 12.5, fontWeight: 700, padding: "8px 15px", borderRadius: 99, textDecoration: "none", border: "1px solid rgba(27,95,179,.2)" }}
-            >
-              <span>📲 Recibir avisos por Telegram</span>
-            </a>
-
             <button
               type="button"
               onClick={cerrarPedido}
@@ -745,7 +735,13 @@ function AvisosTelegram({ codigo, token }) {
       <p style={{ margin: "8px 0 14px", fontSize: 14, lineHeight: 1.6, color: "#4f6580" }}>
         {t("Le escribiremos cuando su pedido salga, esté cerca y se entregue. Puede darse de baja escribiendo STOP.")}
       </p>
-      <a href={url} target="_blank" rel="noopener noreferrer" className="ptl-btn-rastrear" style={{ display: "inline-block", textDecoration: "none" }}>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="ptl-btn-confirmar-reprog"
+        style={{ display: "inline-block", textDecoration: "none", background: "#2679d8", color: "#fff", fontFamily: "Inter, sans-serif", fontWeight: 600, fontSize: 14, padding: "13px 24px", borderRadius: 99, transition: "background .2s ease" }}
+      >
         {t("Activar avisos en Telegram")}
       </a>
     </div>

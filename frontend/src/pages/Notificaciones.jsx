@@ -420,7 +420,7 @@ export default function Notificaciones() {
               </select>
             </div>
 
-            <Button variante="secondary" onClick={cargarEnvios} cargando={cargandoEnvios}>
+            <Button variant="secondary" onClick={cargarEnvios} disabled={cargandoEnvios}>
               <RefreshCw size={16} /> Actualizar
             </Button>
           </div>
@@ -535,7 +535,7 @@ export default function Notificaciones() {
 
                     <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                       {!m.telefono_verificado ? (
-                        <Button variante="secondary" size="sm" onClick={() => handleEnviarOtp(m)}>
+                        <Button variant="secondary" size="sm" onClick={() => handleEnviarOtp(m)}>
                           <KeyRound size={14} className="mr-1" /> Verificar número
                         </Button>
                       ) : (
@@ -587,7 +587,7 @@ export default function Notificaciones() {
                       <Badge tono={vinculados.includes(c.usuario_id) ? "success" : "neutral"}>
                         {vinculados.includes(c.usuario_id) ? "Telegram vinculado" : "Sin vincular"}
                       </Badge>
-                      <Button variante="secondary" size="sm" onClick={() => copiarEnlaceConductor(c)}>
+                      <Button variant="secondary" size="sm" onClick={() => copiarEnlaceConductor(c)}>
                         <Copy size={14} className="mr-1" /> Copiar enlace
                       </Button>
                     </div>
@@ -644,7 +644,7 @@ export default function Notificaciones() {
                         </td>
                         <td className="px-5 py-3 text-right">
                           <Button
-                            variante="secondary"
+                            variant="secondary"
                             size="sm"
                             onClick={() => {
                               setModalEditPlan(p);
@@ -667,7 +667,8 @@ export default function Notificaciones() {
       )}
 
       {/* Modal Nuevo Mecánico */}
-      <Modal abierto={modalMec} onCerrar={() => setModalMec(false)} titulo="Registrar Proveedor de Auxilio">
+      <Modal open={modalMec} onClose={() => setModalMec(false)} className="max-h-[90vh] overflow-y-auto">
+        <h3 className="mb-4 text-lg font-semibold text-slate-900">Registrar Proveedor de Auxilio</h3>
         <form onSubmit={handleCrearMecanico} className="space-y-4">
           {errorMec && (
             <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg flex items-center gap-2">
@@ -676,16 +677,16 @@ export default function Notificaciones() {
           )}
 
           <Input
-            etiqueta="Nombre completo *"
-            valor={nuevoMec.nombre}
+            label="Nombre completo *"
+            value={nuevoMec.nombre}
             onChange={(e) => setNuevoMec({ ...nuevoMec, nombre: e.target.value })}
             placeholder="Ej. Carlos Mendoza"
-            requerido
+            required
           />
 
           <Input
-            etiqueta="Empresa o Taller"
-            valor={nuevoMec.empresa_taller}
+            label="Empresa o Taller"
+            value={nuevoMec.empresa_taller}
             onChange={(e) => setNuevoMec({ ...nuevoMec, empresa_taller: e.target.value })}
             placeholder="Ej. Taller Mecánico San Isidro"
           />
@@ -706,77 +707,84 @@ export default function Notificaciones() {
           </div>
 
           <Input
-            etiqueta="Teléfono WhatsApp (E.164) *"
-            valor={nuevoMec.telefono_whatsapp}
+            label="Teléfono WhatsApp (E.164) *"
+            value={nuevoMec.telefono_whatsapp}
             onChange={(e) => setNuevoMec({ ...nuevoMec, telefono_whatsapp: e.target.value })}
             placeholder="+51999888777"
-            requerido
+            required
           />
 
           <Input
-            etiqueta="Chat ID de Telegram (Opcional demo)"
-            valor={nuevoMec.telegram_chat_id}
+            label="Chat ID de Telegram (Opcional demo)"
+            value={nuevoMec.telegram_chat_id}
             onChange={(e) => setNuevoMec({ ...nuevoMec, telegram_chat_id: e.target.value })}
             placeholder="Ej. 123456789"
           />
 
           <Input
-            etiqueta="Dirección del Taller (para cálculo de cercanía)"
-            valor={nuevoMec.direccion}
+            label="Dirección del Taller (para cálculo de cercanía)"
+            value={nuevoMec.direccion}
             onChange={(e) => setNuevoMec({ ...nuevoMec, direccion: e.target.value })}
             placeholder="Ej. Av. República de Panamá 3500, San Isidro"
           />
 
           <Input
-            etiqueta="Distritos de Cobertura (separados por coma)"
-            valor={nuevoMec.distritos}
+            label="Distritos de Cobertura (separados por coma)"
+            value={nuevoMec.distritos}
             onChange={(e) => setNuevoMec({ ...nuevoMec, distritos: e.target.value })}
           />
 
           <div className="flex justify-end gap-2 pt-4">
-            <Button variante="secondary" onClick={() => setModalMec(false)}>Cancelar</Button>
-            <Button tipo="submit" cargando={guardandoMec}>Registrar Mecánico</Button>
+            <Button type="button" variant="secondary" onClick={() => setModalMec(false)}>Cancelar</Button>
+            <Button type="submit" disabled={guardandoMec}>Registrar Mecánico</Button>
           </div>
         </form>
       </Modal>
 
       {/* Modal Verificación OTP */}
-      <Modal abierto={!!modalOtp} onCerrar={() => setModalOtp(null)} titulo="Verificar Número de Teléfono">
+      <Modal open={!!modalOtp} onClose={() => setModalOtp(null)}>
+        <h3 className="mb-4 text-lg font-semibold text-slate-900">Verificar Número de Teléfono</h3>
         <div className="space-y-4">
           <p className="text-sm text-slate-600">
-            Hemos enviado un código OTP de 6 dígitos a <span className="font-semibold">{modalOtp?.telefono_whatsapp}</span>.
-            Ingrésalo a continuación para activar al mecánico en el algoritmo de asignación.
+            Se envió un código de 6 dígitos{" "}
+            {modalOtp?.telegram_chat_id ? (
+              <>por Telegram al chat <span className="font-semibold">{modalOtp.telegram_chat_id}</span></>
+            ) : (
+              <>por WhatsApp a <span className="font-semibold">{modalOtp?.telefono_whatsapp}</span></>
+            )}
+            . Ingrésalo para que el mecánico pueda recibir pedidos de auxilio.
           </p>
 
           <Input
-            etiqueta="Código de 6 dígitos"
-            valor={codigoOtp}
+            label="Código de 6 dígitos"
+            value={codigoOtp}
             onChange={(e) => setCodigoOtp(e.target.value)}
             placeholder="123456"
             autoFocus
           />
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button variante="secondary" onClick={() => setModalOtp(null)}>Cancelar</Button>
+            <Button variant="secondary" onClick={() => setModalOtp(null)}>Cancelar</Button>
             <Button onClick={handleVerificarOtp}>Confirmar Verificación</Button>
           </div>
         </div>
       </Modal>
 
       {/* Modal Editar Plantilla */}
-      <Modal abierto={!!modalEditPlan} onCerrar={() => setModalEditPlan(null)} titulo={`Editar Plantilla: ${modalEditPlan?.evento}`}>
+      <Modal open={!!modalEditPlan} onClose={() => setModalEditPlan(null)}>
+        <h3 className="mb-4 text-lg font-semibold text-slate-900">Editar plantilla: {modalEditPlan?.evento}</h3>
         <form onSubmit={handleGuardarPlantilla} className="space-y-4">
           {modalEditPlan?.canal === "correo" && (
             <Input
-              etiqueta="Asunto del Correo"
-              valor={planAsunto}
+              label="Asunto del Correo"
+              value={planAsunto}
               onChange={(e) => setPlanAsunto(e.target.value)}
               placeholder="Asunto..."
             />
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Cuerpo del Mensaje (Placeholders: &#123;codigo&#125;, &#123;nombre&#125;, &#123;enlace_portal&#125;) *</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Cuerpo del mensaje *</label>
             <textarea
               rows={4}
               value={planCuerpo}
@@ -784,6 +792,9 @@ export default function Notificaciones() {
               className="w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-800 outline-none focus:border-brand-500"
               required
             />
+            <p className="mt-1 text-xs text-slate-400">
+              Usa las mismas variables entre llaves que trae el texto original (por ejemplo, &#123;codigo&#125;).
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -798,8 +809,8 @@ export default function Notificaciones() {
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button variante="secondary" onClick={() => setModalEditPlan(null)}>Cancelar</Button>
-            <Button tipo="submit">Guardar Cambios</Button>
+            <Button type="button" variant="secondary" onClick={() => setModalEditPlan(null)}>Cancelar</Button>
+            <Button type="submit">Guardar Cambios</Button>
           </div>
         </form>
       </Modal>
