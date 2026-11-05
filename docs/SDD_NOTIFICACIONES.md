@@ -30,6 +30,12 @@
 | 1.1 | 2026-10-26 | Agrupa requisitos, separa catálogo de eventos, define trazabilidad con `notificaciones` y aclara transacciones, idempotencia y estados. |
 | 1.3 | 2026-10-27 | Sustituye SendGrid por el SMTP configurado en la aplicación; conserva correo HTML + texto plano y Telegram. WhatsApp queda para una fase posterior. |
 | 1.4 | 2026-11-03 | Corrige errores: contacto inexistente, trabajador en hilo aparte, claves con ocurrencia, registro de errores, SMTP 465 y proximidad apagada. Alinea longitudes y pruebas con el código. |
+| 1.5 | 2026-11-04 | Integración en `develop`: el servicio `notificador` lee las novedades de las tablas del núcleo (sin ganchos en sus servicios); el administrador confirma el mecánico del auxilio; webhooks verificados (secreto de Telegram, firma de WhatsApp); vinculación con enlace firmado de 24 h; plantillas editables y bajas (STOP) aplicadas; horario silencioso y resumen diario. |
+
+> **Arquitectura vigente (v1.5).** El núcleo no llama al módulo. El servicio `notificador`
+> (contenedor aparte, `servicio_notificador.py`) cada `NOTIFICACIONES_INTERVALO_SEG` lee las
+> novedades de las tablas (`lector.py`), corre el planificador y despacha la cola. La columna
+> "Origen" del catálogo indica el cambio del núcleo que produce el aviso, no una llamada directa.
 
 ---
 
@@ -183,10 +189,10 @@ para mantener trazabilidad sin fragmentar la capacidad funcional.
 | EVT-08 | `PAQUETES_FALTANTES` | `almacen_service.confirmar_ingreso` | Cliente corporativo + administrador | Correo | normal | `PAQUETES_FALTANTES:{codigo}:cliente` / `:admin` | Implementado |
 | EVT-09 | `RETORNOS_ALMACEN` | `ruta_service.finalizar_ruta` | Almacén | Correo | normal | `RETORNOS_ALMACEN:{codigo_ruta}` | Implementado |
 | EVT-10 | `AUXILIO_MECANICO` | `incidencia_service.reportar` | Administrador | Telegram + correo | urgente | `AUXILIO_MECANICO:{codigo}:telegram` / `:correo` | Implementado (Telegram si hay `chat_id` configurado) |
-| EVT-11 | `AYUDA_ASIGNADA` | `incidencia_service.mandar_ayuda` | Mecánico | Telegram | urgente | `AYUDA_ASIGNADA:{codigo}` | Parcial (falta directorio de mecánicos) |
-| EVT-12 | `AYUDA_EN_CAMINO` | Webhook de respuesta "VOY" (no existe) | Conductor | Telegram | normal | `AYUDA_EN_CAMINO:{codigo}` | Pendiente |
+| EVT-11 | `AYUDA_ASIGNADA` | El administrador confirma el mecánico sugerido (`administracion.asignar_mecanico`) | Mecánico | Telegram | urgente | `AYUDA_ASIGNADA:{codigo}:{mecanico_id}` | Implementado |
+| EVT-12 | `AYUDA_EN_CAMINO` | Respuesta "VOY" del mecánico asignado (`webhooks`) | Conductor | Telegram | normal | `AYUDA_EN_CAMINO:{codigo}` | Implementado |
 | EVT-13 | `RECLAMO_NUEVO` | `publico_forms_service.registrar_reclamo` | Administrador | Correo | normal | `RECLAMO_NUEVO:{codigo}` | Implementado |
-| EVT-14 | `RESUMEN_DEL_DIA` | Planificador diario 20:00 `America/Lima` (no existe) | Cliente corporativo | Correo | normal | `RESUMEN_DEL_DIA:{cliente_id}:{fecha}` | Pendiente |
+| EVT-14 | `RESUMEN_DEL_DIA` | Planificador diario 20:00 `America/Lima` (`planificador.ejecutar_resumen_diario`) | Cliente corporativo | Correo | normal | `RESUMEN_DEL_DIA:{cliente_id}:{fecha}` | Implementado |
 
 **Regla de contacto:** si el destinatario no tiene un contacto válido o no tiene consentimiento
 para el canal, no se crea el envío correspondiente. El evento del negocio sigue su curso normal.
@@ -400,8 +406,8 @@ y `worker_id` junto con el bloqueo de fila.
 | EVT-08 | Un ingreso con paquetes faltantes | Se confirma el ingreso | Se crean los correos a cliente y administrador con la lista de faltantes. |
 | EVT-09 | Una ruta con pedidos fallidos | El conductor finaliza la ruta | Se crea el correo al almacén con los códigos de retorno. |
 | EVT-10 | Un conductor con una incidencia | Reporta la avería | Se crea el correo urgente al administrador; Telegram se crea si hay `chat_id` configurado. |
-| EVT-11 | Una incidencia abierta | El administrador asigna ayuda y existe teléfono del mecánico | Se crea `AYUDA_ASIGNADA` al mecánico. |
-| EVT-12 | Un auxilio asignado | El mecánico responde "VOY" | Se crea `AYUDA_EN_CAMINO` al conductor. |
+| EVT-11 | Una incidencia abierta y un mecánico activo, verificado y con Telegram | El administrador confirma al mecánico sugerido | Se crea `AYUDA_ASIGNADA` a ese mecánico (uno distinto en cada intento). |
+| EVT-12 | Un auxilio asignado | El mecánico asignado responde "VOY" (un chat ajeno se ignora) | Se crea `AYUDA_EN_CAMINO` al conductor. |
 | EVT-13 | El formulario público de reclamos | Se registra un reclamo | Se crea el correo `RECLAMO_NUEVO` al administrador. |
 | EVT-14 | Un cliente con movimientos del día | Son las 20:00 `America/Lima` | Se crea el correo de resumen del día. |
 | RF-01 | Un evento del catálogo | El servicio confirma el cambio | Se crean los envíos definidos para cada destinatario y canal. |
@@ -428,14 +434,14 @@ y `worker_id` junto con el bloqueo de fila.
 | EVT-08 | `constructor._paquetes_faltantes` · `almacen_service.confirmar_ingreso` | Sin prueba específica |
 | EVT-09 | `constructor._retornos_almacen` · `ruta_service.finalizar_ruta` | Sin prueba específica |
 | EVT-10 | `constructor._auxilio_mecanico` · `incidencia_service.reportar` | `test_auxilio_mecanico_crea_telegram_y_correo` |
-| EVT-11 | `constructor._ayuda_asignada` · `incidencia_service.mandar_ayuda` | Sin prueba específica |
-| EVT-12 | `constructor._ayuda_en_camino` | Sin prueba específica |
+| EVT-11 | `constructor._ayuda_asignada` · `administracion.asignar_mecanico` | Sin prueba específica |
+| EVT-12 | `constructor._ayuda_en_camino` · `webhooks.procesar_telegram` / `procesar_whatsapp` | `test_boton_voy_de_otro_chat_se_ignora`, `test_webhooks_sin_firma_responden_403` |
 | EVT-13 | `constructor._reclamo_nuevo` · `publico_forms_service.registrar_reclamo` | Sin prueba específica |
 | EVT-14 | `constructor._resumen_del_dia` | Sin prueba específica |
 | RF-01 | `operador.registrar` · constructores del catálogo | Sin prueba específica |
 | RF-02 | `notificaciones` + `notificaciones_envios.notificacion_id` | Sin prueba específica |
 | RF-03 | Índice único + `crear_si_no_existe` + `constructor.clave_pedido` | `test_clave_incluye_la_ocurrencia` |
-| RF-04 | `trabajador.ejecutar` · `operador.procesar` | Sin prueba específica |
+| RF-04 | `servicio_notificador.ciclo_una_vez` · `operador.procesar` | Sin prueba específica |
 | RF-05 | `constructor._wapp_pedido` / `_correo` | `test_pedido_sin_telegram_no_crea_mensaje`, `test_pedido_sin_contacto_en_bd_no_lanza` |
 | RF-06 | `operador.registrar` + hooks de servicios | `test_registrar_no_lanza_y_deshace`, `test_proximidad_apagada_no_consulta` |
 | RF-07 | Repositorio de envíos, reintentos y bitácora | Sin prueba específica |
@@ -455,19 +461,20 @@ evento está conectado al flujo interno; no significa que ya se haya entregado u
 
 | Estado | Cantidad | Detalle |
 | :-- | :-- | :-- |
-| Implementado | 11 eventos | EVT-01 a EVT-10 y EVT-13 tienen constructor y hook conectado; los requisitos de persistencia, concurrencia y resiliencia aún requieren pruebas de integración. |
-| Parcial | 1 evento | EVT-11: el constructor existe, pero sin directorio de mecánicos no hay destinatario y no se genera el envío. |
-| Pendiente | 2 eventos | EVT-12 (webhook "VOY") y EVT-14 (planificador de las 20:00). |
+| Implementado | 14 eventos | El `notificador` detecta EVT-01 a EVT-10 y EVT-13 en las tablas y el planificador genera EVT-14; EVT-11 lo dispara el administrador y EVT-12 la respuesta "VOY". Persistencia, concurrencia y resiliencia aún requieren pruebas de integración. |
 
 **Notas de implementación**
 
 - El trabajador invoca SMTP o Telegram y marca `ENVIADO` solo cuando el proveedor acepta la
   solicitud. Los errores temporales se reprograman hasta tres intentos con backoff de 1, 5 y
   15 minutos; los errores permanentes quedan en `FALLIDO`.
-- `programada_para` y `prioridad` están modelados, pero el horario silencioso no se aplica.
+- El horario silencioso (21:00 a 08:00, `America/Lima`) se aplica al despachar: en esa franja solo salen los urgentes.
 - Los avisos de pedido usan la clave `EVENTO:{codigo}:{ocurrencia}`: `R{ruta_id}` para programado, en camino, cerca, entregado y no entregado, y `H{historial_id}` para reprogramado. Así un pedido reasignado vuelve a recibir sus avisos y un reintento técnico no duplica.
 - `operador.registrar` nunca lanza: ante un error deshace solo los avisos y lo deja en el registro `geotrack.notificaciones` (consola y `geotrack.log`). Los hooks también registran sus fallos.
-- El trabajador ejecuta las consultas y los envíos en un hilo aparte (`asyncio.to_thread`) para no bloquear la API ni Socket.IO, y confirma cada fila por separado.
+- El despacho corre en el servicio `notificador`, fuera del proceso de la API (no bloquea la API ni Socket.IO), y confirma cada fila por separado.
+- Los webhooks solo se procesan con el secreto de Telegram (`X-Telegram-Bot-Api-Secret-Token`) o la firma de WhatsApp (`X-Hub-Signature-256`); sin ellos responden 403.
+- El portal entrega el enlace de Telegram solo para un pedido verificado con su DNI: un token firmado de 24 h (`/start P<id>_<vence>_<firma>`).
+- Las plantillas editadas reemplazan el texto de fábrica, una plantilla apagada omite el aviso y quien escribió STOP no recibe más mensajes.
 - El SMTP usa SSL implícito en el puerto 465 y STARTTLS en el resto, igual que `correo_service`.
 - Con el módulo apagado, la proximidad no consulta la BD; además omite los pedidos que ya tienen su aviso.
 - La tabla se crea por `create_all`; no se agregó migración de Alembic.
@@ -488,7 +495,7 @@ evento está conectado al flujo interno; no significa que ya se haya entregado u
 | Telegram requiere que cada usuario inicie el bot y conserve su `chat_id`. | Medio | Flujo de vinculación con `/start` y almacenamiento seguro del `chat_id`. |
 | El proveedor SMTP tiene límites diarios o puede clasificar mensajes como spam. | Medio | Limitar la demo, usar una cuenta dedicada y migrar a un proveedor transaccional antes de producción. |
 | Datos de contacto incompletos. | Medio | Regla RF-05; reporte de pedidos sin teléfono y clientes sin correo. |
-| Carga de `evaluar_proximidad` en cada actualización de ubicación. | Medio | *Throttling* por tiempo o distancia; mover la evaluación al trabajador. |
+| Carga de `evaluar_proximidad` en cada actualización de ubicación. | Bajo | Mitigado: la proximidad se evalúa en el `notificador` (`barrer_proximidad_rutas_activas`), no al recibir cada ubicación. |
 | Múltiples workers o reinicios. | Bajo | `SKIP LOCKED` y clave única ya lo mitigan; monitorear duplicados. |
 | Sin observabilidad ni bitácora. | Medio | Añadir logs/métricas, consulta de envíos y pantalla de avisos (RF-07). |
 | Horario silencioso no implementado. | Medio | Implementar `programada_para` antes de producción. |
@@ -502,8 +509,8 @@ evento está conectado al flujo interno; no significa que ya se haya entregado u
 | Fase | Contenido | Requisitos |
 | :-- | :-- | :-- |
 | **1 (demo)** | Modelo de relación, outbox, trabajador, SMTP y Telegram reales para demo, 11 eventos conectados y pruebas de persistencia/concurrencia. | RF-01 a RF-06, EVT-01 a EVT-10, EVT-13 |
-| **2** | Directorio de mecánicos, webhook "VOY" y aviso al conductor. | EVT-11, EVT-12 |
-| **3** | Planificador del resumen diario y horario silencioso. | EVT-14, RNF-06 |
+| **2** | Directorio de mecánicos, webhook "VOY" y aviso al conductor (hecho). | EVT-11, EVT-12 |
+| **3** | Planificador del resumen diario y horario silencioso (hecho). | EVT-14, RNF-06 |
 | **4** | WhatsApp Cloud API y plantillas aprobadas. | RF-04, RNF-10, RNF-11 |
 | **5** | Bitácora, configuración de plantillas, privacidad y observabilidad completa. | RF-07, RNF-08, RNF-10 |
 
@@ -575,15 +582,15 @@ Las variables se escriben entre `{ }`. El texto es el que construye
 
 #### A.11 `AYUDA_ASIGNADA`
 - **Canal:** Telegram · **Destinatario:** mecánico · **Prioridad:** urgente
-- **Cuerpo:** `Te asignaron un auxilio {codigo}: vehiculo {placa}, falla: {descripcion}. Responde VOY para aceptar.`
-- **Clave:** `AYUDA_ASIGNADA:{codigo}`
-- **Nota:** requiere el `telegram_chat_id` del mecánico (directorio pendiente).
+- **Cuerpo:** `Te asignaron un auxilio {codigo}: vehículo {placa}, falla: {descripcion}. Conductor: {conductor}. Responde VOY para aceptar o NO PUEDO.`
+- **Clave:** `AYUDA_ASIGNADA:{codigo}:{mecanico_id}`
+- **Nota:** lo envía el administrador al confirmar al mecánico sugerido; requiere su `telegram_chat_id` verificado.
 
 #### A.12 `AYUDA_EN_CAMINO`
 - **Canal:** Telegram · **Destinatario:** conductor · **Prioridad:** normal
-- **Cuerpo:** `Tu auxilio {codigo} va en camino: {mecanico} ({taller}), telefono {telefono_mecanico}.`
+- **Cuerpo:** `Tu auxilio {codigo} va en camino con {mecanico} ({telefono}).`
 - **Clave:** `AYUDA_EN_CAMINO:{codigo}`
-- **Nota:** se disparará desde el webhook de respuesta "VOY" (pendiente).
+- **Nota:** lo dispara la respuesta "VOY" del mecánico asignado (webhook verificado).
 
 #### A.13 `RECLAMO_NUEVO`
 - **Canal:** correo · **Destinatario:** administrador · **Prioridad:** normal
@@ -651,11 +658,15 @@ CREATE INDEX IF NOT EXISTS ix_notificaciones_envios_notificacion_id
 | Variable | Tipo | Valor por defecto | Descripción |
 | :-- | :-- | :-- | :-- |
 | `NOTIFICACIONES_HABILITADAS` | bool | `false` | Enciende o apaga todo el módulo. |
-| `NOTIFICACIONES_INTERVALO_SEG` | int | `30` | Cada cuántos segundos el trabajador busca pendientes. |
+| `NOTIFICACIONES_INTERVALO_SEG` | int | `30` | Cada cuántos segundos el servicio `notificador` busca novedades y pendientes. |
 | `NOTIFICACIONES_ADMIN_TELEGRAM_CHAT_ID` | str | `""` | `chat_id` de Telegram del administrador para avisos urgentes de la demo. |
 | `NOTIFICACIONES_ALMACEN_EMAIL` | str | `""` | Correo del almacén; si está vacío usa `ADMIN_EMAIL`. |
 | `NOTIFICACIONES_URL_PORTAL` | str | `https://sava.pe/portal` | Enlace de seguimiento en los mensajes al destinatario. |
 | `TELEGRAM_BOT_TOKEN` | str | `""` | Token del bot creado con BotFather; nunca se versiona. |
+| `TELEGRAM_BOT_USERNAME` | str | `""` | Usuario del bot (sin @) para el enlace `t.me` del portal; vacío = el portal no ofrece Telegram. |
+| `TELEGRAM_WEBHOOK_SECRET` | str | `""` | Secreto que Telegram reenvía en cada webhook; vacío = se rechazan. |
+| `WHATSAPP_VERIFY_TOKEN` | str | `""` | Token del handshake de Meta; vacío = se rechaza. |
+| `WHATSAPP_APP_SECRET` | str | `""` | Clave para validar la firma `X-Hub-Signature-256`; vacía = se rechazan. |
 
 Variables existentes que el módulo reutiliza: `MAIL_ENABLED`, `MAIL_ADDRESS`, `MAIL_PASSWORD`,
 `SMTP_HOST`, `SMTP_PORT`, `MAIL_FROM_NAME`, `ADMIN_EMAIL`, `ZONA_HORARIA` y `WEB_CONCURRENCY`.

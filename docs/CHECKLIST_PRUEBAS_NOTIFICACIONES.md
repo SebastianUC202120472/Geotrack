@@ -18,18 +18,16 @@ Marca cada evento después de ejecutar el flujo, comprobar que llegó el mensaje
 | [ ] | `AUXILIO_MECANICO` | Reportar una avería mecánica desde la app. | Correo y Telegram / administrador | Llegan avisos por los canales configurados. |
 | [ ] | `RECLAMO_NUEVO` | Enviar un reclamo o queja desde el landing. | Correo / administrador | Llega aviso con código y detalle. |
 
-## Eventos parciales
+Los avisos al destinatario por Telegram requieren que antes active los avisos desde el portal
+(pedido verificado con su DNI → "Activar avisos en Telegram").
+
+## Auxilio mecánico y resumen diario
 
 | Hecho | Evento | Cómo dispararlo | Requisito adicional | Resultado esperado |
 | :--: | :-- | :-- | :-- | :-- |
-| [ ] | `AYUDA_ASIGNADA` | Mandar ayuda desde una incidencia abierta. | Mecánico con contacto Telegram registrado. | Llega aviso al mecánico. |
-
-## Eventos pendientes
-
-| Hecho | Evento | Flujo esperado | Estado |
-| :--: | :-- | :-- | :-- |
-| [ ] | `AYUDA_EN_CAMINO` | El mecánico responde `VOY` desde Telegram. | Webhook no implementado. |
-| [ ] | `RESUMEN_DEL_DIA` | Ejecución automática del resumen diario a las 20:00. | Planificador no implementado. |
+| [ ] | `AYUDA_ASIGNADA` | En Auxilio mecánico, abrir la incidencia y pulsar "Confirmar y enviar auxilio a …". | Mecánico activo, verificado y con chat de Telegram. | Llega aviso al mecánico sugerido. |
+| [ ] | `AYUDA_EN_CAMINO` | El mecánico asignado responde `VOY` desde Telegram. | Webhook registrado con `TELEGRAM_WEBHOOK_SECRET`. | Llega aviso al conductor. |
+| [ ] | `RESUMEN_DEL_DIA` | Esperar a las 20:00 (`America/Lima`) con el `notificador` encendido. | Cliente corporativo con correo. | Llega el resumen del día. |
 
 ## Otros correos automáticos existentes
 
