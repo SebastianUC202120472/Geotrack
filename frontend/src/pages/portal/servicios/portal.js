@@ -31,6 +31,12 @@ export const detallePedido = (codigo, token) =>
     headers: { Authorization: `Bearer ${token}` },
   });
 
+// Enlace firmado de Telegram para el pedido verificado. Recibe el código y el token de persona.
+export const obtenerEnlaceNotificaciones = (codigo, token) =>
+  pedir(`${BASE}/pedidos/${encodeURIComponent(codigo)}/enlace-notificaciones`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
 export const reprogramar = (codigo, franja, token) =>
   pedir(`${BASE}/pedidos/${encodeURIComponent(codigo)}/reprogramar`, {
     method: "POST",

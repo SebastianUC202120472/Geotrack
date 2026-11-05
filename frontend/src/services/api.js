@@ -36,7 +36,9 @@ async function request(ruta, { method = "GET", body, headers = {}, auth = true }
 
   if (!respuesta.ok) {
     const detalle = datos?.detail || datos?.message || "Ocurrió un error en el servidor";
-    throw new Error(typeof detalle === "string" ? detalle : "Solicitud inválida");
+    const error = new Error(typeof detalle === "string" ? detalle : "Solicitud inválida");
+    error.status = respuesta.status;
+    throw error;
   }
 
   return datos;
@@ -454,6 +456,67 @@ export const obtenerNotificaciones = (limite) =>
 export const marcarNotificacionesVistas = () =>
   request("/notificaciones/marcar-vistas", { method: "POST" });
 
+// Centro de notificaciones automaticas (Idea 5)
+// Bitacora de envios externos. Recibe filtros opcionales { estado, canal, limite }.
+export const listarEnviosNotificaciones = (params = {}) => {
+  const limpios = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== "" && v != null));
+  const q = new URLSearchParams(limpios).toString();
+  return request(`/notificaciones/envios${q ? `?${q}` : ""}`);
+};
+
+// Vuelve a poner en cola un envio fallido. Recibe el id.
+export const reintentarEnvio = (id) =>
+  request(`/notificaciones/envios/${id}/reintentar`, { method: "POST" });
+
+// Directorio de mecanicos. Sin parametros.
+export const listarMecanicos = () =>
+  request("/notificaciones/mecanicos");
+
+// Alta de un mecanico. Recibe sus datos.
+export const crearMecanico = (datos) =>
+  request("/notificaciones/mecanicos", { method: "POST", body: datos });
+
+// Edita un mecanico. Recibe el id y los datos.
+export const actualizarMecanico = (id, datos) =>
+  request(`/notificaciones/mecanicos/${id}`, { method: "PUT", body: datos });
+
+// Quita un mecanico del directorio. Recibe el id.
+export const eliminarMecanico = (id) =>
+  request(`/notificaciones/mecanicos/${id}`, { method: "DELETE" });
+
+// Envia al mecanico su codigo de verificacion. Recibe el id.
+export const enviarCodigoMecanico = (id) =>
+  request(`/notificaciones/mecanicos/${id}/enviar-codigo`, { method: "POST" });
+
+// Verifica el numero del mecanico. Recibe el id y el codigo.
+export const verificarCodigoMecanico = (id, codigo) =>
+  request(`/notificaciones/mecanicos/${id}/verificar`, { method: "POST", body: { codigo } });
+
+// Mecanico verificado mas cercano a la averia (o el siguiente). Recibe la incidencia.
+export const obtenerPropuestaMecanico = (incidenciaId) =>
+  request(`/notificaciones/mecanicos/propuesta/${incidenciaId}`);
+
+// Envia el auxilio al mecanico confirmado por el administrador. Recibe la incidencia y el mecanico.
+export const asignarMecanicoAuxilio = (incidenciaId, mecanicoId) =>
+  request(`/notificaciones/mecanicos/asignar/${incidenciaId}`, { method: "POST", body: { mecanico_id: mecanicoId } });
+
+// Plantillas de los avisos. Sin parametros.
+export const listarPlantillas = () =>
+  request("/notificaciones/plantillas");
+
+// Cambia el texto o enciende/apaga una plantilla. Recibe el id y { cuerpo, asunto, activo }.
+export const actualizarPlantilla = (id, datos) =>
+  request(`/notificaciones/plantillas/${id}`, { method: "PUT", body: datos });
+
+// Ids de conductores con Telegram vinculado. Sin parametros.
+export const listarConductoresTelegram = () =>
+  request("/notificaciones/telegram/conductores");
+
+// Enlace firmado para que un conductor vincule su Telegram. Recibe el id del conductor.
+export const obtenerEnlaceTelegramConductor = (conductorId) =>
+  request(`/notificaciones/telegram/conductores/${conductorId}/enlace`);
+
+
 // Descarga un adjunto de correo (autenticado). Recibe id y nombre.
 export async function descargarAdjunto(id, nombre) {
   const token = getToken();
@@ -531,3 +594,88 @@ export const moverParadaRuta = (rutaId, pedidoId, rutaDestinoId) =>
     body: { ruta_destino_id: rutaDestinoId },
   });
 
+// ===========================================================================
+// Modulo de catalogo y capacidad (Idea 3)
+// Estas rutas viven bajo /api/modulo-capacidad y se apagan con la bandera
+// MODULO_CAPACIDAD_ENABLED del backend.
+// ===========================================================================
+
+const RUTA_CAPACIDAD = "/modulo-capacidad";
+
+// Lista el catalogo de vehiculos. Recibe filtros opcionales { busqueda, marca, tipo, soloVerificados }.
+export const listarCatalogoCapacidad = (filtros = {}) => {
+  const query = new URLSearchParams();
+  if (filtros.busqueda) query.append("busqueda", filtros.busqueda);
+  if (filtros.marca) query.append("marca", filtros.marca);
+  if (filtros.tipo) query.append("tipo", filtros.tipo);
+  if (filtros.soloVerificados) query.append("solo_verificados", "true");
+  const cadena = query.toString();
+  return request(`${RUTA_CAPACIDAD}/catalogo${cadena ? `?${cadena}` : ""}`);
+};
+
+// Crea un modelo propio del catalogo. Recibe la ficha completa.
+export const crearModeloCapacidad = (datos) =>
+  request(`${RUTA_CAPACIDAD}/catalogo`, { method: "POST", body: datos });
+
+// Edita un modelo (si es del catalogo base, el backend guarda una copia). Recibe id y cambios.
+export const actualizarModeloCapacidad = (modeloId, datos) =>
+  request(`${RUTA_CAPACIDAD}/catalogo/${encodeURIComponent(modeloId)}`, {
+    method: "PATCH",
+    body: datos,
+  });
+
+// Borra un modelo agregado desde el panel. Recibe el id.
+export const eliminarModeloCapacidad = (modeloId) =>
+  request(`${RUTA_CAPACIDAD}/catalogo/${encodeURIComponent(modeloId)}`, { method: "DELETE" });
+
+// Lista la flota con su modelo vinculado (si tiene). Sin parametros.
+export const listarFlotaCapacidad = () => request(`${RUTA_CAPACIDAD}/flota`);
+
+// Historial de placas vinculadas a modelos. Sin parametros.
+export const listarVinculacionesCapacidad = () => request(`${RUTA_CAPACIDAD}/vinculaciones`);
+
+// Vincula una placa de la flota con un modelo. Recibe { placa, modelo_id }.
+export const vincularPlacaCapacidad = (datos) =>
+  request(`${RUTA_CAPACIDAD}/vinculaciones`, { method: "POST", body: datos });
+
+// Quita la vinculacion de una placa. Recibe el id de la vinculacion.
+export const desvincularPlacaCapacidad = (vinculacionId) =>
+  request(`${RUTA_CAPACIDAD}/vinculaciones/${vinculacionId}`, { method: "DELETE" });
+
+// Lee el factor de aprovechamiento y los topes de planificacion. Sin parametros.
+export const obtenerConfiguracionCapacidad = () => request(`${RUTA_CAPACIDAD}/configuracion`);
+
+// Actualiza los parametros de planificacion. Recibe solo los campos a cambiar.
+export const actualizarConfiguracionCapacidad = (datos) =>
+  request(`${RUTA_CAPACIDAD}/configuracion`, { method: "PUT", body: datos });
+
+// Calcula capacidad y viajes para un modelo o una placa. Recibe el cuerpo del calculo.
+export const calcularCapacidad = (datos) =>
+  request(`${RUTA_CAPACIDAD}/calcular`, { method: "POST", body: datos });
+
+// Planifica el dia con los pedidos reales (o demo). Recibe filtros y ajustes.
+export const obtenerPlanificacionCapacidad = (filtros = {}) => {
+  const query = new URLSearchParams();
+  const claves = [
+    "estado",
+    "distrito",
+    "fecha",
+    "limite",
+    "demo_pedidos",
+    "demo_vehiculos",
+    "factor_aprovechamiento",
+    "max_paradas_por_viaje",
+    "max_viajes_por_dia",
+  ];
+  for (const clave of claves) {
+    if (filtros[clave] !== undefined && filtros[clave] !== null && filtros[clave] !== "") {
+      query.append(clave, filtros[clave]);
+    }
+  }
+  const cadena = query.toString();
+  return request(`${RUTA_CAPACIDAD}/planificacion${cadena ? `?${cadena}` : ""}`);
+};
+
+// Ultimos cambios del modulo. Recibe el limite de filas (por defecto 100).
+export const listarAuditoriaCapacidad = (limite = 100) =>
+  request(`${RUTA_CAPACIDAD}/auditoria?limite=${limite}`);

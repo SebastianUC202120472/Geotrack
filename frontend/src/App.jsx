@@ -28,11 +28,14 @@ const AuxilioMecanico = lazy(() => import("./pages/AuxilioMecanico"));
 const Notificaciones = lazy(() => import("./pages/Notificaciones"));
 const LibroReclamaciones = lazy(() => import("./pages/LibroReclamaciones"));
 const ContactosComerciales = lazy(() => import("./pages/ContactosComerciales"));
+const ModuloCapacidadPage = lazy(() => import("./pages/ModuloCapacidadPage"));
 
 // Landing público (carga diferida: no forma parte del bundle del panel admin).
 const Landing = lazy(() => import("./pages/landing/Landing"));
 // Portal de clientes (carga diferida, igual que el Landing).
 const Portal = lazy(() => import("./pages/portal/Portal"));
+// Vista completa del asistente con IA (modulo aparte, carga diferida).
+const PaginaAsistente = lazy(() => import("./modulos/asistente/PaginaAsistente"));
 
 // Rutas: "/" es el landing público de SAVA; "/portal" es el portal de clientes;
 // /login redirige al login del panel; el panel completo vive bajo /panel;
@@ -95,6 +98,15 @@ export default function App() {
         <Route path="almacen/observados" element={<PedidosObservados />} />
         <Route path="almacen/recojos" element={<ArmarRutaRecojo />} />
         <Route path="almacen/mapa" element={<MapaRecojos />} />
+        <Route path="capacidad" element={<ModuloCapacidadPage />} />
+        <Route
+          path="asistente"
+          element={
+            <Suspense fallback={null}>
+              <PaginaAsistente />
+            </Suspense>
+          }
+        />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

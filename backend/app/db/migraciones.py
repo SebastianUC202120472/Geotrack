@@ -56,6 +56,22 @@ SENTENCIAS = [
     "ALTER TABLE rutas ADD COLUMN IF NOT EXISTS bateria_fin_en TIMESTAMP",
     # Linea base del ahorro de rutas: plan empirico del conductor (C20-02).
     "ALTER TABLE rutas ADD COLUMN IF NOT EXISTS km_linea_base DOUBLE PRECISION",
+    # Tamaños estándar S, M y L del módulo de capacidad (Idea 3), para tablas creadas antes.
+    "ALTER TABLE capacidad_configuracion ADD COLUMN IF NOT EXISTS s_peso_kg DOUBLE PRECISION NOT NULL DEFAULT 5.0",
+    "ALTER TABLE capacidad_configuracion ADD COLUMN IF NOT EXISTS s_volumen_m3 DOUBLE PRECISION NOT NULL DEFAULT 0.03",
+    "ALTER TABLE capacidad_configuracion ADD COLUMN IF NOT EXISTS m_peso_kg DOUBLE PRECISION NOT NULL DEFAULT 15.0",
+    "ALTER TABLE capacidad_configuracion ADD COLUMN IF NOT EXISTS m_volumen_m3 DOUBLE PRECISION NOT NULL DEFAULT 0.09",
+    "ALTER TABLE capacidad_configuracion ADD COLUMN IF NOT EXISTS l_peso_kg DOUBLE PRECISION NOT NULL DEFAULT 40.0",
+    "ALTER TABLE capacidad_configuracion ADD COLUMN IF NOT EXISTS l_volumen_m3 DOUBLE PRECISION NOT NULL DEFAULT 0.25",
+    # Centro de notificaciones: trazabilidad, concesion temporal y reintentos.
+    "ALTER TABLE notificaciones_envios ADD COLUMN IF NOT EXISTS notificacion_id INTEGER REFERENCES notificaciones(id)",
+    "ALTER TABLE notificaciones_envios ADD COLUMN IF NOT EXISTS bloqueado_hasta TIMESTAMP",
+    "ALTER TABLE notificaciones_envios ADD COLUMN IF NOT EXISTS worker_id VARCHAR(80)",
+    "ALTER TABLE notificaciones_envios ADD COLUMN IF NOT EXISTS proximo_intento_en TIMESTAMP",
+    "CREATE INDEX IF NOT EXISTS ix_notificaciones_envios_notificacion_id ON notificaciones_envios (notificacion_id)",
+    # Directorio de mecanicos y auxilio
+    "ALTER TABLE notificaciones_mecanicos ADD COLUMN IF NOT EXISTS codigo_verificacion VARCHAR(10)",
+    "ALTER TABLE notificaciones_mecanicos ADD COLUMN IF NOT EXISTS codigo_expira_en TIMESTAMP",
 ]
 
 

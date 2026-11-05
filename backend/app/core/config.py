@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     # directa, sin fotos). SOLO para presentaciones: se salta la evidencia del recojo.
     ALMACEN_INGRESO_DIRECTO: bool = False
 
+    # Modulo de catalogo y capacidad (Idea 3). Se puede apagar por entorno para
+    # retirarlo del panel sin tocar el resto del sistema.
+    MODULO_CAPACIDAD_ENABLED: bool = True
+
     DATABASE_URL: str = "postgresql://sava_admin:sava_password123@db:5432/siol_sava_db"  # nosec B105
 
     # Vacio = solo mismo origen (el panel llega por Nginx). Con dominios, separarlos por comas.
@@ -63,6 +67,26 @@ class Settings(BaseSettings):
 
     MAIL_FROM_NAME: str = "SAVA S.A.C."
     MAIL_SIGNATURE: str = "Atentamente,\nEquipo de Logística\nSAVA S.A.C."
+
+    # Centro de notificaciones automaticas (Idea 5). Apagado de fabrica: si esta en
+    # false no se crea ni se procesa ningun aviso y el sistema sigue igual.
+    NOTIFICACIONES_HABILITADAS: bool = False
+    NOTIFICACIONES_INTERVALO_SEG: int = 30      # cada cuanto el notificador busca novedades
+    NOTIFICACIONES_ADMIN_TELEGRAM_CHAT_ID: str = ""  # Telegram del administrador (avisos urgentes)
+    NOTIFICACIONES_ALMACEN_EMAIL: str = ""      # correo del almacen (fallback: ADMIN_EMAIL)
+    NOTIFICACIONES_URL_PORTAL: str = "https://sava.pe/portal"  # enlace de seguimiento
+
+    # Proveedores reales de la demo. El correo reutiliza la cuenta SMTP configurada
+    # para el resto de la aplicación; Telegram es opcional.
+    TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_BOT_USERNAME: str = ""     # usuario del bot (sin @) para el enlace t.me del portal
+    # secret_token registrado con setWebhook: Telegram lo manda en cada llamada. Vacio = se
+    # rechazan todas las llamadas al webhook (nadie puede hacerse pasar por Telegram).
+    TELEGRAM_WEBHOOK_SECRET: str = ""
+    WHATSAPP_TOKEN: str = ""
+    WHATSAPP_PHONE_ID: str = ""
+    WHATSAPP_VERIFY_TOKEN: str = ""     # token del handshake de Meta; vacio = se rechaza
+    WHATSAPP_APP_SECRET: str = ""       # firma X-Hub-Signature-256 de Meta; vacio = se rechaza
 
     @property
     def correo_ventas(self) -> str:

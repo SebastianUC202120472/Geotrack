@@ -20,6 +20,8 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       SECRET_KEY: ${SECRET_KEY}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
+      # Modulo de catalogo y capacidad (Idea 3). En false el modulo no se registra.
+      MODULO_CAPACIDAD_ENABLED: ${MODULO_CAPACIDAD_ENABLED:-true}
       # Modo demostracion del portal de empresa: con SMTP apagado el login no puede
       # enviar el OTP, y en true el backend lo devuelve para mostrarlo en pantalla.
       # NO activar en produccion: expone un factor de autenticacion.
@@ -52,6 +54,20 @@ services:
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-}
       SUPABASE_BUCKET: ${SUPABASE_BUCKET:-geotrack}
+      # Centro de notificaciones automaticas (Idea 5): el backend atiende los webhooks y el
+      # panel; el servicio "notificador" detecta los eventos y envia. Apagado por defecto.
+      NOTIFICACIONES_HABILITADAS: ${NOTIFICACIONES_HABILITADAS:-false}
+      NOTIFICACIONES_INTERVALO_SEG: ${NOTIFICACIONES_INTERVALO_SEG:-30}
+      NOTIFICACIONES_ADMIN_TELEGRAM_CHAT_ID: ${NOTIFICACIONES_ADMIN_TELEGRAM_CHAT_ID:-}
+      NOTIFICACIONES_ALMACEN_EMAIL: ${NOTIFICACIONES_ALMACEN_EMAIL:-}
+      NOTIFICACIONES_URL_PORTAL: ${NOTIFICACIONES_URL_PORTAL:-https://sava.pe/portal}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      # Secretos que prueban que la llamada al webhook viene de Telegram / Meta (vacios = se rechaza).
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
     volumes:
       - backend_uploads:/app/uploads
       # Registro de errores (EX-11): sobrevive a la reconstruccion del contenedor.
@@ -61,6 +77,69 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  # Notificador: lee las novedades del nucleo, arma los avisos y los envia (SMTP, Telegram,
+  # WhatsApp). Con NOTIFICACIONES_HABILITADAS=false solo espera y no abre conexiones.
+  notificador:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: python -m app.services.notificaciones_automaticas.servicio_notificador
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      MAIL_ENABLED: ${MAIL_ENABLED:-false}
+      MAIL_ADDRESS: ${MAIL_ADDRESS:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-SAVA S.A.C.}
+      NOTIFICACIONES_HABILITADAS: ${NOTIFICACIONES_HABILITADAS:-false}
+      NOTIFICACIONES_INTERVALO_SEG: ${NOTIFICACIONES_INTERVALO_SEG:-30}
+      NOTIFICACIONES_ADMIN_TELEGRAM_CHAT_ID: ${NOTIFICACIONES_ADMIN_TELEGRAM_CHAT_ID:-}
+      NOTIFICACIONES_ALMACEN_EMAIL: ${NOTIFICACIONES_ALMACEN_EMAIL:-}
+      NOTIFICACIONES_URL_PORTAL: ${NOTIFICACIONES_URL_PORTAL:-https://sava.pe/portal}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
+      WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
+      ZONA_HORARIA: ${ZONA_HORARIA:-America/Lima}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Asistente virtual con IA del panel (Idea 1). Servicio aparte: consulta la API del
+  # backend con el token del usuario y guarda su historial en el esquema "asistente" de la
+  # misma base. Las acciones (con confirmacion) solo con ASISTENTE_ACCIONES_ENABLED=true.
+  # Se apaga con ASISTENTE_ENABLED=false sin afectar al resto del sistema.
+  asistente:
+    build: ./asistente
+    environment:
+      ASISTENTE_ENABLED: ${ASISTENTE_ENABLED:-false}
+      ASISTENTE_ACCIONES_ENABLED: ${ASISTENTE_ACCIONES_ENABLED:-false}
+      ASISTENTE_DATABASE_URL: ${DATABASE_URL}
+      ASISTENTE_CORE_API_URL: http://backend:8000/api
+      ASISTENTE_PROVEEDORES: ${ASISTENTE_PROVEEDORES:-gemini,groq,groq_respaldo,openrouter,ollama}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODELO: ${GEMINI_MODELO:-gemini-3.5-flash-lite}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODELO: ${GROQ_MODELO:-openai/gpt-oss-120b}
+      GROQ_MODELO_RESPALDO: ${GROQ_MODELO_RESPALDO-openai/gpt-oss-20b}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODELO: ${OPENROUTER_MODELO:-nvidia/nemotron-3.5-super-vl:free}
+      OLLAMA_URL: ${OLLAMA_URL:-}
+      OLLAMA_MODELO: ${OLLAMA_MODELO:-qwen2.5:7b}
+      ASISTENTE_IA_TIMEOUT_SEG: ${ASISTENTE_IA_TIMEOUT_SEG:-20}
+      ASISTENTE_IA_PRIMER_FRAGMENTO_SEG: ${ASISTENTE_IA_PRIMER_FRAGMENTO_SEG:-20}
+      ASISTENTE_MENSAJES_POR_MINUTO: ${ASISTENTE_MENSAJES_POR_MINUTO:-10}
+      ASISTENTE_MENSAJES_POR_DIA: ${ASISTENTE_MENSAJES_POR_DIA:-200}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+      backend:
+        condition: service_started
     restart: unless-stopped
 
   frontend:

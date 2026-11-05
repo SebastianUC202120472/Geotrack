@@ -16,9 +16,22 @@ from .parametro import ParametroSistema
 from .incidencia import Incidencia, IncidenciaAyuda
 from .solicitud_recojo import SolicitudRecojo
 from .notificacion import Notificacion
+from .notificacion_envio import NotificacionEnvio
+from .notificacion_contacto import NotificacionContacto
+from .notificacion_cursor import NotificacionCursor
+from .notificacion_mecanico import NotificacionMecanico
+from .notificacion_plantilla import NotificacionPlantilla, NotificacionBaja
 from .evidencia_recojo import EvidenciaRecojo
 from .geocoding_cache import GeocodificacionCache
 from .verificacion_portal import VerificacionPortal
 from .contacto import ContactoComercial
 from .reclamo import Reclamo
 from .reprogramacion import SolicitudReprogramacion
+
+from .capacidad import (
+    AuditoriaCapacidad,
+    ConfiguracionCapacidad,
+    ModeloPersonalizado,
+    VinculacionPlaca,
+)
+
