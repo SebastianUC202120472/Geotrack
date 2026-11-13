@@ -4,13 +4,13 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, LabelList,
 } from "recharts";
-import { Package, Truck, CircleCheck, Flag, Users } from "lucide-react";
+import { Package, Truck, CircleCheck, Flag, Users, SlidersHorizontal } from "lucide-react";
+import Button from "../components/ui/Button";
 import StatCard from "../components/ui/StatCard";
 import Card from "../components/ui/Card";
 import { EstadoBadge } from "../components/ui/Badge";
 import { SkeletonStat } from "../components/ui/Skeleton";
 import EmptyState from "../components/ui/EmptyState";
-import Parametros from "./Parametros";
 import { obtenerResumen, listarTodosLosPedidos, obtenerSeguimientoClientes, obtenerUbicacionesFlota } from "../services/api";
 
 // Colores por estado para gráficos.
@@ -106,6 +106,9 @@ export default function Dashboard() {
               Actualizando <span className="updating-bar h-2 w-10 rounded-full" />
             </span>
           )}
+          <Button variant="secondary" icon={SlidersHorizontal} onClick={() => navigate("/panel/parametros")}>
+            Parámetros
+          </Button>
         </div>
       </div>
 
@@ -184,10 +187,6 @@ export default function Dashboard() {
             </div>
           )}
         </Card>
-      </div>
-
-      <div className="animate-fade-up" style={{ animationDelay: "180ms" }}>
-        <Parametros incrustado />
       </div>
 
       <div className="animate-fade-up grid grid-cols-1 gap-6 lg:grid-cols-2" style={{ animationDelay: "240ms" }}>

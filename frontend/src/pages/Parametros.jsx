@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { SlidersHorizontal, Plus, Trash2, AlertCircle, Ban, Save } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { SlidersHorizontal, Plus, Trash2, AlertCircle, Ban, Save, ArrowLeft } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import SectionCard from "../components/ui/SectionCard";
 import Input from "../components/ui/Input";
@@ -11,8 +12,9 @@ import {
 } from "../services/api";
 
 // Parametros del sistema: motivos de rechazo, combustible, contacto, franjas y retencion de datos.
-// Recibe incrustado (true = se muestra como seccion del Dashboard, sin margen de pagina).
-export default function Parametros({ incrustado = false }) {
+// Se abre con el boton "Parametros" del resumen operativo. Sin props.
+export default function Parametros() {
+  const navigate = useNavigate();
   const [motivos, setMotivos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [texto, setTexto] = useState("");
@@ -163,8 +165,10 @@ export default function Parametros({ incrustado = false }) {
   };
 
   return (
-    <div className={`space-y-6 animate-fade-in ${incrustado ? "" : "px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5"}`}>
-      <PageHeader titulo="Parámetros" seccion={incrustado} />
+    <div className="space-y-5 px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5 animate-fade-in">
+      <PageHeader titulo="Parámetros">
+        <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate("/panel")}>Volver al resumen</Button>
+      </PageHeader>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 animate-fade-up">
         <SectionCard title="Agregar motivo de rechazo" className="lg:col-span-1">

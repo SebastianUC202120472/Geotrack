@@ -17,6 +17,7 @@ const Flota = lazy(() => import("./pages/Flota"));
 const Conductores = lazy(() => import("./pages/Conductores"));
 const Clientes = lazy(() => import("./pages/Clientes"));
 const Usuarios = lazy(() => import("./pages/Usuarios"));
+const Parametros = lazy(() => import("./pages/Parametros"));
 const IngresoAlmacen = lazy(() => import("./pages/IngresoAlmacen"));
 const PedidosObservados = lazy(() => import("./pages/PedidosObservados"));
 const RetornosAlmacen = lazy(() => import("./pages/RetornosAlmacen"));
@@ -91,8 +92,8 @@ export default function App() {
         <Route path="conductores" element={<Conductores />} />
         <Route path="clientes" element={<Clientes />} />
         <Route path="usuarios" element={<Usuarios />} />
-        {/* Rutas antiguas: sus pantallas ahora viven dentro de otras. */}
-        <Route path="parametros" element={<Navigate to="/panel" replace />} />
+        <Route path="parametros" element={<Parametros />} />
+        {/* Ruta antigua: el seguimiento ahora vive dentro de Conductores. */}
         <Route path="seguimiento-conductores" element={<Navigate to="/panel/conductores" replace />} />
         <Route path="reportes" element={<ReportesPedido />} />
         <Route path="auxilio" element={<AuxilioMecanico />} />

@@ -27,6 +27,7 @@ class PedidoResponse(BaseModel):
     motivo_cancelacion: Optional[str] = None
     ruta_nombre: Optional[str] = None
     conductor_nombre: Optional[str] = None
+    ultima_interaccion: Optional[datetime] = None  # ultimo cambio del historial (o la creacion)
 
     class Config:
         from_attributes = True  # se construye desde el objeto SQLAlchemy
