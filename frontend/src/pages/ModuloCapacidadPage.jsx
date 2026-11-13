@@ -356,9 +356,8 @@ export default function ModuloCapacidadPage({ incrustado = false }) {
   if (cargando) return <div className={incrustado ? "" : "p-8"}><Skeleton className="h-72 w-full" /></div>;
 
   return (
-    <div className={`space-y-6 ${incrustado ? "" : "p-6 lg:p-8"}`}>
-      {!incrustado && <PageHeader titulo="Catálogo de vehículos y capacidad"
-        subtitulo="Idea 3: catálogo, flota, cálculo, planificación y configuración.">
+    <div className={`space-y-6 ${incrustado ? "" : "px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5"}`}>
+      {!incrustado && <PageHeader titulo="Catálogo de vehículos y capacidad">
         <Badge tono={esAdmin ? "brand" : "neutral"}>{esAdmin ? "Administrador" : "Solo lectura"}</Badge>
       </PageHeader>}
       {aviso && <div role="alert" className={`flex items-center justify-between rounded-xl border p-3 text-sm ${aviso.ok

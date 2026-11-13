@@ -99,8 +99,8 @@ export default function Bandeja() {
   ];
 
   return (
-    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
-      <PageHeader titulo="Bandeja de Solicitudes" subtitulo="Correos de clientes para solicitar el recojo de pedidos.">
+    <div className="space-y-5 px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5 animate-fade-in">
+      <PageHeader titulo="Bandeja de Solicitudes">
         {pestana === "correos" && (
           <Button variant="secondary" icon={RefreshCw} onClick={sincronizar} disabled={sincronizando}>
             {sincronizando ? "Revisando…" : "Revisar bandeja"}

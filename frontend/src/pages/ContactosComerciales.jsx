@@ -68,11 +68,10 @@ export default function ContactosComerciales({ incrustado = false }) {
   ];
 
   return (
-    <div className={`space-y-6 animate-fade-in ${incrustado ? "" : "p-6 lg:p-8"}`}>
+    <div className={`space-y-6 animate-fade-in ${incrustado ? "" : "px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5"}`}>
       <PageHeader
         seccion={incrustado}
         titulo="Contactos comerciales"
-        subtitulo="Empresas que pidieron una propuesta desde el sitio público."
       >
         <Button icon={Download} variant="secondary" className="shrink-0 whitespace-nowrap" onClick={exportar} disabled={descargando || !contactos.length}>
           {descargando ? "Descargando…" : "Exportar a Excel"}

@@ -137,10 +137,9 @@ export default function AgrupacionZonas() {
   };
 
   return (
-    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
+    <div className="space-y-5 px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5 animate-fade-in">
       <PageHeader
         titulo="Agrupación por Zonas"
-        subtitulo="Zonas con pedidos pendientes o asignados, listas para enrutar."
       >
         <Button variant="secondary" icon={RefreshCw} onClick={cargar}>Actualizar</Button>
       </PageHeader>

@@ -77,11 +77,10 @@ export default function AsignacionBloque() {
   const totalPedidos = zonaSel ? zonaSel.total_pedidos : zonas.reduce((acc, z) => acc + (z.total_pedidos || 0), 0);
 
   return (
-    <div className="space-y-6 p-6 lg:p-8 bg-canvas min-h-full">
+    <div className="space-y-5 px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5 bg-canvas min-h-full">
       <div className="animate-fade-up">
         <PageHeader
           titulo="Asignación de Rutas"
-          subtitulo="Arma un bloque logístico y asígnalo a un conductor."
         />
       </div>
 

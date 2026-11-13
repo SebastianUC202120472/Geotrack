@@ -39,8 +39,8 @@ export default function RetornosAlmacen() {
   ];
 
   return (
-    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
-      <PageHeader titulo="Retornos de Ruta" subtitulo="Recepción de los paquetes no entregados (FALLIDO) que el conductor devuelve al CD." />
+    <div className="space-y-5 px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5 animate-fade-in">
+      <PageHeader titulo="Retornos de Ruta" />
       <div className="animate-fade-up">
         <DataTable columns={columnas} rows={rutas} rowKey={(r) => r.ruta_id} loading={cargando}
           empty={{ icon: Undo2, title: "No hay rutas con devoluciones", description: "Aquí aparecen las rutas de entrega que tienen paquetes FALLIDO." }}
@@ -90,7 +90,7 @@ function PanelRetorno({ rutaId, onVolver }) {
     : "bg-danger-soft text-danger-strong";
 
   return (
-    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
+    <div className="space-y-5 px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5 animate-fade-in">
       <PageHeader titulo="Retornos de Ruta" subtitulo={det ? `${det.codigo || det.ruta_id} · ${det.nombre}` : "Cargando…"}>
         <Button variant="secondary" icon={ArrowLeft} onClick={onVolver}>Volver</Button>
       </PageHeader>

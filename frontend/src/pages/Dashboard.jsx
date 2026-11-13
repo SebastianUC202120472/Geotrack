@@ -94,7 +94,7 @@ export default function Dashboard() {
   });
 
   return (
-    <div className="space-y-6 p-6 lg:p-8">
+    <div className="space-y-5 px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5">
       <div className="animate-fade-up flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Resumen operativo</h1>

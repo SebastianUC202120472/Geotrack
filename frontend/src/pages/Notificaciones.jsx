@@ -275,10 +275,9 @@ export default function Notificaciones() {
   );
 
   return (
-    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
+    <div className="space-y-5 px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5 animate-fade-in">
       <PageHeader
         titulo="Centro de Notificaciones"
-        subtitulo="Gestión de avisos automáticos multicanal (WhatsApp, Telegram y Correo), bitácora y proveedores de auxilio."
       />
 
       {/* Navegación por Pestañas */}

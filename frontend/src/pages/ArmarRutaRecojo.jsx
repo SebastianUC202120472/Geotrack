@@ -146,10 +146,9 @@ export default function ArmarRutaRecojo() {
   ];
 
   return (
-    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
+    <div className="space-y-5 px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5 animate-fade-in">
       <PageHeader
         titulo="Armar ruta de recojo"
-        subtitulo="Elige en el mapa o en la lista los puntos por recoger y asígnalos a un conductor."
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">

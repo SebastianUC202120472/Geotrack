@@ -1,15 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check, Pencil, Trash2, Camera, KeyRound, Fuel, Route as RouteIcon, PiggyBank, Wrench, BadgeCheck } from "lucide-react";
-import PageHeader from "../components/ui/PageHeader";
-import KpiCard from "../components/ui/KpiCard";
-import DataTable from "../components/ui/DataTable";
+import { UserPlus, Users, Truck, X, Phone, IdCard, Mail, CheckCircle2, AlertCircle, Check, Pencil, Trash2, Camera, KeyRound, Fuel, Route as RouteIcon, PiggyBank, Wrench, BadgeCheck, UserCheck, UserX } from "lucide-react";
 import Input from "../components/ui/Input";
 import PasswordInput from "../components/ui/PasswordInput";
 import Button from "../components/ui/Button";
-import Badge, { EstadoBadge } from "../components/ui/Badge";
+import Badge from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
-import SectionCard from "../components/ui/SectionCard";
 import { listarConductores, crearConductor, actualizarConductor, eliminarConductor, subirFotoConductor, restablecerContrasenaConductor, urlMedia, obtenerEficienciaConductores, listarIncidencias, listarVehiculos } from "../services/api";
 import SeguimientoConductores from "./SeguimientoConductores";
 import { validarNombre, validarCorreo, validarPassword, validarTelefono, validarDni, soloDigitos, validarLicencia, validarVencimientoLicencia, estadoLicencia, fechaCorta } from "../utils/validaciones";
@@ -19,21 +15,22 @@ const FORM_VACIO = { nombre: "", correo: "", contrasena: "", telefono: "", dni: 
 // Normaliza la licencia a mayusculas sin espacios ni guiones. Recibe el texto escrito.
 const normalizarLicencia = (v) => (v || "").toUpperCase().replace(/[\s-]/g, "").slice(0, 9);
 
-// Página de conductores: arriba el seguimiento en vivo (mapa de flota) y abajo la lista, el
-// registro y el detalle de cada conductor (editar/eliminar/restablecer clave). Sin props.
+// Página de conductores: seguimiento en vivo (lista + mapa + datos generales); el alta se abre en
+// una ventana y la ficha de cada conductor (editar/eliminar/restablecer clave) desde la lista. Sin props.
 export default function Conductores() {
   const navigate = useNavigate();
   const [conductores, setConductores] = useState([]);
   const [eficiencia, setEficiencia] = useState({});
   const [incidenciasAbiertas, setIncidenciasAbiertas] = useState({});
   const [vehiculosLibres, setVehiculosLibres] = useState([]);
-  const [cargando, setCargando] = useState(true);
   const [seleccionado, setSeleccionado] = useState(null);
 
   const [form, setForm] = useState(FORM_VACIO);
   const [errores, setErrores] = useState({});
   const [aviso, setAviso] = useState(null);
   const [guardando, setGuardando] = useState(false);
+  const [registrando, setRegistrando] = useState(false); // ventana de alta abierta
+  const [exito, setExito] = useState(null); // aviso tras registrar
 
   // Recarga conductores, eficiencia e incidencias abiertas.
   // Carga los datos; las recargas tras una accion son silenciosas (la tabla no parpadea).
@@ -54,8 +51,7 @@ export default function Conductores() {
       .catch(() => { /* sin la lista, el alta sigue sin vehículo */ });
     return listarConductores()
       .then((lista) => setConductores(lista))
-      .catch((err) => console.error("No se pudo cargar conductores:", err.message))
-      .finally(() => setCargando(false));
+      .catch((err) => console.error("No se pudo cargar conductores:", err.message));
   };
 
   useEffect(() => {
@@ -113,8 +109,9 @@ export default function Conductores() {
         vehiculo_id: form.vehiculo_id ? Number(form.vehiculo_id) : null,
       });
       const conVehiculo = c.vehiculo ? ` con el vehículo ${c.vehiculo.placa}` : "";
-      setAviso({ ok: true, texto: `Conductor ${c.nombre} registrado (${c.codigo})${conVehiculo}.` });
+      setExito(`Conductor ${c.nombre} registrado (${c.codigo})${conVehiculo}.`);
       setForm(FORM_VACIO);
+      setRegistrando(false);
       cargar();
     } catch (err) {
       setAviso({ ok: false, texto: err.message });
@@ -123,176 +120,120 @@ export default function Conductores() {
     }
   };
 
-  // Columnas para DataTable. Dependen de `eficiencia` e `incidenciasAbiertas`.
-  const columnas = useMemo(() => [
-    {
-      key: "codigo",
-      header: "Código",
-      render: (c) => <span className="font-medium text-slate-800 nums">{c.codigo || "—"}</span>,
-    },
-    {
-      key: "nombre",
-      header: "Nombre",
-      render: (c) => (
-        <span className="flex items-center gap-2">
-          <span className="text-slate-700">{c.nombre || "—"}</span>
-          {c.solicito_restablecimiento && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning-strong"
-              title="Solicitó restablecer su contraseña">
-              <KeyRound size={12} /> Solicitó clave
-            </span>
-          )}
-          <AvisoLicencia vencimiento={c.licencia_vencimiento} soloAlertas />
-        </span>
-      ),
-    },
-    {
-      key: "telefono",
-      header: "Teléfono",
-      render: (c) => <span className="text-slate-600 nums">{c.telefono || "—"}</span>,
-    },
-    {
-      key: "vehiculo",
-      header: "Vehículo",
-      render: (c) =>
-        c.vehiculo
-          ? <Badge tono="info"><Truck size={13} className="inline mr-1" />{c.vehiculo.placa}</Badge>
-          : <span className="text-slate-400">Sin vehículo</span>,
-    },
-    {
-      key: "estado",
-      header: "Estado",
-      render: (c) => <EstadoBadge estado={!c.estado ? "INACTIVO" : c.en_ruta ? "EN_RUTA" : "DISPONIBLE"} />,
-    },
-    {
-      key: "eficiencia",
-      header: "Eficiencia",
-      render: (c) => {
-        const e = eficiencia[c.usuario_id];
-        if (!e) return <span className="text-slate-400">—</span>;
-        return (
-          <span className="text-sm text-slate-600 nums">
-            {e.km_ahorrados} km ahorr. · S/ {e.soles_ahorrados}
-          </span>
-        );
-      },
-    },
-    {
-      key: "acciones",
-      header: "",
-      render: (c) => {
-        const inc = incidenciasAbiertas[c.usuario_id];
-        if (!inc) return null;
-        return (
-          <button
-            className="parpadeo-alerta inline-flex items-center gap-1.5 rounded-xl bg-danger px-3 py-1.5 text-xs font-semibold text-white"
-            title={`Incidencia abierta: ${inc.codigo ?? `IN-${inc.id}`}`}
-            onClick={(e) => { e.stopPropagation(); navigate(`/panel/auxilio?conductor=${c.usuario_id}&estado=ABIERTA`); }}
-          >
-            <Wrench size={13} /> Auxilio
-          </button>
-        );
-      },
-    },
-  ], [eficiencia, incidenciasAbiertas, navigate]);
+  // Conductores con auxilio abierto (su ruta está pausada) para el aviso de arriba.
+  const conAuxilio = Object.keys(incidenciasAbiertas).length;
+
+  // Abre el formulario de alta limpio. Sin input.
+  const abrirRegistro = () => { setForm(FORM_VACIO); setErrores({}); setAviso(null); setRegistrando(true); };
 
   return (
-    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
-      <PageHeader
+    <div className="px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5 animate-fade-in">
+      <SeguimientoConductores
         titulo="Conductores"
-        subtitulo="Sigue en vivo a los conductores en ruta y administra su registro."
-      />
+        acciones={<Button icon={UserPlus} onClick={abrirRegistro}>Registrar conductor</Button>}
+        todos={conductores}
+        onAbrirConductor={setSeleccionado}
+        indicadores={[
+          { label: "Registrados", value: kpis.total, icon: Users, tone: "brand" },
+          { label: "Activos", value: kpis.activos, icon: UserCheck, tone: "success" },
+          { label: "Sin vehículo", value: kpis.sinVehiculo, icon: Truck, tone: "warning" },
+          { label: "Inactivos", value: kpis.inactivos, icon: UserX, tone: "danger" },
+        ]}
+      >
+        {(exito || kpis.licenciasVencidas > 0 || kpis.solicitudes > 0 || conAuxilio > 0) && (
+          <div className="space-y-3 animate-fade-up">
+            {exito && (
+              <div className="flex items-center gap-2 rounded-xl bg-success-soft px-4 py-3 text-sm text-success-strong">
+                <CheckCircle2 size={18} className="shrink-0" />
+                <span className="flex-1">{exito}</span>
+                <button type="button" onClick={() => setExito(null)} aria-label="Cerrar aviso" className="rounded p-0.5 hover:bg-success/10"><X size={16} /></button>
+              </div>
+            )}
+            {conAuxilio > 0 && (
+              <div className="flex items-center gap-2 rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger-strong">
+                <Wrench size={18} className="shrink-0" />
+                <span className="flex-1">
+                  <b>{conAuxilio}</b> {conAuxilio === 1 ? "conductor pidió" : "conductores pidieron"} auxilio mecánico y {conAuxilio === 1 ? "su ruta está pausada" : "sus rutas están pausadas"}.
+                </span>
+                <button type="button" onClick={() => navigate("/panel/auxilio?estado=ABIERTA")} className="shrink-0 font-semibold underline-offset-2 hover:underline">
+                  Ver auxilios
+                </button>
+              </div>
+            )}
+            {kpis.licenciasVencidas > 0 && (
+              <div className="flex items-center gap-2 rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger-strong">
+                <BadgeCheck size={18} className="shrink-0" />
+                <span>
+                  <b>{kpis.licenciasVencidas}</b> {kpis.licenciasVencidas === 1 ? "conductor tiene" : "conductores tienen"} la licencia vencida.
+                  Actualiza su ficha antes de asignarles rutas.
+                </span>
+              </div>
+            )}
+            {kpis.solicitudes > 0 && (
+              <div className="flex items-center gap-2 rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning-strong">
+                <KeyRound size={18} className="shrink-0" />
+                <span>
+                  <b>{kpis.solicitudes}</b> {kpis.solicitudes === 1 ? "conductor solicitó" : "conductores solicitaron"} restablecer su contraseña.
+                  Búscalos en <b>Todos</b> (llevan una llave), ábrelos y usa <b>Restablecer contraseña</b>.
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </SeguimientoConductores>
 
-      <SeguimientoConductores incrustado />
-
-      <div className="border-t border-slate-200 pt-6">
-        <PageHeader seccion titulo="Registro de conductores" subtitulo="Consulta a cada conductor, regístralo o modifica sus datos." />
-      </div>
-
-      {kpis.licenciasVencidas > 0 && (
-        <div className="flex items-center gap-2 rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger-strong animate-fade-up">
-          <BadgeCheck size={18} className="shrink-0" />
-          <span>
-            <b>{kpis.licenciasVencidas}</b> {kpis.licenciasVencidas === 1 ? "conductor tiene" : "conductores tienen"} la licencia vencida.
-            Actualiza su ficha antes de asignarles rutas.
-          </span>
+      <Modal open={registrando} onClose={() => !guardando && setRegistrando(false)} variant="center" className="max-w-2xl">
+        <div className="mb-5 flex items-start justify-between">
+          <h2 className="font-bold text-slate-900">Registrar conductor</h2>
+          <button type="button" onClick={() => setRegistrando(false)} aria-label="Cerrar" disabled={guardando}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+            <X size={18} />
+          </button>
         </div>
-      )}
-
-      {kpis.solicitudes > 0 && (
-        <div className="flex items-center gap-2 rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning-strong animate-fade-up">
-          <KeyRound size={18} className="shrink-0" />
-          <span>
-            <b>{kpis.solicitudes}</b> {kpis.solicitudes === 1 ? "conductor solicitó" : "conductores solicitaron"} restablecer su contraseña.
-            Ábrelos (marcados abajo) y usa <b>"Restablecer contraseña"</b>.
-          </span>
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 animate-fade-up">
-        <KpiCard label="Total" value={kpis.total} icon={Users} tone="brand" />
-        <KpiCard label="Activos" value={kpis.activos} icon={Users} tone="success" />
-        <KpiCard label="Sin vehículo" value={kpis.sinVehiculo} icon={Truck} tone="warning" />
-        <KpiCard label="Inactivos" value={kpis.inactivos} icon={Users} tone="danger" />
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
-        <SectionCard title="Registrar conductor" className="lg:col-span-1">
-          <form onSubmit={registrar} noValidate className="space-y-4">
+        <form onSubmit={registrar} noValidate className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <Input label="Nombre completo" required value={form.nombre} onChange={set("nombre")}
               placeholder="Ej. Juan Pérez" error={errores.nombre} hint="Al menos 3 caracteres" />
             <Input label="Correo (acceso a la app)" type="email" required value={form.correo} onChange={set("correo")}
               placeholder="conductor@siol.com" error={errores.correo} hint="Formato nombre@dominio.com" />
-            <div>
-              <PasswordInput label="Contraseña inicial" required value={form.contrasena} onChange={set("contrasena")}
-                placeholder="Escribe la contraseña" error={errores.contrasena} autoComplete="new-password" />
-              <RequisitosPassword value={form.contrasena} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Teléfono" inputMode="numeric" value={form.telefono} onChange={set("telefono", (v) => soloDigitos(v, 9))}
-                placeholder="987654321" error={errores.telefono} hint="9 dígitos (empieza en 9)" />
-              <Input label="DNI" inputMode="numeric" value={form.dni} onChange={set("dni", (v) => soloDigitos(v, 8))}
-                placeholder="12345678" error={errores.dni} hint="8 dígitos" />
-            </div>
+          </div>
+          <div>
+            <PasswordInput label="Contraseña inicial" required value={form.contrasena} onChange={set("contrasena")}
+              placeholder="Escribe la contraseña" error={errores.contrasena} autoComplete="new-password" />
+            <RequisitosPassword value={form.contrasena} />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input label="Teléfono" inputMode="numeric" value={form.telefono} onChange={set("telefono", (v) => soloDigitos(v, 9))}
+              placeholder="987654321" error={errores.telefono} hint="9 dígitos (empieza en 9)" />
+            <Input label="DNI" inputMode="numeric" value={form.dni} onChange={set("dni", (v) => soloDigitos(v, 8))}
+              placeholder="12345678" error={errores.dni} hint="8 dígitos" />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
             <Input label="Licencia de conducir" required value={form.licencia_numero}
               onChange={set("licencia_numero", normalizarLicencia)} placeholder="Q12345678"
               error={errores.licencia_numero} hint="Una letra y 8 dígitos" />
             <Input label="Vencimiento de la licencia" type="date" required value={form.licencia_vencimiento}
               onChange={set("licencia_vencimiento")} error={errores.licencia_vencimiento} />
-            <Input as="select" label="Vehículo (opcional)" value={form.vehiculo_id} onChange={set("vehiculo_id")}
-              hint={vehiculosLibres.length ? "Solo se listan vehículos sin conductor" : "No hay vehículos libres; asígnalo luego en Flota"}>
-              <option value="">Asignar después</option>
-              {vehiculosLibres.map((v) => (
-                <option key={v.id} value={v.id}>{v.placa}{v.marca ? ` · ${v.marca}` : ""}</option>
-              ))}
-            </Input>
-            <Button type="submit" icon={UserPlus} block disabled={guardando}>
-              {guardando ? "Registrando…" : "Registrar conductor"}
-            </Button>
-            {aviso && (
-              <div className={`flex items-center gap-2 rounded-xl px-3.5 py-3 text-sm ${aviso.ok ? "bg-success-soft text-success-strong" : "bg-danger-soft text-danger-strong"}`}>
-                {aviso.ok ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-                <span>{aviso.texto}</span>
-              </div>
-            )}
-          </form>
-        </SectionCard>
-
-        <div className="lg:col-span-2">
-          <DataTable
-            columns={columnas}
-            rows={conductores}
-            rowKey={(c) => c.usuario_id}
-            loading={cargando}
-            empty={{
-              icon: Users,
-              title: "Aún no hay conductores registrados",
-              description: "Usa el formulario de la izquierda para añadir el primer conductor.",
-            }}
-            onRowClick={(c) => setSeleccionado(c)}
-          />
-        </div>
-      </div>
+          </div>
+          <Input as="select" label="Vehículo (opcional)" value={form.vehiculo_id} onChange={set("vehiculo_id")}
+            hint={vehiculosLibres.length ? "Solo se listan vehículos sin conductor" : "No hay vehículos libres; asígnalo luego en Flota"}>
+            <option value="">Asignar después</option>
+            {vehiculosLibres.map((v) => (
+              <option key={v.id} value={v.id}>{v.placa}{v.marca ? ` · ${v.marca}` : ""}</option>
+            ))}
+          </Input>
+          {aviso && (
+            <div className="flex items-center gap-2 rounded-xl bg-danger-soft px-3.5 py-3 text-sm text-danger-strong">
+              <AlertCircle size={18} />
+              <span>{aviso.texto}</span>
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="secondary" onClick={() => setRegistrando(false)} disabled={guardando}>Cancelar</Button>
+            <Button type="submit" icon={UserPlus} disabled={guardando}>{guardando ? "Registrando…" : "Registrar conductor"}</Button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal open={!!seleccionado} onClose={() => setSeleccionado(null)} variant="center">
         {seleccionado && (

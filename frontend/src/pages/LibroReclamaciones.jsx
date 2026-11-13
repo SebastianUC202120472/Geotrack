@@ -109,8 +109,8 @@ export default function LibroReclamaciones() {
   ];
 
   return (
-    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
-      <PageHeader titulo="Libro de Reclamaciones" subtitulo="Reclamos y quejas del sitio público. La ley da 15 días hábiles para responder." />
+    <div className="space-y-5 px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5 animate-fade-in">
+      <PageHeader titulo="Libro de Reclamaciones" />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 animate-fade-up">
         <KpiCard label="Total" value={kpis.total} icon={BookText} tone="brand" />
