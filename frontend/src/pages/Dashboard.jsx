@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, Legend, LabelList,
+  PieChart, Pie, Cell, Legend, LabelList,
 } from "recharts";
 import { Package, Truck, CircleCheck, Flag, Users } from "lucide-react";
 import StatCard from "../components/ui/StatCard";
@@ -10,8 +10,7 @@ import Card from "../components/ui/Card";
 import { EstadoBadge } from "../components/ui/Badge";
 import { SkeletonStat } from "../components/ui/Skeleton";
 import EmptyState from "../components/ui/EmptyState";
-import EficienciaPeriodo from "../components/dashboard/EficienciaPeriodo";
-import { agruparPedidosPorDia } from "../utils/dashboard";
+import Parametros from "./Parametros";
 import { obtenerResumen, listarTodosLosPedidos, obtenerSeguimientoClientes, obtenerUbicacionesFlota } from "../services/api";
 
 // Colores por estado para gráficos.
@@ -37,7 +36,6 @@ export default function Dashboard() {
   const [actualizando, setActualizando] = useState(false);
   const [pendientesPorCliente, setPendientesPorCliente] = useState([]);
   const [conductoresEnLinea, setConductoresEnLinea] = useState(0);
-  const [version, setVersion] = useState(0); // refresca la eficiencia del periodo junto con el resto
 
   // Lleva a la lista de Pedidos ya filtrada por estado (clic en gráfica).
   const irAEstado = (estadoRaw) => estadoRaw && navigate(`/panel/pedidos?estado=${encodeURIComponent(estadoRaw)}`);
@@ -60,7 +58,6 @@ export default function Dashboard() {
         obtenerSeguimientoClientes().then(actualizarClientes),
         obtenerUbicacionesFlota().then(actualizarFlota),
       ]).finally(() => {
-        setVersion((v) => v + 1);
         if (silencioso) setActualizando(false);
         else setCargando(false);
       });
@@ -88,7 +85,6 @@ export default function Dashboard() {
   const entregados = porEstado.ENTREGADO || 0;
   // El servidor entrega los pedidos del mas nuevo al mas antiguo.
   const recientes = pedidos.slice(0, 6);
-  const pedidosPorDia = agruparPedidosPorDia(pedidos, 7);
 
   // Maximo de pendientes del top-6 para escalar las barras de progreso.
   const maxPendCliente = Math.max(1, ...pendientesPorCliente.map((c) => c.pendientes));
@@ -138,10 +134,6 @@ export default function Dashboard() {
               tone="info" hint="Con ubicación activa en este momento" />
           </div>
         )}
-      </div>
-
-      <div className="animate-fade-up" style={{ animationDelay: "90ms" }}>
-        <EficienciaPeriodo version={version} />
       </div>
 
       <div className="animate-fade-up grid grid-cols-1 gap-6 lg:grid-cols-3" style={{ animationDelay: "120ms" }}>
@@ -195,17 +187,7 @@ export default function Dashboard() {
       </div>
 
       <div className="animate-fade-up" style={{ animationDelay: "180ms" }}>
-        <Card title="Pedidos por día" subtitle="Últimos 7 días (por fecha de creación)">
-          <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={pedidosPorDia} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#eef2f6" vertical={false} />
-              <XAxis dataKey="dia" tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={{ stroke: "#e2e8f0" }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#64748b" }} tickLine={false} axisLine={false} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 13 }} />
-              <Line type="monotone" dataKey="pedidos" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 3, fill: "#2563eb" }} activeDot={{ r: 5 }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </Card>
+        <Parametros incrustado />
       </div>
 
       <div className="animate-fade-up grid grid-cols-1 gap-6 lg:grid-cols-2" style={{ animationDelay: "240ms" }}>

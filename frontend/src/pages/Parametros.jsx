@@ -10,8 +10,9 @@ import {
   obtenerPrivacidad, actualizarPrivacidad, aplicarPrivacidad,
 } from "../services/api";
 
-// Pagina de parametros del sistema: motivos de rechazo y parametros de combustible.
-export default function Parametros() {
+// Parametros del sistema: motivos de rechazo, combustible, contacto, franjas y retencion de datos.
+// Recibe incrustado (true = se muestra como seccion del Dashboard, sin margen de pagina).
+export default function Parametros({ incrustado = false }) {
   const [motivos, setMotivos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [texto, setTexto] = useState("");
@@ -162,8 +163,8 @@ export default function Parametros() {
   };
 
   return (
-    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
-      <PageHeader titulo="Parámetros" subtitulo="Catálogos del sistema. Los motivos de rechazo se usan en la app al reportar una entrega fallida." />
+    <div className={`space-y-6 animate-fade-in ${incrustado ? "" : "p-6 lg:p-8"}`}>
+      <PageHeader titulo="Parámetros" seccion={incrustado} subtitulo="Catálogos del sistema. Los motivos de rechazo se usan en la app al reportar una entrega fallida." />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 animate-fade-up">
         <SectionCard title="Agregar motivo de rechazo" className="lg:col-span-1">

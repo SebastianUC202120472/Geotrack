@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 import LayoutAdmin from "./components/LayoutAdmin";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { useAuth } from "./hooks/useAuth";
 
 // Pantallas del panel en carga diferida (EX-19): cada una es su propio archivo y el paquete
 // inicial solo trae el armazón. LayoutAdmin las envuelve en un Suspense.
@@ -16,8 +17,6 @@ const Flota = lazy(() => import("./pages/Flota"));
 const Conductores = lazy(() => import("./pages/Conductores"));
 const Clientes = lazy(() => import("./pages/Clientes"));
 const Usuarios = lazy(() => import("./pages/Usuarios"));
-const Parametros = lazy(() => import("./pages/Parametros"));
-const SeguimientoConductores = lazy(() => import("./pages/SeguimientoConductores"));
 const IngresoAlmacen = lazy(() => import("./pages/IngresoAlmacen"));
 const PedidosObservados = lazy(() => import("./pages/PedidosObservados"));
 const RetornosAlmacen = lazy(() => import("./pages/RetornosAlmacen"));
@@ -36,6 +35,13 @@ const Landing = lazy(() => import("./pages/landing/Landing"));
 const Portal = lazy(() => import("./pages/portal/Portal"));
 // Vista completa del asistente con IA (modulo aparte, carga diferida).
 const PaginaAsistente = lazy(() => import("./modulos/asistente/PaginaAsistente"));
+
+// Capacidad de vehículos: el admin la ve como pestaña de Flota; almacén la consulta aquí
+// (solo lectura), porque no tiene acceso a Flota. Sin props.
+function CapacidadSegunRol() {
+  const { rol } = useAuth();
+  return rol === "admin" ? <Navigate to="/panel/flota?vista=capacidad" replace /> : <ModuloCapacidadPage />;
+}
 
 // Rutas: "/" es el landing público de SAVA; "/portal" es el portal de clientes;
 // /login redirige al login del panel; el panel completo vive bajo /panel;
@@ -86,8 +92,9 @@ export default function App() {
         <Route path="conductores" element={<Conductores />} />
         <Route path="clientes" element={<Clientes />} />
         <Route path="usuarios" element={<Usuarios />} />
-        <Route path="parametros" element={<Parametros />} />
-        <Route path="seguimiento-conductores" element={<SeguimientoConductores />} />
+        {/* Rutas antiguas: sus pantallas ahora viven dentro de otras. */}
+        <Route path="parametros" element={<Navigate to="/panel" replace />} />
+        <Route path="seguimiento-conductores" element={<Navigate to="/panel/conductores" replace />} />
         <Route path="reportes" element={<ReportesPedido />} />
         <Route path="auxilio" element={<AuxilioMecanico />} />
         <Route path="reclamos" element={<LibroReclamaciones />} />
@@ -98,7 +105,7 @@ export default function App() {
         <Route path="almacen/observados" element={<PedidosObservados />} />
         <Route path="almacen/recojos" element={<ArmarRutaRecojo />} />
         <Route path="almacen/mapa" element={<MapaRecojos />} />
-        <Route path="capacidad" element={<ModuloCapacidadPage />} />
+        <Route path="capacidad" element={<CapacidadSegunRol />} />
         <Route
           path="asistente"
           element={

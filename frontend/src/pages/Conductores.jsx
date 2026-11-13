@@ -11,6 +11,7 @@ import Badge, { EstadoBadge } from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
 import SectionCard from "../components/ui/SectionCard";
 import { listarConductores, crearConductor, actualizarConductor, eliminarConductor, subirFotoConductor, restablecerContrasenaConductor, urlMedia, obtenerEficienciaConductores, listarIncidencias, listarVehiculos } from "../services/api";
+import SeguimientoConductores from "./SeguimientoConductores";
 import { validarNombre, validarCorreo, validarPassword, validarTelefono, validarDni, soloDigitos, validarLicencia, validarVencimientoLicencia, estadoLicencia, fechaCorta } from "../utils/validaciones";
 
 const FORM_VACIO = { nombre: "", correo: "", contrasena: "", telefono: "", dni: "", licencia_numero: "", licencia_vencimiento: "", vehiculo_id: "" };
@@ -18,7 +19,8 @@ const FORM_VACIO = { nombre: "", correo: "", contrasena: "", telefono: "", dni: 
 // Normaliza la licencia a mayusculas sin espacios ni guiones. Recibe el texto escrito.
 const normalizarLicencia = (v) => (v || "").toUpperCase().replace(/[\s-]/g, "").slice(0, 9);
 
-// Página de conductores: lista, registro y detalle (editar/eliminar/restablecer clave).
+// Página de conductores: arriba el seguimiento en vivo (mapa de flota) y abajo la lista, el
+// registro y el detalle de cada conductor (editar/eliminar/restablecer clave). Sin props.
 export default function Conductores() {
   const navigate = useNavigate();
   const [conductores, setConductores] = useState([]);
@@ -198,8 +200,14 @@ export default function Conductores() {
     <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
       <PageHeader
         titulo="Conductores"
-        subtitulo="Registra y consulta a los conductores de reparto."
+        subtitulo="Sigue en vivo a los conductores en ruta y administra su registro."
       />
+
+      <SeguimientoConductores incrustado />
+
+      <div className="border-t border-slate-200 pt-6">
+        <PageHeader seccion titulo="Registro de conductores" subtitulo="Consulta a cada conductor, regístralo o modifica sus datos." />
+      </div>
 
       {kpis.licenciasVencidas > 0 && (
         <div className="flex items-center gap-2 rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger-strong animate-fade-up">
