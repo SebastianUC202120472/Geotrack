@@ -36,6 +36,7 @@ from app.api.portal import router as portal_router
 from app.api.reclamos import router as reclamos_router
 from app.api.contactos import router as contactos_router
 from app.api.capacidad import incluir_router as incluir_capacidad
+from app.api.mantenimiento import incluir_router as incluir_mantenimiento
 
 log = configurar_registro()
 
@@ -178,6 +179,7 @@ app.include_router(portal_router, prefix="/api/portal", tags=["Portal Público"]
 app.include_router(reclamos_router, prefix="/api/reclamos", tags=["Libro de Reclamaciones"])
 app.include_router(contactos_router, prefix="/api/contactos", tags=["Contactos comerciales"])
 incluir_capacidad(app)  # catálogo y capacidad (Idea 3): se apaga con MODULO_CAPACIDAD_ENABLED
+incluir_mantenimiento(app)  # mantenimiento y documentos (Idea 4): se apaga con MODULO_MANTENIMIENTO_ENABLED
 
 
 @app.get("/")
