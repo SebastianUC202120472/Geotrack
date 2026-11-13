@@ -1,14 +1,11 @@
 import {
-  LayoutDashboard,
   Package,
-  Layers3,
   Route as RouteIcon,
   Mail,
   Truck,
   Users,
   Building2,
   UserCog,
-  SlidersHorizontal,
   MapPin,
   LogOut,
   PackageCheck,
@@ -29,15 +26,14 @@ import CampanaNotificaciones from "./CampanaNotificaciones";
 import IconoAsistente from "../modulos/asistente/IconoAsistente";
 import { useAsistenteDisponible } from "../modulos/asistente/estadoServicio";
 
-// Secciones de navegacion agrupadas por rol.
+// Secciones de navegacion agrupadas por rol. El resumen (Dashboard) se abre con el logo; la
+// capacidad vive en Flota de Vehiculos, el seguimiento en Conductores y los parametros en el resumen.
 const secciones = [
   {
     titulo: "Operación",
     roles: ["admin"],
     items: [
-      { icon: LayoutDashboard, label: "Dashboard", path: "/panel" },
       { icon: Package, label: "Pedidos", path: "/panel/pedidos" },
-      { icon: Layers3, label: "Agrupación por Zonas", path: "/panel/agrupacion" },
       { icon: RouteIcon, label: "Asignación de Rutas", path: "/panel/asignacion-bloque" },
       { icon: Mail, label: "Bandeja de Solicitudes", path: "/panel/bandeja" },
       { icon: IconoAsistente, label: "Asistente IA", path: "/panel/asistente", asistente: true },
@@ -48,10 +44,8 @@ const secciones = [
     roles: ["admin"],
     items: [
       { icon: Truck, label: "Flota de Vehículos", path: "/panel/flota" },
-      { icon: Scale, label: "Capacidad de Vehículos", path: "/panel/capacidad" },
       { icon: Users, label: "Conductores", path: "/panel/conductores" },
       { icon: Building2, label: "Clientes", path: "/panel/clientes" },
-      { icon: MapPin, label: "Seguimiento de Conductores", path: "/panel/seguimiento-conductores" },
     ],
   },
   {
@@ -69,7 +63,6 @@ const secciones = [
     roles: ["admin"],
     items: [
       { icon: UserCog, label: "Usuarios", path: "/panel/usuarios" },
-      { icon: SlidersHorizontal, label: "Parámetros", path: "/panel/parametros" },
     ],
   },
   {
@@ -109,7 +102,15 @@ export default function Sidebar({ onNavigate }) {
   return (
     <aside className="flex h-full w-72 flex-col border-r border-[#222b38] bg-[#1f2733] text-slate-300">
       <div className="flex items-center gap-2 px-6 py-5 border-b border-[#2b3543]">
-        <Logo light />
+        <button
+          type="button"
+          onClick={() => { navigate("/panel"); onNavigate?.(); }}
+          aria-label="Ir al resumen operativo"
+          title="Resumen operativo"
+          className={`-m-1.5 rounded-xl p-1.5 transition-colors hover:bg-slate-800 ${pathname === "/panel" ? "bg-slate-800" : ""}`}
+        >
+          <Logo light />
+        </button>
         {rol === "admin" && (
           <div className="ml-auto">
             <CampanaNotificaciones />

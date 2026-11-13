@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Truck, Plus, CheckCircle2, AlertCircle, Pencil, Trash2, Check, X } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { Truck, Plus, CheckCircle2, AlertCircle, Pencil, Trash2, Check, X, Scale } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -10,6 +11,13 @@ import Modal from "../components/ui/Modal";
 import { EstadoBadge } from "../components/ui/Badge";
 import { listarVehiculos, crearVehiculo, listarConductores, actualizarVehiculo, eliminarVehiculo } from "../services/api";
 import { validarPlaca, validarCapacidad } from "../utils/validaciones";
+import ModuloCapacidadPage from "./ModuloCapacidadPage";
+
+// Pestañas de la página: los vehículos registrados y el módulo de capacidad (catálogo y viajes).
+const VISTAS = [
+  ["vehiculos", "Vehículos", Truck],
+  ["capacidad", "Capacidad y catálogo", Scale],
+];
 
 // Texto de ayuda cuando el conductor elegido ya maneja otro vehiculo (regla 1 a 1, C09-01).
 // Recibe la lista de conductores, el id elegido y el id del vehiculo que se edita (si aplica).
@@ -19,8 +27,11 @@ function avisoReasignacion(conductores, conductorId, vehiculoActualId = null) {
   return `Se le quitará el vehículo ${c.vehiculo.placa}: cada conductor maneja un solo vehículo.`;
 }
 
-// Página de flota: lista y registro de vehículos con asignación de conductor.
+// Página de flota: vehículos (lista, registro y asignación de conductor) y, en otra pestaña, la
+// capacidad de los vehículos. La pestaña viaja en la URL (?vista=capacidad). Sin props.
 export default function Flota() {
+  const [params, setParams] = useSearchParams();
+  const vista = params.get("vista") === "capacidad" ? "capacidad" : "vehiculos";
   const [vehiculos, setVehiculos] = useState([]);
   const [conductores, setConductores] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -139,9 +150,27 @@ export default function Flota() {
     <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
       <PageHeader
         titulo="Flota de Vehículos"
-        subtitulo="Registra los vehículos y asígnalos a un conductor."
+        subtitulo="Registra los vehículos, asígnalos a un conductor y calcula su capacidad."
       />
 
+      <nav className="flex gap-1 border-b border-slate-200" aria-label="Secciones de la flota">
+        {VISTAS.map(([id, nombre, Icono]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setParams(id === "vehiculos" ? {} : { vista: id }, { replace: true })}
+            aria-current={vista === id ? "page" : undefined}
+            className={`-mb-px flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
+              vista === id ? "border-brand-600 text-brand-700" : "border-transparent text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            <Icono size={16} />
+            {nombre}
+          </button>
+        ))}
+      </nav>
+
+      {vista === "capacidad" ? <ModuloCapacidadPage incrustado /> : <>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 animate-fade-up">
         <KpiCard label="Total" value={kpis.total} icon={Truck} tone="brand" />
         <KpiCard label="Con conductor" value={kpis.conConductor} icon={Truck} tone="info" />
@@ -196,6 +225,7 @@ export default function Flota() {
           />
         </div>
       </div>
+      </>}
 
       <Modal open={!!editando} onClose={() => setEditando(null)} variant="center">
         {editando && (

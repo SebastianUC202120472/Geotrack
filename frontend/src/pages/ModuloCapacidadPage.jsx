@@ -156,8 +156,9 @@ function TablaResultado({ plan, indice, cambiarIndice, modelos }) {
 }
 
 // Pantalla del módulo de catálogo y capacidad (Idea 3): catálogo, flota, calculadora,
-// planificación y configuración. Sin props; el rol decide si se puede editar.
-export default function ModuloCapacidadPage() {
+// planificación y configuración. El rol decide si se puede editar. Recibe incrustado
+// (true = se muestra como pestaña de Flota de Vehículos, sin cabecera ni margen de página).
+export default function ModuloCapacidadPage({ incrustado = false }) {
   const { rol } = useAuth();
   const esAdmin = rol === "admin";
   const [tab, setTab] = useState("catalogo");
@@ -352,14 +353,14 @@ export default function ModuloCapacidadPage() {
     } catch (e) { manejarError(e); } finally { setGuardando(false); }
   }
 
-  if (cargando) return <div className="p-8"><Skeleton className="h-72 w-full" /></div>;
+  if (cargando) return <div className={incrustado ? "" : "p-8"}><Skeleton className="h-72 w-full" /></div>;
 
   return (
-    <div className="space-y-6 p-6 lg:p-8">
-      <PageHeader titulo="Catálogo de vehículos y capacidad"
+    <div className={`space-y-6 ${incrustado ? "" : "p-6 lg:p-8"}`}>
+      {!incrustado && <PageHeader titulo="Catálogo de vehículos y capacidad"
         subtitulo="Idea 3: catálogo, flota, cálculo, planificación y configuración.">
         <Badge tono={esAdmin ? "brand" : "neutral"}>{esAdmin ? "Administrador" : "Solo lectura"}</Badge>
-      </PageHeader>
+      </PageHeader>}
       {aviso && <div role="alert" className={`flex items-center justify-between rounded-xl border p-3 text-sm ${aviso.ok
         ? "border-green-200 bg-green-50 text-green-800" : "border-red-200 bg-red-50 text-red-800"}`}>
         <span className="flex items-center gap-2">{aviso.ok ? <CheckCircle2 size={17} /> : <AlertCircle size={17} />}{aviso.texto}</span>

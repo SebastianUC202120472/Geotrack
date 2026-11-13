@@ -15,8 +15,9 @@ const REFRESCO_MS = 15000; // intervalo de polling en ms
 // Colores por conductor; se comparten con sus marcadores en el mapa.
 const COLORES = ["#2563EB", "#DC2626", "#059669", "#D97706", "#7C3AED", "#DB2777", "#0891B2", "#65A30D"];
 
-// Muestra posición en vivo de conductores con ruta activa y sus paradas.
-export default function SeguimientoConductores() {
+// Muestra posición en vivo de conductores con ruta activa y sus paradas. Recibe incrustado
+// (true = se muestra como seccion de la pagina de Conductores, sin margen de pagina).
+export default function SeguimientoConductores({ incrustado = false }) {
   const [ubicaciones, setUbicaciones] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [seleccionado, setSeleccionado] = useState(null); // conductor_id seleccionado; null = todos
@@ -60,10 +61,11 @@ export default function SeguimientoConductores() {
   const conductoresVisibles = seleccionado != null ? conductores.filter((c) => c.conductor_id === seleccionado) : conductores;
 
   return (
-    <div className="space-y-6 p-6 lg:p-8">
+    <div className={`space-y-6 ${incrustado ? "" : "p-6 lg:p-8"}`}>
       <div className="animate-fade-up">
         <PageHeader
-          titulo="Seguimiento de Conductores"
+          seccion={incrustado}
+          titulo={incrustado ? "Seguimiento en vivo" : "Seguimiento de Conductores"}
           subtitulo="Ubicación en vivo de cada conductor con ruta activa y sus pedidos pendientes."
         >
           {/* Selector de capa del mapa */}
