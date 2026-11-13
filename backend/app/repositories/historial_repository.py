@@ -1,4 +1,5 @@
 from typing import List, Optional
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.historial import HistorialPedido
@@ -52,3 +53,17 @@ def listar_por_pedido(db: Session, pedido_id: int) -> List[HistorialPedido]:
         .order_by(HistorialPedido.fecha_utc.asc(), HistorialPedido.id.asc())
         .all()
     )
+
+
+def ultima_fecha_por_pedidos(db: Session, pedido_ids: List[int]) -> dict:
+    """Fecha del ultimo evento del historial de cada pedido, en una sola consulta. Recibe los ids de
+    los pedidos; devuelve {pedido_id: fecha_utc} (los pedidos sin historial no aparecen)."""
+    if not pedido_ids:
+        return {}
+    filas = (
+        db.query(HistorialPedido.pedido_id, func.max(HistorialPedido.fecha_utc))
+        .filter(HistorialPedido.pedido_id.in_(pedido_ids))
+        .group_by(HistorialPedido.pedido_id)
+        .all()
+    )
+    return dict(filas)

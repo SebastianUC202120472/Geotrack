@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Search, X, Package, MapPin, Eye, ChevronLeft, ChevronRight, Loader2, RotateCcw, User, Truck, Filter, List, Building2, AlertTriangle, Ban, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Search, X, Package, MapPin, Eye, ChevronLeft, ChevronRight, Loader2, RotateCcw, User, Truck, Filter, List, ArrowUpDown, AlertTriangle, Ban, RefreshCw, CheckCircle2 } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -10,16 +10,15 @@ import { EstadoBadge } from "../components/ui/Badge";
 import { etiquetaEstado } from "../utils/estados";
 import Modal from "../components/ui/Modal";
 import ResolverDireccionModal from "../components/ResolverDireccionModal";
-import VistaPorRuta from "../components/seguimiento/VistaPorRuta";
-import VistaPorCliente from "../components/seguimiento/VistaPorCliente";
 import TabTrazabilidad from "../components/TabTrazabilidad";
 import SolicitudesReprogramacion from "../components/SolicitudesReprogramacion";
 import ConfirmDialog from "../components/ui/ConfirmDialog";
 import { listarTodosLosPedidos, listarZonas, obtenerHistorial, reprogramarPedido, cancelarPedido, listarReportes, reprocesarDirecciones } from "../services/api";
 
 const POR_PAGINA = 12;
-const fmt = (f) => (f ? new Date(f).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—");
-const fmtDia = (f) => (f ? new Date(f).toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit" }) : "—");
+// Convierte la fecha del servidor (UTC, a veces sin zona) a Date. Recibe el texto ISO o un Date.
+const aFecha = (f) => new Date(typeof f === "string" && !/[zZ]|[+-]\d\d:?\d\d$/.test(f) ? `${f}Z` : f);
+const fmt = (f) => (f ? aFecha(f).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—");
 
 // Comprueba si fechaStr cae dentro del rango indicado. Recibe fechaStr (ISO) y modo ("hoy"/"semana"/"todos").
 function enRango(fechaStr, modo) {
@@ -33,10 +32,17 @@ function enRango(fechaStr, modo) {
 
 const VISTAS = [
   { id: "lista", label: "Lista", icon: List },
-  { id: "ruta", label: "Por ruta", icon: Truck },
-  { id: "cliente", label: "Por cliente", icon: Building2 },
   { id: "trazabilidad", label: "Trazabilidad", icon: Search },
 ];
+
+// Órdenes de la lista: por la última interacción (lo más reciente arriba) o por cliente (A-Z).
+const ORDENES = [
+  ["reciente", "Interacción reciente"],
+  ["cliente", "Cliente (A–Z)"],
+];
+
+// Momento de la última interacción del pedido (último cambio del historial o su creación). Recibe el pedido.
+const momento = (p) => aFecha(p.ultima_interaccion || p.fecha_creacion || 0).getTime() || 0;
 
 // Estados que el servidor reprocesa al pulsar «Reprocesar direcciones pendientes».
 const ESTADOS_REPROCESABLES = ["LISTO_PARA_ENVIO", "GEOCODIFICACION_FALLIDA"];
@@ -59,6 +65,7 @@ export default function Pedidos() {
   const estado = params.get("estado") || "";
   const [fecha, setFecha] = useState("todos");
   const [sinUbicar, setSinUbicar] = useState(false);
+  const [orden, setOrden] = useState("reciente");
   const [pagina, setPagina] = useState(1);
   const [seleccionado, setSeleccionado] = useState(null);
   const [reprocesando, setReprocesando] = useState(false);
@@ -124,7 +131,7 @@ export default function Pedidos() {
 
   const filtrados = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
-    return pedidos.filter((p) => {
+    const lista = pedidos.filter((p) => {
       if (distrito && (p.distrito || "") !== distrito) return false;
       if (estado && p.estado !== estado) return false;
       if (!enRango(p.fecha_creacion, fecha)) return false;
@@ -133,7 +140,12 @@ export default function Pedidos() {
       return [p.codigo, p.cliente_origen, p.nombre_destinatario, p.direccion_destino, p.conductor_nombre]
         .some((v) => (v || "").toLowerCase().includes(q));
     });
-  }, [pedidos, busqueda, distrito, estado, fecha, sinUbicar]);
+    // Lo más reciente primero; por cliente, en orden alfabético y dentro de cada uno lo más reciente.
+    const porReciente = (a, b) => momento(b) - momento(a);
+    return lista.sort(orden === "cliente"
+      ? (a, b) => (a.cliente_origen || "").localeCompare(b.cliente_origen || "", "es", { sensitivity: "base" }) || porReciente(a, b)
+      : porReciente);
+  }, [pedidos, busqueda, distrito, estado, fecha, sinUbicar, orden]);
 
   // Pedidos que esperan ser despachados y aún no tienen ubicación (los que reprocesa el servidor).
   const porUbicar = useMemo(
@@ -184,7 +196,12 @@ export default function Pedidos() {
     {
       key: "codigo",
       header: "Código",
-      render: (p) => <span className="font-medium text-slate-800 nums">{p.codigo}</span>,
+      render: (p) => <span className="whitespace-nowrap font-medium text-slate-800 nums">{p.codigo}</span>,
+    },
+    {
+      key: "cliente_origen",
+      header: "Cliente",
+      render: (p) => <span className="text-slate-700">{p.cliente_origen || "—"}</span>,
     },
     {
       key: "nombre_destinatario",
@@ -205,9 +222,9 @@ export default function Pedidos() {
           : <span className="text-slate-400">Sin asignar</span>,
     },
     {
-      key: "fecha_creacion",
-      header: "Fecha",
-      render: (p) => <span className="text-slate-500 nums">{fmtDia(p.fecha_creacion)}</span>,
+      key: "ultima_interaccion",
+      header: "Última actividad",
+      render: (p) => <span className="whitespace-nowrap text-slate-500 nums" title={`Creado: ${fmt(p.fecha_creacion)}`}>{fmt(p.ultima_interaccion || p.fecha_creacion)}</span>,
     },
     {
       key: "estado",
@@ -290,8 +307,6 @@ export default function Pedidos() {
         </div>
       </div>
 
-      {vista === "ruta" && <VistaPorRuta />}
-      {vista === "cliente" && <VistaPorCliente />}
       {vista === "trazabilidad" && <TabTrazabilidad />}
 
       {vista === "lista" && <>
@@ -331,7 +346,7 @@ export default function Pedidos() {
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-500">Fecha:</span>
+              <span className="text-sm text-slate-500">Creados:</span>
               {[["hoy", "Hoy"], ["semana", "7 días"], ["todos", "Todos"]].map(([v, l]) => (
                 <button key={v} onClick={() => aplicarFecha(v)}
                   className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${fecha === v ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
@@ -348,6 +363,18 @@ export default function Pedidos() {
             </button>
           </div>
           <div className="flex items-center gap-3 text-sm text-slate-500">
+            <label className="relative inline-flex items-center">
+              <ArrowUpDown size={14} className="pointer-events-none absolute left-2.5 text-slate-500" />
+              <select
+                value={orden}
+                onChange={(e) => { setOrden(e.target.value); setPagina(1); }}
+                aria-label="Ordenar pedidos"
+                className="cursor-pointer appearance-none rounded-lg bg-slate-100 py-1.5 pl-8 pr-7 text-sm font-medium text-slate-700 outline-none transition hover:bg-slate-200 focus:ring-2 focus:ring-brand-500/30"
+              >
+                {ORDENES.map(([v, l]) => <option key={v} value={v}>Ordenar: {l}</option>)}
+              </select>
+              <ChevronRight size={14} className="pointer-events-none absolute right-2 rotate-90 text-slate-500" />
+            </label>
             <span className="nums">{filtrados.length} pedido(s)</span>
             {hayFiltros && (
               <button onClick={limpiar} className="flex items-center gap-1 text-brand-600 hover:underline">
@@ -392,7 +419,6 @@ export default function Pedidos() {
             pedido={abierto}
             reporte={reportePorPedido[abierto.id] || null}
             onCerrar={cerrarDetalle}
-            onIrARuta={() => { cerrarDetalle(); setVista("ruta"); }}
             onAccion={() => { cerrarDetalle(); cargarTodo(); }}
             onDireccionResuelta={() => { cerrarDetalle(); cargar(); }}
             onVerReporte={(codigo) => navigate(`/panel/reportes?pedido=${encodeURIComponent(codigo)}`)}
@@ -405,7 +431,7 @@ export default function Pedidos() {
 }
 
 // Panel lateral de detalle. Recibe pedido, reporte abierto (o null) y callbacks de acción.
-function DetallePedido({ pedido, reporte, onCerrar, onIrARuta, onAccion, onDireccionResuelta, onVerReporte }) {
+function DetallePedido({ pedido, reporte, onCerrar, onAccion, onDireccionResuelta, onVerReporte }) {
   const [historial, setHistorial] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
@@ -457,17 +483,7 @@ function DetallePedido({ pedido, reporte, onCerrar, onIrARuta, onAccion, onDirec
         <Dato etiqueta="Destinatario" valor={pedido.nombre_destinatario || "—"} />
         <Dato etiqueta="Dirección" valor={pedido.direccion_destino} icono={MapPin} />
         <Dato etiqueta="Distrito" valor={pedido.distrito || "—"} />
-        <div className="flex items-center justify-between">
-          <Dato etiqueta="Ruta asignada" valor={pedido.ruta_nombre || historial?.ruta_asignada || "Sin asignar"} icono={Truck} />
-          {onIrARuta && (pedido.ruta_nombre || historial?.ruta_asignada) && (
-            <button
-              onClick={onIrARuta}
-              className="rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100"
-            >
-              Ver en Por ruta →
-            </button>
-          )}
-        </div>
+        <Dato etiqueta="Ruta asignada" valor={pedido.ruta_nombre || historial?.ruta_asignada || "Sin asignar"} icono={Truck} />
         <Dato etiqueta="Conductor" valor={pedido.conductor_nombre || historial?.conductor_asignado || "Sin asignar"} icono={User} />
 
         {pedido.estado === "FALLIDO" && reporte && (

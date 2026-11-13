@@ -14,6 +14,7 @@ import {
   BookText,
   AlertOctagon,
   Scale,
+  ChevronRight,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -98,9 +99,18 @@ export default function Sidebar({ onNavigate }) {
           onClick={() => { navigate("/panel"); onNavigate?.(); }}
           aria-label="Ir al resumen operativo"
           title="Resumen operativo"
-          className={`-m-1.5 rounded-xl p-1.5 transition-colors hover:bg-slate-800 ${pathname === "/panel" ? "bg-slate-800" : ""}`}
+          className={`group -m-1.5 flex cursor-pointer items-center gap-1 rounded-xl p-1.5 pr-2 transition-all duration-300 hover:bg-slate-800 hover:shadow-[0_0_0_1px_rgba(59,130,246,0.45),0_0_18px_rgba(37,99,235,0.35)] active:scale-95 ${pathname === "/panel" ? "bg-slate-800" : ""}`}
         >
-          <Logo light />
+          {/* Al pasar el mouse el logo da un pequeño salto y aparece una flecha: invita a hacer clic. */}
+          <Logo
+            light
+            className="[&_img]:transition-transform [&_img]:duration-500 [&_img]:ease-[cubic-bezier(.34,1.56,.64,1)] motion-safe:group-hover:[&_img]:-rotate-12 motion-safe:group-hover:[&_img]:scale-110"
+          />
+          <ChevronRight
+            size={16}
+            aria-hidden="true"
+            className="-translate-x-1 text-brand-400 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100"
+          />
         </button>
         {rol === "admin" && (
           <div className="ml-auto">

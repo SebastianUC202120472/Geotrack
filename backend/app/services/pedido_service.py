@@ -260,14 +260,18 @@ def _nombres_conductores(db: Session, ids: set[int]) -> dict:
 
 def listar_pedidos(db: Session, skip: int, limit: int, busqueda: str | None = None,
                    distrito: str | None = None, estado: str | None = None):
-    """Devuelve los pedidos paginados y filtrados, con ruta y conductor asignados. Recibe offset, limite y filtros."""
+    """Devuelve los pedidos paginados y filtrados, con ruta, conductor asignado y la fecha de su ultima
+    interaccion (ultimo cambio en el historial o, si no tiene, su creacion). Recibe offset, limite y filtros."""
     pedidos = pedido_repository.listar(db, skip=skip, limit=limit, busqueda=busqueda, distrito=distrito, estado=estado)
-    mapa = ruta_repository.mapa_ruta_por_pedidos(db, [p.id for p in pedidos])
+    ids = [p.id for p in pedidos]
+    mapa = ruta_repository.mapa_ruta_por_pedidos(db, ids)
     nombres = _nombres_conductores(db, {cid for (_, cid) in mapa.values() if cid})
+    ultimas = historial_repository.ultima_fecha_por_pedidos(db, ids)
     for p in pedidos:
         ruta_nombre, conductor_id = mapa.get(p.id, (None, None))
         p.ruta_nombre = ruta_nombre
         p.conductor_nombre = nombres.get(conductor_id)
+        p.ultima_interaccion = ultimas.get(p.id) or p.fecha_creacion
     return pedidos
 
 
