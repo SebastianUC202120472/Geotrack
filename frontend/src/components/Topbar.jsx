@@ -4,8 +4,9 @@ import { useAuth } from "../hooks/useAuth";
 import { obtenerResumen, listarRecojosAlmacen, obtenerMiPerfil } from "../services/api";
 import Modal from "./ui/Modal";
 import MiPerfil from "./MiPerfil";
+import BotonPerfiles from "./BotonPerfiles";
 
-// Barra superior: indicador de conexión y botón de perfil. Sin props.
+// Barra superior: indicador de conexión, "Agregar perfil" (Usuarios) y botón de perfil. Sin props.
 export default function Topbar() {
   const { rol } = useAuth();
   const [enLinea, setEnLinea] = useState(null);
@@ -120,6 +121,8 @@ export default function Topbar() {
           <AlertTriangle size={14} /> Cambia la contraseña de fábrica
         </button>
       )}
+
+      <BotonPerfiles />
 
       <button
         onClick={() => setPerfilAbierto(true)}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Building2, Plus, CheckCircle2, AlertCircle, X, Pencil, Trash2, Check, IdCard, Mail, MapPin, KeyRound, Copy, ShieldOff, ShieldCheck, MapPinOff, RotateCw, Search } from "lucide-react";
+import { Building2, Plus, CheckCircle2, AlertCircle, X, Pencil, Trash2, Check, IdCard, Mail, MapPin, KeyRound, Copy, ShieldOff, ShieldCheck, MapPinOff, RotateCw, Search, Handshake } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
 import DataTable from "../components/ui/DataTable";
@@ -12,6 +12,14 @@ import ConfirmDialog from "../components/ui/ConfirmDialog";
 import MapaPicker from "../components/MapaPicker";
 import { listarClientes, crearCliente, actualizarCliente, eliminarCliente, generarAccesoPortal, revocarAccesoPortal, reintentarUbicacionCliente, fijarUbicacionCliente, buscarDireccion } from "../services/api";
 import { validarCorreo } from "../utils/validaciones";
+import { usePestanasPagina } from "../components/ui/PestanasPagina";
+import ContactosComerciales from "./ContactosComerciales";
+
+// Pestañas de la página: las empresas registradas y los contactos que llegan del sitio público.
+const VISTAS = [
+  ["empresas", "Empresas", Building2],
+  ["contactos", "Contactos comerciales", Handshake],
+];
 
 // Valida el RUC en pantalla: vacio (opcional) o 11 digitos con prefijo 10/15/16/17/20. Recibe el texto.
 const validarRuc = (v) => {
@@ -25,8 +33,10 @@ const validarRuc = (v) => {
 // Dice si el cliente tiene direccion de recojo pero no se pudo ubicar en el mapa. Recibe el cliente.
 const sinUbicar = (c) => Boolean(c.direccion_origen) && (c.latitud == null || c.longitud == null);
 
-// Pagina de administracion de clientes corporativos: alta, edicion y baja.
+// Pagina de clientes: las empresas (alta, edicion y baja) y, en otra pestaña, los contactos
+// comerciales del sitio publico. La pestaña viaja en la URL (?vista=contactos). Sin props.
 export default function Clientes() {
+  const [vista, pestanas] = usePestanasPagina(VISTAS, "Secciones de clientes");
   const [clientes, setClientes] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [seleccionado, setSeleccionado] = useState(null);
@@ -131,8 +141,11 @@ export default function Clientes() {
 
   return (
     <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
-      <PageHeader titulo="Clientes Corporativos" subtitulo="Registra y administra las empresas a las que prestas el servicio." />
+      <PageHeader titulo="Clientes Corporativos" subtitulo="Registra y administra las empresas a las que prestas el servicio y sus contactos comerciales." />
 
+      {pestanas}
+
+      {vista === "contactos" ? <ContactosComerciales incrustado /> : <>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 animate-fade-up">
         <KpiCard label="Total" value={kpis.total} icon={Building2} tone="brand" />
         <KpiCard label="Con RUC" value={kpis.conRuc} icon={IdCard} tone="info" />
@@ -182,6 +195,7 @@ export default function Clientes() {
             onRowClick={(c) => { setModoInicial("ver"); setSeleccionado(c); }} />
         </div>
       </div>
+      </>}
 
       <Modal open={!!seleccionado} onClose={() => { setSeleccionado(null); setModoInicial("ver"); }} variant="center">
         {seleccionado && (

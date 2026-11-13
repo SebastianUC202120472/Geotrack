@@ -4,6 +4,7 @@ import { Menu, X, Loader2 } from "lucide-react";
 import Sidebar from "./Sidebar";
 import Logo from "./ui/Logo";
 import Topbar from "./Topbar";
+import BotonPerfiles from "./BotonPerfiles";
 
 // Asistente virtual con IA (modulo aparte, carga diferida): si su servicio esta apagado no se muestra.
 const AsistenteFlotante = lazy(() => import("../modulos/asistente/AsistenteFlotante"));
@@ -54,6 +55,9 @@ export default function LayoutAdmin() {
             <Menu size={22} />
           </button>
           <Logo />
+          <div className="ml-auto">
+            <BotonPerfiles compacto />
+          </div>
         </header>
 
         <Topbar />
