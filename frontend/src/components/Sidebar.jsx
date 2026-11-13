@@ -5,7 +5,6 @@ import {
   Truck,
   Users,
   Building2,
-  UserCog,
   MapPin,
   LogOut,
   PackageCheck,
@@ -15,7 +14,6 @@ import {
   BookText,
   AlertOctagon,
   Scale,
-  Handshake,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -27,7 +25,8 @@ import IconoAsistente from "../modulos/asistente/IconoAsistente";
 import { useAsistenteDisponible } from "../modulos/asistente/estadoServicio";
 
 // Secciones de navegacion agrupadas por rol. El resumen (Dashboard) se abre con el logo; la
-// capacidad vive en Flota de Vehiculos, el seguimiento en Conductores y los parametros en el resumen.
+// capacidad vive en Flota de Vehiculos, el seguimiento en Conductores, los parametros en el resumen,
+// los contactos comerciales en Clientes y Usuarios en el boton "Agregar perfil" de la barra superior.
 const secciones = [
   {
     titulo: "Operación",
@@ -55,14 +54,6 @@ const secciones = [
       { icon: ClipboardList, label: "Reportes de pedido", path: "/panel/reportes" },
       { icon: Wrench, label: "Auxilio mecánico", path: "/panel/auxilio" },
       { icon: BookText, label: "Libro de Reclamaciones", path: "/panel/reclamos" },
-      { icon: Handshake, label: "Contactos comerciales", path: "/panel/contactos" },
-    ],
-  },
-  {
-    titulo: "Administración",
-    roles: ["admin"],
-    items: [
-      { icon: UserCog, label: "Usuarios", path: "/panel/usuarios" },
     ],
   },
   {

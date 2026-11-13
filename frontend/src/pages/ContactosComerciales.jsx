@@ -12,7 +12,8 @@ import { listarContactos, descargarContactos } from "../services/api";
 const fmt = (f) => (f ? new Date(f).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—");
 
 // Contactos comerciales que llegan desde el formulario del landing, con exportación a Excel (C39-01).
-export default function ContactosComerciales() {
+// Recibe incrustado (true = se muestra como pestaña de Clientes, sin margen de página).
+export default function ContactosComerciales({ incrustado = false }) {
   const [contactos, setContactos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [busqueda, setBusqueda] = useState("");
@@ -67,8 +68,9 @@ export default function ContactosComerciales() {
   ];
 
   return (
-    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
+    <div className={`space-y-6 animate-fade-in ${incrustado ? "" : "p-6 lg:p-8"}`}>
       <PageHeader
+        seccion={incrustado}
         titulo="Contactos comerciales"
         subtitulo="Empresas que pidieron una propuesta desde el sitio público."
       >

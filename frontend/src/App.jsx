@@ -26,7 +26,6 @@ const ReportesPedido = lazy(() => import("./pages/ReportesPedido"));
 const AuxilioMecanico = lazy(() => import("./pages/AuxilioMecanico"));
 const Notificaciones = lazy(() => import("./pages/Notificaciones"));
 const LibroReclamaciones = lazy(() => import("./pages/LibroReclamaciones"));
-const ContactosComerciales = lazy(() => import("./pages/ContactosComerciales"));
 const ModuloCapacidadPage = lazy(() => import("./pages/ModuloCapacidadPage"));
 
 // Landing público (carga diferida: no forma parte del bundle del panel admin).
@@ -98,7 +97,7 @@ export default function App() {
         <Route path="reportes" element={<ReportesPedido />} />
         <Route path="auxilio" element={<AuxilioMecanico />} />
         <Route path="reclamos" element={<LibroReclamaciones />} />
-        <Route path="contactos" element={<ContactosComerciales />} />
+        <Route path="contactos" element={<Navigate to="/panel/clientes?vista=contactos" replace />} />
         <Route path="notificaciones" element={<Notificaciones />} />
         <Route path="almacen" element={<IngresoAlmacen />} />
         <Route path="almacen/retornos" element={<RetornosAlmacen />} />
