@@ -35,3 +35,10 @@ from .capacidad import (
     VinculacionPlaca,
 )
 
+from .mantenimiento import (
+    AuditoriaMantenimiento,
+    ConfiguracionMantenimiento,
+    DocumentoFlota,
+    MantenimientoRegistro,
+)
+

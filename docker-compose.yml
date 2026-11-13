@@ -22,6 +22,8 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
       # Modulo de catalogo y capacidad (Idea 3). En false el modulo no se registra.
       MODULO_CAPACIDAD_ENABLED: ${MODULO_CAPACIDAD_ENABLED:-true}
+      # Modulo de mantenimiento y documentos de la flota (Idea 4). En false el modulo no se registra.
+      MODULO_MANTENIMIENTO_ENABLED: ${MODULO_MANTENIMIENTO_ENABLED:-true}
       # Modo demostracion del portal de empresa: con SMTP apagado el login no puede
       # enviar el OTP, y en true el backend lo devuelve para mostrarlo en pantalla.
       # NO activar en produccion: expone un factor de autenticacion.
