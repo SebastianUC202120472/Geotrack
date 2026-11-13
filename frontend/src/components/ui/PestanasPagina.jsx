@@ -17,11 +17,11 @@ export function usePestanasPagina(vistas, etiqueta) {
           type="button"
           onClick={() => setParams(id === porDefecto ? {} : { vista: id }, { replace: true })}
           aria-current={vista === id ? "page" : undefined}
-          className={`-mb-px flex shrink-0 items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
+          className={`group -mb-px flex shrink-0 items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
             vista === id ? "border-brand-600 text-brand-700" : "border-transparent text-slate-500 hover:text-slate-800"
           }`}
         >
-          <Icono size={16} />
+          <Icono size={16} className="transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:scale-110" />
           {nombre}
         </button>
       ))}

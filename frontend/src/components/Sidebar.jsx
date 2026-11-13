@@ -131,14 +131,18 @@ export default function Sidebar({ onNavigate }) {
                   key={path}
                   onClick={() => { navigate(path); onNavigate?.(); }}
                   aria-current={pathname === path ? "page" : undefined}
-                  className={`group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
+                  className={`group relative flex w-full items-center gap-3 overflow-hidden rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-300 active:scale-[0.98] ${
                     pathname === path
                       ? "bg-gradient-to-r from-brand-600 to-brand-700 text-white shadow-[0_4px_12px_rgba(37,99,235,0.35)]"
                       : "text-slate-300 hover:bg-slate-800 hover:text-white"
                   }`}
                 >
-                  <Icon size={18} />
-                  <span>{label}</span>
+                  {/* Al pasar el mouse: barra de acento a la izquierda, icono que se inclina y texto que se desliza */}
+                  {pathname !== path && (
+                    <span aria-hidden="true" className="absolute left-0 top-1/2 h-0 w-1 -translate-y-1/2 rounded-r-full bg-brand-400 transition-all duration-300 group-hover:h-6" />
+                  )}
+                  <Icon size={18} className="shrink-0 transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-115" />
+                  <span className="transition-transform duration-300 group-hover:translate-x-1">{label}</span>
                 </button>
               ))}
             </div>
@@ -149,9 +153,9 @@ export default function Sidebar({ onNavigate }) {
       <div className="border-t border-slate-800 p-3">
         <button
           onClick={() => setConfirmandoSalida(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-800 py-2.5 text-sm font-semibold text-slate-200 transition-colors hover:bg-danger hover:text-white"
+          className="group flex w-full items-center justify-center gap-2 rounded-lg bg-slate-800 py-2.5 text-sm font-semibold text-slate-200 transition-all duration-300 hover:bg-danger hover:text-white active:scale-[0.98]"
         >
-          <LogOut size={18} />
+          <LogOut size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
           Cerrar sesión
         </button>
       </div>

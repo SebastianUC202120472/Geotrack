@@ -22,7 +22,7 @@ export default function NavBarLanding({ lang, setLang, tx }) {
           right: 0,
           zIndex: 60,
           backdropFilter: "blur(14px)",
-          background: "rgba(245,248,251,.85)",
+          background: "rgba(245,248,251,.96)",
           borderBottom: "1px solid rgba(15,43,74,.08)",
         }}
       >
@@ -42,7 +42,22 @@ export default function NavBarLanding({ lang, setLang, tx }) {
             href="#inicio"
             style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "#0f2b4a" }}
           >
-            <img src={logo} alt="SAVA" style={{ width: 36, height: 38, objectFit: "contain" }} />
+            {/* Fondo azul oscuro: el logo es celeste y gris claro, y sobre la barra clara no se distinguía. */}
+            <span
+              className="ldg-logo-marca"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 42,
+                height: 42,
+                borderRadius: 12,
+                background: "#0f2b4a",
+                boxShadow: "0 4px 12px rgba(15,43,74,.25)",
+              }}
+            >
+              <img src={logo} alt="SAVA" style={{ width: 30, height: 32, objectFit: "contain" }} />
+            </span>
             <span style={{ fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 19, letterSpacing: ".02em" }}>
               SAVA{" "}
               <span data-sac="1" style={{ fontWeight: 500, color: "#4f6580", fontSize: 12, letterSpacing: ".08em" }}>S.A.C.</span>

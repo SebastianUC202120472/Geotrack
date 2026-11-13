@@ -82,7 +82,10 @@ export default function Portal() {
       >
         <div id="pTop" style={{ maxWidth: 1140, margin: "0 auto", padding: "0 24px", height: 64, display: "flex", alignItems: "center", gap: 14 }}>
           <Link to="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "#0f2b4a" }}>
-            <img src={logo} alt="SAVA" style={{ width: 30, height: 32, objectFit: "contain" }} />
+            {/* Fondo azul oscuro: el logo es celeste y gris claro y no se distingue sobre fondos claros. */}
+            <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 38, height: 38, borderRadius: 11, background: "#0f2b4a", flexShrink: 0 }}>
+              <img src={logo} alt="SAVA" style={{ width: 26, height: 28, objectFit: "contain" }} />
+            </span>
             <span style={{ fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 17 }}>SAVA</span>
           </Link>
           <span style={{ background: "#eaf3fc", color: "#1b5fb3", fontSize: 10.5, fontWeight: 700, letterSpacing: ".08em", padding: "5px 11px", borderRadius: 99, whiteSpace: "nowrap" }}>
@@ -231,7 +234,9 @@ export default function Portal() {
       {/* FOOTER */}
       <footer style={{ borderTop: "1px solid rgba(15,43,74,.08)", background: "#fff", marginTop: "auto" }}>
         <div style={{ maxWidth: 1140, margin: "0 auto", padding: 24, display: "flex", alignItems: "center", gap: "14px 22px", flexWrap: "wrap" }}>
-          <img src={logo} alt="SAVA" style={{ width: 22, height: 24, objectFit: "contain" }} />
+          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 9, background: "#0f2b4a", flexShrink: 0 }}>
+            <img src={logo} alt="SAVA" style={{ width: 20, height: 22, objectFit: "contain" }} />
+          </span>
           <span style={{ fontFamily: "Archivo, sans-serif", fontWeight: 700, fontSize: 14, color: "#0f2b4a" }}>SAVA S.A.C.</span>
           <span style={{ fontSize: 12.5, color: "#7288a0" }}>{t("Portal de clientes · datos en vivo desde GeoTrack")}</span>
           <div style={{ marginLeft: "auto", display: "flex", gap: 18, flexWrap: "wrap" }}>

@@ -128,7 +128,7 @@ export default function Topbar() {
         onClick={() => setPerfilAbierto(true)}
         aria-label="Mi perfil"
         title="Mi perfil"
-        className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-white transition-colors hover:bg-brand-700"
+        className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-white transition-all duration-200 hover:scale-110 hover:bg-brand-700 hover:shadow-[0_6px_16px_rgba(37,99,235,0.4)] active:scale-95"
       >
         <User size={18} />
       </button>

@@ -15,7 +15,8 @@ const tamanos = {
   lg: "text-base px-5 py-3 gap-2",
 };
 
-// Boton reutilizable. Recibe variant, size, icon, block, className y props HTML de button.
+// Boton reutilizable: se eleva un poco al pasar el mouse, se hunde al hacer clic y su icono crece.
+// Recibe variant, size, icon, block, className y props HTML de button.
 export default function Button({
   variant = "primary",
   size = "md",
@@ -27,10 +28,10 @@ export default function Button({
 }) {
   return (
     <button
-      className={`inline-flex items-center justify-center font-semibold rounded-xl transition-colors outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed ${variantes[variant]} ${tamanos[size]} ${block ? "w-full" : ""} ${className}`}
+      className={`group/boton inline-flex items-center justify-center font-semibold rounded-xl transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] disabled:translate-y-0 disabled:scale-100 outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed ${variantes[variant]} ${tamanos[size]} ${block ? "w-full" : ""} ${className}`}
       {...props}
     >
-      {Icon && <Icon size={size === "lg" ? 20 : 18} />}
+      {Icon && <Icon size={size === "lg" ? 20 : 18} className="transition-transform duration-200 group-hover/boton:scale-110" />}
       {children}
     </button>
   );
