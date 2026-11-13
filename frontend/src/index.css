@@ -62,6 +62,17 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
+  /* Cursor de clic en todo lo que se puede tocar (Tailwind 4 deja los botones con el cursor normal) */
+  button:not(:disabled),
+  [role="button"],
+  a[href],
+  select:not(:disabled),
+  summary,
+  label:has(> input[type="checkbox"]),
+  input[type="checkbox"],
+  input[type="date"] {
+    cursor: pointer;
+  }
   /* Números alineados en KPIs y tablas */
   .nums {
     font-variant-numeric: tabular-nums;

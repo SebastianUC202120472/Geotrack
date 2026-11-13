@@ -17,11 +17,11 @@ export default function BotonPerfiles({ compacto = false }) {
       aria-label="Agregar perfil"
       title="Agregar o administrar los perfiles del panel"
       aria-current={activo ? "page" : undefined}
-      className={`inline-flex h-9 items-center gap-2 rounded-full border text-sm font-semibold transition-colors ${
+      className={`group inline-flex h-9 items-center gap-2 rounded-full border text-sm font-semibold transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-95 ${
         compacto ? "w-9 justify-center" : "px-3.5"
       } ${activo ? "border-brand-600 bg-brand-50 text-brand-700" : "border-slate-200 bg-white text-slate-700 hover:border-brand-300 hover:text-brand-700"}`}
     >
-      <UserPlus size={17} />
+      <UserPlus size={17} className="transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6" />
       {!compacto && <span>Agregar perfil</span>}
     </button>
   );
