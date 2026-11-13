@@ -146,10 +146,9 @@ export default function Flota() {
   ];
 
   return (
-    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
+    <div className="space-y-5 px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5 animate-fade-in">
       <PageHeader
         titulo="Flota de Vehículos"
-        subtitulo="Registra los vehículos, asígnalos a un conductor y calcula su capacidad."
       />
 
       {pestanas}

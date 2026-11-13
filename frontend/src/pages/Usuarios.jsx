@@ -99,8 +99,8 @@ export default function Usuarios() {
   ];
 
   return (
-    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
-      <PageHeader titulo="Usuarios del Panel" subtitulo="Crea cuentas de personal y define su rol (administrador o almacén)." />
+    <div className="space-y-5 px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5 animate-fade-in">
+      <PageHeader titulo="Usuarios del Panel" />
 
       {kpis.solicitudes > 0 && (
         <div className="flex items-center gap-2 rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning-strong animate-fade-up">

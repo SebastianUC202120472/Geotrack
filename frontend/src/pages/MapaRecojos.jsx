@@ -53,11 +53,10 @@ export default function MapaRecojos() {
   const conductores = ubicaciones.map((c, i) => ({ ...c, _color: COLORES[i % COLORES.length] }));
 
   return (
-    <div className="space-y-6 p-6 lg:p-8">
+    <div className="space-y-5 px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5">
       <div className="animate-fade-up">
         <PageHeader
           titulo="Mapa de Recojos"
-          subtitulo="Ubicación en vivo de los conductores asignados a rutas de recojo activas."
         >
           <LiveBadge tone="success">En vivo</LiveBadge>
           <Button variant="secondary" icon={RefreshCw} onClick={actualizar}>

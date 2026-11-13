@@ -140,8 +140,8 @@ export default function Clientes() {
   ];
 
   return (
-    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
-      <PageHeader titulo="Clientes Corporativos" subtitulo="Registra y administra las empresas a las que prestas el servicio y sus contactos comerciales." />
+    <div className="space-y-5 px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5 animate-fade-in">
+      <PageHeader titulo="Clientes Corporativos" />
 
       {pestanas}
 

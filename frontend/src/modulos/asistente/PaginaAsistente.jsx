@@ -14,10 +14,9 @@ export default function PaginaAsistente() {
   const permitido = ROLES_ASISTENTE.includes(rol);
 
   return (
-    <div className="flex flex-col gap-4 p-4 sm:p-6 lg:p-8">
+    <div className="flex flex-col gap-4 px-4 pb-4 pt-3 sm:px-6 sm:pb-6 sm:pt-4 lg:px-8 lg:pb-8 lg:pt-5">
       <PageHeader
         titulo="Asistente IA"
-        subtitulo="Pregunta con tus propias palabras: respondo con datos reales del sistema y te llevo a la pantalla de origen."
       />
 
       {servicio === null ? (

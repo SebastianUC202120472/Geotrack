@@ -163,8 +163,8 @@ export default function Parametros({ incrustado = false }) {
   };
 
   return (
-    <div className={`space-y-6 animate-fade-in ${incrustado ? "" : "p-6 lg:p-8"}`}>
-      <PageHeader titulo="Parámetros" seccion={incrustado} subtitulo="Catálogos del sistema. Los motivos de rechazo se usan en la app al reportar una entrega fallida." />
+    <div className={`space-y-6 animate-fade-in ${incrustado ? "" : "px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5"}`}>
+      <PageHeader titulo="Parámetros" seccion={incrustado} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 animate-fade-up">
         <SectionCard title="Agregar motivo de rechazo" className="lg:col-span-1">

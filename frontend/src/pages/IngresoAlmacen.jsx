@@ -71,10 +71,9 @@ export default function IngresoAlmacen() {
   ];
 
   return (
-    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
+    <div className="space-y-5 px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5 animate-fade-in">
       <PageHeader
         titulo="Ingreso a Almacén"
-        subtitulo="Revisa las fotos del recojo, marca lo que no llegó y confirma el ingreso a mano."
       />
       <div className="animate-fade-up">
         <DataTable
@@ -179,7 +178,7 @@ function PanelIngreso({ recojoId, onVolver }) {
   const observados = pedidos.filter((p) => p.estado === "OBSERVADO");
 
   return (
-    <div className="space-y-6 p-6 lg:p-8 animate-fade-in">
+    <div className="space-y-5 px-6 pb-6 pt-4 lg:px-8 lg:pb-8 lg:pt-5 animate-fade-in">
       <PageHeader
         titulo="Ingreso a Almacén"
         subtitulo={conc ? `Recojo ${conc.recojo_id} · ${etiquetaEstado(conc.estado_recojo)}` : "Cargando…"}
