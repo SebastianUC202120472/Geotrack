@@ -142,6 +142,45 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  # Asistente virtual con IA de atencion al cliente (Idea 2): landing y portal, visitante anonimo.
+  # Servicio aparte: usa solo la API publica del portal y guarda su base de conocimiento y sus
+  # conversaciones en el esquema "atencion". Se apaga con ATENCION_ENABLED=false (independiente
+  # de ASISTENTE_ENABLED). Sin "ports": solo se llega a el a traves de Nginx.
+  atencion:
+    build: ./atencion
+    environment:
+      ATENCION_ENABLED: ${ATENCION_ENABLED:-false}
+      ATENCION_DATABASE_URL: ${DATABASE_URL}
+      ATENCION_CORE_API_URL: http://backend:8000/api
+      ATENCION_SECRETO_CONVERSACION: ${ATENCION_SECRETO_CONVERSACION:-}
+      ATENCION_CORS_ORIGINS: ${ATENCION_CORS_ORIGINS:-http://localhost:8080}
+      ATENCION_DOMINIOS_PERMITIDOS: ${ATENCION_DOMINIOS_PERMITIDOS:-sava.pe,www.sava.pe}
+      ATENCION_PROVEEDORES: ${ATENCION_PROVEEDORES:-groq,groq_respaldo,gemini,openrouter,ollama}
+      # Claves propias; vacias = el servicio usa las del asistente del panel (siguientes 3 lineas).
+      ATENCION_GEMINI_API_KEY: ${ATENCION_GEMINI_API_KEY:-}
+      ATENCION_GROQ_API_KEY: ${ATENCION_GROQ_API_KEY:-}
+      ATENCION_OPENROUTER_API_KEY: ${ATENCION_OPENROUTER_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      # Ollama: opcional y apagado por defecto (URL vacia). Para pruebas locales con GPU:
+      # ATENCION_OLLAMA_URL=http://host.docker.internal:11434 y un modelo de 7B o 3B.
+      ATENCION_OLLAMA_URL: ${ATENCION_OLLAMA_URL:-}
+      ATENCION_OLLAMA_MODELO: ${ATENCION_OLLAMA_MODELO:-qwen2.5:7b}
+      ATENCION_OLLAMA_TIMEOUT_SEG: ${ATENCION_OLLAMA_TIMEOUT_SEG:-120}
+      ATENCION_MENSAJES_POR_MINUTO_IP: ${ATENCION_MENSAJES_POR_MINUTO_IP:-8}
+      ATENCION_MENSAJES_POR_DIA_IP: ${ATENCION_MENSAJES_POR_DIA_IP:-80}
+      ATENCION_TOPE_DIARIO_GLOBAL: ${ATENCION_TOPE_DIARIO_GLOBAL:-1500}
+      ATENCION_RETENCION_DIAS: ${ATENCION_RETENCION_DIAS:-30}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend
