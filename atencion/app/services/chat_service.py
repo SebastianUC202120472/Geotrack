@@ -9,6 +9,7 @@
 #   6. si el visitante sigue sin respuesta util, le ofrece hablar con una persona,
 #   7. guarda ambos mensajes, ya enmascarados, en las tablas propias.
 import json
+import re
 from typing import AsyncIterator
 
 import httpx
@@ -20,15 +21,17 @@ from app.core.config import settings
 from app.core.registro import log
 from app.herramientas import funciones
 from app.herramientas.catalogo import HERRAMIENTAS, NOMBRES, ArgumentoInvalido, validar_argumentos
-from app.herramientas.cliente_portal import ClientePortal
+from app.herramientas.cliente_portal import ClientePortal, codigo_valido
 from app.ia.prompt import envolver_datos, instrucciones_sistema
 from app.ia.proveedores import CadenaProveedores, ErrorProveedor, SinProveedores
 from app.models.conversacion import Conversacion
 from app.repositories import conversacion_repository as repo
 from app.services import idioma as servicio_idioma
-from app.services.defensa import AVISO_USUARIO, intenta_cambiar_reglas, neutralizar_datos
+from app.services.defensa import (
+    AVISO_USUARIO, MENSAJE_OMITIDO, frases_para_no_repetir, intenta_cambiar_reglas, neutralizar_datos,
+)
 from app.services.privacidad import enmascarar_texto
-from app.services.salida import FiltroSalida
+from app.services.salida import FiltroSalida, sanear
 from app.services.sesion import sesiones
 
 _MAX_LLAMADAS_POR_RONDA = 3
@@ -65,11 +68,36 @@ def _evento(tipo: str, **datos) -> dict:
 
 def _articulos_como_datos(resultados: list[Resultado]) -> list[dict]:
     """Articulos recuperados en el formato que recibe el modelo, sin ordenes ocultas. Recibe los resultados."""
-    datos = [{"titulo": r.titulo, "contenido": r.contenido} for r in resultados]
-    limpio, omitio = neutralizar_datos(datos)
-    if omitio:
-        log.warning("Un artículo de la base de conocimiento traía instrucciones y se omitió parte del texto")
-    return limpio
+    # Los enlaces externos se quitan antes de que el modelo los vea. Un articulo con ordenes se descarta
+    # ENTERO, titulo incluido: con solo el titulo ("Promocion de envio gratis") el modelo ya inventa.
+    limpios = []
+    for r in resultados:
+        dato = {"titulo": r.titulo, "contenido": sanear(r.contenido, settings.dominios_permitidos)}
+        dato_limpio, omitio = neutralizar_datos(dato, estricto=True)
+        if omitio:
+            log.warning("El artículo %s/%s traía instrucciones para el asistente y se descartó", r.clave, r.idioma)
+            continue
+        limpios.append(dato_limpio)
+    return limpios
+
+
+# Codigos de pedido escritos por el visitante con el formato del nucleo (PD-001; tambien "pd 045").
+_RE_CODIGO_EN_TEXTO = re.compile(r"\b(PD)[\s-]?(\d{1,10})\b", re.IGNORECASE)
+NOTA_FORMULARIO = (
+    "\n\n[Nota del sistema: el visitante ya tiene en pantalla el formulario para verificar el pedido {codigos} con los "
+    "últimos 4 dígitos del DNI del destinatario. Si necesita el detalle, dile que lo complete ahí; no le pidas los "
+    "dígitos en el chat. Puedes usar rastrear_pedido para ver el estado.]"
+)
+
+
+def codigos_sin_verificar(mensaje: str, estado) -> list[str]:
+    """Codigos de pedido del mensaje que el visitante aun no verifico. Recibe el mensaje y el estado en memoria."""
+    codigos = []
+    for prefijo, numero in _RE_CODIGO_EN_TEXTO.findall(mensaje or ""):
+        codigo = codigo_valido(f"{prefijo}-{numero}")
+        if codigo and codigo not in codigos and not estado.token(codigo):
+            codigos.append(codigo)
+    return codigos[:2]
 
 
 def respuesta_sin_ia(resultados: list[Resultado], idioma: str) -> str:
@@ -101,8 +129,13 @@ def construir_mensajes(idioma: str, previos: list, texto: str, resultados: list[
         "base_de_conocimiento", _articulos_como_datos(resultados) or "sin artículos relevantes")
     mensajes = [{"role": "system", "content": sistema}]
     for m in previos:
-        if m.contenido:
-            mensajes.append({"role": "user" if m.rol == "usuario" else "assistant", "content": m.contenido})
+        if not m.contenido:
+            continue
+        if m.rol == "usuario":
+            # Un mensaje que intento cambiar las reglas no vuelve a la memoria (orden plantada para despues).
+            mensajes.append({"role": "user", "content": MENSAJE_OMITIDO if m.alerta_seguridad else m.contenido})
+        else:
+            mensajes.append({"role": "assistant", "content": m.contenido})
     mensajes.append({"role": "user", "content": texto + (AVISO_USUARIO if alerta else "")})
     return mensajes
 
@@ -147,12 +180,19 @@ async def conversar(
                                settings.ATENCION_KB_PUNTAJE_MINIMO)
     claves = [r.clave for r in resultados]
     yield _evento("inicio", idioma=idioma)
+    # Si el visitante escribio un codigo sin verificar, el servidor muestra el formulario de DNI y se lo
+    # avisa al modelo: asi ningun modelo (ni uno chico) tiene que acordarse de no pedir los digitos.
+    pendientes = codigos_sin_verificar(mensaje, estado)
+    for codigo in pendientes:
+        yield _evento("verificar", codigo=codigo)
+    texto_modelo = texto + (NOTA_FORMULARIO.format(codigos=", ".join(pendientes)) if pendientes else "")
 
     ctx = funciones.Contexto(db, conversacion, estado, ClientePortal(http_core or http, ip_visitante), idioma)
     modo, proveedor, respuesta, util = "ia", None, "", bool(resultados)
     if con_ia and cadena.proveedores:
-        filtro = FiltroSalida(settings.dominios_permitidos, estado.seudonimos.restituir)
-        mensajes = construir_mensajes(idioma, previos, texto, resultados, alerta)
+        filtro = FiltroSalida(settings.dominios_permitidos, estado.seudonimos.restituir,
+                              frases_para_no_repetir(mensaje) if alerta else None)
+        mensajes = construir_mensajes(idioma, previos, texto_modelo, resultados, alerta)
         emitio = False
         try:
             for ronda in range(settings.ATENCION_MAX_RONDAS_FUNCIONES + 1):
@@ -176,6 +216,11 @@ async def conversar(
                     datos, eventos, fue_util = await _ejecutar_llamada(llamada, ctx)
                     util = util or fue_util
                     for evento in eventos:
+                        # El formulario de un codigo ya mostrado en este turno no se repite.
+                        if evento.get("tipo") == "verificar":
+                            if evento.get("codigo") in pendientes:
+                                continue
+                            pendientes.append(evento.get("codigo"))
                         yield evento
                     mensajes.append({"role": "tool", "tool_call_id": llamada["id"],
                                      "content": envolver_datos(llamada["function"]["name"], datos)})

@@ -2,6 +2,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.fechas import ahora_utc
 from app.models.conocimiento import ArticuloConocimiento, HistorialArticulo
 
 
@@ -26,12 +27,16 @@ def _registrar_historial(db: Session, articulo: ArticuloConocimiento, accion: st
     ))
 
 
-def crear(db: Session, datos: dict, editado_por: str) -> ArticuloConocimiento:
-    """Crea un articulo y su primera entrada de historial. Recibe los datos validados y quien lo crea."""
+def crear(db: Session, datos: dict, editado_por: str, confirmar: bool = False) -> ArticuloConocimiento:
+    """Crea un articulo y su primera entrada de historial. Recibe los datos validados, quien lo crea y
+    si se guarda ya (la semilla confirma todo junto al final)."""
     articulo = ArticuloConocimiento(**datos, editado_por=editado_por, version=1)
     db.add(articulo)
     db.flush()
     _registrar_historial(db, articulo, "CREADO")
+    if confirmar:
+        db.commit()
+        db.refresh(articulo)
     return articulo
 
 
@@ -43,3 +48,50 @@ def cargar_semilla(db: Session, articulos: list[dict]) -> int:
         crear(db, datos, editado_por="semilla")
     db.commit()
     return len(articulos)
+
+
+def listar(db: Session, idioma: str | None = None, texto: str | None = None) -> list[ArticuloConocimiento]:
+    """Articulos para la administracion (activos e inactivos), filtrados por idioma y texto. Recibe ambos filtros."""
+    consulta = select(ArticuloConocimiento)
+    if idioma:
+        consulta = consulta.where(ArticuloConocimiento.idioma == idioma)
+    if texto:
+        patron = f"%{texto.lower()}%"
+        consulta = consulta.where(
+            func.lower(ArticuloConocimiento.titulo).like(patron)
+            | func.lower(ArticuloConocimiento.contenido).like(patron)
+            | func.lower(ArticuloConocimiento.clave).like(patron)
+        )
+    return list(db.execute(consulta.order_by(ArticuloConocimiento.categoria, ArticuloConocimiento.clave,
+                                             ArticuloConocimiento.idioma)).scalars().all())
+
+
+def obtener(db: Session, articulo_id: int) -> ArticuloConocimiento | None:
+    """Articulo por id. Recibe el id."""
+    return db.get(ArticuloConocimiento, articulo_id)
+
+
+def existe(db: Session, clave: str, idioma: str) -> bool:
+    """Dice si ya hay un articulo con esa clave e idioma. Recibe clave e idioma."""
+    return db.execute(select(ArticuloConocimiento.id).where(
+        ArticuloConocimiento.clave == clave, ArticuloConocimiento.idioma == idioma)).first() is not None
+
+
+def actualizar(db: Session, articulo: ArticuloConocimiento, datos: dict, editado_por: str, accion: str) -> ArticuloConocimiento:
+    """Aplica cambios, sube la version y deja la copia en el historial. Recibe el articulo, los cambios,
+    quien edita y la accion (EDITADO | ACTIVADO | DESACTIVADO)."""
+    for campo, valor in datos.items():
+        setattr(articulo, campo, valor)
+    articulo.version += 1
+    articulo.editado_por = editado_por
+    articulo.editado_en = ahora_utc()
+    _registrar_historial(db, articulo, accion)
+    db.commit()
+    db.refresh(articulo)
+    return articulo
+
+
+def historial(db: Session, articulo_id: int) -> list[HistorialArticulo]:
+    """Versiones de un articulo, de la mas reciente a la mas antigua. Recibe el id."""
+    return list(db.execute(select(HistorialArticulo).where(HistorialArticulo.articulo_id == articulo_id)
+                           .order_by(HistorialArticulo.version.desc())).scalars().all())

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useEfectosScroll } from "../../hooks/useEfectosScroll";
 import RastreoPersonal from "./vistas/RastreoPersonal";
@@ -7,6 +7,9 @@ import { ayudaDemo } from "./servicios/portal";
 import { IdiomaPortal, crearT } from "./i18n";
 import logo from "../../assets/logo.png";
 import "./portal.css";
+
+// Asistente de atención al cliente con IA (módulo aparte, carga diferida): si su servicio está apagado no se muestra.
+const WidgetAtencion = lazy(() => import("../../modulos/atencion/WidgetAtencion"));
 
 // Página del portal de clientes: header sticky + hero + selector de perfil
 // (persona natural / empresa) + hueco de la vista elegida +
@@ -278,6 +281,10 @@ export default function Portal() {
           {toast}
         </div>
       )}
+
+      <Suspense fallback={null}>
+        <WidgetAtencion lang={lang} pagina="portal" />
+      </Suspense>
     </div>
     </IdiomaPortal.Provider>
   );

@@ -7,44 +7,25 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.admin import router as admin_router
 from app.api.chat import router as chat_router
 from app.api.gestion import router as gestion_router
 from app.api.deps import CABECERA_CONVERSACION
-from app.conocimiento.buscador import indice
-from app.conocimiento.semilla import articulos_semilla
+from app.conocimiento import servicio as servicio_conocimiento
 from app.core.config import settings
 from app.core.registro import log
-from app.db.database import SessionLocal, preparar_tablas
+from app.db.database import SessionLocal
 from app.ia.fabrica import config_ia, crear_cadena
 from app.ia.proveedores import timeout_http
-from app.repositories import conocimiento_repository, conversacion_repository
-
-
-def recargar_indice() -> int:
-    """Rearma el indice de busqueda con los articulos activos de la base. Sin input; devuelve cuantos."""
-    db = SessionLocal()
-    try:
-        articulos = [
-            {"clave": a.clave, "idioma": a.idioma, "titulo": a.titulo, "contenido": a.contenido, "etiquetas": a.etiquetas}
-            for a in conocimiento_repository.listar_activos(db)
-        ]
-    finally:
-        db.close()
-    indice.cargar(articulos)
-    return len(articulos)
+from app.repositories import conversacion_repository
 
 
 def preparar_conocimiento() -> None:
-    """Crea las tablas, carga la semilla si la base esta vacia y arma el indice. Sin input."""
-    preparar_tablas()
-    db = SessionLocal()
-    try:
-        cargados = conocimiento_repository.cargar_semilla(db, articulos_semilla())
-    finally:
-        db.close()
+    """Prepara la base de conocimiento y deja constancia en el log. Sin input."""
+    cargados, activos = servicio_conocimiento.preparar_conocimiento()
     if cargados:
         log.info("Base de conocimiento inicial cargada: %s artículos", cargados)
-    log.info("Índice de la base de conocimiento: %s artículos activos", recargar_indice())
+    log.info("Índice de la base de conocimiento: %s artículos activos", activos)
 
 
 def purgar_conversaciones() -> int:
@@ -109,8 +90,8 @@ if settings.cors_origins_list:
         CORSMiddleware,
         allow_origins=settings.cors_origins_list,
         allow_credentials=False,
-        allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type", CABECERA_CONVERSACION],
+        allow_methods=["GET", "POST", "PUT"],
+        allow_headers=["Content-Type", "Authorization", CABECERA_CONVERSACION],
     )
 
 
@@ -134,6 +115,7 @@ async def error_no_controlado(request: Request, exc: Exception):
 
 app.include_router(chat_router, prefix="/api/atencion", tags=["Atención al cliente"])
 app.include_router(gestion_router, prefix="/api/atencion", tags=["Portal, acciones y voz"])
+app.include_router(admin_router, prefix="/api/atencion/admin", tags=["Administración (panel)"])
 
 
 @app.get("/api/atencion/salud")

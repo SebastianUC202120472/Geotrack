@@ -10,7 +10,7 @@
 import re
 from urllib.parse import urlsplit
 
-from app.services.defensa import filtra_instrucciones
+from app.services.defensa import _normal, filtra_instrucciones
 
 ENLACE_OMITIDO = "[enlace omitido]"
 _RE_HTML = re.compile(r"<\s*/?\s*[a-zA-Z][^>]{0,500}>")
@@ -72,11 +72,13 @@ def _filtrar_urls(texto: str, dominios: list[str]) -> str:
 class FiltroSalida:
     """Filtra la respuesta en streaming: retiene hasta el ultimo espacio, sanea y vigila fugas."""
 
-    def __init__(self, dominios: list[str], mostrar=None):
-        """Empieza sin texto retenido. Recibe los dominios permitidos y, opcionalmente, una funcion que
-        prepara el texto visible (p. ej. devolver al visitante su propio correo en lugar de [CORREO_1])."""
+    def __init__(self, dominios: list[str], mostrar=None, prohibidas: list[str] | None = None):
+        """Empieza sin texto retenido. Recibe los dominios permitidos, opcionalmente una funcion que prepara
+        el texto visible (p. ej. devolver al visitante su propio correo en lugar de [CORREO_1]) y las frases
+        que un intento de jailbreak pidio repetir (si aparecen, la respuesta se descarta)."""
         self._dominios = dominios
         self._mostrar = mostrar or (lambda texto: texto)
+        self._prohibidas = [" ".join(_normal(f).split()) for f in (prohibidas or []) if f.strip()]
         self._pendiente = ""
         self._completo = ""
         self.fuga = False
@@ -87,7 +89,8 @@ class FiltroSalida:
             return ""
         self._pendiente += fragmento
         self._completo += fragmento
-        if filtra_instrucciones(self._completo):
+        plano = " ".join(_normal(self._completo).split())
+        if filtra_instrucciones(self._completo) or any(f in plano for f in self._prohibidas):
             self.fuga = True
             self._pendiente = ""
             return ""

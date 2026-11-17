@@ -15,6 +15,7 @@ import {
   AlertOctagon,
   Scale,
   ChevronRight,
+  Headset,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -24,6 +25,7 @@ import ConfirmDialog from "./ui/ConfirmDialog";
 import CampanaNotificaciones from "./CampanaNotificaciones";
 import IconoAsistente from "../modulos/asistente/IconoAsistente";
 import { useAsistenteDisponible } from "../modulos/asistente/estadoServicio";
+import { useAtencionDisponible } from "../modulos/atencion/estadoServicio";
 
 // Secciones de navegacion agrupadas por rol. El resumen (Dashboard) se abre con el logo; la
 // capacidad vive en Flota de Vehiculos, el seguimiento en Conductores, los parametros en el resumen,
@@ -37,6 +39,7 @@ const secciones = [
       { icon: RouteIcon, label: "Asignación de Rutas", path: "/panel/asignacion-bloque" },
       { icon: Mail, label: "Bandeja de Solicitudes", path: "/panel/bandeja" },
       { icon: IconoAsistente, label: "Asistente IA", path: "/panel/asistente", asistente: true },
+      { icon: Headset, label: "Atención al cliente", path: "/panel/atencion", atencion: true },
     ],
   },
   {
@@ -79,9 +82,14 @@ export default function Sidebar({ onNavigate }) {
   const { cerrarSesion, rol } = useAuth();
   // La entrada del asistente solo aparece si su servicio esta activo (igual que el boton flotante).
   const asistenteDisponible = useAsistenteDisponible(rol);
+  // La de atención al cliente, solo si su servicio está activo y el rol es admin.
+  const atencionDisponible = useAtencionDisponible(rol);
   const visibles = secciones
     .filter((s) => !s.roles || s.roles.includes(rol))
-    .map((s) => ({ ...s, items: s.items.filter((i) => !i.asistente || asistenteDisponible) }));
+    .map((s) => ({
+      ...s,
+      items: s.items.filter((i) => (!i.asistente || asistenteDisponible) && (!i.atencion || atencionDisponible)),
+    }));
   const [confirmandoSalida, setConfirmandoSalida] = useState(false);
 
   // Cierra la sesion tras confirmarla en el dialogo (C05-01). Sin input.

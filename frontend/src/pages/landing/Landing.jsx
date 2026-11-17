@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useEfectosScroll } from "../../hooks/useEfectosScroll";
 import { crearTx } from "./i18n";
@@ -14,6 +14,9 @@ import Reclamos from "./secciones/Reclamos";
 import Contacto from "./secciones/Contacto";
 import FooterLanding from "./secciones/FooterLanding";
 import "./landing.css";
+
+// Asistente de atención al cliente con IA (módulo aparte, carga diferida): si su servicio está apagado no se muestra.
+const WidgetAtencion = lazy(() => import("../../modulos/atencion/WidgetAtencion"));
 
 // Página pública de SAVA: compone las secciones del landing en orden.
 export default function Landing() {
@@ -42,6 +45,9 @@ export default function Landing() {
       <Reclamos tx={tx} />
       <Contacto tx={tx} />
       <FooterLanding tx={tx} />
+      <Suspense fallback={null}>
+        <WidgetAtencion lang={lang} pagina="landing" />
+      </Suspense>
     </div>
   );
 }

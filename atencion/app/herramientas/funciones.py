@@ -19,6 +19,7 @@ from app.models.conversacion import Conversacion
 from app.repositories import gestion_repository
 from app.services.defensa import neutralizar_datos
 from app.services.privacidad import enmascarar_texto
+from app.services.salida import sanear
 from app.services.sesion import EstadoConversacion, Propuesta
 
 _MAX_EVENTOS_PEDIDO = 6
@@ -53,7 +54,7 @@ class Contexto:
 
 def _limpio(datos):
     """Quita ordenes ocultas y datos personales de lo que devuelve el portal. Recibe dict/lista/valor."""
-    datos, _ = neutralizar_datos(datos)
+    datos, _ = neutralizar_datos(datos, estricto=True)
     if isinstance(datos, dict):
         return {k: _limpio(v) for k, v in datos.items()}
     if isinstance(datos, list):
@@ -230,8 +231,8 @@ async def derivar_a_persona(ctx: Contexto, motivo: str, contacto: str | None, or
 def buscar_conocimiento(ctx: Contexto, consulta: str) -> tuple[dict, list]:
     """Busca en la base de conocimiento. Recibe contexto y consulta."""
     resultados = indice.buscar(consulta, ctx.idioma, settings.ATENCION_KB_RESULTADOS, settings.ATENCION_KB_PUNTAJE_MINIMO)
-    articulos = [{"titulo": r.titulo, "contenido": r.contenido} for r in resultados]
-    limpio, _ = neutralizar_datos(articulos)
+    articulos = [{"titulo": r.titulo, "contenido": sanear(r.contenido, settings.dominios_permitidos)} for r in resultados]
+    limpio, _ = neutralizar_datos(articulos, estricto=True)
     return {"articulos": limpio or "sin resultados"}, []
 
 

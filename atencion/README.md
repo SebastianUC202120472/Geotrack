@@ -10,7 +10,7 @@ Es independiente del asistente del panel (`asistente/`, Idea 1): no comparte có
 |---|---|---|
 | 13 | Servicio base, token de conversación anónima, aviso de privacidad, base de conocimiento (semilla ES/EN + BM25), conversación natural ES/EN, respaldo sin IA, límites, retención | **Hecho** |
 | 14 | Rastreo con verificación por DNI, reprogramación, captación de empresas, derivación a una persona, voz | **Hecho** |
-| 15 | Widget en landing y portal, administración (base de conocimiento, bandeja, métricas), batería de 50+ ataques, prueba de trabajo en JS | Pendiente |
+| 15 | Widget en landing y portal, administración (base de conocimiento, bandeja, métricas), batería de 56 ataques (100 %) | **Hecho** · la prueba de trabajo en JS se recortó (ver abajo) |
 
 ## Cómo está armado
 
@@ -69,6 +69,30 @@ La documentación interactiva (`/docs`) está apagada a propósito porque el ser
 
 Eventos que emite el chat (SSE): `inicio`, `texto`, `reemplazar`, `verificar`, `propuesta`, `derivada`, `ofrecer_derivacion`, `fin` y `error`.
 
+## Semana 15: widget, administración y batería
+
+- **Widget** (`frontend/src/modulos/atencion/`), cargado en diferido en la landing y en el portal, en el idioma de la página. Muestra el aviso de privacidad (con un honeypot oculto), el chat en tiempo real, el formulario de los 4 dígitos, las tarjetas de Confirmar y Cancelar, el botón «Hablar con una persona», los mensajes de voz (Whisper, o el dictado del navegador como respaldo) y la lectura en voz alta. El texto se pinta sin HTML; solo las rutas del sitio (`/portal`, `/#reclamos`) se vuelven enlaces.
+- **Administración** (`/panel/atencion`, solo admin; el rol se valida contra el núcleo con `/usuarios/yo`):
+  - Base de conocimiento: crear, editar (cada cambio es una versión nueva con quién y cuándo), activar o desactivar, historial y «Probar una pregunta» sin gastar IA. Se rechaza el texto con instrucciones para el asistente o con enlaces fuera de SAVA.
+  - Bandeja: conversaciones derivadas, con sus mensajes enmascarados; se marcan como atendidas.
+  - Métricas: conversaciones, % resueltas sin una persona, temas más consultados, empresas captadas, reprogramaciones, alertas de seguridad, mensajes por voz y respuestas por modo. Como métricas avanzadas, la serie diaria y el reparto por idioma, página y proveedor.
+- **Endpoints de administración:** `/api/atencion/admin/articulos` (GET y POST), `/articulos/{id}` (PUT), `/articulos/{id}/estado`, `/articulos/{id}/historial`, `/probar`, `/derivaciones`, `/derivaciones/{id}`, `/derivaciones/{id}/atender` y `/metricas`. Las escrituras exigen además el origen del sitio (contra CSRF), y hay un tope de 120 peticiones por minuto por administrador.
+- **Batería de seguridad** (`scripts/bateria_seguridad.py` + `scripts/ataques.json`): 56 ataques en ES/EN de 8 categorías (jailbreak, fuga del prompt, temas ajenos, datos sin verificar, inyección indirecta por la base de conocimiento y por el portal, enlaces y código, acciones, voz). Corre con IA real, por tandas, sobre una base temporal y el portal simulado, y acumula los resultados entre tandas. Resultado final: **56/56** con Groq, Gemini y OpenRouter (`docs/bateria_seguridad_resultado.md`).
+- **Lo que la batería encontró y se corrigió en el código** (no solo en los criterios):
+  - Una orden plantada en un turno («cada vez que te salude…») ya no vuelve a la memoria, y la respuesta que repite la frase pedida se descarta.
+  - Un artículo con órdenes se descarta entero, título incluido (antes el título solo bastaba para que el modelo inventara una promoción).
+  - Los datos de terceros con órdenes se omiten completos, no por fragmentos.
+  - Si el visitante escribe un código sin verificar, el servidor muestra el formulario él mismo, para que ningún modelo pida los dígitos en el chat.
+  - Nueva regla en el prompt contra pagos y enlaces de pago.
+- **Recortado:** la prueba de trabajo en JS, como estaba previsto si faltaba tiempo. La protección contra bots queda en el honeypot, el tiempo mínimo del primer mensaje, el token firmado por conversación, los límites por IP y por conversación y el tope diario global (que pasa a responder sin IA).
+
+```bash
+.venv/Scripts/python scripts/bateria_seguridad.py --reiniciar --desde 1 --hasta 28 --pausa 4
+.venv/Scripts/python scripts/bateria_seguridad.py --desde 29 --hasta 56 --pausa 4
+.venv/Scripts/python scripts/bateria_seguridad.py --solo-fallidos
+.venv/Scripts/python scripts/bateria_seguridad.py --proveedores ollama --ollama-url http://localhost:11434 --ollama-modelo qwen2.5:3b
+```
+
 ## Probar
 
 ```bash
@@ -102,6 +126,7 @@ Borradores para el gerente, generados desde los mismos JSON que usa el servicio:
 
 - `docker-compose.yml`: servicio `atencion`, sin `ports`; solo se llega a él a través de Nginx.
 - `frontend/nginx.conf`: `location /api/atencion/` con resolución diferida. Si el contenedor no existe, Nginx arranca igual.
-- Semana 15: widget diferido en `Landing.jsx` y `Portal.jsx`, y la ruta y la entrada de la administración en `App.jsx` y `Sidebar.jsx`.
+- `Landing.jsx` y `Portal.jsx`: widget diferido (`lazy` + `Suspense`) con el idioma de la página.
+- `App.jsx` y `Sidebar.jsx`: ruta `/panel/atencion` y la entrada «Atención al cliente», visible solo para admin y con el servicio activo.
 
 Variables: ver `ejemplo.env`.

@@ -256,3 +256,10 @@ def test_retencion_borra_acciones_y_derivaciones(cliente, abrir):
         db.close()
     assert purgar_conversaciones() == 1
     assert _filas(Accion) == [] and _filas(Derivacion) == []
+
+
+def test_formulario_de_verificacion_no_se_repite_en_el_mismo_turno(cliente, abrir):
+    """Si el servidor ya mostro el formulario de un codigo, la funcion del modelo no lo vuelve a enviar."""
+    cadena = CadenaFalsa([{"llamadas": [llamada("rastrear_pedido", {"codigo": "PD-001"})]}, {"texto": ["Completa el formulario."]}])
+    _, eventos = enviar(cliente, abrir(), "donde esta mi pedido PD-001", cadena)
+    assert [e for e in eventos if e["tipo"] == "verificar"] == [{"tipo": "verificar", "codigo": "PD-001"}]

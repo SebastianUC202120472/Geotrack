@@ -47,3 +47,26 @@ def crear_derivacion(db: Session, conversacion: Conversacion, origen: str, motiv
     db.commit()
     db.refresh(derivacion)
     return derivacion
+
+
+def listar_derivaciones(db: Session, estado: str | None = None, limite: int = 200) -> list[Derivacion]:
+    """Derivaciones de la bandeja, de la mas reciente a la mas antigua. Recibe el estado (opcional) y un tope."""
+    consulta = select(Derivacion)
+    if estado:
+        consulta = consulta.where(Derivacion.estado == estado)
+    return list(db.execute(consulta.order_by(Derivacion.creada_en.desc()).limit(limite)).scalars().all())
+
+
+def obtener_derivacion(db: Session, derivacion_id: int) -> Derivacion | None:
+    """Derivacion por id. Recibe el id."""
+    return db.get(Derivacion, derivacion_id)
+
+
+def atender_derivacion(db: Session, derivacion: Derivacion, atendida_por: str) -> Derivacion:
+    """Marca una derivacion como atendida y deja quien y cuando. Recibe la derivacion y quien la atendio."""
+    derivacion.estado = "ATENDIDA"
+    derivacion.atendida_por = atendida_por[:120]
+    derivacion.atendida_en = ahora_utc()
+    db.commit()
+    db.refresh(derivacion)
+    return derivacion
