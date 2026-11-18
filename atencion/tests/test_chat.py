@@ -77,6 +77,31 @@ def test_responde_en_el_idioma_del_mensaje(cliente, abrir):
     assert "inglés" in cadena.recibido[0][0][0]["content"]
 
 
+def test_idioma_se_recuerda_en_el_mensaje_y_en_los_resultados_de_funciones(cliente, abrir):
+    """En una conversacion en espanol, el recordatorio del idioma va con el mensaje del visitante y con
+    cada resultado de funcion (ahi es donde un modelo se pasaba al ingles: "Perfect, ya he localizado...")."""
+    cadena = CadenaFalsa([
+        {"llamadas": [llamada("buscar_conocimiento", {"consulta": "reprogramar entrega"})]},
+        {"texto": ["Puedes reprogramarla desde el portal."]},
+    ])
+    _, eventos = enviar(cliente, abrir("en"), "quiero reprogramar la entrega de mi pedido", cadena)
+    assert eventos[0] == {"tipo": "inicio", "idioma": "es"}
+    primera, segunda = cadena.recibido[0][0], cadena.recibido[1][0]
+    assert "responde solo en español" in primera[-1]["content"]
+    assert '"responde_en": "español"' in segunda[-1]["content"]
+    assert "responde solo en español" not in _mensajes()[0].contenido   # el recordatorio no se guarda
+
+
+def test_captacion_no_muestra_las_marcas_internas(cliente, abrir):
+    """Si el modelo escribe las marcas de correo o telefono, el visitante no las ve como marcas."""
+    cadena = CadenaFalsa([{"texto": ["¡Genial! Para la propuesta puedes usar las ", "marcas [CORREO_1] ",
+                                     "y [TEL_1]."]}])
+    _, eventos = enviar(cliente, abrir(), "quiero contratar el servicio para mi empresa", cadena)
+    visible = texto_de(eventos)
+    assert "[CORREO_1]" not in visible and "[TEL_1]" not in visible
+    assert "tu correo" in visible and "tu teléfono" in visible
+
+
 def test_datos_personales_no_llegan_al_modelo_ni_a_la_base(cliente, abrir):
     """DNI, telefono y correo se ocultan antes del modelo y de guardar."""
     cadena = CadenaFalsa([{"texto": ["Gracias."]}])

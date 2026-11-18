@@ -4,6 +4,8 @@
 # - Enlaces solo a SAVA: un enlace a otro dominio se quita (si es [texto](url) queda el texto).
 #   Se aceptan rutas relativas del sitio ("/portal").
 # - Fuga de instrucciones: si la respuesta deja ver el prompt, se corta y se reemplaza.
+# - Marcas internas: [CORREO_1], [TEL_1], [DNI oculto]... nunca llegan al visitante. Las del propio
+#   visitante se restituyen con su valor; las que queden se cambian por "tu correo", "tu teléfono"...
 #
 # Como la respuesta llega por fragmentos, el filtro retiene el texto hasta el ultimo espacio:
 # asi un enlace o el canario nunca quedan partidos entre dos fragmentos.
@@ -21,6 +23,31 @@ _RE_URL = re.compile(
     r"|(?:[a-z0-9-]{2,63}\.)+(?:com|net|org|info|io|co|pe|xyz|app|dev|me|ly|gl|link|site|online|top|ru|cn|tk|biz|us|es)"
     r"(?:/[^\s<>\"')\]]*)?)"
 )
+# Marcas que pone el servidor al ocultar datos (privacidad.py) y variantes que un modelo podria inventar.
+_RE_MARCA_INTERNA = re.compile(
+    r"(?i)\[\s*(?:(correo|email|tel|tel[eé]fono|phone)(?:[_\s-]*\d{1,2})?"
+    r"|(dni|d[ií]gitos|correo|tel[eé]fono)\s+ocultos?)\s*\]")
+_PALABRAS_MARCA = {
+    "es": {"correo": "tu correo", "tel": "tu teléfono", "dni": "el DNI", "digitos": "los dígitos"},
+    "en": {"correo": "your email", "tel": "your phone number", "dni": "the DNI", "digitos": "the digits"},
+}
+
+
+def quitar_marcas(texto: str, idioma: str = "es") -> str:
+    """Cambia las marcas internas que queden en un texto visible por palabras normales. Recibe el texto
+    y el idioma de la respuesta."""
+    palabras = _PALABRAS_MARCA.get(idioma, _PALABRAS_MARCA["es"])
+
+    def _palabra(m: re.Match) -> str:
+        """Palabra que reemplaza a una marca."""
+        tipo = (m.group(1) or m.group(2)).lower()
+        if tipo.startswith(("correo", "email")):
+            return palabras["correo"]
+        if tipo.startswith(("tel", "phone")):
+            return palabras["tel"]
+        return palabras["dni"] if tipo == "dni" else palabras["digitos"]
+
+    return _RE_MARCA_INTERNA.sub(_palabra, texto or "")
 
 
 def _host_permitido(host: str, dominios: list[str]) -> bool:
@@ -72,12 +99,14 @@ def _filtrar_urls(texto: str, dominios: list[str]) -> str:
 class FiltroSalida:
     """Filtra la respuesta en streaming: retiene hasta el ultimo espacio, sanea y vigila fugas."""
 
-    def __init__(self, dominios: list[str], mostrar=None, prohibidas: list[str] | None = None):
+    def __init__(self, dominios: list[str], mostrar=None, prohibidas: list[str] | None = None, idioma: str = "es"):
         """Empieza sin texto retenido. Recibe los dominios permitidos, opcionalmente una funcion que prepara
-        el texto visible (p. ej. devolver al visitante su propio correo en lugar de [CORREO_1]) y las frases
-        que un intento de jailbreak pidio repetir (si aparecen, la respuesta se descarta)."""
+        el texto visible (p. ej. devolver al visitante su propio correo en lugar de [CORREO_1]), las frases
+        que un intento de jailbreak pidio repetir (si aparecen, la respuesta se descarta) y el idioma de la
+        respuesta (para cambiar las marcas internas que queden por palabras normales)."""
         self._dominios = dominios
-        self._mostrar = mostrar or (lambda texto: texto)
+        restituir = mostrar or (lambda texto: texto)
+        self._mostrar = lambda texto: quitar_marcas(restituir(texto), idioma)
         self._prohibidas = [" ".join(_normal(f).split()) for f in (prohibidas or []) if f.strip()]
         self._pendiente = ""
         self._completo = ""

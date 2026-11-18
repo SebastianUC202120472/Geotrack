@@ -65,3 +65,43 @@ def test_seudonimos_respetan_el_numero_publico_de_sava():
     from app.services.privacidad import Seudonimos
 
     assert Seudonimos().ocultar("WhatsApp +51 922 507 593") == "WhatsApp +51 922 507 593"
+
+
+@pytest.mark.parametrize("fragmentos,idioma,esperado", [
+    (["Para la propuesta puedes usar las marcas ", "[CORREO_1] y ", "[TEL_1]. "], "es",
+     "Para la propuesta puedes usar las marcas tu correo y tu teléfono. "),
+    (["We will call ", "[TEL_2] soon."], "en", "We will call your phone number soon."),
+    (["No guardamos [DNI oculto] ni ", "[dígitos ocultos]."], "es", "No guardamos el DNI ni los dígitos."),
+    (["Escríbenos con [correo] o ", "[Teléfono_1]."], "es", "Escríbenos con tu correo o tu teléfono."),
+])
+def test_marcas_internas_nunca_llegan_al_visitante(fragmentos, idioma, esperado):
+    """Una marca sin valor del visitante (o una inventada por el modelo) se cambia por palabras normales,
+    aunque llegue partida entre fragmentos."""
+    from app.services.privacidad import Seudonimos
+    from app.services.salida import FiltroSalida
+
+    filtro = FiltroSalida(["sava.pe"], Seudonimos().restituir, idioma=idioma)
+    visible = "".join(filtro.agregar(f) for f in fragmentos) + filtro.cerrar()
+    assert visible == esperado and "[" not in visible
+
+
+def test_marcas_del_visitante_se_restituyen_y_las_demas_se_quitan():
+    """La marca del propio visitante muestra su valor; la que no tiene valor no se muestra como marca."""
+    from app.services.privacidad import Seudonimos
+    from app.services.salida import FiltroSalida
+
+    seud = Seudonimos()
+    seud.ocultar("mi correo es ana@demo.pe")
+    filtro = FiltroSalida(["sava.pe"], seud.restituir)
+    visible = filtro.agregar("Anoté [CORREO_1]; falta [TEL_1] ") + filtro.cerrar()
+    assert visible == "Anoté ana@demo.pe; falta tu teléfono "
+    assert "[CORREO_1]" in filtro.texto_completo   # lo que se guarda sigue sin el dato real
+
+
+def test_el_prompt_prohibe_mostrar_marcas_y_mezclar_idiomas():
+    """Las instrucciones piden no escribir las marcas internas y responder en un solo idioma."""
+    from app.ia.prompt import instrucciones_sistema
+
+    texto = instrucciones_sistema("es")
+    assert "NUNCA las escribas en tu respuesta" in texto
+    assert "SOLO en español" in texto and "No mezcles idiomas" in texto

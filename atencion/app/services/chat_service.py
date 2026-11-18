@@ -22,7 +22,7 @@ from app.core.registro import log
 from app.herramientas import funciones
 from app.herramientas.catalogo import HERRAMIENTAS, NOMBRES, ArgumentoInvalido, validar_argumentos
 from app.herramientas.cliente_portal import ClientePortal, codigo_valido
-from app.ia.prompt import envolver_datos, instrucciones_sistema
+from app.ia.prompt import envolver_datos, instrucciones_sistema, nota_idioma
 from app.ia.proveedores import CadenaProveedores, ErrorProveedor, SinProveedores
 from app.models.conversacion import Conversacion
 from app.repositories import conversacion_repository as repo
@@ -127,7 +127,7 @@ def construir_mensajes(idioma: str, previos: list, texto: str, resultados: list[
     articulos recuperados y si el mensaje intenta cambiar las reglas."""
     sistema = instrucciones_sistema(idioma)
     sistema += "\n\nBase de conocimiento relevante para esta pregunta:\n" + envolver_datos(
-        "base_de_conocimiento", _articulos_como_datos(resultados) or "sin artículos relevantes")
+        "base_de_conocimiento", _articulos_como_datos(resultados) or "sin artículos relevantes", idioma)
     mensajes = [{"role": "system", "content": sistema}]
     for m in previos:
         if not m.contenido:
@@ -137,7 +137,7 @@ def construir_mensajes(idioma: str, previos: list, texto: str, resultados: list[
             mensajes.append({"role": "user", "content": MENSAJE_OMITIDO if m.alerta_seguridad else m.contenido})
         else:
             mensajes.append({"role": "assistant", "content": m.contenido})
-    mensajes.append({"role": "user", "content": texto + (AVISO_USUARIO if alerta else "")})
+    mensajes.append({"role": "user", "content": texto + (AVISO_USUARIO if alerta else "") + nota_idioma(idioma)})
     return mensajes
 
 
@@ -192,7 +192,7 @@ async def conversar(
     modo, proveedor, respuesta, util = "ia", None, "", bool(resultados)
     if con_ia and cadena.proveedores:
         filtro = FiltroSalida(settings.dominios_permitidos, estado.seudonimos.restituir,
-                              frases_para_no_repetir(mensaje) if alerta else None)
+                              frases_para_no_repetir(mensaje) if alerta else None, idioma)
         mensajes = construir_mensajes(idioma, previos, texto_modelo, resultados, alerta)
         emitio = False
         try:
@@ -224,7 +224,7 @@ async def conversar(
                             pendientes.append(evento.get("codigo"))
                         yield evento
                     mensajes.append({"role": "tool", "tool_call_id": llamada["id"],
-                                     "content": envolver_datos(llamada["function"]["name"], datos)})
+                                     "content": envolver_datos(llamada["function"]["name"], datos, idioma)})
             resto = filtro.cerrar()
             if resto:
                 emitio = True
