@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     # Vacio = solo mismo origen (el panel llega por Nginx). Con dominios, separarlos por comas.
     CORS_ORIGINS: str = ""
 
+    # Redes desde las que se acepta la cabecera X-Real-IP (Nginx y los servicios internos que
+    # reenvian la IP del visitante, como el asistente de atencion). Separadas por comas, en
+    # notacion CIDR. Por defecto, el rango que Docker usa para las redes de Compose. Una
+    # peticion que llegue de otra IP se limita por su IP real y su X-Real-IP se ignora.
+    PROXIES_DE_CONFIANZA: str = "172.16.0.0/12"
+
     # Zona horaria de la operacion. Define donde empieza y termina "el dia" en las
     # vistas diarias (panel corporativo, reporte del landing). Con UTC, el dia de una
     # operacion peruana cambiaria a las 7 p.m. hora de Lima.

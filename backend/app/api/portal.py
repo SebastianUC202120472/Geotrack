@@ -97,7 +97,7 @@ def obtener_enlace_notificaciones(codigo: str, _=Depends(portal_token.requiere_t
     return vinculos.enlace_pedido(db, codigo.upper())
 
 
-@router.post("/pedidos/{codigo}/reprogramar")
+@router.post("/pedidos/{codigo}/reprogramar", dependencies=[Depends(limite_publico(5, 60))])
 def reprogramar(codigo: str, datos: Reprogramar, _=Depends(portal_token.requiere_token_persona), db: Session = Depends(get_db)):
     """Guarda la solicitud de reprogramacion ligada al pedido y avisa al admin. Recibe codigo y {franja}."""
     return portal_service.registrar_reprogramacion(db, codigo.upper(), datos.franja)

@@ -300,9 +300,15 @@ def registrar_reprogramacion(db: Session, codigo: str, franja: str) -> dict:
     franja = " ".join((franja or "").split())
     if franja not in parametro_service.obtener_franjas(db):
         raise HTTPException(status_code=400, detail="Elija una de las franjas disponibles.")
+    # Una sola solicitud PENDIENTE por pedido: si ya hay una, se actualiza su franja (no se duplica).
+    previa = reprogramacion_repository.pendiente_de(db, p.id)
+    if previa is not None and previa.franja == franja:
+        return {"ok": True, "reprogramacion": _reprogramacion_portal(previa)}   # repetida: nada que avisar
     solicitud = reprogramacion_repository.registrar(db, p.id, franja)
     db.commit()
-    notificaciones_service.registrar(
+    # Un solo aviso sin leer por pedido: si el cliente cambia de franja antes de que el admin lo vea,
+    # se actualiza ese aviso en lugar de llenar la campana.
+    notificaciones_service.registrar_o_actualizar(
         db, "reportes", "Reprogramación solicitada por el cliente",
         f"Pedido {p.codigo}: pide la franja «{franja}»", f"/pedidos?codigo={p.codigo}", p.id)
     return {"ok": True, "reprogramacion": _reprogramacion_portal(solicitud)}

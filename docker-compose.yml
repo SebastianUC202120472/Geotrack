@@ -30,6 +30,8 @@ services:
       # "Ingreso a Almacen" sin ruta de recojo ni fotos. NO activar en produccion.
       ALMACEN_INGRESO_DIRECTO: ${ALMACEN_INGRESO_DIRECTO:-false}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+      # Redes desde las que se acepta X-Real-IP (Nginx y servicios internos de esta red de Compose).
+      PROXIES_DE_CONFIANZA: ${PROXIES_DE_CONFIANZA:-172.16.0.0/12}
       # Procesos de uvicorn (1 por defecto; el limitador de intentos es por proceso).
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-1}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
@@ -72,8 +74,8 @@ services:
       - backend_uploads:/app/uploads
       # Registro de errores (EX-11): sobrevive a la reconstruccion del contenedor.
       - backend_logs:/app/logs
-    ports:
-      - "8000:8000"
+    # Sin "ports": en produccion solo se llega al backend a traves de Nginx (frontend, puerto 8080).
+    # Para desarrollo (Swagger, app movil) el puerto 8000 se publica en docker-compose.override.yml.
     depends_on:
       db:
         condition: service_healthy

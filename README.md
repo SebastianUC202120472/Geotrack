@@ -208,7 +208,9 @@ La primera vez tarda unos minutos (compila las imágenes). Cuando termine:
 | Landing pública | http://localhost:8080 |
 | Portal de clientes | http://localhost:8080/portal |
 | Panel admin / almacén | http://localhost:8080/panel |
-| API + Swagger | http://localhost:8000/docs |
+| API + Swagger | http://localhost:8000/docs (solo desarrollo, ver nota) |
+
+> El puerto 8000 del backend lo publica `docker-compose.override.yml`, que Compose usa solo al correr `docker compose up`, y únicamente en `127.0.0.1`. En producción se levanta solo el archivo base (`docker compose -f docker-compose.yml up -d`) y Nginx (puerto 8080) es la única entrada.
 
 Entra al panel con el `ADMIN_EMAIL` y `ADMIN_PASSWORD` de tu `.env`. Para la app del conductor, sigue la [sección 5.6](#56-app-móvil-del-conductor).
 
@@ -343,6 +345,8 @@ EXPO_PUBLIC_GOOGLE_MAPS_KEY=
 
 Tu IP: en Windows, `ipconfig` (campo *Dirección IPv4*); en macOS, `ipconfig getifaddr en0`; en Linux, `hostname -I`. Si usas el **emulador de Android**, pon `http://10.0.2.2:8000/api` (así ve el emulador a tu PC).
 
+Con un **celular físico**, agrega `BACKEND_IP_PUBLICADA=0.0.0.0` al `.env` de la raíz y corre `docker compose up -d backend`: por defecto el puerto 8000 solo escucha en `127.0.0.1` y el celular no lo alcanza. Hazlo solo en una red de confianza, porque deja el backend abierto a la red local.
+
 **3a. Correr en Expo Go (lo más rápido)**
 
 ```bash
@@ -425,7 +429,7 @@ GitHub Actions corre estas mismas verificaciones en cada push o PR a `develop` y
 | El backend se cae con `ENOTFOUND` / `tenant/user ... not found` | El proyecto de Supabase está pausado por inactividad. Reactívalo en su dashboard y corre `docker compose restart backend`. |
 | No puedo entrar al panel | Usa el `ADMIN_EMAIL` / `ADMIN_PASSWORD` con los que se **creó** el admin; cambiarlos luego en `.env` no altera un admin existente. Revisa también `docker compose logs backend`. |
 | Cambié algo en la web y no se ve | Reconstruye: `docker compose up -d --build --no-deps frontend`. |
-| El celular no se conecta a la API | Misma WiFi que la PC, IP real en `EXPO_PUBLIC_API_URL` (no `localhost`) y el puerto 8000 permitido en el firewall de la PC. En Codespaces, el puerto 8000 en **Public**. |
+| El celular no se conecta a la API | Misma WiFi que la PC, IP real en `EXPO_PUBLIC_API_URL` (no `localhost`), `BACKEND_IP_PUBLICADA=0.0.0.0` en el `.env` de la raíz y el puerto 8000 permitido en el firewall de la PC. En Codespaces, el puerto 8000 en **Public**. |
 | Expo dice *No development build … is installed* | Arranca con `npx expo start --go` para usar Expo Go, o instala el dev build (sección 5.6). |
 | El mapa no carga en Expo Go | Deja `EXPO_PUBLIC_GOOGLE_MAPS_KEY` vacía: el mapa nativo de Google solo funciona en un dev build. El mapa de calles además necesita internet en el celular. |
 | El login de empresa del portal responde 503 | No hay correo configurado para enviar el OTP. Activa el correo (`MAIL_*`) o, solo para demos, `PORTAL_OTP_DEMO=true`. |

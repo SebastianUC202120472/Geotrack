@@ -1,0 +1,14 @@
+# Solo para DESARROLLO. Docker Compose combina este archivo con docker-compose.yml al usar
+# `docker compose up`. En produccion, levantar solo el archivo base para que Nginx sea la
+# unica entrada:   docker compose -f docker-compose.yml up -d
+#
+# Publica el puerto 8000 del backend (Swagger en http://localhost:8000/docs, emulador de
+# Android en http://10.0.2.2:8000/api, Codespaces). Por defecto solo en 127.0.0.1: nadie
+# fuera de esta maquina llega al backend saltandose Nginx.
+# Para probar la app en un CELULAR FISICO por WiFi, poner en el .env:
+#   BACKEND_IP_PUBLICADA=0.0.0.0
+# (solo en una red de confianza: deja el backend expuesto a la red local).
+services:
+  backend:
+    ports:
+      - "${BACKEND_IP_PUBLICADA:-127.0.0.1}:8000:8000"

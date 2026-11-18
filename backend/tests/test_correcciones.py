@@ -557,11 +557,13 @@ def _portal_reprog(monkeypatch, estado):
     pedido = SimpleNamespace(id=9, codigo="PD-009", estado=estado)
     avisos, guardadas = [], []
     monkeypatch.setattr(portal_service.repo, "pedido_por_codigo", lambda db, c: pedido)
+    monkeypatch.setattr(portal_service.reprogramacion_repository, "pendiente_de", lambda db, pid: None)
     monkeypatch.setattr(portal_service.reprogramacion_repository, "registrar",
                         lambda db, pid, f: guardadas.append(f) or SimpleNamespace(franja=f, estado="PENDIENTE"))
     from app.services import notificaciones_service, parametro_service
     monkeypatch.setattr(parametro_service, "obtener_franjas", lambda db: ["Mañana · 9 am – 1 pm", "Sábado · 9 am – 1 pm"])
-    monkeypatch.setattr(notificaciones_service, "registrar", lambda db, tipo, titulo, msg, ruta, eid: avisos.append(ruta))
+    monkeypatch.setattr(notificaciones_service, "registrar_o_actualizar",
+                        lambda db, tipo, titulo, msg, ruta, eid: avisos.append(ruta))
     return avisos, guardadas
 
 
