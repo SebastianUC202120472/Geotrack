@@ -42,8 +42,8 @@ _FUNCIONES_UTILES = {"rastrear_pedido", "reprogramar_entrega", "registrar_contac
 TEXTOS = {
     "es": {
         "sin_ia_intro": "En este momento no puedo conversar con normalidad, pero esto puede ayudarte:",
-        "sin_ia_nada": "En este momento no puedo responder tu consulta. Puedes rastrear tu pedido en /portal "
-                       f"o escribirnos por {_CONTACTO}, de lunes a sábado.",
+        "sin_ia_nada": "En este momento no puedo responder tu consulta. Repartimos de lunes a domingo, incluidos "
+                       f"feriados. Puedes rastrear tu pedido en /portal o escribirnos por {_CONTACTO}, de 9:00 a 18:00.",
         "sin_ia_cierre": f"Si necesitas a una persona del equipo, escríbenos por {_CONTACTO}.",
         "seguro": "Solo puedo ayudarte con los envíos y servicios de SAVA. ¿En qué te ayudo con tu pedido o con el servicio?",
         "vacio": "No logré entender bien tu consulta. ¿Me la cuentas con otras palabras?",
@@ -51,8 +51,9 @@ TEXTOS = {
     },
     "en": {
         "sin_ia_intro": "I can't chat normally right now, but this may help:",
-        "sin_ia_nada": "I can't answer your question right now. You can track your order at /portal "
-                       f"or write to us on {_CONTACTO}, Monday to Saturday.",
+        "sin_ia_nada": "I can't answer your question right now. We deliver Monday to Sunday, including public "
+                       f"holidays. You can track your order at /portal or write to us on {_CONTACTO}, "
+                       "from 9:00 a.m. to 6:00 p.m.",
         "sin_ia_cierre": f"If you need a team member, write to us on {_CONTACTO}.",
         "seguro": "I can only help with SAVA's shipments and services. How can I help you with your order or our service?",
         "vacio": "I didn't quite understand your question. Could you tell me in other words?",

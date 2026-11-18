@@ -60,13 +60,12 @@
       "etiquetas": "dias horario operacion lunes sabado domingo reparten feriado days schedule sunday monday saturday",
       "es": {
         "titulo": "¿Qué días reparten?",
-        "contenido": "La recepción y el reparto se realizan de lunes a sábado."
+        "contenido": "El reparto se realiza de lunes a domingo, incluidos los feriados, en el horario regular de reparto."
       },
       "en": {
         "titulo": "Which days do you deliver?",
-        "contenido": "Pickup and delivery run Monday to Saturday."
-      },
-      "por_validar": "Confirmar si hay reparto en domingos o feriados y el horario de reparto del día."
+        "contenido": "Delivery runs Monday to Sunday, including public holidays, during regular delivery hours."
+      }
     },
     {
       "clave": "tiempo-entrega",
@@ -74,13 +73,12 @@
       "etiquetas": "cuanto demora tiempo entrega plazo cuando llega dias demora how long delivery time when arrive",
       "es": {
         "titulo": "¿Cuánto demora la entrega?",
-        "contenido": "El plazo de entrega depende de la tienda donde se hizo la compra y de la zona. Para saber en qué etapa está un pedido, lo más preciso es rastrearlo con su código: cuando está en ruta se ve en qué parada va el conductor."
+        "contenido": "La tienda donde se hizo la compra informa un plazo de 1 a 5 días hábiles. Desde que SAVA recibe el paquete de la tienda, lo entrega en un máximo de 3 días hábiles. Para saber en qué etapa está un pedido, lo más preciso es rastrearlo con su código: cuando está en ruta se ve en qué parada va el conductor."
       },
       "en": {
         "titulo": "How long does delivery take?",
-        "contenido": "Delivery time depends on the store where the purchase was made and on the zone. To know which stage an order is in, the most accurate way is to track it with its code: when it is out for delivery you can see which stop the driver is at."
-      },
-      "por_validar": "SAVA no publica plazos en la landing. Definir si se da un plazo estándar (p. ej. 24-72 h desde que la tienda entrega el paquete)."
+        "contenido": "The store where the purchase was made states a delivery time of 1 to 5 business days. Once SAVA receives the package from the store, it delivers it within 3 business days at most. To know which stage an order is in, the most accurate way is to track it with its code: when it is out for delivery you can see which stop the driver is at."
+      }
     },
     {
       "clave": "rastrear-pedido",
@@ -153,13 +151,12 @@
       "etiquetas": "entrega fallida no estaba ausente visita intento sin exito failed delivery not home attempt",
       "es": {
         "titulo": "¿Qué pasa si no estaba cuando vinieron?",
-        "contenido": "Si el conductor no pudo entregar, deja constancia de la visita y el pedido queda para un nuevo intento. Desde el portal o desde este chat, verificando el pedido, puede pedir que se reprograme en una de las franjas disponibles."
+        "contenido": "Si el conductor no pudo entregar, deja constancia de la visita. Luego la oficina de SAVA evalúa cada caso y decide si se hace un nuevo intento otro día o si el paquete regresa a la tienda. Desde el portal o desde este chat, verificando el pedido, puede pedir que se reprograme en una de las franjas disponibles."
       },
       "en": {
         "titulo": "What happens if I wasn't home?",
-        "contenido": "If the driver could not deliver, the visit is recorded and the order is kept for a new attempt. From the portal or from this chat, after verifying the order, you can ask to reschedule it in one of the available time slots."
-      },
-      "por_validar": "Confirmar cuántos intentos se hacen antes de devolver el paquete a la tienda."
+        "contenido": "If the driver could not deliver, the visit is recorded. SAVA's office then reviews each case and decides whether to make a new attempt on another day or return the package to the store. From the portal or from this chat, after verifying the order, you can ask to reschedule it in one of the available time slots."
+      }
     },
     {
       "clave": "reprogramar",
@@ -219,13 +216,12 @@
       "etiquetas": "cambiar direccion otra direccion mudanza corregir datos change address wrong address",
       "es": {
         "titulo": "¿Puedo cambiar la dirección de entrega?",
-        "contenido": "La dirección la registra la tienda donde se hizo la compra. Para cambiarla, lo recomendable es comunicarse con la tienda o con SAVA por WhatsApp al +51 922 507 593."
+        "contenido": "SAVA no puede cambiar la dirección de entrega, porque la registra la tienda donde se hizo la compra. Para cambiarla, comuníquese con esa tienda."
       },
       "en": {
         "titulo": "Can I change the delivery address?",
-        "contenido": "The address is registered by the store where the purchase was made. To change it, please contact the store or SAVA on WhatsApp at +51 922 507 593."
-      },
-      "por_validar": "Confirmar el procedimiento real para cambios de dirección."
+        "contenido": "SAVA cannot change the delivery address, because it is registered by the store where the purchase was made. To change it, please contact that store."
+      }
     },
     {
       "clave": "conductor",
@@ -390,13 +386,13 @@
       "etiquetas": "contacto telefono whatsapp llamar hablar persona humano asesor phone call talk human agent contact",
       "es": {
         "titulo": "¿Cómo me comunico con SAVA?",
-        "contenido": "Por teléfono o WhatsApp al +51 922 507 593, de lunes a sábado. También puede pedir en este chat que una persona del equipo revise su caso."
+        "contenido": "Por teléfono o WhatsApp al +51 922 507 593, de lunes a sábado, de 9:00 a 18:00. También puede pedir en este chat que una persona del equipo revise su caso."
       },
       "en": {
         "titulo": "How do I contact SAVA?",
-        "contenido": "By phone or WhatsApp at +51 922 507 593, Monday to Saturday. You can also ask in this chat for a team member to review your case."
+        "contenido": "By phone or WhatsApp at +51 922 507 593, Monday to Saturday, from 9:00 a.m. to 6:00 p.m. You can also ask in this chat for a team member to review your case."
       },
-      "por_validar": "Confirmar el horario de atención humana por WhatsApp y si hay un correo público de atención."
+      "por_validar": "Horario confirmado (9:00 a 18:00). Falta confirmar si los días de atención son de lunes a sábado (como dice la landing) y si hay un correo público de atención."
     },
     {
       "clave": "direccion",
@@ -444,13 +440,12 @@
       "etiquetas": "codigo pedido donde encuentro numero seguimiento no tengo codigo order code where find tracking number",
       "es": {
         "titulo": "¿Dónde encuentro el código de mi pedido?",
-        "contenido": "El código de seguimiento lo entrega la tienda donde hizo la compra o llega en los avisos del envío. Si no lo tiene, consulte con la tienda o escriba al WhatsApp +51 922 507 593."
+        "contenido": "El código del pedido lo entrega la tienda al momento de la compra (por ejemplo, Ripley), y SAVA recibe ese mismo código, así que sirve para rastrearlo aquí. Si no lo tiene, consulte con la tienda donde compró."
       },
       "en": {
         "titulo": "Where do I find my order code?",
-        "contenido": "The tracking code is given by the store where you made the purchase or comes in the shipment notifications. If you don't have it, check with the store or write to WhatsApp +51 922 507 593."
-      },
-      "por_validar": "Confirmar dónde ve el destinatario su código (correo de la tienda, etiqueta, SMS)."
+        "contenido": "The order code is given by the store at the time of purchase (for example, Ripley), and SAVA receives that same code, so you can use it to track the order here. If you don't have it, check with the store where you bought."
+      }
     }
   ]
 }

@@ -33,9 +33,10 @@ def faq_markdown() -> str:
         "también se podrá editar desde la pantalla de administración del panel.",
         "",
         "Fuente de los datos: textos de la landing (cobertura, servicio, contacto, reclamos) y comportamiento del "
-        "portal (verificación por DNI, reprogramación, portal de empresas). Lo que **no** figura en el código "
-        "(plazos de entrega, domingos, cantidad de intentos, horario de atención, procedimiento para cambiar "
-        "la dirección) no se inventó: quedó redactado de forma prudente y marcado con ⚠.",
+        "portal (verificación por DNI, reprogramación, portal de empresas). Los días de reparto, los plazos de "
+        "entrega, el manejo de entregas fallidas, el cambio de dirección, el horario de atención y el origen del "
+        "código del pedido los confirmó el gerente. Lo que sigue sin confirmar no se inventó: quedó redactado de "
+        "forma prudente y marcado con ⚠.",
         "",
         "## Datos por confirmar",
         "",
@@ -74,13 +75,14 @@ def aviso_markdown() -> str:
         "conversación que no traiga la aceptación de la versión vigente: si el texto cambia, se cambia la "
         "versión y todos vuelven a aceptarlo.",
         "",
-        "Se genera desde `app/conocimiento/aviso_privacidad.json`. Los textos entre corchetes los tiene que "
-        "completar la empresa.",
+        "Se genera desde `app/conocimiento/aviso_privacidad.json`. Los valores marcados «(simulado)» no son "
+        "datos reales: están solo para probar el flujo y los reemplaza compliance.",
         "",
-        "## Pendientes antes de producción",
+        "## Pendientes antes de producción (a cargo de compliance)",
         "",
-        "- RUC de SAVA S.A.C.",
-        "- Correo para ejercer los derechos ARCO (acceso, rectificación, cancelación y oposición).",
+        "- Reemplazar el RUC simulado (20000000001) por el RUC real de SAVA S.A.C.",
+        "- Reemplazar el correo simulado (privacidad@sava.example) por el correo real para los derechos ARCO "
+        "(acceso, rectificación, cancelación y oposición).",
         "- Inscripción del banco de datos «Atención al cliente» ante la Autoridad Nacional de Protección de Datos "
         "Personales.",
         "- Política de privacidad publicada en el sitio, para enlazarla desde el aviso (hoy no existe; ver "
