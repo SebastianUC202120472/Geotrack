@@ -3,20 +3,22 @@
 **Para:** gerente del proyecto · **De:** responsable de la Idea 2 (asistente de atención al cliente)
 **Rama:** `feature/asistente-atencion-cliente` · **Fecha:** 17/11/2026
 
-Estos puntos se encontraron al revisar el código del núcleo mientras se diseñaba el asistente de atención. **No se corrigió ninguno**: según las reglas comunes, el núcleo no se modifica desde un módulo. Cada uno trae una propuesta de solución para que el gerente decida.
+Estos puntos se encontraron al revisar el código del núcleo mientras se diseñaba el asistente de atención. Según las reglas comunes, el núcleo no se modifica desde un módulo, así que cada uno trae una propuesta de solución para que el gerente decida. El 18/11/2026 el gerente autorizó corregir los hallazgos 1 al 3, que quedaron resueltos en la rama `fix/seguridad-portal`. Los hallazgos 4, 5 y 6 siguen pendientes.
 
-| # | Hallazgo | Severidad | Afecta a la Idea 2 |
-|---|---|---|---|
-| 1 | El backend publica el puerto 8000 hacia afuera | Alta | Sí, indirectamente |
-| 2 | El limitador confía en `X-Real-IP` venga de quien venga | Alta (junto con el 1) | Sí |
-| 3 | `POST /portal/pedidos/{codigo}/reprogramar` no tiene límite de peticiones | Media | Sí |
-| 4 | No existe una página de política de privacidad (el enlace del footer va a `#`) | Media (legal) | Sí |
-| 5 | La landing dice «lunes a sábado», pero el reparto es de lunes a domingo, incluidos feriados | Media (información al consumidor) | Sí |
-| 6 | El panel permite reescribir la dirección de entrega de un pedido sin dejar rastro | Media | Sí |
+| # | Hallazgo | Severidad | Afecta a la Idea 2 | Estado |
+|---|---|---|---|---|
+| 1 | El backend publica el puerto 8000 hacia afuera | Alta | Sí, indirectamente | Resuelto en la rama `fix/seguridad-portal` (commit `a52464e`) |
+| 2 | El limitador confía en `X-Real-IP` venga de quien venga | Alta (junto con el 1) | Sí | Resuelto en la rama `fix/seguridad-portal` (commit `a52464e`) |
+| 3 | `POST /portal/pedidos/{codigo}/reprogramar` no tiene límite de peticiones | Media | Sí | Resuelto en la rama `fix/seguridad-portal` (commit `a52464e`) |
+| 4 | No existe una página de política de privacidad (el enlace del footer va a `#`) | Media (legal) | Sí | Pendiente |
+| 5 | La landing dice «lunes a sábado», pero el reparto es de lunes a domingo, incluidos feriados | Media (información al consumidor) | Sí | Pendiente |
+| 6 | El panel permite reescribir la dirección de entrega de un pedido sin dejar rastro | Media | Sí | Pendiente |
 
 ---
 
 ## 1. El backend publica el puerto 8000 hacia afuera
+
+**Estado:** Resuelto en la rama `fix/seguridad-portal` (commit `a52464e`). `docker-compose.yml` ya no publica el puerto 8000; para desarrollo lo publica `docker-compose.override.yml`, por defecto solo en `127.0.0.1` (`BACKEND_IP_PUBLICADA=0.0.0.0` para probar la app en un celular físico). En producción se levanta solo el archivo base y Nginx es la única entrada.
 
 **Dónde:** `docker-compose.yml`, servicio `backend`, línea `- "8000:8000"`.
 
@@ -27,6 +29,8 @@ Estos puntos se encontraron al revisar el código del núcleo mientras se diseñ
 **Propuesta:** en producción, quitar `ports` del backend o publicarlo solo en local (`"127.0.0.1:8000:8000"`) y dejar Nginx como única puerta de entrada. Si el equipo necesita el puerto para desarrollar, moverlo a un `docker-compose.override.yml` que no se use en producción.
 
 ## 2. El limitador confía en `X-Real-IP` venga de quien venga
+
+**Estado:** Resuelto en la rama `fix/seguridad-portal` (commit `a52464e`). `_ip_cliente` acepta `X-Real-IP` solo si la petición viene de una red de `PROXIES_DE_CONFIANZA` (por defecto `172.16.0.0/12`, la red interna de Docker, donde están Nginx y el servicio `atencion`); en cualquier otro caso usa `request.client.host`.
 
 **Dónde:** `backend/app/core/rate_limit.py`, función `_ip_cliente`.
 
@@ -39,6 +43,8 @@ Estos puntos se encontraron al revisar el código del núcleo mientras se diseñ
 **Relación con la Idea 2:** el asistente de atención llama al portal desde su propio contenedor. Si no reenviara nada, todos los visitantes del chat compartirían la IP del contenedor y un solo límite de 10 verificaciones por minuto para todo el sitio. Por eso, en la semana 14 el servicio reenviará al backend el `X-Real-IP` del visitante, que recibe de Nginx. Eso depende del comportamiento actual de `_ip_cliente`: **si se corrige el hallazgo 2, la red interna de Docker tiene que figurar entre las de confianza**, o el chat volverá a compartir un único límite.
 
 ## 3. `reprogramar` no tiene límite de peticiones
+
+**Estado:** Resuelto en la rama `fix/seguridad-portal` (commit `a52464e`). El endpoint tiene `limite_publico(5, 60)`; si ya hay una solicitud PENDIENTE para el pedido se actualiza su franja (la misma franja repetida no escribe nada), y el pedido deja un solo aviso sin ver en la campana.
 
 **Dónde:** `backend/app/api/portal.py`, `POST /portal/pedidos/{codigo}/reprogramar`, que llama a `portal_service.registrar_reprogramacion`.
 
