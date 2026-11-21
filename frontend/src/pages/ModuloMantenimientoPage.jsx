@@ -99,7 +99,12 @@ const FORMULARIOS = {
 
 // Valores iniciales de un formulario. Recibe la lista de campos.
 const valoresIniciales = (campos) =>
-  Object.fromEntries(campos.map((campo) => [campo.clave, campo.tipo === "date" ? new Date().toISOString().slice(0, 10) : ""]));
+  Object.fromEntries(campos.map((campo) => [
+    campo.clave,
+    campo.tipo === "date" ? new Date().toISOString().slice(0, 10)
+      : campo.tipo === "select" ? (campo.opciones?.[0] ?? "") // coincide con la opcion que muestra el navegador
+      : "",
+  ]));
 
 // Convierte los valores de texto a numeros donde corresponde. Recibe campos y valores.
 const normalizar = (campos, valores) => {
