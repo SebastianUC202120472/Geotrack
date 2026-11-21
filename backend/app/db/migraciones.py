@@ -72,6 +72,8 @@ SENTENCIAS = [
     # Directorio de mecanicos y auxilio
     "ALTER TABLE notificaciones_mecanicos ADD COLUMN IF NOT EXISTS codigo_verificacion VARCHAR(10)",
     "ALTER TABLE notificaciones_mecanicos ADD COLUMN IF NOT EXISTS codigo_expira_en TIMESTAMP",
+    # Tolerancia para marcar consumos de combustible como anomalos (semana 14, Idea 4).
+    "ALTER TABLE mantenimiento_configuracion ADD COLUMN IF NOT EXISTS tolerancia_consumo INTEGER NOT NULL DEFAULT 20",
 ]
 
 

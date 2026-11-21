@@ -12,12 +12,16 @@ from app.api import mantenimiento as mantenimiento_router
 from app.core.config import settings
 from app.db.database import Base
 from app.models.conductor import PerfilConductor
+from app.models.incidencia import Incidencia
 from app.models.mantenimiento import (
     AuditoriaMantenimiento,
+    CargaCombustible,
     ConfiguracionMantenimiento,
     DocumentoFlota,
     MantenimientoRegistro,
+    PlanPreventivo,
 )
+from app.models.ruta import Ruta
 from app.models.usuario import Usuario
 from app.models.vehiculo import Vehiculo
 from app.schemas.mantenimiento import (
@@ -39,9 +43,13 @@ HOY = date.today()
 TABLAS = [
     Usuario.__table__,
     Vehiculo.__table__,
+    Ruta.__table__,
+    Incidencia.__table__,
     PerfilConductor.__table__,
     DocumentoFlota.__table__,
     MantenimientoRegistro.__table__,
+    PlanPreventivo.__table__,
+    CargaCombustible.__table__,
     ConfiguracionMantenimiento.__table__,
     AuditoriaMantenimiento.__table__,
 ]

@@ -37,8 +37,10 @@ from .capacidad import (
 
 from .mantenimiento import (
     AuditoriaMantenimiento,
+    CargaCombustible,
     ConfiguracionMantenimiento,
     DocumentoFlota,
     MantenimientoRegistro,
+    PlanPreventivo,
 )
 

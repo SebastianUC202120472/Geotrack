@@ -1,18 +1,23 @@
 # Acceso a datos del modulo de mantenimiento y documentos (Idea 4).
 # Solo consultas y operaciones de agregar/actualizar. El servicio decide
 # cuando ejecutar commit y cuando registrar auditoria.
-from datetime import date
+from datetime import date, datetime, time
 from typing import List, Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.conductor import PerfilConductor
+from app.models.incidencia import Incidencia
 from app.models.mantenimiento import (
     AuditoriaMantenimiento,
+    CargaCombustible,
     ConfiguracionMantenimiento,
     DocumentoFlota,
     MantenimientoRegistro,
+    PlanPreventivo,
 )
+from app.models.ruta import Ruta
 from app.models.usuario import Usuario
 
 
@@ -224,3 +229,142 @@ def listar_licencias(db: Session):
         .order_by(PerfilConductor.licencia_vencimiento.asc(), PerfilConductor.id.asc())
         .all()
     )
+
+
+# ============================================================
+# PLANES PREVENTIVOS (semana 14)
+# ============================================================
+
+
+def listar_preventivos(
+    db: Session,
+    placa: Optional[str] = None,
+    categoria: Optional[str] = None,
+    limite: int = 500,
+) -> List[PlanPreventivo]:
+    """Devuelve los planes activos con filtros opcionales. Recibe la sesion."""
+
+    consulta = db.query(PlanPreventivo).filter(
+        PlanPreventivo.eliminado_en.is_(None)
+    )
+    if placa:
+        consulta = consulta.filter(PlanPreventivo.placa == placa)
+    if categoria:
+        consulta = consulta.filter(PlanPreventivo.categoria == categoria)
+    return (
+        consulta.order_by(PlanPreventivo.placa.asc(), PlanPreventivo.id.asc())
+        .limit(limite)
+        .all()
+    )
+
+
+def obtener_preventivo(db: Session, preventivo_id: int) -> Optional[PlanPreventivo]:
+    """Busca un plan activo por su identificador. Recibe la sesion y el id."""
+
+    return (
+        db.query(PlanPreventivo)
+        .filter(
+            PlanPreventivo.id == preventivo_id,
+            PlanPreventivo.eliminado_en.is_(None),
+        )
+        .first()
+    )
+
+
+def crear_preventivo(db: Session, fila: PlanPreventivo) -> PlanPreventivo:
+    """Agrega un plan a la sesion. El commit lo hace el servicio."""
+
+    db.add(fila)
+    return fila
+
+
+# ============================================================
+# COMBUSTIBLE (semana 14)
+# ============================================================
+
+
+def listar_cargas(
+    db: Session,
+    placa: Optional[str] = None,
+    tipo_combustible: Optional[str] = None,
+    desde: Optional[date] = None,
+    hasta: Optional[date] = None,
+    limite: int = 500,
+) -> List[CargaCombustible]:
+    """Devuelve las cargas activas con filtros opcionales. Recibe la sesion."""
+
+    consulta = db.query(CargaCombustible).filter(
+        CargaCombustible.eliminado_en.is_(None)
+    )
+    if placa:
+        consulta = consulta.filter(CargaCombustible.placa == placa)
+    if tipo_combustible:
+        consulta = consulta.filter(
+            CargaCombustible.tipo_combustible == tipo_combustible
+        )
+    if desde is not None:
+        consulta = consulta.filter(CargaCombustible.fecha >= desde)
+    if hasta is not None:
+        consulta = consulta.filter(CargaCombustible.fecha <= hasta)
+    return (
+        consulta.order_by(CargaCombustible.fecha.asc(), CargaCombustible.id.asc())
+        .limit(limite)
+        .all()
+    )
+
+
+def obtener_carga(db: Session, carga_id: int) -> Optional[CargaCombustible]:
+    """Busca una carga activa por su identificador. Recibe la sesion y el id."""
+
+    return (
+        db.query(CargaCombustible)
+        .filter(
+            CargaCombustible.id == carga_id,
+            CargaCombustible.eliminado_en.is_(None),
+        )
+        .first()
+    )
+
+
+def crear_carga(db: Session, fila: CargaCombustible) -> CargaCombustible:
+    """Agrega una carga a la sesion. El commit lo hace el servicio."""
+
+    db.add(fila)
+    return fila
+
+
+# ============================================================
+# SOLO LECTURA: KM DE RUTAS E INCIDENCIAS DEL NUCLEO (semana 14)
+# ============================================================
+
+
+def kilometraje_rutas(
+    db: Session,
+    placa: str,
+    desde: Optional[date] = None,
+    hasta: Optional[date] = None,
+) -> float:
+    """Suma los km de las rutas finalizadas de una placa. Solo lee el nucleo.
+
+    El kilometraje real del sistema esta en Ruta.km_estimado (calculo Haversine
+    guardado al optimizar o al finalizar la ruta). Este modulo no lo modifica.
+    """
+
+    consulta = db.query(func.coalesce(func.sum(Ruta.km_estimado), 0.0)).filter(
+        Ruta.vehiculo_placa == placa,
+        Ruta.estado == "FINALIZADA",
+    )
+    if desde is not None:
+        consulta = consulta.filter(Ruta.fecha_fin >= datetime.combine(desde, time.min))
+    if hasta is not None:
+        consulta = consulta.filter(Ruta.fecha_fin <= datetime.combine(hasta, time.max))
+    return float(consulta.scalar() or 0.0)
+
+
+def listar_incidencias(db: Session, placa: Optional[str] = None) -> List[Incidencia]:
+    """Devuelve incidencias del nucleo, opcionalmente por placa. Solo lectura."""
+
+    consulta = db.query(Incidencia)
+    if placa:
+        consulta = consulta.filter(Incidencia.vehiculo_placa == placa)
+    return consulta.order_by(Incidencia.creado_en.desc()).all()

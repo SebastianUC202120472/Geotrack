@@ -12,10 +12,15 @@ from app.db.database import get_db
 from app.models.usuario import Usuario
 from app.schemas.mantenimiento import (
     AlertaResponse,
+    AveriaVehiculoResponse,
     AuditoriaResponse,
+    CargaCombustibleCreateRequest,
+    CargaCombustibleResponse,
+    CargaCombustibleUpdateRequest,
     CompletarMantenimientoRequest,
     ConfiguracionResponse,
     ConfiguracionUpdateRequest,
+    CostosFlotaResponse,
     DocumentoCreateRequest,
     DocumentoResponse,
     DocumentoUpdateRequest,
@@ -27,7 +32,11 @@ from app.schemas.mantenimiento import (
     MantenimientoCreateRequest,
     MantenimientoResponse,
     MantenimientoUpdateRequest,
+    PreventivoCreateRequest,
+    PreventivoResponse,
+    PreventivoUpdateRequest,
     ResumenResponse,
+    TipoCombustibleEnum,
     TipoDocumentoEnum,
     TipoMantenimientoEnum,
 )
@@ -339,6 +348,200 @@ def eliminar_mantenimiento(
         db, mantenimiento_id, usuario.correo
     )
     return {"mensaje": "Mantenimiento eliminado"}
+
+
+# ---------------------------------------------------------------------------
+# Semana 14: preventivos, averias, combustible y costos
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/preventivos",
+    response_model=List[PreventivoResponse],
+    tags=["Modulo mantenimiento"],
+)
+def listar_preventivos(
+    placa: Optional[str] = Query(None, max_length=20),
+    categoria: Optional[str] = Query(None, max_length=30),
+    limite: int = Query(200, ge=1, le=500),
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(get_current_almacen),
+):
+    """Lista los planes preventivos con su estado calculado."""
+
+    return mantenimiento_service.listar_preventivos(
+        db, placa=placa, categoria=categoria, limite=limite
+    )
+
+
+@router.post(
+    "/preventivos",
+    response_model=PreventivoResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Modulo mantenimiento"],
+)
+def crear_preventivo(
+    datos: PreventivoCreateRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_admin),
+):
+    """Crea un plan preventivo (solo administradores)."""
+
+    return mantenimiento_service.crear_preventivo(db, datos, usuario.correo)
+
+
+@router.get(
+    "/preventivos/{preventivo_id}",
+    response_model=PreventivoResponse,
+    tags=["Modulo mantenimiento"],
+)
+def obtener_preventivo(
+    preventivo_id: int,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(get_current_almacen),
+):
+    """Devuelve un plan preventivo por su identificador."""
+
+    return mantenimiento_service.obtener_preventivo(db, preventivo_id)
+
+
+@router.patch(
+    "/preventivos/{preventivo_id}",
+    response_model=PreventivoResponse,
+    tags=["Modulo mantenimiento"],
+)
+def actualizar_preventivo(
+    preventivo_id: int,
+    datos: PreventivoUpdateRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_admin),
+):
+    """Edita un plan preventivo (solo administradores)."""
+
+    return mantenimiento_service.actualizar_preventivo(
+        db, preventivo_id, datos, usuario.correo
+    )
+
+
+@router.delete("/preventivos/{preventivo_id}", tags=["Modulo mantenimiento"])
+def eliminar_preventivo(
+    preventivo_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_admin),
+):
+    """Da de baja un plan preventivo (solo administradores)."""
+
+    mantenimiento_service.eliminar_preventivo(db, preventivo_id, usuario.correo)
+    return {"mensaje": "Plan preventivo eliminado"}
+
+
+@router.get(
+    "/averias/ranking",
+    response_model=List[AveriaVehiculoResponse],
+    tags=["Modulo mantenimiento"],
+)
+def ranking_averias(
+    limite: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(get_current_almacen),
+):
+    """Ranking de vehiculos con mas averias, leido de incidencias del nucleo."""
+
+    return mantenimiento_service.ranking_averias(db, limite)
+
+
+@router.get(
+    "/combustible",
+    response_model=List[CargaCombustibleResponse],
+    tags=["Modulo mantenimiento"],
+)
+def listar_cargas(
+    placa: Optional[str] = Query(None, max_length=20),
+    tipo: Optional[TipoCombustibleEnum] = Query(None),
+    desde: Optional[date] = Query(None),
+    hasta: Optional[date] = Query(None),
+    limite: int = Query(200, ge=1, le=500),
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(get_current_almacen),
+):
+    """Lista cargas de combustible con rendimiento y consumo anomalo."""
+
+    return mantenimiento_service.listar_cargas(
+        db, placa=placa, tipo=tipo, desde=desde, hasta=hasta, limite=limite
+    )
+
+
+@router.post(
+    "/combustible",
+    response_model=CargaCombustibleResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Modulo mantenimiento"],
+)
+def crear_carga(
+    datos: CargaCombustibleCreateRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_admin),
+):
+    """Registra una carga de combustible (solo administradores)."""
+
+    return mantenimiento_service.crear_carga(db, datos, usuario.correo)
+
+
+@router.get(
+    "/combustible/{carga_id}",
+    response_model=CargaCombustibleResponse,
+    tags=["Modulo mantenimiento"],
+)
+def obtener_carga(
+    carga_id: int,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(get_current_almacen),
+):
+    """Devuelve una carga de combustible por su identificador."""
+
+    return mantenimiento_service.obtener_carga(db, carga_id)
+
+
+@router.patch(
+    "/combustible/{carga_id}",
+    response_model=CargaCombustibleResponse,
+    tags=["Modulo mantenimiento"],
+)
+def actualizar_carga(
+    carga_id: int,
+    datos: CargaCombustibleUpdateRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_admin),
+):
+    """Edita una carga de combustible (solo administradores)."""
+
+    return mantenimiento_service.actualizar_carga(db, carga_id, datos, usuario.correo)
+
+
+@router.delete("/combustible/{carga_id}", tags=["Modulo mantenimiento"])
+def eliminar_carga(
+    carga_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_admin),
+):
+    """Da de baja una carga de combustible (solo administradores)."""
+
+    mantenimiento_service.eliminar_carga(db, carga_id, usuario.correo)
+    return {"mensaje": "Carga de combustible eliminada"}
+
+
+@router.get(
+    "/costos",
+    response_model=CostosFlotaResponse,
+    tags=["Modulo mantenimiento"],
+)
+def obtener_costos(
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(get_current_almacen),
+):
+    """Devuelve costos y rendimiento de toda la flota (mantenimiento + combustible)."""
+
+    return mantenimiento_service.costos_flota(db)
 
 
 # ---------------------------------------------------------------------------

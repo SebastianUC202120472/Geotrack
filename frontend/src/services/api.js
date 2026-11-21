@@ -679,3 +679,115 @@ export const obtenerPlanificacionCapacidad = (filtros = {}) => {
 // Ultimos cambios del modulo. Recibe el limite de filas (por defecto 100).
 export const listarAuditoriaCapacidad = (limite = 100) =>
   request(`${RUTA_CAPACIDAD}/auditoria?limite=${limite}`);
+
+// ===========================================================================
+// Modulo de mantenimiento y documentos de la flota (Idea 4)
+// Vive bajo /api/modulo-mantenimiento y se apaga con MODULO_MANTENIMIENTO_ENABLED.
+// ===========================================================================
+
+const RUTA_MANTENIMIENTO = "/modulo-mantenimiento";
+
+// Arma una cadena de consulta a partir de un objeto de filtros. Recibe el objeto.
+const consultaMantenimiento = (filtros = {}) => {
+  const query = new URLSearchParams();
+  for (const [clave, valor] of Object.entries(filtros)) {
+    if (valor !== undefined && valor !== null && valor !== "") query.append(clave, valor);
+  }
+  const cadena = query.toString();
+  return cadena ? `?${cadena}` : "";
+};
+
+// Indicadores generales del modulo. Sin parametros.
+export const obtenerResumenMantenimiento = () => request(`${RUTA_MANTENIMIENTO}/resumen`);
+
+// Estado documental de toda la flota. Sin parametros.
+export const listarFlotaMantenimiento = () => request(`${RUTA_MANTENIMIENTO}/flota`);
+
+// Ficha completa de una unidad. Recibe la placa.
+export const obtenerFichaVehiculoMantenimiento = (placa) =>
+  request(`${RUTA_MANTENIMIENTO}/flota/${encodeURIComponent(placa)}`);
+
+// Avisos del dia. Sin parametros.
+export const listarAlertasMantenimiento = () => request(`${RUTA_MANTENIMIENTO}/alertas`);
+
+// Licencias de conductores (solo admin). Sin parametros.
+export const listarLicenciasMantenimiento = () => request(`${RUTA_MANTENIMIENTO}/licencias`);
+
+// Lista documentos con filtros { placa, tipo_documento, estado, limite }.
+export const listarDocumentosMantenimiento = (filtros = {}) =>
+  request(`${RUTA_MANTENIMIENTO}/documentos${consultaMantenimiento(filtros)}`);
+
+// Registra un documento. Recibe la ficha completa.
+export const crearDocumentoMantenimiento = (datos) =>
+  request(`${RUTA_MANTENIMIENTO}/documentos`, { method: "POST", body: datos });
+
+// Edita un documento. Recibe id y cambios.
+export const actualizarDocumentoMantenimiento = (id, datos) =>
+  request(`${RUTA_MANTENIMIENTO}/documentos/${id}`, { method: "PATCH", body: datos });
+
+// Da de baja un documento. Recibe el id.
+export const eliminarDocumentoMantenimiento = (id) =>
+  request(`${RUTA_MANTENIMIENTO}/documentos/${id}`, { method: "DELETE" });
+
+// Lista mantenimientos con filtros { placa, tipo, estado, desde, hasta, limite }.
+export const listarMantenimientosFlota = (filtros = {}) =>
+  request(`${RUTA_MANTENIMIENTO}/mantenimientos${consultaMantenimiento(filtros)}`);
+
+// Programa un mantenimiento. Recibe la ficha completa.
+export const crearMantenimientoFlota = (datos) =>
+  request(`${RUTA_MANTENIMIENTO}/mantenimientos`, { method: "POST", body: datos });
+
+// Cierra un mantenimiento. Recibe id y { fecha_ejecucion, costo, kilometraje, ... }.
+export const completarMantenimientoFlota = (id, datos) =>
+  request(`${RUTA_MANTENIMIENTO}/mantenimientos/${id}/completar`, { method: "POST", body: datos });
+
+// Lee la configuracion del modulo. Sin parametros.
+export const obtenerConfiguracionMantenimiento = () => request(`${RUTA_MANTENIMIENTO}/configuracion`);
+
+// Guarda la configuracion del modulo. Recibe los campos a cambiar.
+export const actualizarConfiguracionMantenimiento = (datos) =>
+  request(`${RUTA_MANTENIMIENTO}/configuracion`, { method: "PUT", body: datos });
+
+// Ultimos movimientos del modulo. Recibe el limite de filas.
+export const listarAuditoriaMantenimiento = (limite = 100) =>
+  request(`${RUTA_MANTENIMIENTO}/auditoria?limite=${limite}`);
+
+// --- Semana 14: mantenimiento preventivo, averias, combustible y costos ---
+
+// Lista los planes preventivos con su estado calculado. Recibe filtros opcionales.
+export const listarPreventivosMantenimiento = (filtros = {}) =>
+  request(`${RUTA_MANTENIMIENTO}/preventivos${consultaMantenimiento(filtros)}`);
+
+// Crea un plan preventivo. Recibe la ficha completa.
+export const crearPreventivoMantenimiento = (datos) =>
+  request(`${RUTA_MANTENIMIENTO}/preventivos`, { method: "POST", body: datos });
+
+// Edita un plan preventivo. Recibe id y cambios.
+export const actualizarPreventivoMantenimiento = (id, datos) =>
+  request(`${RUTA_MANTENIMIENTO}/preventivos/${id}`, { method: "PATCH", body: datos });
+
+// Da de baja un plan preventivo. Recibe el id.
+export const eliminarPreventivoMantenimiento = (id) =>
+  request(`${RUTA_MANTENIMIENTO}/preventivos/${id}`, { method: "DELETE" });
+
+// Ranking de unidades con mas averias. Sin parametros.
+export const listarRankingAverias = () => request(`${RUTA_MANTENIMIENTO}/averias/ranking`);
+
+// Lista cargas de combustible. Recibe filtros opcionales.
+export const listarCargasCombustible = (filtros = {}) =>
+  request(`${RUTA_MANTENIMIENTO}/combustible${consultaMantenimiento(filtros)}`);
+
+// Registra una carga de combustible. Recibe la ficha completa.
+export const crearCargaCombustible = (datos) =>
+  request(`${RUTA_MANTENIMIENTO}/combustible`, { method: "POST", body: datos });
+
+// Edita una carga de combustible. Recibe id y cambios.
+export const actualizarCargaCombustible = (id, datos) =>
+  request(`${RUTA_MANTENIMIENTO}/combustible/${id}`, { method: "PATCH", body: datos });
+
+// Elimina una carga de combustible. Recibe el id.
+export const eliminarCargaCombustible = (id) =>
+  request(`${RUTA_MANTENIMIENTO}/combustible/${id}`, { method: "DELETE" });
+
+// Costos y rendimiento de la flota. Sin parametros.
+export const obtenerCostosFlotaMantenimiento = () => request(`${RUTA_MANTENIMIENTO}/costos`);

@@ -56,6 +56,20 @@ class CategoriaMantenimientoEnum(str, Enum):
     OTRO = "OTRO"
 
 
+class TipoCombustibleEnum(str, Enum):
+    DIESEL = "DIESEL"
+    GASOLINA_95 = "GASOLINA_95"
+    GASOLINA_90 = "GASOLINA_90"
+    GLP = "GLP"
+
+
+class EstadoPreventivoEnum(str, Enum):
+    AL_DIA = "AL_DIA"
+    PROXIMO = "PROXIMO"
+    VENCIDO = "VENCIDO"
+    SIN_LECTURAS = "SIN_LECTURAS"
+
+
 def _normalizar_placa(valor: str) -> str:
     """Pasa la placa a mayusculas y valida el formato ABC-123. Recibe la placa."""
     placa = valor.strip().upper()
@@ -268,6 +282,190 @@ class MantenimientoResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Semana 14: preventivos, averias, combustible y costos
+# ---------------------------------------------------------------------------
+
+
+class PreventivoCreateRequest(BaseModel):
+    """Datos para crear un plan de mantenimiento preventivo."""
+
+    placa: str
+    categoria: CategoriaMantenimientoEnum
+    descripcion: str = Field(..., min_length=5, max_length=1000)
+    intervalo_km: int = Field(..., ge=1, le=500_000)
+    intervalo_dias: Optional[int] = Field(None, ge=1, le=3650)
+    km_base: Optional[int] = Field(None, ge=0, le=5_000_000)
+    fecha_base: Optional[date] = None
+
+    @field_validator("placa")
+    @classmethod
+    def validar_placa(cls, valor: str) -> str:
+        """Normaliza y valida la placa. Recibe la placa escrita por el usuario."""
+        return _normalizar_placa(valor)
+
+    @field_validator("descripcion")
+    @classmethod
+    def limpiar_descripcion(cls, valor: str) -> str:
+        """Quita los espacios sobrantes de la descripcion."""
+        return valor.strip()
+
+    @model_validator(mode="after")
+    def validar_intervalos(self):
+        """Exige al menos un criterio: kilometraje o dias (el km siempre va)."""
+        if self.intervalo_km is None and self.intervalo_dias is None:
+            raise ValueError("El plan debe indicar un intervalo en kilómetros o en días.")
+        return self
+
+
+class PreventivoUpdateRequest(BaseModel):
+    """Cambios parciales de un plan preventivo. Todos los campos son opcionales."""
+
+    placa: Optional[str] = None
+    categoria: Optional[CategoriaMantenimientoEnum] = None
+    descripcion: Optional[str] = Field(None, min_length=5, max_length=1000)
+    intervalo_km: Optional[int] = Field(None, ge=1, le=500_000)
+    intervalo_dias: Optional[int] = Field(None, ge=1, le=3650)
+    km_base: Optional[int] = Field(None, ge=0, le=5_000_000)
+    fecha_base: Optional[date] = None
+    activo: Optional[bool] = None
+
+    @field_validator("placa")
+    @classmethod
+    def validar_placa(cls, valor: Optional[str]) -> Optional[str]:
+        """Normaliza y valida la placa si viene en la peticion."""
+        return _normalizar_placa(valor) if valor is not None else None
+
+    @field_validator("descripcion")
+    @classmethod
+    def limpiar_descripcion(cls, valor: Optional[str]) -> Optional[str]:
+        """Limpia espacios y deja None en la descripcion vacia."""
+        return _texto_limpio(valor)
+
+
+class PreventivoResponse(BaseModel):
+    """Plan preventivo con su estado calculado en lectura."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    codigo: Optional[str] = None
+    placa: str
+    categoria: CategoriaMantenimientoEnum
+    descripcion: str
+    intervalo_km: int
+    intervalo_dias: Optional[int] = None
+    km_base: Optional[int] = None
+    km_actual: int
+    km_restantes: int
+    fecha_base: Optional[date] = None
+    fecha_limite: Optional[date] = None
+    dias_restantes: Optional[int] = None
+    estado: EstadoPreventivoEnum
+    activo: bool
+    creado_por: str
+    creado_en: datetime
+
+
+class AveriaVehiculoResponse(BaseModel):
+    """Ranking de unidades con mas incidencias de auxilio mecanico."""
+
+    placa: str
+    total: int
+    abiertas: int
+    resueltas: int
+    ultima_fecha: Optional[date] = None
+    sugerencia: str
+
+
+class CargaCombustibleCreateRequest(BaseModel):
+    """Datos para registrar una carga de combustible."""
+
+    placa: str
+    fecha: date
+    tipo_combustible: TipoCombustibleEnum = TipoCombustibleEnum.DIESEL
+    galones: float = Field(..., gt=0, le=1000)
+    monto: float = Field(..., gt=0, le=1_000_000)
+    odometro: Optional[int] = Field(None, ge=0, le=5_000_000)
+    proveedor: Optional[str] = Field(None, max_length=120)
+    observaciones: Optional[str] = Field(None, max_length=1000)
+
+    @field_validator("placa")
+    @classmethod
+    def validar_placa(cls, valor: str) -> str:
+        """Normaliza y valida la placa. Recibe la placa escrita por el usuario."""
+        return _normalizar_placa(valor)
+
+    @field_validator("proveedor", "observaciones")
+    @classmethod
+    def limpiar_textos(cls, valor: Optional[str]) -> Optional[str]:
+        """Limpia espacios y deja None en los campos opcionales vacios."""
+        return _texto_limpio(valor)
+
+
+class CargaCombustibleUpdateRequest(BaseModel):
+    """Cambios parciales de una carga. Todos los campos son opcionales."""
+
+    placa: Optional[str] = None
+    fecha: Optional[date] = None
+    tipo_combustible: Optional[TipoCombustibleEnum] = None
+    galones: Optional[float] = Field(None, gt=0, le=1000)
+    monto: Optional[float] = Field(None, gt=0, le=1_000_000)
+    odometro: Optional[int] = Field(None, ge=0, le=5_000_000)
+    proveedor: Optional[str] = Field(None, max_length=120)
+    observaciones: Optional[str] = Field(None, max_length=1000)
+
+    @field_validator("placa")
+    @classmethod
+    def validar_placa(cls, valor: Optional[str]) -> Optional[str]:
+        """Normaliza y valida la placa si viene en la peticion."""
+        return _normalizar_placa(valor) if valor is not None else None
+
+    @field_validator("proveedor", "observaciones")
+    @classmethod
+    def limpiar_textos(cls, valor: Optional[str]) -> Optional[str]:
+        """Limpia espacios y deja None en los campos opcionales vacios."""
+        return _texto_limpio(valor)
+
+
+class CargaCombustibleResponse(BaseModel):
+    """Carga con rendimiento calculado y marca de consumo anomalo."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    codigo: Optional[str] = None
+    placa: str
+    fecha: date
+    tipo_combustible: TipoCombustibleEnum
+    galones: float
+    monto: float
+    odometro: Optional[int] = None
+    proveedor: Optional[str] = None
+    observaciones: Optional[str] = None
+    km_recorridos: Optional[float] = None
+    rendimiento_km_gal: Optional[float] = None
+    consumo_anomalo: bool = False
+    creado_por: str
+    creado_en: datetime
+
+
+class CostosFlotaResponse(BaseModel):
+    """Costos y rendimiento global de la flota (mantenimiento + combustible)."""
+
+    costo_mantenimiento: float
+    costo_combustible: float
+    costo_total: float
+    km_totales: float
+    costo_por_kilometro: Optional[float] = None
+    galones_totales: float
+    rendimiento_km_gal: Optional[float] = None
+    cargas_totales: int
+    mantenimientos_completados: int
+    preventivos_vencidos: int
+    moneda: str
+
+
+# ---------------------------------------------------------------------------
 # Resumen, alertas, flota, configuracion y auditoria
 # ---------------------------------------------------------------------------
 
@@ -287,7 +485,12 @@ class ResumenResponse(BaseModel):
     mantenimientos_completados: int
     mantenimientos_vencidos: int
     costo_mes: float
-    costo_total: float
+    costo_total: float  # mantenimiento; el combustible se reporta aparte
+    costo_combustible: float = 0
+    costo_por_kilometro: Optional[float] = None
+    rendimiento_km_gal: Optional[float] = None
+    preventivos_vencidos: int = 0
+    consumos_anomalos: int = 0
     moneda: str
     alertas_total: int
     alertas_alta: int
@@ -345,13 +548,17 @@ class LicenciaResponse(BaseModel):
 
 
 class CostosVehiculoResponse(BaseModel):
-    """Costos de mantenimiento acumulados de una unidad."""
+    """Costos de mantenimiento y combustible acumulados de una unidad."""
 
     costo_total: float
     costo_mes: float
+    costo_mantenimiento: float = 0
+    costo_combustible: float = 0
     costo_por_kilometro: Optional[float] = None
+    rendimiento_km_gal: Optional[float] = None
     moneda: str
     mantenimientos_completados: int
+    cargas_totales: int = 0
     ultimo_kilometraje: Optional[int] = None
 
 
@@ -365,6 +572,9 @@ class FichaVehiculoResponse(BaseModel):
     odometro_actual: Optional[int] = None
     documentos: List[DocumentoResponse]
     mantenimientos: List[MantenimientoResponse]
+    preventivos: List[PreventivoResponse] = Field(default_factory=list)
+    cargas: List[CargaCombustibleResponse] = Field(default_factory=list)
+    averias: List[AveriaVehiculoResponse] = Field(default_factory=list)
     costos: CostosVehiculoResponse
     documentos_total: int
     documentos_vencidos: int
@@ -388,6 +598,7 @@ class ConfiguracionResponse(BaseModel):
     moneda: str
     alertas_documentos: bool
     alertas_mantenimientos: bool
+    tolerancia_consumo: int = 20
     actualizado_por: Optional[str] = None
     actualizado_en: Optional[datetime] = None
 
@@ -400,6 +611,7 @@ class ConfiguracionUpdateRequest(BaseModel):
     moneda: Optional[str] = Field(None, min_length=3, max_length=3)
     alertas_documentos: Optional[bool] = None
     alertas_mantenimientos: Optional[bool] = None
+    tolerancia_consumo: Optional[int] = Field(None, ge=1, le=100)
 
     @field_validator("moneda")
     @classmethod

@@ -49,6 +49,7 @@ const secciones = [
     items: [
       { icon: Truck, label: "Flota de Vehículos", path: "/panel/flota" },
       { icon: Scale, label: "Capacidad de Vehículos", path: "/panel/capacidad" },
+      { icon: Wrench, label: "Mantenimiento de Flota", path: "/panel/mantenimiento" },
       { icon: Users, label: "Conductores", path: "/panel/conductores" },
       { icon: Building2, label: "Clientes", path: "/panel/clientes" },
       { icon: MapPin, label: "Seguimiento de Conductores", path: "/panel/seguimiento-conductores" },

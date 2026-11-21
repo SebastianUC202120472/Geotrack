@@ -1,7 +1,7 @@
 # Logica del modulo de mantenimiento y documentos de la flota (Idea 4).
 # No conoce HTTP: recibe datos, consulta el repositorio y devuelve diccionarios
 # que el router convierte a los esquemas Pydantic. Solo LEE la tabla de vehiculos.
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional
 
 from fastapi import HTTPException, status
@@ -9,26 +9,36 @@ from sqlalchemy.orm import Session
 
 from app.core.codigos import asignar_codigo
 from app.models.mantenimiento import (
+    CargaCombustible,
     ConfiguracionMantenimiento,
     DocumentoFlota,
     MantenimientoRegistro,
+    PlanPreventivo,
 )
 from app.repositories import mantenimiento_repository, vehiculo_repository
 from app.schemas.mantenimiento import (
+    CargaCombustibleCreateRequest,
+    CargaCombustibleUpdateRequest,
     CompletarMantenimientoRequest,
     ConfiguracionUpdateRequest,
     DocumentoCreateRequest,
     DocumentoUpdateRequest,
     EstadoDocumentoEnum,
     EstadoMantenimientoEnum,
+    EstadoPreventivoEnum,
     MantenimientoCreateRequest,
     MantenimientoUpdateRequest,
+    PreventivoCreateRequest,
+    PreventivoUpdateRequest,
+    TipoCombustibleEnum,
     TipoDocumentoEnum,
     TipoMantenimientoEnum,
 )
 
 PREFIJO_DOCUMENTO = "DC"
 PREFIJO_MANTENIMIENTO = "MT"
+PREFIJO_PREVENTIVO = "PV"
+PREFIJO_COMBUSTIBLE = "CB"
 
 # Documentos minimos que debe tener todo vehiculo operativo.
 DOCUMENTOS_OBLIGATORIOS = ("SOAT", "REVISION_TECNICA")
@@ -191,6 +201,42 @@ def _vehiculo_por_placa(db: Session, placa: str):
             detail=f"No existe un vehículo activo con la placa {normalizada}.",
         )
     return vehiculo
+
+
+def _validar_kilometraje(
+    db: Session,
+    placa: str,
+    kilometraje: Optional[int],
+    excluir_carga_id: Optional[int] = None,
+    excluir_mantenimiento_id: Optional[int] = None,
+) -> None:
+    """Rechaza una lectura menor a la ultima registrada. Recibe la placa y el km.
+
+    La regla de la consigna es que el kilometraje no puede retroceder. Se comparan
+    las lecturas de mantenimiento y de combustible de la misma unidad.
+    """
+
+    if kilometraje is None:
+        return
+    lecturas = [
+        fila.kilometraje
+        for fila in mantenimiento_repository.listar_mantenimientos(db, placa=placa)
+        if fila.kilometraje is not None
+        and fila.id != excluir_mantenimiento_id
+    ]
+    lecturas.extend(
+        fila.odometro
+        for fila in mantenimiento_repository.listar_cargas(db, placa=placa)
+        if fila.odometro is not None and fila.id != excluir_carga_id
+    )
+    if lecturas and kilometraje < max(lecturas):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"El kilometraje {kilometraje} es menor que la última lectura "
+                f"registrada ({max(lecturas)}) para la placa {placa}."
+            ),
+        )
 
 
 def _obtener_documento(db: Session, documento_id: int) -> DocumentoFlota:
@@ -473,6 +519,7 @@ def crear_mantenimiento(
     config = obtener_configuracion(db)
 
     campos = datos.model_dump(exclude={"placa"})
+    _validar_kilometraje(db, vehiculo.placa, campos.get("kilometraje"))
     for campo in ("tipo", "categoria", "prioridad", "estado"):
         campos[campo] = _valor_enum(campos[campo])
     if campos["estado"] == EstadoMantenimientoEnum.COMPLETADO.value and campos.get(
@@ -568,6 +615,14 @@ def actualizar_mantenimiento(
     for campo, valor in list(cambios.items()):
         cambios[campo] = _valor_enum(valor)
 
+    if "kilometraje" in cambios:
+        _validar_kilometraje(
+            db,
+            fila.placa,
+            cambios["kilometraje"],
+            excluir_mantenimiento_id=fila.id,
+        )
+
     nuevo_estado = cambios.get("estado", fila.estado)
     if nuevo_estado == EstadoMantenimientoEnum.COMPLETADO.value:
         fecha = cambios.get("fecha_ejecucion", fila.fecha_ejecucion)
@@ -612,6 +667,12 @@ def completar_mantenimiento(
         )
 
     cambios = datos.model_dump(exclude_unset=True)
+    _validar_kilometraje(
+        db,
+        fila.placa,
+        cambios.get("kilometraje"),
+        excluir_mantenimiento_id=fila.id,
+    )
     fila.estado = EstadoMantenimientoEnum.COMPLETADO.value
     fila.fecha_ejecucion = cambios.pop("fecha_ejecucion", None) or date.today()
     for campo, valor in cambios.items():
@@ -642,6 +703,499 @@ def eliminar_mantenimiento(
 
 
 # ---------------------------------------------------------------------------
+# Semana 14: preventivos, averias, combustible y costos
+# ---------------------------------------------------------------------------
+
+
+def _obtener_preventivo(db: Session, preventivo_id: int) -> PlanPreventivo:
+    """Devuelve un plan activo o lanza 404. Recibe la sesion y el id."""
+
+    fila = mantenimiento_repository.obtener_preventivo(db, preventivo_id)
+    if fila is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="El plan preventivo no existe o fue eliminado.",
+        )
+    return fila
+
+
+def _obtener_carga(db: Session, carga_id: int) -> CargaCombustible:
+    """Devuelve una carga activa o lanza 404. Recibe la sesion y el id."""
+
+    fila = mantenimiento_repository.obtener_carga(db, carga_id)
+    if fila is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="La carga de combustible no existe o fue eliminada.",
+        )
+    return fila
+
+
+def kilometraje_actual(db: Session, placa: str) -> int:
+    """Devuelve la lectura de km mas alta de una unidad. Recibe la sesion y placa.
+
+    Toma las lecturas de mantenimiento, los odometros de combustible y los km de
+    las rutas finalizadas. Ninguno de esos datos se modifica aqui.
+    """
+
+    lecturas = [
+        fila.kilometraje
+        for fila in mantenimiento_repository.listar_mantenimientos(db, placa=placa)
+        if fila.kilometraje is not None
+    ]
+    lecturas.extend(
+        fila.odometro
+        for fila in mantenimiento_repository.listar_cargas(db, placa=placa)
+        if fila.odometro is not None
+    )
+    lecturas.append(mantenimiento_repository.kilometraje_rutas(db, placa))
+    return int(round(max(lecturas, default=0.0)))
+
+
+def preventivo_dict(
+    fila: PlanPreventivo,
+    db: Session,
+    hoy: Optional[date] = None,
+    config: Optional[ConfiguracionMantenimiento] = None,
+) -> dict:
+    """Arma la respuesta de un plan con su estado calculado. Recibe la fila."""
+
+    hoy = hoy or date.today()
+    config = config or obtener_configuracion(db)
+    km_base = fila.km_base or 0
+    km_rutas = mantenimiento_repository.kilometraje_rutas(
+        db, fila.placa, desde=fila.fecha_base
+    )
+    lecturas = [
+        registro.kilometraje
+        for registro in mantenimiento_repository.listar_mantenimientos(
+            db, placa=fila.placa
+        )
+        if registro.kilometraje is not None
+    ]
+    lecturas.extend(
+        carga.odometro
+        for carga in mantenimiento_repository.listar_cargas(db, placa=fila.placa)
+        if carga.odometro is not None
+    )
+    km_actual = int(round(max([km_base] + lecturas + [km_base + km_rutas])))
+    km_restantes = max(0, km_base + fila.intervalo_km - km_actual)
+
+    fecha_limite = None
+    dias_restantes = None
+    if fila.fecha_base is not None and fila.intervalo_dias is not None:
+        fecha_limite = fila.fecha_base + timedelta(days=fila.intervalo_dias)
+        dias_restantes = (fecha_limite - hoy).days
+
+    if km_restantes == 0 or (dias_restantes is not None and dias_restantes < 0):
+        estado = EstadoPreventivoEnum.VENCIDO.value
+    elif not lecturas and km_rutas == 0 and fecha_limite is None:
+        estado = EstadoPreventivoEnum.SIN_LECTURAS.value
+    elif km_restantes <= round(fila.intervalo_km * 0.2) or (
+        dias_restantes is not None
+        and dias_restantes <= config.dias_aviso_mantenimiento
+    ):
+        estado = EstadoPreventivoEnum.PROXIMO.value
+    else:
+        estado = EstadoPreventivoEnum.AL_DIA.value
+
+    return {
+        "id": fila.id,
+        "codigo": fila.codigo,
+        "placa": fila.placa,
+        "categoria": fila.categoria,
+        "descripcion": fila.descripcion,
+        "intervalo_km": fila.intervalo_km,
+        "intervalo_dias": fila.intervalo_dias,
+        "km_base": fila.km_base,
+        "km_actual": km_actual,
+        "km_restantes": km_restantes,
+        "fecha_base": fila.fecha_base,
+        "fecha_limite": fecha_limite,
+        "dias_restantes": dias_restantes,
+        "estado": estado,
+        "activo": bool(fila.activo),
+        "creado_por": fila.creado_por,
+        "creado_en": fila.creado_en,
+    }
+
+
+def crear_preventivo(
+    db: Session, datos: PreventivoCreateRequest, usuario: str
+) -> dict:
+    """Crea un plan preventivo. Recibe los datos y el correo del usuario."""
+
+    vehiculo = _vehiculo_por_placa(db, datos.placa)
+    campos = datos.model_dump(exclude={"placa"})
+    campos["categoria"] = campos["categoria"].value
+    if campos.get("km_base") is None:
+        campos["km_base"] = kilometraje_actual(db, vehiculo.placa)
+    if campos.get("fecha_base") is None:
+        campos["fecha_base"] = date.today()
+
+    fila = PlanPreventivo(
+        vehiculo_id=vehiculo.id,
+        placa=vehiculo.placa,
+        creado_por=usuario,
+        **campos,
+    )
+    mantenimiento_repository.crear_preventivo(db, fila)
+    asignar_codigo(db, fila, PREFIJO_PREVENTIVO)
+    mantenimiento_repository.registrar_auditoria(
+        db,
+        "crear",
+        "preventivo",
+        fila.id,
+        f"{fila.categoria} de {fila.placa} cada {fila.intervalo_km} km",
+        usuario,
+    )
+    db.commit()
+    db.refresh(fila)
+    return preventivo_dict(fila, db)
+
+
+def listar_preventivos(
+    db: Session,
+    placa: Optional[str] = None,
+    categoria: Optional[str] = None,
+    limite: int = 200,
+    hoy: Optional[date] = None,
+) -> List[dict]:
+    """Lista los planes con su estado calculado. Recibe filtros opcionales."""
+
+    config = obtener_configuracion(db)
+    filas = mantenimiento_repository.listar_preventivos(
+        db,
+        placa=(placa or "").strip().upper() or None,
+        categoria=categoria,
+        limite=limite,
+    )
+    return [preventivo_dict(fila, db, hoy, config) for fila in filas]
+
+
+def obtener_preventivo(
+    db: Session, preventivo_id: int, hoy: Optional[date] = None
+) -> dict:
+    """Devuelve un plan por id con su estado calculado. Recibe el identificador."""
+
+    return preventivo_dict(_obtener_preventivo(db, preventivo_id), db, hoy)
+
+
+def actualizar_preventivo(
+    db: Session,
+    preventivo_id: int,
+    datos: PreventivoUpdateRequest,
+    usuario: str,
+) -> dict:
+    """Edita un plan preventivo y registra el cambio. Recibe los datos."""
+
+    fila = _obtener_preventivo(db, preventivo_id)
+    cambios = datos.model_dump(exclude_unset=True)
+    if not cambios:
+        return preventivo_dict(fila, db)
+
+    _validar_no_nulos(
+        cambios, ("placa", "categoria", "descripcion", "intervalo_km")
+    )
+    if "placa" in cambios:
+        vehiculo = _vehiculo_por_placa(db, cambios.pop("placa"))
+        fila.vehiculo_id = vehiculo.id
+        fila.placa = vehiculo.placa
+    for campo, valor in list(cambios.items()):
+        cambios[campo] = _valor_enum(valor)
+    for campo, valor in cambios.items():
+        setattr(fila, campo, valor)
+    fila.actualizado_por = usuario
+    fila.actualizado_en = datetime.utcnow()
+    mantenimiento_repository.registrar_auditoria(
+        db, "editar", "preventivo", fila.id, ", ".join(cambios.keys()), usuario
+    )
+    db.commit()
+    db.refresh(fila)
+    return preventivo_dict(fila, db)
+
+
+def eliminar_preventivo(db: Session, preventivo_id: int, usuario: str) -> None:
+    """Aplica baja logica a un plan preventivo. Recibe el id."""
+
+    fila = _obtener_preventivo(db, preventivo_id)
+    fila.eliminado_en = datetime.utcnow()
+    fila.activo = False
+    fila.actualizado_por = usuario
+    fila.actualizado_en = fila.eliminado_en
+    mantenimiento_repository.registrar_auditoria(
+        db, "eliminar", "preventivo", fila.id, fila.codigo, usuario
+    )
+    db.commit()
+
+
+def ranking_averias(db: Session, limite: int = 20) -> List[dict]:
+    """Ordena las unidades con mas incidencias de auxilio mecanico.
+
+    Lee incidencias del nucleo en solo lectura y sugiere revision preventiva a
+    las unidades con tres o mas averias, o dos o mas todavia abiertas.
+    """
+
+    agrupado: Dict[str, List] = {}
+    for incidencia in mantenimiento_repository.listar_incidencias(db):
+        placa = incidencia.vehiculo_placa
+        if not placa:
+            continue
+        agrupado.setdefault(placa, []).append(incidencia)
+
+    resultado = []
+    for placa, filas in agrupado.items():
+        abiertas = sum(1 for fila in filas if fila.estado == "ABIERTA")
+        total = len(filas)
+        sugerencia = (
+            "Revisión preventiva sugerida"
+            if total >= 3 or abiertas >= 2
+            else "Seguimiento"
+        )
+        resultado.append(
+            {
+                "placa": placa,
+                "total": total,
+                "abiertas": abiertas,
+                "resueltas": total - abiertas,
+                "ultima_fecha": max(
+                    (fila.creado_en.date() for fila in filas if fila.creado_en),
+                    default=None,
+                ),
+                "sugerencia": sugerencia,
+            }
+        )
+    resultado.sort(key=lambda fila: (-fila["total"], -fila["abiertas"], fila["placa"]))
+    return resultado[:limite]
+
+
+def _cargas_con_rendimiento(
+    db: Session,
+    filas: List[CargaCombustible],
+    tolerancia: int = 20,
+) -> List[dict]:
+    """Calcula km recorridos, rendimiento y consumo anomalo de cada carga.
+
+    El km entre cargas sale del odometro cuando hay lecturas; si no, de los km
+    de las rutas finalizadas en ese periodo. El consumo se compara contra el
+    promedio de la misma unidad.
+    """
+
+    ordenadas = sorted(filas, key=lambda fila: (fila.fecha, fila.id or 0))
+    calculadas: List[dict] = []
+    for indice, fila in enumerate(ordenadas):
+        anterior = ordenadas[indice - 1] if indice else None
+        if anterior is not None and fila.odometro and anterior.odometro:
+            km = max(0, fila.odometro - anterior.odometro)
+        elif anterior is not None:
+            km = mantenimiento_repository.kilometraje_rutas(
+                db, fila.placa, desde=anterior.fecha, hasta=fila.fecha
+            )
+        else:
+            km = mantenimiento_repository.kilometraje_rutas(
+                db,
+                fila.placa,
+                desde=fila.fecha - timedelta(days=30),
+                hasta=fila.fecha,
+            )
+        rendimiento = round(km / fila.galones, 2) if km > 0 else None
+        calculadas.append(
+            {
+                "id": fila.id,
+                "codigo": fila.codigo,
+                "placa": fila.placa,
+                "fecha": fila.fecha,
+                "tipo_combustible": fila.tipo_combustible,
+                "galones": fila.galones,
+                "monto": fila.monto,
+                "odometro": fila.odometro,
+                "proveedor": fila.proveedor,
+                "observaciones": fila.observaciones,
+                "km_recorridos": round(km, 2),
+                "rendimiento_km_gal": rendimiento,
+                "consumo_anomalo": False,
+                "creado_por": fila.creado_por,
+                "creado_en": fila.creado_en,
+            }
+        )
+
+    por_placa: Dict[str, List[float]] = {}
+    for fila in calculadas:
+        if fila["rendimiento_km_gal"] is not None:
+            por_placa.setdefault(fila["placa"], []).append(
+                fila["rendimiento_km_gal"]
+            )
+    promedios = {
+        placa: sum(valores) / len(valores)
+        for placa, valores in por_placa.items()
+        if valores
+    }
+    for fila in calculadas:
+        rendimiento = fila["rendimiento_km_gal"]
+        promedio = promedios.get(fila["placa"])
+        if rendimiento is not None and promedio and promedio > 0:
+            desvio = abs(rendimiento - promedio) / promedio * 100
+            fila["consumo_anomalo"] = desvio > tolerancia
+    return calculadas
+
+
+def crear_carga(
+    db: Session, datos: CargaCombustibleCreateRequest, usuario: str
+) -> dict:
+    """Registra una carga de combustible. Recibe los datos y el correo del usuario."""
+
+    vehiculo = _vehiculo_por_placa(db, datos.placa)
+    campos = datos.model_dump(exclude={"placa"})
+    _validar_kilometraje(db, vehiculo.placa, campos.get("odometro"))
+    campos["tipo_combustible"] = campos["tipo_combustible"].value
+
+    fila = CargaCombustible(
+        vehiculo_id=vehiculo.id,
+        placa=vehiculo.placa,
+        creado_por=usuario,
+        **campos,
+    )
+    mantenimiento_repository.crear_carga(db, fila)
+    asignar_codigo(db, fila, PREFIJO_COMBUSTIBLE)
+    mantenimiento_repository.registrar_auditoria(
+        db,
+        "crear",
+        "combustible",
+        fila.id,
+        f"{fila.galones} gal de {fila.placa} por S/ {fila.monto}",
+        usuario,
+    )
+    db.commit()
+    db.refresh(fila)
+    # Se recalcula con el historial de la unidad para que el consumo anomalo
+    # se compare contra el promedio real y no contra una sola carga.
+    calculadas = listar_cargas(db, placa=fila.placa)
+    return next(fila_cal for fila_cal in calculadas if fila_cal["id"] == fila.id)
+
+
+def listar_cargas(
+    db: Session,
+    placa: Optional[str] = None,
+    tipo: Optional[TipoCombustibleEnum] = None,
+    desde: Optional[date] = None,
+    hasta: Optional[date] = None,
+    limite: int = 200,
+) -> List[dict]:
+    """Lista cargas con su rendimiento calculado. Recibe filtros opcionales."""
+
+    filas = mantenimiento_repository.listar_cargas(
+        db,
+        placa=(placa or "").strip().upper() or None,
+        tipo_combustible=tipo.value if tipo else None,
+        desde=desde,
+        hasta=hasta,
+        limite=limite,
+    )
+    return _cargas_con_rendimiento(
+        db, filas, obtener_configuracion(db).tolerancia_consumo
+    )
+
+
+def obtener_carga(db: Session, carga_id: int) -> dict:
+    """Devuelve una carga por id con su rendimiento. Recibe el identificador."""
+
+    fila = _obtener_carga(db, carga_id)
+    return _cargas_con_rendimiento(
+        db, [fila], obtener_configuracion(db).tolerancia_consumo
+    )[0]
+
+
+def actualizar_carga(
+    db: Session,
+    carga_id: int,
+    datos: CargaCombustibleUpdateRequest,
+    usuario: str,
+) -> dict:
+    """Edita una carga y registra el cambio. Recibe los datos."""
+
+    fila = _obtener_carga(db, carga_id)
+    cambios = datos.model_dump(exclude_unset=True)
+    if not cambios:
+        return obtener_carga(db, carga_id)
+
+    _validar_no_nulos(cambios, ("placa", "fecha", "galones", "monto"))
+    if "placa" in cambios:
+        vehiculo = _vehiculo_por_placa(db, cambios.pop("placa"))
+        fila.vehiculo_id = vehiculo.id
+        fila.placa = vehiculo.placa
+    for campo, valor in list(cambios.items()):
+        cambios[campo] = _valor_enum(valor)
+    if "odometro" in cambios:
+        _validar_kilometraje(
+            db, fila.placa, cambios["odometro"], excluir_carga_id=fila.id
+        )
+    for campo, valor in cambios.items():
+        setattr(fila, campo, valor)
+    fila.actualizado_por = usuario
+    fila.actualizado_en = datetime.utcnow()
+    mantenimiento_repository.registrar_auditoria(
+        db, "editar", "combustible", fila.id, ", ".join(cambios.keys()), usuario
+    )
+    db.commit()
+    db.refresh(fila)
+    return obtener_carga(db, carga_id)
+
+
+def eliminar_carga(db: Session, carga_id: int, usuario: str) -> None:
+    """Aplica baja logica a una carga y registra el cambio. Recibe el id."""
+
+    fila = _obtener_carga(db, carga_id)
+    fila.eliminado_en = datetime.utcnow()
+    fila.actualizado_por = usuario
+    fila.actualizado_en = fila.eliminado_en
+    mantenimiento_repository.registrar_auditoria(
+        db, "eliminar", "combustible", fila.id, fila.codigo, usuario
+    )
+    db.commit()
+
+
+def costos_flota(db: Session, hoy: Optional[date] = None) -> dict:
+    """Devuelve costos y rendimiento global de mantenimiento y combustible."""
+
+    hoy = hoy or date.today()
+    config = obtener_configuracion(db)
+    mantenimientos = mantenimiento_repository.listar_mantenimientos(db)
+    completados = [
+        fila
+        for fila in mantenimientos
+        if fila.estado == EstadoMantenimientoEnum.COMPLETADO.value
+    ]
+    cargas = listar_cargas(db, limite=5000)
+    preventivos = listar_preventivos(db, hoy=hoy, limite=5000)
+
+    costo_mantenimiento = sum((fila.costo or 0.0) for fila in completados)
+    costo_combustible = sum((fila["monto"] or 0.0) for fila in cargas)
+    km_totales = sum((fila["km_recorridos"] or 0.0) for fila in cargas)
+    galones_totales = sum((fila["galones"] or 0.0) for fila in cargas)
+    costo_total = costo_mantenimiento + costo_combustible
+
+    return {
+        "costo_mantenimiento": round(costo_mantenimiento, 2),
+        "costo_combustible": round(costo_combustible, 2),
+        "costo_total": round(costo_total, 2),
+        "km_totales": round(km_totales, 2),
+        "costo_por_kilometro": (
+            round(costo_total / km_totales, 4) if km_totales > 0 else None
+        ),
+        "galones_totales": round(galones_totales, 2),
+        "rendimiento_km_gal": (
+            round(km_totales / galones_totales, 2) if galones_totales > 0 else None
+        ),
+        "cargas_totales": len(cargas),
+        "mantenimientos_completados": len(completados),
+        "preventivos_vencidos": sum(
+            1 for fila in preventivos if fila["estado"] == EstadoPreventivoEnum.VENCIDO.value
+        ),
+        "moneda": config.moneda,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Configuracion y auditoria
 # ---------------------------------------------------------------------------
 
@@ -660,6 +1214,7 @@ def obtener_configuracion(db: Session) -> ConfiguracionMantenimiento:
         moneda="PEN",
         alertas_documentos=True,
         alertas_mantenimientos=True,
+        tolerancia_consumo=20,
     )
     mantenimiento_repository.guardar_configuracion(db, config)
     try:
@@ -684,6 +1239,7 @@ def configuracion_dict(config: ConfiguracionMantenimiento) -> dict:
         "moneda": config.moneda,
         "alertas_documentos": config.alertas_documentos,
         "alertas_mantenimientos": config.alertas_mantenimientos,
+        "tolerancia_consumo": config.tolerancia_consumo or 20,
         "actualizado_por": config.actualizado_por,
         "actualizado_en": config.actualizado_en,
     }
@@ -971,6 +1527,57 @@ def alertas(
                 }
             )
 
+    if config.alertas_mantenimientos:
+        for plan in listar_preventivos(db, hoy=hoy, limite=500):
+            if plan["estado"] not in (
+                EstadoPreventivoEnum.VENCIDO.value,
+                EstadoPreventivoEnum.PROXIMO.value,
+            ):
+                continue
+            vencido = plan["estado"] == EstadoPreventivoEnum.VENCIDO.value
+            resultado.append(
+                {
+                    "id": f"prev-{plan['id']}",
+                    "tipo": "PREVENTIVO",
+                    "severidad": "ALTA" if vencido else "MEDIA",
+                    "placa": plan["placa"],
+                    "conductor": None,
+                    "titulo": (
+                        "Preventivo vencido" if vencido else "Preventivo próximo"
+                    ),
+                    "mensaje": (
+                        f"El plan {plan['codigo']} ({plan['categoria']}) de la placa "
+                        f"{plan['placa']} tiene {plan['km_restantes']} km restantes."
+                    ),
+                    "fecha_referencia": plan["fecha_limite"],
+                    "dias": plan["dias_restantes"],
+                    "umbral": config.dias_aviso_mantenimiento,
+                    "entidad_id": plan["id"],
+                }
+            )
+        for carga in listar_cargas(db, limite=500):
+            if not carga["consumo_anomalo"]:
+                continue
+            resultado.append(
+                {
+                    "id": f"comb-{carga['id']}",
+                    "tipo": "COMBUSTIBLE",
+                    "severidad": "MEDIA",
+                    "placa": carga["placa"],
+                    "conductor": None,
+                    "titulo": "Consumo anómalo",
+                    "mensaje": (
+                        f"La carga {carga['codigo']} de la placa {carga['placa']} "
+                        f"rindió {carga['rendimiento_km_gal']} km/gal, fuera del "
+                        f"promedio de la unidad."
+                    ),
+                    "fecha_referencia": carga["fecha"],
+                    "dias": None,
+                    "umbral": config.tolerancia_consumo,
+                    "entidad_id": carga["id"],
+                }
+            )
+
     resultado.sort(
         key=lambda aviso: (
             0 if aviso["severidad"] == "ALTA" else 1,
@@ -1028,6 +1635,13 @@ def resumen(
         for vehiculo in vehiculos
         if not any(fila.vehiculo_id == vehiculo.id for fila in actuales)
     )
+    # La semana 14 suma indicadores de preventivos, combustible y costos. El
+    # costo_total historico se mantiene como gasto de mantenimiento solamente.
+    cargas = listar_cargas(db, limite=5000)
+    preventivos = listar_preventivos(db, hoy=hoy, limite=5000)
+    costo_combustible = sum((fila["monto"] or 0.0) for fila in cargas)
+    km_cargas = sum((fila["km_recorridos"] or 0.0) for fila in cargas)
+    galones = sum((fila["galones"] or 0.0) for fila in cargas)
 
     return {
         "total_vehiculos": len(vehiculos),
@@ -1061,6 +1675,19 @@ def resumen(
         ),
         "costo_mes": round(costo_mes, 2),
         "costo_total": round(costo_total, 2),
+        "costo_combustible": round(costo_combustible, 2),
+        "costo_por_kilometro": (
+            round((costo_total + costo_combustible) / km_cargas, 4)
+            if km_cargas > 0
+            else None
+        ),
+        "rendimiento_km_gal": round(km_cargas / galones, 2) if galones > 0 else None,
+        "preventivos_vencidos": sum(
+            1
+            for fila in preventivos
+            if fila["estado"] == EstadoPreventivoEnum.VENCIDO.value
+        ),
+        "consumos_anomalos": sum(1 for fila in cargas if fila["consumo_anomalo"]),
         "moneda": config.moneda,
         "alertas_total": len(avisos),
         "alertas_alta": sum(1 for aviso in avisos if aviso["severidad"] == "ALTA"),
@@ -1146,7 +1773,12 @@ def ficha_vehiculo(
         for fila in mantenimientos
         if fila.kilometraje is not None
     ]
-    ultimo_kilometraje = max(kilometrajes) if kilometrajes else None
+    cargas = listar_cargas(db, placa=vehiculo.placa)
+    kilometrajes.extend(
+        fila["odometro"] for fila in cargas if fila["odometro"] is not None
+    )
+    km_rutas = mantenimiento_repository.kilometraje_rutas(db, vehiculo.placa)
+    ultimo_kilometraje = max(kilometrajes + [km_rutas]) if kilometrajes or km_rutas else None
 
     completados_con_km = [
         fila for fila in completados if fila.kilometraje is not None
@@ -1161,13 +1793,23 @@ def ficha_vehiculo(
         if rango_km > 0
         else None
     )
+    costo_combustible = sum((fila["monto"] or 0.0) for fila in cargas)
+    galones = sum((fila["galones"] or 0.0) for fila in cargas)
+    km_cargas = sum((fila["km_recorridos"] or 0.0) for fila in cargas)
+    rendimiento = round(km_cargas / galones, 2) if galones > 0 else None
+    preventivos = listar_preventivos(db, placa=vehiculo.placa, hoy=hoy)
+    averias = [
+        fila for fila in ranking_averias(db) if fila["placa"] == vehiculo.placa
+    ]
 
     return {
         "placa": vehiculo.placa,
         "marca": vehiculo.marca,
         "codigo": vehiculo.codigo,
         "estado_vehiculo": vehiculo.estado,
-        "odometro_actual": ultimo_kilometraje,
+        "odometro_actual": (
+            int(round(ultimo_kilometraje)) if ultimo_kilometraje is not None else None
+        ),
         "documentos": [
             documento_dict(fila, hoy, config.dias_aviso_documento)
             for fila in documentos
@@ -1175,13 +1817,22 @@ def ficha_vehiculo(
         "mantenimientos": [
             mantenimiento_dict(fila, hoy) for fila in mantenimientos
         ],
+        "preventivos": preventivos,
+        "cargas": cargas,
+        "averias": averias,
         "costos": {
-            "costo_total": round(costo_total, 2),
+            "costo_total": round(costo_total + costo_combustible, 2),
             "costo_mes": round(costo_mes, 2),
+            "costo_mantenimiento": round(costo_total, 2),
+            "costo_combustible": round(costo_combustible, 2),
             "costo_por_kilometro": costo_por_kilometro,
+            "rendimiento_km_gal": rendimiento,
             "moneda": config.moneda,
             "mantenimientos_completados": len(completados),
-            "ultimo_kilometraje": ultimo_kilometraje,
+            "cargas_totales": len(cargas),
+            "ultimo_kilometraje": (
+                int(round(ultimo_kilometraje)) if ultimo_kilometraje is not None else None
+            ),
         },
         **_estado_documental(documentos, config, hoy),
         "mantenimientos_abiertos": len(abiertos),

@@ -1,14 +1,13 @@
 # Módulo de mantenimiento y documentos de la flota (Idea 4)
 
-Este documento explica la **semana 13** del módulo: el backend que registra los
-mantenimientos preventivos/correctivos, los documentos legales de la flota
-(SOAT, revisión técnica, tarjeta de circulación, seguro y permisos) y las
-licencias de los conductores, calcula sus vencimientos, entrega la ficha de
-estado de cada unidad y las alertas que usará el panel.
+Este documento explica el módulo de mantenimiento de la flota (Idea 4): la
+**semana 13** dejó el backend de documentos, mantenimientos, licencias, ficha y
+alertas. La **semana 14** agregó planes preventivos por km/tiempo, ranking de
+averías, combustible, costos y el panel frontend.
 
 El módulo vive en sus propios archivos y tablas. **Solo lee** las tablas
-`vehiculos` y `conductor_perfiles` del núcleo; no modifica pedidos, rutas,
-usuarios ni licencias.
+`vehiculos`, `conductor_perfiles`, `rutas` e `incidencias` del núcleo; no
+modifica pedidos, rutas, usuarios ni licencias.
 
 ## 1. Alcance de la semana 13
 
@@ -22,22 +21,29 @@ usuarios ni licencias.
 | Pruebas del módulo | `backend/tests/test_modulo_mantenimiento.py` |
 | Bandera de apagado | `MODULO_MANTENIMIENTO_ENABLED` |
 
-El frontend del módulo (pestañas de documentos, mantenimientos y alertas) se
-trabaja en la semana 14. La semana 13 deja la API lista y verificada para que la
-semana 14 solo consuma endpoints.
+La semana 14 amplía esos mismos archivos y agrega
+`backend/tests/test_mantenimiento_semana14.py` y
+`frontend/src/pages/ModuloMantenimientoPage.jsx`. La API de la semana 13 quedó
+lista y verificada para que la semana 14 solo consuma endpoints.
 
 ## 2. Arquitectura
 
 ```
 backend/app/
   api/mantenimiento.py                    # endpoints + bandera MODULO_MANTENIMIENTO_ENABLED
-  models/mantenimiento.py                 # 4 tablas propias del módulo
+  models/mantenimiento.py                 # 6 tablas propias del módulo
   schemas/mantenimiento.py                # contratos Pydantic de entrada/salida
   repositories/mantenimiento_repository.py
   services/mantenimiento_service.py
+  db/migraciones.py                       # columnas nuevas en tablas ya existentes
 
 backend/tests/
   test_modulo_mantenimiento.py
+  test_mantenimiento_semana14.py
+
+frontend/src/
+  pages/ModuloMantenimientoPage.jsx
+  services/api.js                         # funciones de la Idea 4
 
 docs/
   MODULO_MANTENIMIENTO.md
@@ -57,12 +63,17 @@ Capas:
 | --- | --- |
 | `mantenimiento_documentos` | SOAT, revisión técnica, tarjeta de circulación, seguro y permisos. Cada renovación es una fila nueva. |
 | `mantenimiento_registros` | Órdenes preventivas y correctivas, con fecha, kilometraje, costo, taller y estado. |
-| `mantenimiento_configuracion` | Fila única: días de aviso de documentos y mantenimientos, moneda y banderas de alertas. |
+| `mantenimiento_configuracion` | Fila única: días de aviso, moneda, banderas de alertas y tolerancia de consumo. |
 | `mantenimiento_auditoria` | Altas, ediciones, bajas, cierres y cambios de configuración. |
+| `mantenimiento_preventivos` | Planes por unidad y categoría con intervalo en km y/o días, base y actividad. |
+| `mantenimiento_combustible` | Cargas con fecha, galones, monto, odómetro y proveedor. |
 
 Las tablas se crean con el `create_all` que el backend ya ejecuta al arrancar
-(`preparar_esquema`). No se agregó una revisión de Alembic porque el proyecto no
-usa migraciones versionadas para el resto del esquema.
+(`preparar_esquema`). La columna `tolerancia_consumo`, agregada en la semana 14 a
+una tabla ya existente, se registra al final de `SENTENCIAS` en
+`backend/app/db/migraciones.py` con `ADD COLUMN IF NOT EXISTS`. No se agregó una
+revisión de Alembic porque el proyecto no usa migraciones versionadas para el
+resto del esquema.
 
 ## 3. Reglas de negocio
 
@@ -193,9 +204,9 @@ admin.**
 | Método | Ruta | Rol | Descripción |
 | --- | --- | --- | --- |
 | GET | `/salud` | público | Estado del módulo |
-| GET | `/resumen` | admin/almacén | KPIs de documentos, mantenimientos y costos; cuenta licencias solo al admin |
+| GET | `/resumen` | admin/almacén | KPIs de documentos, mantenimientos, preventivos, combustible y costos; cuenta licencias solo al admin |
 | GET | `/flota` | admin/almacén | Estado documental, `apto_para_salir` y motivos por vehículo |
-| GET | `/flota/{placa}` | admin/almacén | Ficha de la unidad: documentos, mantenimientos y costos |
+| GET | `/flota/{placa}` | admin/almacén | Ficha: documentos, mantenimientos, preventivos, cargas, averías y costos |
 | GET | `/alertas` | admin/almacén | Vencidos, por vencer y faltantes; suma licencias solo al admin |
 | GET | `/licencias` | **admin** | Licencias de conductores con estado y nivel de alerta |
 | GET | `/documentos` | admin/almacén | Filtros `placa`, `tipo`, `estado`, `limite` |
@@ -209,7 +220,19 @@ admin.**
 | PATCH | `/mantenimientos/{id}` | admin | Edita un mantenimiento |
 | POST | `/mantenimientos/{id}/completar` | admin | Cierra con fecha, costo y kilometraje |
 | DELETE | `/mantenimientos/{id}` | admin | Baja lógica |
-| GET | `/configuracion` | admin/almacén | Días de aviso, moneda y banderas |
+| GET | `/preventivos` | admin/almacén | Filtros `placa`, `categoria`, `limite` |
+| POST | `/preventivos` | admin | Crea un plan por km y/o días (201) |
+| GET | `/preventivos/{id}` | admin/almacén | Detalle del plan con estado calculado |
+| PATCH | `/preventivos/{id}` | admin | Edita el plan |
+| DELETE | `/preventivos/{id}` | admin | Baja lógica |
+| GET | `/averias/ranking` | admin/almacén | Unidades con más incidencias y sugerencia de revisión |
+| GET | `/combustible` | admin/almacén | Filtros `placa`, `tipo`, `desde`, `hasta`, `limite` |
+| POST | `/combustible` | admin | Registra una carga (201) |
+| GET | `/combustible/{id}` | admin/almacén | Detalle con rendimiento calculado |
+| PATCH | `/combustible/{id}` | admin | Edita una carga |
+| DELETE | `/combustible/{id}` | admin | Baja lógica |
+| GET | `/costos` | admin/almacén | Costos y rendimiento global de la flota |
+| GET | `/configuracion` | admin/almacén | Días de aviso, moneda, banderas y tolerancia |
 | PUT | `/configuracion` | admin | Actualiza la configuración (auditado) |
 | GET | `/auditoria` | admin | Últimos movimientos (máx. 500) |
 
@@ -321,7 +344,7 @@ MODULO_MANTENIMIENTO_ENABLED=false
 
 ```bash
 cd backend
-python -m pytest tests/test_modulo_mantenimiento.py -q
+python -m pytest tests/test_modulo_mantenimiento.py tests/test_mantenimiento_semana14.py -q
 python -m pytest -q
 ```
 
@@ -329,7 +352,7 @@ python -m pytest -q
 
 ```bash
 docker compose exec backend pip install -q pytest httpx
-docker compose exec backend python -m pytest tests/test_modulo_mantenimiento.py -q
+docker compose exec backend python -m pytest tests/test_modulo_mantenimiento.py tests/test_mantenimiento_semana14.py -q
 ```
 
 ### Comprobar la API
@@ -356,5 +379,65 @@ Documentación interactiva: `http://localhost:8000/docs` → sección
   auditoría.
 - Los estados se calculan al consultar; si cambia la fecha del servidor o los
   días de aviso, las alertas se ajustan solas.
-- No se agregó migración Alembic: las tablas nacen con `create_all`. Si el
-  proyecto adopta migraciones, hay que generar la revisión de estas 4 tablas.
+- No se agregó migración Alembic: las tablas nuevas nacen con `create_all` y la
+  columna nueva se agrega en `migraciones.py`. Si el proyecto adopta migraciones,
+  hay que generar la revisión de estas 6 tablas.
+
+## 8. Ampliación de la semana 14
+
+### Planes preventivos
+
+- Un plan se define por **placa + categoría**, con `intervalo_km` obligatorio y
+  `intervalo_dias` opcional. Si no se envían `km_base` o `fecha_base`, se toman
+  el kilometraje actual y la fecha de hoy.
+- El kilometraje se **lee** de `rutas.km_estimado` cuando la ruta está
+  `FINALIZADA`, y se combina con las lecturas de mantenimientos y odómetros de
+  combustible. El módulo nunca escribe en `rutas` ni en `incidencias`.
+- El estado tampoco se guarda. Se calcula en cada consulta:
+
+| Estado | Cuándo |
+| --- | --- |
+| `VENCIDO` | Se agotaron los km del intervalo o pasó la fecha límite. |
+| `PROXIMO` | Faltan ≤ 20 % de los km o los días de aviso configurados. |
+| `SIN_LECTURAS` | No hay rutas finalizadas, odómetro ni fecha base. |
+| `AL_DIA` | Lejos de ambos límites. |
+
+- Un plan vencido genera alerta `ALTA`; uno próximo, `MEDIA`. Se pueden apagar
+  con `alertas_mantenimientos`.
+
+### Averías
+
+- `GET /averias/ranking` agrupa las incidencias del núcleo por placa. Sugiere
+  revisión preventiva cuando hay 3 o más averías, o 2 o más abiertas.
+- Solo lectura: el módulo no cambia el estado de las incidencias.
+
+### Combustible y costos
+
+- Carga válida: placa activa, galones y monto positivos, fecha presente.
+- La lectura del odómetro **no puede retroceder** frente a la última registrada
+  en mantenimientos o combustible de la misma placa; si retrocede, responde 422.
+- `km_recorridos` sale de la diferencia de odómetros entre cargas; si no hay
+  lecturas, de los km de rutas finalizadas en el periodo.
+- `rendimiento_km_gal = km_recorridos / galones`. Una carga es
+  `consumo_anomalo` cuando su rendimiento se aparta más de
+  `tolerancia_consumo` % (20 por defecto) del promedio de esa unidad.
+- `GET /costos` suma mantenimientos completados + combustible y devuelve costo
+  por km, galones y rendimiento global.
+- `costo_total` de `/resumen` sigue siendo gasto de taller; los nuevos campos
+  `costo_combustible`, `costo_por_kilometro`, `rendimiento_km_gal`,
+  `preventivos_vencidos` y `consumos_anomalos` complementan el panel.
+- La ficha de unidad (`/flota/{placa}`) incorpora `preventivos`, `cargas` y
+  `averias`, y su odómetro considera también rutas finalizadas.
+
+### Frontend
+
+- Ruta `/panel/mantenimiento` con pestañas: Resumen, Documentos,
+  Mantenimientos, Preventivos, Combustible, Alertas, Flota, Licencias y
+  Configuración. Sigue el patrón visual de `ModuloCapacidadPage`.
+- Administrador ve todas las pestañas y puede escribir; almacén entra en modo
+  solo lectura y no ve Licencias.
+- Las funciones de API están en `frontend/src/services/api.js` bajo
+  `RUTA_MANTENIMIENTO = "/modulo-mantenimiento"`.
+
+Quedan para la **semana 15**: tablero/calendario, recordatorio por correo, PDF
+de la ficha, exportación a Excel, subida segura de archivos y demo.

@@ -79,6 +79,60 @@ class MantenimientoRegistro(Base):
     eliminado_en = Column(DateTime, nullable=True)  # borrado logico
 
 
+class PlanPreventivo(Base):
+    """Plan de mantenimiento preventivo por vehiculo, categoria, km y tiempo.
+
+    El estado no se guarda: se calcula con el kilometraje real (rutas finalizadas
+    y lecturas del odometro) y con la fecha base del plan.
+    """
+
+    __tablename__ = "mantenimiento_preventivos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    codigo = Column(String(20), unique=True, index=True, nullable=True)  # PV-001
+    vehiculo_id = Column(Integer, ForeignKey("vehiculos.id"), nullable=False, index=True)
+    placa = Column(String(20), nullable=False, index=True)
+
+    categoria = Column(String(30), nullable=False, index=True)
+    descripcion = Column(Text, nullable=False)
+    intervalo_km = Column(Integer, nullable=False)
+    intervalo_dias = Column(Integer, nullable=True)
+    km_base = Column(Integer, nullable=True)
+    fecha_base = Column(Date, nullable=True, index=True)
+    activo = Column(Boolean, nullable=False, default=True)
+
+    creado_por = Column(String(150), nullable=False)
+    creado_en = Column(DateTime, default=datetime.utcnow, nullable=False)
+    actualizado_por = Column(String(150), nullable=True)
+    actualizado_en = Column(DateTime, nullable=True)
+    eliminado_en = Column(DateTime, nullable=True)  # borrado logico
+
+
+class CargaCombustible(Base):
+    """Carga de combustible de una unidad. Sirve para calcular rendimiento y costos."""
+
+    __tablename__ = "mantenimiento_combustible"
+
+    id = Column(Integer, primary_key=True, index=True)
+    codigo = Column(String(20), unique=True, index=True, nullable=True)  # CB-001
+    vehiculo_id = Column(Integer, ForeignKey("vehiculos.id"), nullable=False, index=True)
+    placa = Column(String(20), nullable=False, index=True)
+
+    fecha = Column(Date, nullable=False, index=True)
+    tipo_combustible = Column(String(20), nullable=False, default="DIESEL")
+    galones = Column(Float, nullable=False)
+    monto = Column(Float, nullable=False)
+    odometro = Column(Integer, nullable=True)
+    proveedor = Column(String(120), nullable=True)
+    observaciones = Column(Text, nullable=True)
+
+    creado_por = Column(String(150), nullable=False)
+    creado_en = Column(DateTime, default=datetime.utcnow, nullable=False)
+    actualizado_por = Column(String(150), nullable=True)
+    actualizado_en = Column(DateTime, nullable=True)
+    eliminado_en = Column(DateTime, nullable=True)  # borrado logico
+
+
 class ConfiguracionMantenimiento(Base):
     """Parametros del modulo. Es una sola fila (id=1)."""
 
@@ -90,6 +144,7 @@ class ConfiguracionMantenimiento(Base):
     moneda = Column(String(3), nullable=False, default="PEN")
     alertas_documentos = Column(Boolean, nullable=False, default=True)
     alertas_mantenimientos = Column(Boolean, nullable=False, default=True)
+    tolerancia_consumo = Column(Integer, nullable=False, default=20)  # % para consumo anomalo
     actualizado_por = Column(String(150), nullable=True)
     actualizado_en = Column(DateTime, nullable=True)
 
