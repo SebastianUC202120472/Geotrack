@@ -1,13 +1,21 @@
 # Logica del modulo de mantenimiento y documentos de la flota (Idea 4).
 # No conoce HTTP: recibe datos, consulta el repositorio y devuelve diccionarios
 # que el router convierte a los esquemas Pydantic. Solo LEE la tabla de vehiculos.
+import io
+import mimetypes
+import secrets
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core import almacenamiento
 from app.core.codigos import asignar_codigo
+from app.core.config import settings
+from app.core.excel import fila_segura
+from app.core.imagenes import validar_imagen
+from app.core.pdf_simple import construir_pdf
 from app.models.mantenimiento import (
     CargaCombustible,
     ConfiguracionMantenimiento,
@@ -16,6 +24,7 @@ from app.models.mantenimiento import (
     PlanPreventivo,
 )
 from app.repositories import mantenimiento_repository, vehiculo_repository
+from app.services import correo_service
 from app.schemas.mantenimiento import (
     CargaCombustibleCreateRequest,
     CargaCombustibleUpdateRequest,
@@ -1845,3 +1854,531 @@ def ficha_vehiculo(
             default=None,
         ),
     }
+
+
+# ---------------------------------------------------------------------------
+# Semana 15: tablero y calendario
+# ---------------------------------------------------------------------------
+
+
+def calendario(
+    db: Session,
+    desde: Optional[date] = None,
+    hasta: Optional[date] = None,
+    hoy: Optional[date] = None,
+) -> List[dict]:
+    """Devuelve los hitos del periodo: documentos, mantenimientos y preventivos.
+
+    Solo combina datos que el modulo ya calcula en lectura. Recibe el rango de
+    fechas; si no se envia, muestra los proximos 30 dias.
+    """
+
+    hoy = hoy or date.today()
+    desde = desde or hoy
+    hasta = hasta or (hoy + timedelta(days=30))
+    if desde > hasta:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="La fecha inicial no puede ser posterior a la final.",
+        )
+
+    eventos: List[dict] = []
+    config = obtener_configuracion(db)
+    documentos = _documentos_actuales(mantenimiento_repository.listar_documentos(db))
+    for fila in documentos:
+        fecha = fila.fecha_vencimiento
+        if fecha is None or not desde <= fecha <= hasta:
+            continue
+        dias = dias_para_vencer(fecha, hoy)
+        severidad, _ = nivel_alerta_vencimiento(dias)
+        eventos.append(
+            {
+                "id": f"doc-{fila.id}",
+                "tipo": "DOCUMENTO",
+                "titulo": f"Vencimiento {fila.tipo_documento} · {fila.numero}",
+                "placa": fila.placa,
+                "fecha": fecha,
+                "estado": calcular_estado_documento(
+                    fecha, hoy, config.dias_aviso_documento
+                ),
+                "severidad": severidad,
+                "dias": dias,
+            }
+        )
+
+    for fila in mantenimiento_repository.listar_mantenimientos(db):
+        fecha = fila.fecha_programada
+        if fecha is None or not desde <= fecha <= hasta:
+            continue
+        datos = mantenimiento_dict(fila, hoy)
+        eventos.append(
+            {
+                "id": f"mant-{fila.id}",
+                "tipo": "MANTENIMIENTO",
+                "titulo": f"{fila.tipo} · {fila.descripcion}",
+                "placa": fila.placa,
+                "fecha": fecha,
+                "estado": datos["estado"],
+                "severidad": "ALTA" if datos["vencido"] else None,
+                "dias": dias_para_vencer(fecha, hoy),
+            }
+        )
+
+    for fila in listar_preventivos(db, hoy=hoy, limite=5000):
+        fecha = fila["fecha_limite"]
+        if fecha is None or not desde <= fecha <= hasta:
+            continue
+        estado = fila["estado"]
+        severidad = (
+            "ALTA"
+            if estado == EstadoPreventivoEnum.VENCIDO.value
+            else "MEDIA" if estado == EstadoPreventivoEnum.PROXIMO.value else None
+        )
+        eventos.append(
+            {
+                "id": f"prev-{fila['id']}",
+                "tipo": "PREVENTIVO",
+                "titulo": f"{fila['categoria']} · {fila['descripcion']}",
+                "placa": fila["placa"],
+                "fecha": fecha,
+                "estado": estado,
+                "severidad": severidad,
+                "dias": fila["dias_restantes"],
+            }
+        )
+
+    eventos.sort(key=lambda fila: (fila["fecha"], fila["tipo"], fila["placa"]))
+    return eventos
+
+
+def tablero(
+    db: Session,
+    hoy: Optional[date] = None,
+    incluir_licencias: bool = False,
+) -> dict:
+    """Resume la operacion diaria para el tablero. Recibe la sesion y la fecha."""
+
+    hoy = hoy or date.today()
+    estado = estado_flota(db, hoy)
+    avisos = alertas(db, hoy, incluir_licencias=incluir_licencias)
+    preventivos = listar_preventivos(db, hoy=hoy, limite=5000)
+    cargas = listar_cargas(db, limite=5000)
+    abiertos = [
+        fila
+        for fila in mantenimiento_repository.listar_mantenimientos(db)
+        if fila.estado in ESTADOS_ABIERTOS
+    ]
+
+    def _en_taller(fila: dict) -> bool:
+        """Indica si la unidad esta en taller por su estado o por una orden abierta."""
+
+        estado_texto = (fila.get("estado_vehiculo") or "").upper()
+        return "TALLER" in estado_texto or fila["mantenimientos_abiertos"] > 0
+
+    en_taller = sum(1 for fila in estado if _en_taller(fila))
+    return {
+        "fecha": hoy,
+        "total_vehiculos": len(estado),
+        "operativos": sum(
+            1 for fila in estado if fila["apto_para_salir"] and not _en_taller(fila)
+        ),
+        "en_taller": en_taller,
+        "no_aptos": sum(1 for fila in estado if not fila["apto_para_salir"]),
+        "documentos_por_vencer": sum(
+            1 for fila in estado if fila["documentos_por_vencer"] > 0
+        ),
+        "documentos_vencidos": sum(
+            1 for fila in estado if fila["documentos_vencidos"] > 0
+        ),
+        "mantenimientos_abiertos": len(abiertos),
+        "preventivos_vencidos": sum(
+            1
+            for fila in preventivos
+            if fila["estado"] == EstadoPreventivoEnum.VENCIDO.value
+        ),
+        "preventivos_proximos": sum(
+            1
+            for fila in preventivos
+            if fila["estado"] == EstadoPreventivoEnum.PROXIMO.value
+        ),
+        "consumos_anomalos": sum(1 for fila in cargas if fila["consumo_anomalo"]),
+        "alertas_alta": sum(1 for aviso in avisos if aviso["severidad"] == "ALTA"),
+        "alertas_media": sum(1 for aviso in avisos if aviso["severidad"] == "MEDIA"),
+        "alertas_baja": sum(1 for aviso in avisos if aviso["severidad"] == "BAJA"),
+        "eventos_proximos": len(calendario(db, hoy=hoy, hasta=hoy + timedelta(days=30))),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Semana 15: correo, ficha en PDF, reporte en Excel y archivos privados
+# ---------------------------------------------------------------------------
+
+
+def enviar_recordatorio(
+    db: Session,
+    destino: Optional[str] = None,
+    incluir_licencias: bool = False,
+    hoy: Optional[date] = None,
+) -> dict:
+    """Envia el resumen de alertas por correo. Recibe la sesion y el destino.
+
+    Reutiliza el servicio de correo existente: si no hay SMTP configurado,
+    devuelve enviado=False en vez de lanzar un error (envio best-effort).
+    """
+
+    hoy = hoy or date.today()
+    destino = (destino or "").strip() or settings.ADMIN_EMAIL
+    avisos = alertas(db, hoy, incluir_licencias=incluir_licencias)
+    resumen = tablero(db, hoy, incluir_licencias=incluir_licencias)
+
+    lineas = [
+        f"Fecha: {hoy}",
+        (
+            f"Vehiculos: {resumen['total_vehiculos']} | "
+            f"Operativos: {resumen['operativos']} | "
+            f"No aptos: {resumen['no_aptos']}"
+        ),
+        (
+            f"Alertas: {len(avisos)} "
+            f"(ALTA {resumen['alertas_alta']}, MEDIA {resumen['alertas_media']}, "
+            f"BAJA {resumen['alertas_baja']})"
+        ),
+        (
+            f"Preventivos vencidos: {resumen['preventivos_vencidos']} | "
+            f"Proximos: {resumen['preventivos_proximos']}"
+        ),
+        "",
+        "Detalle de los avisos:",
+    ]
+    for aviso in avisos[:30]:
+        lineas.append(f"[{aviso['severidad']}] {aviso['titulo']}: {aviso['mensaje']}")
+    if len(avisos) > 30:
+        lineas.append(f"... y {len(avisos) - 30} avisos mas en el panel.")
+
+    cuerpo = "\n".join(lineas) + f"\n\n{settings.firma}"
+    asunto = f"Recordatorio de mantenimiento de flota - {hoy}"
+    enviado = bool(correo_service.enviar_simple(destino, asunto, cuerpo))
+    detalle = (
+        "El resumen fue enviado correctamente."
+        if enviado
+        else "El correo no esta configurado o no pudo enviarse; el resumen quedo generado."
+    )
+    return {
+        "enviado": enviado,
+        "destino": destino,
+        "alertas": len(avisos),
+        "detalle": detalle,
+    }
+
+
+def ficha_pdf(db: Session, placa: str) -> tuple:
+    """Genera el PDF de la ficha de una unidad. Recibe la sesion y la placa."""
+
+    ficha = ficha_vehiculo(db, placa)
+    costos = ficha["costos"]
+    lineas = [
+        f"Placa: {ficha['placa']} | Marca: {ficha.get('marca') or '-'} | Codigo: {ficha.get('codigo') or '-'}",
+        f"Estado del vehiculo: {ficha.get('estado_vehiculo') or '-'}",
+        f"Odometro actual: {ficha.get('odometro_actual') if ficha.get('odometro_actual') is not None else '-'} km",
+        f"Estado general: {ficha['estado_general']} | Apto para salir: {'SI' if ficha['apto_para_salir'] else 'NO'}",
+        "",
+        f"Costo total: {costos.get('costo_total', 0)} {costos.get('moneda', '')}",
+        f"Costo por kilometro: {costos.get('costo_por_kilometro') if costos.get('costo_por_kilometro') is not None else '-'}",
+        f"Rendimiento: {costos.get('rendimiento_km_gal') if costos.get('rendimiento_km_gal') is not None else '-'} km/gal",
+        "",
+        f"DOCUMENTOS ({len(ficha['documentos'])})",
+    ]
+    for fila in ficha["documentos"]:
+        lineas.append(
+            f"- {fila['tipo_documento']} {fila['numero']}: {fila['estado']} "
+            f"(vence {fila['fecha_vencimiento']}, {fila['dias_para_vencer']} dia(s))"
+        )
+    for requerido in ficha["documentos_faltantes"]:
+        lineas.append(f"- Falta: {requerido}")
+
+    lineas.extend(["", f"MANTENIMIENTOS ({len(ficha['mantenimientos'])})"])
+    for fila in ficha["mantenimientos"]:
+        lineas.append(
+            f"- {fila['codigo'] or ''} {fila['tipo']} {fila['descripcion']}: "
+            f"{fila['estado']} | programado {fila['fecha_programada']} | {fila['costo']} {fila['moneda']}"
+        )
+    if not ficha["mantenimientos"]:
+        lineas.append("- Sin mantenimientos registrados.")
+
+    lineas.extend(["", f"PREVENTIVOS ({len(ficha['preventivos'])})"])
+    for fila in ficha["preventivos"]:
+        lineas.append(
+            f"- {fila['categoria']}: {fila['descripcion']} | {fila['estado']} | limite {fila['fecha_limite']}"
+        )
+    if not ficha["preventivos"]:
+        lineas.append("- Sin planes preventivos registrados.")
+
+    lineas.extend(["", f"CARGAS DE COMBUSTIBLE ({len(ficha['cargas'])})"])
+    for fila in ficha["cargas"]:
+        lineas.append(
+            f"- {fila['fecha']} {fila['tipo_combustible']}: {fila['galones']} gal / "
+            f"{fila['odometro']} km / {fila['monto']} (rendimiento "
+            f"{fila['rendimiento_km_gal']} km/gal)"
+        )
+    if not ficha["cargas"]:
+        lineas.append("- Sin cargas registradas.")
+
+    if ficha["motivos_no_apto"]:
+        lineas.extend(["", "Motivos de no apto:"])
+        lineas.extend(f"- {motivo}" for motivo in ficha["motivos_no_apto"])
+
+    contenido = construir_pdf(
+        "Ficha de mantenimiento",
+        lineas,
+        subtitulo=f"Placa {ficha['placa']} - generada el {date.today()}",
+    )
+    return contenido, f"ficha_{ficha['placa']}.pdf"
+
+
+def excel_reporte(
+    db: Session,
+    placa: Optional[str] = None,
+    estado: Optional[str] = None,
+    hoy: Optional[date] = None,
+) -> tuple:
+    """Genera el reporte de mantenimiento en Excel. Recibe filtros opcionales.
+
+    Cada hoja usa los mismos diccionarios del tablero, asi el archivo respeta
+    las reglas ya probadas de estados, alertas y costos.
+    """
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    hoy = hoy or date.today()
+    placa = (placa or "").strip().upper() or None
+    estados_documento = {opcion.value for opcion in EstadoDocumentoEnum}
+    estados_mantenimiento = {opcion.value for opcion in EstadoMantenimientoEnum}
+    estado_documento = (
+        EstadoDocumentoEnum(estado) if estado in estados_documento else None
+    )
+    estado_mantenimiento = (
+        EstadoMantenimientoEnum(estado) if estado in estados_mantenimiento else None
+    )
+
+    libro = Workbook()
+    libro.remove(libro.active)
+
+    def agregar_hoja(titulo: str, encabezados: list, filas: list) -> None:
+        """Crea una hoja con encabezados en negrita. Recibe titulo y filas."""
+
+        hoja = libro.create_sheet(titulo)
+        hoja.append(fila_segura(encabezados))
+        for celda in hoja[1]:
+            celda.font = Font(bold=True)
+        for fila in filas:
+            hoja.append(fila_segura(fila))
+
+    resumen = tablero(db, hoy)
+    agregar_hoja(
+        "Resumen",
+        ["Indicador", "Valor"],
+        [
+            ("Fecha", resumen["fecha"]),
+            ("Total de vehiculos", resumen["total_vehiculos"]),
+            ("Operativos", resumen["operativos"]),
+            ("En taller", resumen["en_taller"]),
+            ("No aptos", resumen["no_aptos"]),
+            ("Documentos por vencer", resumen["documentos_por_vencer"]),
+            ("Documentos vencidos", resumen["documentos_vencidos"]),
+            ("Mantenimientos abiertos", resumen["mantenimientos_abiertos"]),
+            ("Preventivos vencidos", resumen["preventivos_vencidos"]),
+            ("Preventivos proximos", resumen["preventivos_proximos"]),
+            ("Consumos anomalos", resumen["consumos_anomalos"]),
+            ("Alertas ALTA", resumen["alertas_alta"]),
+            ("Alertas MEDIA", resumen["alertas_media"]),
+            ("Alertas BAJA", resumen["alertas_baja"]),
+        ],
+    )
+
+    flota = estado_flota(db, hoy)
+    if placa:
+        flota = [fila for fila in flota if fila["placa"] == placa]
+    if estado:
+        flota = [fila for fila in flota if fila["estado_general"] == estado]
+    agregar_hoja(
+        "Flota",
+        [
+            "Placa", "Marca", "Estado", "Estado general", "Apto para salir",
+            "Documentos vencidos", "Documentos por vencer", "Mantenimientos abiertos",
+            "Proximo mantenimiento",
+        ],
+        [
+            (
+                fila["placa"], fila["marca"], fila["estado_vehiculo"],
+                fila["estado_general"], "SI" if fila["apto_para_salir"] else "NO",
+                fila["documentos_vencidos"], fila["documentos_por_vencer"],
+                fila["mantenimientos_abiertos"], fila["proximo_mantenimiento"],
+            )
+            for fila in flota
+        ],
+    )
+
+    documentos = listar_documentos(
+        db,
+        placa=placa,
+        estado=estado_documento,
+        limite=5000,
+        hoy=hoy,
+    )
+    agregar_hoja(
+        "Documentos",
+        ["Codigo", "Placa", "Tipo", "Numero", "Emision", "Vencimiento", "Estado", "Dias"],
+        [
+            (
+                fila["codigo"], fila["placa"], fila["tipo_documento"], fila["numero"],
+                fila["fecha_emision"], fila["fecha_vencimiento"], fila["estado"],
+                fila["dias_para_vencer"],
+            )
+            for fila in documentos
+        ],
+    )
+
+    mantenimientos = listar_mantenimientos(
+        db,
+        placa=placa,
+        estado=estado_mantenimiento,
+        limite=5000,
+        hoy=hoy,
+    )
+    agregar_hoja(
+        "Mantenimientos",
+        ["Codigo", "Placa", "Tipo", "Descripcion", "Estado", "Programada", "Ejecucion", "Costo"],
+        [
+            (
+                fila["codigo"], fila["placa"], fila["tipo"], fila["descripcion"],
+                fila["estado"], fila["fecha_programada"], fila["fecha_ejecucion"],
+                fila["costo"],
+            )
+            for fila in mantenimientos
+        ],
+    )
+
+    preventivos = listar_preventivos(db, placa=placa, limite=5000, hoy=hoy)
+    agregar_hoja(
+        "Preventivos",
+        ["Codigo", "Placa", "Categoria", "Descripcion", "Estado", "Fecha limite", "Dias"],
+        [
+            (
+                fila["codigo"], fila["placa"], fila["categoria"], fila["descripcion"],
+                fila["estado"], fila["fecha_limite"], fila["dias_restantes"],
+            )
+            for fila in preventivos
+        ],
+    )
+
+    cargas = listar_cargas(db, placa=placa, limite=5000)
+    agregar_hoja(
+        "Combustible",
+        ["Codigo", "Placa", "Fecha", "Tipo", "Galones", "Odometro", "Km recorridos", "Rendimiento", "Monto", "Anomalo"],
+        [
+            (
+                fila["codigo"], fila["placa"], fila["fecha"], fila["tipo_combustible"],
+                fila["galones"], fila["odometro"], fila["km_recorridos"],
+                fila["rendimiento_km_gal"], fila["monto"],
+                "SI" if fila["consumo_anomalo"] else "NO",
+            )
+            for fila in cargas
+        ],
+    )
+
+    buffer = io.BytesIO()
+    libro.save(buffer)
+    nombre = f"mantenimiento_{placa or 'flota'}_{hoy}.xlsx"
+    return buffer.getvalue(), nombre
+
+
+def validar_extension_archivo(contenido: bytes, nombre: str) -> str:
+    """Verifica el tipo real del adjunto y devuelve su extension. Recibe bytes y nombre.
+
+    Acepta imagenes (JPG/PNG/WEBP) por su contenido real y PDF por su cabecera;
+    nunca se confia en la extension que envia el navegador.
+    """
+
+    if not contenido:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El archivo esta vacio.",
+        )
+    if contenido.startswith(b"%PDF-"):
+        return ".pdf"
+    try:
+        return validar_imagen(contenido)
+    except HTTPException:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"El archivo {nombre or 'subido'} debe ser una imagen JPG, PNG, "
+                "WEBP o un PDF."
+            ),
+        )
+
+
+def guardar_archivo_documento(
+    db: Session,
+    documento_id: int,
+    contenido: bytes,
+    nombre: str,
+    usuario: str,
+) -> dict:
+    """Guarda un adjunto privado y lo vincula al documento. Recibe id y bytes."""
+
+    fila = _obtener_documento(db, documento_id)
+    extension = validar_extension_archivo(contenido, nombre)
+    nombre_seguro = (nombre or "archivo").strip().replace("\\", "/").split("/")[-1]
+    nombre_seguro = "".join(
+        caracter if caracter.isalnum() or caracter in "._-" else "_"
+        for caracter in nombre_seguro
+    )[:80]
+    clave = (
+        f"{almacenamiento.CARPETA_PRIVADA}mantenimiento/documentos/"
+        f"{fila.placa.lower()}_{documento_id}_{secrets.token_hex(12)}{extension}"
+    )
+    url = almacenamiento.guardar(clave, contenido)
+    fila.archivo_url = url
+    fila.actualizado_por = usuario
+    fila.actualizado_en = datetime.utcnow()
+    db.commit()
+    db.refresh(fila)
+    mantenimiento_repository.registrar_auditoria(
+        db,
+        "archivo",
+        "documento",
+        fila.id,
+        f"Se adjunto {nombre_seguro} a {fila.tipo_documento} de {fila.placa}",
+        usuario,
+    )
+    db.commit()
+    return {
+        "documento_id": fila.id,
+        "archivo_url": url,
+        "nombre": nombre_seguro,
+        "tipo": extension,
+        "tamano": len(contenido),
+    }
+
+
+def leer_archivo_privado(clave: str) -> tuple:
+    """Devuelve los bytes y el tipo de un adjunto privado. Recibe la clave."""
+
+    clave_normalizada = (clave or "").replace("\\", "/")
+    if not clave_normalizada.startswith(
+        f"{almacenamiento.CARPETA_PRIVADA}mantenimiento/"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="El archivo no existe.",
+        )
+    contenido = almacenamiento.leer(clave_normalizada)
+    if contenido is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="El archivo no existe.",
+        )
+    tipo = mimetypes.guess_type(clave_normalizada)[0] or "application/octet-stream"
+    return contenido, tipo

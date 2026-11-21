@@ -3,16 +3,20 @@
 from datetime import date
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_admin, get_current_almacen
 from app.core.config import settings
+from app.core.imagenes import leer_imagen_subida
 from app.db.database import get_db
 from app.models.usuario import Usuario
 from app.schemas.mantenimiento import (
     AlertaResponse,
+    ArchivoResponse,
     AveriaVehiculoResponse,
+    CalendarioEventoResponse,
     AuditoriaResponse,
     CargaCombustibleCreateRequest,
     CargaCombustibleResponse,
@@ -35,7 +39,10 @@ from app.schemas.mantenimiento import (
     PreventivoCreateRequest,
     PreventivoResponse,
     PreventivoUpdateRequest,
+    RecordatorioRequest,
+    RecordatorioResponse,
     ResumenResponse,
+    TableroResponse,
     TipoCombustibleEnum,
     TipoDocumentoEnum,
     TipoMantenimientoEnum,
@@ -593,3 +600,145 @@ def listar_auditoria(
     """Devuelve los ultimos cambios del modulo (solo administradores)."""
 
     return mantenimiento_service.historial_auditoria(db, limite)
+
+
+# ---------------------------------------------------------------------------
+# Semana 15: tablero y calendario
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/tablero",
+    response_model=TableroResponse,
+    tags=["Modulo mantenimiento"],
+)
+def tablero(
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_almacen),
+):
+    """Indicadores operativos del dia; cuenta licencias solo al administrador."""
+
+    return mantenimiento_service.tablero(
+        db, incluir_licencias=usuario.rol == "admin"
+    )
+
+
+@router.get(
+    "/calendario",
+    response_model=List[CalendarioEventoResponse],
+    tags=["Modulo mantenimiento"],
+)
+def calendario(
+    desde: Optional[date] = Query(None),
+    hasta: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(get_current_almacen),
+):
+    """Vencimientos, mantenimientos y preventivos en un rango de fechas."""
+
+    return mantenimiento_service.calendario(db, desde=desde, hasta=hasta)
+
+
+@router.post(
+    "/recordatorio",
+    response_model=RecordatorioResponse,
+    tags=["Modulo mantenimiento"],
+)
+def enviar_recordatorio(
+    datos: Optional[RecordatorioRequest] = None,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_admin),
+):
+    """Envia al administrador el resumen de alertas del dia (solo admin)."""
+
+    opciones = datos or RecordatorioRequest()
+    return mantenimiento_service.enviar_recordatorio(
+        db,
+        destino=opciones.destino,
+        incluir_licencias=opciones.incluir_licencias,
+    )
+
+
+@router.get(
+    "/flota/{placa}/pdf",
+    tags=["Modulo mantenimiento"],
+)
+def ficha_pdf(
+    placa: str,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(get_current_almacen),
+):
+    """Descarga la ficha de una unidad en PDF; la genera el servicio sin librerias nuevas."""
+
+    contenido, nombre = mantenimiento_service.ficha_pdf(db, placa)
+    return Response(
+        content=contenido,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
+
+
+@router.get(
+    "/reporte/excel",
+    tags=["Modulo mantenimiento"],
+)
+def reporte_excel(
+    placa: Optional[str] = Query(None, max_length=20),
+    estado: Optional[str] = Query(None, max_length=40),
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(get_current_almacen),
+):
+    """Descarga el reporte del modulo en Excel con los filtros indicados."""
+
+    contenido, nombre = mantenimiento_service.excel_reporte(
+        db, placa=placa, estado=estado
+    )
+    return Response(
+        content=contenido,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
+
+
+@router.post(
+    "/documentos/{documento_id}/archivo",
+    response_model=ArchivoResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["Modulo mantenimiento"],
+)
+async def subir_archivo_documento(
+    documento_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_current_admin),
+):
+    """Adjunta un imagen o PDF a un documento, guardado fuera de /media (solo admin)."""
+
+    contenido = await leer_imagen_subida(file)
+    return mantenimiento_service.guardar_archivo_documento(
+        db,
+        documento_id,
+        contenido,
+        file.filename or "archivo",
+        usuario.correo,
+    )
+
+
+@router.get(
+    "/archivos/{clave:path}",
+    tags=["Modulo mantenimiento"],
+)
+def descargar_archivo(
+    clave: str,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(get_current_almacen),
+):
+    """Sirve un adjunto privado solo a usuarios autorizados del modulo."""
+
+    contenido, tipo = mantenimiento_service.leer_archivo_privado(clave)
+    nombre = clave.replace("\\", "/").split("/")[-1]
+    return Response(
+        content=contenido,
+        media_type=tipo,
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )

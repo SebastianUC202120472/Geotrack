@@ -439,5 +439,105 @@ Documentación interactiva: `http://localhost:8000/docs` → sección
 - Las funciones de API están en `frontend/src/services/api.js` bajo
   `RUTA_MANTENIMIENTO = "/modulo-mantenimiento"`.
 
-Quedan para la **semana 15**: tablero/calendario, recordatorio por correo, PDF
-de la ficha, exportación a Excel, subida segura de archivos y demo.
+## 9. Cierre de la semana 15
+
+La semana 15 se apoya en la rama de la semana 14 y **no hace merge a
+`develop`**: cada entrega queda en su propia rama para que el gerente la revise
+por separado. No se agregaron tablas ni columnas nuevas: solo se combinan datos
+que el módulo ya calcula.
+
+### Tablero y calendario
+
+- `GET /tablero` devuelve la fotografía del día: unidades operativas, en taller
+  y no aptas; documentos por vencer y vencidos; mantenimientos abiertos;
+  preventivos vencidos y próximos; consumos anómalos; alertas por severidad y
+  eventos de los próximos 30 días. Las licencias solo influyen en el conteo de
+  alertas cuando consulta un administrador.
+- `GET /calendario?desde=&hasta=` junta tres orígenes en una sola lista
+  ordenada por fecha: vencimientos de documentos, fechas programadas de
+  mantenimiento y límites de planes preventivos. Si no se envía el rango,
+  muestra desde hoy hasta 30 días después. Un rango invertido responde 422.
+- Ninguno de los dos guardian estados: todo se recalcula en lectura con
+  `date.today()`.
+
+### Recordatorio por correo
+
+- `POST /recordatorio` (solo administradores) envía un resumen con las alertas
+  del día. Acepta `destino` opcional y `incluir_licencias`; por defecto usa
+  `settings.ADMIN_EMAIL` y no incluye licencias.
+- Reutiliza `correo_service.enviar_simple(destino, asunto, cuerpo)` y la firma
+  de `settings`. Si `MAIL_ENABLED=false` o el envío falla, responde
+  `enviado: false` con un detalle, sin tumbar la petición (política best-effort
+  ya usada por el resto del sistema).
+- No se agregó un scheduler nuevo: el botón del panel y cualquier tarea externa
+  pueden llamar al endpoint. El contenedor de notificaciones existente podría
+  invocar la misma función de servicio sin duplicar código.
+
+### Ficha en PDF
+
+- `GET /flota/{placa}/pdf` genera la ficha completa: identificación, odómetro,
+  estado general, costos, documentos, mantenimientos, preventivos, cargas y
+  motivos de "no apto".
+- El generador `app/core/pdf_simple.py` usa `zlib` y sintaxis PDF estándar con
+  Helvetica/WinAnsiEncoding. No se añadió `reportlab` ni otra dependencia, para
+  que Gerardo no tenga que instalar nada nuevo al levantar Docker.
+- La respuesta usa `Response(bytes, media_type="application/pdf",
+  headers={"Content-Disposition": ...})`, igual que las descargas existentes.
+
+### Reporte en Excel
+
+- `GET /reporte/excel?placa=&estado=` devuelve un libro `openpyxl` con seis
+  hojas: Resumen, Flota, Documentos, Mantenimientos, Preventivos y
+  Combustible. Los filtros son opcionales y se aplican con las mismas reglas
+  que el panel.
+- Todo texto que sale del módulo pasa por `fila_segura` de `app/core/excel.py`,
+  así una descripción que empiece con `=` no se interpreta como fórmula.
+
+### Seguridad de archivos
+
+- `POST /documentos/{id}/archivo` (solo administradores) acepta imágenes
+  JPG/PNG/WEBP y PDF. El tipo se valida por contenido real: las imágenes pasan
+  por `validar_imagen` y los PDF por su cabecera `%PDF-`; el nombre que envía el
+  navegador nunca decide la extensión.
+- El archivo se guarda con `secrets.token_hex(12)` en
+  `privado/mantenimiento/documentos/`, fuera de `/media`. Por eso **no** se
+  puede pedir con una URL firmada pública: `GET /archivos/{clave:path}` exige
+  sesión de almacén o administrador.
+- La URL se guarda en `DocumentoFlota.archivo_url` y cada alta queda en la
+  auditoría del módulo. El frontend descarga el archivo con el token JWT.
+
+### Roles y interfaz
+
+- El panel incorpora las pestañas **Tablero** y **Calendario**, botones de
+  Excel y PDF en el encabezado, y acciones por documento para adjuntar y
+  descargar archivos. El botón de recordatorio solo aparece para administradores.
+- Almacén mantiene acceso de solo lectura: ve tablero, calendario, descargas y
+  fichas; no ve licencias ni puede enviar correos, subir archivos ni cambiar
+  configuración.
+
+### Pruebas y ejecución
+
+- `tests/test_mantenimiento_semana15.py` cubre tablero, calendario, correo,
+  PDF, Excel, archivos privados y los endpoints nuevos por ASGI.
+- Comando local:
+  `python -m pytest tests/test_modulo_mantenimiento.py tests/test_mantenimiento_semana14.py tests/test_mantenimiento_semana15.py -q`.
+- `npm run build` en `frontend/` pasa sin errores (solo el aviso de chunk
+  grande que ya aparecía antes de esta semana).
+- Docker sigue bajo responsabilidad de Gerardo: no se iniciaron contenedores y
+  nunca se usa `docker compose down -v` porque borraría el volumen de Postgres.
+
+### Guion de demostración
+
+1. Entrar a `/panel/mantenimiento` con `admin@siol.com` y mostrar el tablero:
+   unidades operativas, no aptas y semáforo de alertas.
+2. Abrir Calendario y ampliar el rango para ver juntos un vencimiento de SOAT,
+   una orden programada y un preventivo próximo.
+3. Filtrar la placa `ABC-789` y descargar el **PDF de ficha**: documentos,
+   mantenimientos, preventivos, combustible y costo por kilómetro en un archivo.
+4. Descargar el **Excel** con el mismo filtro y recorrer sus seis hojas.
+5. Pulsar **Recordatorio**: el aviso confirma cuántas alertas se resumieron
+   (con `MAIL_ENABLED=false` indica que el correo no está configurado, sin error).
+6. En Documentos, adjuntar el PDF del SOAT y volver a descargarlo: se ve que la
+   URL apunta a `privado/` y que la descarga exige sesión.
+7. Entrar con un usuario de almacén y comprobar que puede consultar y descargar,
+   pero no ve Licencias ni botones de escritura o correo.

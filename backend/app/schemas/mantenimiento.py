@@ -5,7 +5,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 
 PATRON_PLACA = re.compile(r"^[A-Z0-9]{3}-[A-Z0-9]{3}$")
@@ -637,3 +637,67 @@ class AuditoriaResponse(BaseModel):
     detalle: Optional[str] = None
     usuario: str
     creado_en: datetime
+
+
+# ---------------------------------------------------------------------------
+# Semana 15: tablero, calendario, reportes, recordatorios y archivos
+# ---------------------------------------------------------------------------
+
+
+class TableroResponse(BaseModel):
+    """Indicadores operativos del tablero de mantenimiento."""
+
+    fecha: date
+    total_vehiculos: int
+    operativos: int
+    en_taller: int
+    no_aptos: int
+    documentos_por_vencer: int
+    documentos_vencidos: int
+    mantenimientos_abiertos: int
+    preventivos_vencidos: int
+    preventivos_proximos: int
+    consumos_anomalos: int
+    alertas_alta: int
+    alertas_media: int
+    alertas_baja: int
+    eventos_proximos: int
+
+
+class CalendarioEventoResponse(BaseModel):
+    """Vencimiento, mantenimiento o preventivo ubicado en el calendario."""
+
+    id: str
+    tipo: str
+    titulo: str
+    placa: str
+    fecha: date
+    estado: Optional[str] = None
+    severidad: Optional[str] = None
+    dias: Optional[int] = None
+
+
+class RecordatorioRequest(BaseModel):
+    """Opciones del resumen que se envia por correo."""
+
+    destino: Optional[EmailStr] = None
+    incluir_licencias: bool = False
+
+
+class RecordatorioResponse(BaseModel):
+    """Resultado del envio del recordatorio."""
+
+    enviado: bool
+    destino: str
+    alertas: int
+    detalle: str
+
+
+class ArchivoResponse(BaseModel):
+    """Datos del archivo adjunto guardado para un documento."""
+
+    documento_id: int
+    archivo_url: str
+    nombre: str
+    tipo: str
+    tamano: int

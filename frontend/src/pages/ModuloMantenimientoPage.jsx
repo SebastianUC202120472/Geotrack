@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import {
-  AlertTriangle, BellRing, CalendarRange, ClipboardList, FileText, Fuel,
-  Gauge, Pencil, Plus, Settings, ShieldCheck, Trash2, Truck, Wrench,
+  AlertTriangle, BellRing, CalendarDays, CalendarRange, ClipboardList, Download,
+  FileSpreadsheet, FileText, Fuel, Gauge, LayoutDashboard, Mail,
+  Pencil, Plus, Settings, ShieldCheck, Trash2, Truck, UploadCloud, Wrench,
 } from "lucide-react";
 import PageHeader from "../components/ui/PageHeader";
 import KpiCard from "../components/ui/KpiCard";
@@ -16,20 +17,25 @@ import {
   actualizarCargaCombustible, actualizarConfiguracionMantenimiento,
   actualizarDocumentoMantenimiento, actualizarPreventivoMantenimiento,
   crearCargaCombustible, crearDocumentoMantenimiento, crearMantenimientoFlota,
-  crearPreventivoMantenimiento, eliminarCargaCombustible,
-  eliminarDocumentoMantenimiento, eliminarPreventivoMantenimiento,
+  crearPreventivoMantenimiento, descargarArchivoMantenimiento,
+  descargarFichaMantenimientoPdf, descargarReporteMantenimientoExcel,
+  eliminarCargaCombustible, eliminarDocumentoMantenimiento,
+  eliminarPreventivoMantenimiento, enviarRecordatorioMantenimiento,
   listarAlertasMantenimiento, listarAuditoriaMantenimiento,
-  listarCargasCombustible, listarDocumentosMantenimiento,
-  listarFlotaMantenimiento, listarLicenciasMantenimiento,
-  listarMantenimientosFlota, listarPreventivosMantenimiento,
-  listarRankingAverias, obtenerConfiguracionMantenimiento,
-  obtenerCostosFlotaMantenimiento, obtenerFichaVehiculoMantenimiento,
-  obtenerResumenMantenimiento,
+  listarCalendarioMantenimiento, listarCargasCombustible,
+  listarDocumentosMantenimiento, listarFlotaMantenimiento,
+  listarLicenciasMantenimiento, listarMantenimientosFlota,
+  listarPreventivosMantenimiento, listarRankingAverias,
+  obtenerConfiguracionMantenimiento, obtenerCostosFlotaMantenimiento,
+  obtenerFichaVehiculoMantenimiento, obtenerResumenMantenimiento,
+  obtenerTableroMantenimiento, subirArchivoDocumentoMantenimiento,
 } from "../services/api";
 
 // Pestañas del modulo. Cada entrada lleva su icono de lucide.
 const PESTANAS = [
   ["resumen", "Resumen", Gauge],
+  ["tablero", "Tablero", LayoutDashboard],
+  ["calendario", "Calendario", CalendarDays],
   ["documentos", "Documentos", FileText],
   ["mantenimientos", "Mantenimientos", Wrench],
   ["preventivos", "Preventivos", CalendarRange],
@@ -153,14 +159,18 @@ export default function ModuloMantenimientoPage() {
   const [cargando, setCargando] = useState(true);
   const [aviso, setAviso] = useState(null);
   const [datos, setDatos] = useState({
-    resumen: null, flota: [], documentos: [], mantenimientos: [], preventivos: [],
-    cargas: [], alertas: [], licencias: [], costos: null, averias: [],
-    configuracion: null, auditoria: [], ficha: null,
+    resumen: null, tablero: null, calendario: [], flota: [], documentos: [],
+    mantenimientos: [], preventivos: [], cargas: [], alertas: [], licencias: [],
+    costos: null, averias: [], configuracion: null, auditoria: [], ficha: null,
   });
   const [filtros, setFiltros] = useState({ placa: "", estado: "" });
   const [modal, setModal] = useState(null);
   const [valores, setValores] = useState({});
   const [editando, setEditando] = useState(null);
+  const [procesando, setProcesando] = useState({ excel: false, pdf: false, correo: false, archivo: false });
+  const [adjunto, setAdjunto] = useState(null);
+  const [archivo, setArchivo] = useState(null);
+  const [rango, setRango] = useState({ desde: "", hasta: "" });
 
   const notificar = (ok, texto) => setAviso({ ok, texto });
   const manejarError = (error) => notificar(false, error?.message || "No se pudo completar la operación.");
@@ -170,6 +180,8 @@ export default function ModuloMantenimientoPage() {
     setCargando(true);
     const tareas = [
       ["resumen", obtenerResumenMantenimiento],
+      ["tablero", obtenerTableroMantenimiento],
+      ["calendario", listarCalendarioMantenimiento],
       ["flota", listarFlotaMantenimiento],
       ["documentos", () => listarDocumentosMantenimiento({ limite: 200 })],
       ["mantenimientos", () => listarMantenimientosFlota({ limite: 200 })],
@@ -259,6 +271,65 @@ export default function ModuloMantenimientoPage() {
     } catch (error) { manejarError(error); }
   };
 
+  // Ejecuta una accion de semana 15 y muestra el resultado en el aviso.
+  const ejecutar = async (clave, fn, mensaje) => {
+    setProcesando((anterior) => ({ ...anterior, [clave]: true }));
+    try {
+      await fn();
+      notificar(true, mensaje);
+    } catch (error) { manejarError(error); }
+    finally { setProcesando((anterior) => ({ ...anterior, [clave]: false })); }
+  };
+
+  const cargarCalendario = async (valores) => {
+    try {
+      setRango(valores);
+      const eventos = await listarCalendarioMantenimiento({
+        desde: valores.desde || undefined,
+        hasta: valores.hasta || undefined,
+      });
+      setDatos((anterior) => ({ ...anterior, calendario: eventos }));
+    } catch (error) { manejarError(error); }
+  };
+
+  const exportarExcel = () => ejecutar(
+    "excel",
+    () => descargarReporteMantenimientoExcel({
+      placa: filtros.placa || undefined,
+      estado: filtros.estado || undefined,
+    }),
+    "El reporte en Excel se descargó correctamente."
+  );
+
+  const exportarPdf = (placa) => ejecutar(
+    "pdf",
+    () => descargarFichaMantenimientoPdf(placa || filtros.placa),
+    `La ficha de ${placa || filtros.placa} se descargó en PDF.`
+  );
+
+  const enviarCorreo = () => ejecutar(
+    "correo",
+    () => enviarRecordatorioMantenimiento({}),
+    "Se procesó el recordatorio por correo. Revisa el detalle del aviso del servidor."
+  );
+
+  const abrirAdjunto = (fila) => {
+    setAdjunto(fila);
+    setArchivo(null);
+    setModal("archivo");
+  };
+
+  const subirAdjunto = () => ejecutar(
+    "archivo",
+    async () => {
+      if (!archivo) throw new Error("Selecciona un archivo antes de subirlo.");
+      await subirArchivoDocumentoMantenimiento(adjunto.id, archivo);
+      setModal(null);
+      await recargar();
+    },
+    "El archivo quedó guardado de forma privada."
+  );
+
   const porPlaca = (lista) => (lista || []).filter((fila) => !filtros.placa || fila.placa === filtros.placa);
   const porEstado = (lista) => porPlaca(lista).filter((fila) => !filtros.estado || fila.estado === filtros.estado);
   const resumen = datos.resumen || {};
@@ -293,6 +364,17 @@ export default function ModuloMantenimientoPage() {
         subtitulo="Documentos, mantenimientos preventivos, averías, combustible y costos por unidad"
       >
         <Button variant="secondary" icon={ClipboardList} onClick={recargar}>Actualizar</Button>
+        <Button variant="secondary" icon={FileSpreadsheet} onClick={exportarExcel} disabled={procesando.excel}>
+          {procesando.excel ? "Descargando…" : "Excel"}
+        </Button>
+        <Button variant="secondary" icon={Download} onClick={() => exportarPdf()} disabled={procesando.pdf || !filtros.placa}>
+          {procesando.pdf ? "Generando…" : "PDF de ficha"}
+        </Button>
+        {esAdmin && (
+          <Button variant="secondary" icon={Mail} onClick={enviarCorreo} disabled={procesando.correo}>
+            {procesando.correo ? "Enviando…" : "Recordatorio"}
+          </Button>
+        )}
         {esAdmin && <Button icon={Plus} onClick={() => abrirAlta("documentos")}>Nuevo documento</Button>}
       </PageHeader>
 
@@ -357,6 +439,73 @@ export default function ModuloMantenimientoPage() {
         </div>
       )}
 
+      {pestana === "tablero" && (
+        <div className="space-y-6">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard label="Vehículos" value={datos.tablero?.total_vehiculos ?? 0} icon={Truck} tone="brand" />
+            <KpiCard label="Operativos" value={datos.tablero?.operativos ?? 0} icon={ShieldCheck} tone="success" />
+            <KpiCard label="En taller" value={datos.tablero?.en_taller ?? 0} icon={Wrench} tone="info" />
+            <KpiCard label="No aptos" value={datos.tablero?.no_aptos ?? 0} icon={AlertTriangle} tone="danger" />
+            <KpiCard label="Documentos vencidos" value={datos.tablero?.documentos_vencidos ?? 0} icon={FileText} tone="danger" />
+            <KpiCard label="Preventivos vencidos" value={datos.tablero?.preventivos_vencidos ?? 0} icon={CalendarRange} tone="warning" />
+            <KpiCard label="Consumos anómalos" value={datos.tablero?.consumos_anomalos ?? 0} icon={Fuel} tone="warning" />
+            <KpiCard label="Eventos próximos" value={datos.tablero?.eventos_proximos ?? 0} icon={CalendarDays} tone="brand" />
+          </div>
+          <SectionCard title="Semáforo de alertas" subtitle="Clasificación del día por severidad">
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                ["ALTA", datos.tablero?.alertas_alta ?? 0, "danger"],
+                ["MEDIA", datos.tablero?.alertas_media ?? 0, "warning"],
+                ["BAJA", datos.tablero?.alertas_baja ?? 0, "info"],
+              ].map(([nivel, total, tono]) => (
+                <div key={nivel} className="rounded-xl border border-slate-100 p-4">
+                  <Badge tono={tono}>{nivel}</Badge>
+                  <p className="mt-2 text-2xl font-bold nums">{total}</p>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        </div>
+      )}
+
+      {pestana === "calendario" && (
+        <SectionCard title="Calendario de mantenimiento" subtitle="Vencimientos, órdenes y planes en el periodo">
+          <div className="flex flex-wrap items-end gap-3">
+            <Input label="Desde" type="date" value={rango.desde} onChange={(evento) => setRango({ ...rango, desde: evento.target.value })} />
+            <Input label="Hasta" type="date" value={rango.hasta} onChange={(evento) => setRango({ ...rango, hasta: evento.target.value })} />
+            <Button variant="secondary" icon={CalendarDays} onClick={() => cargarCalendario(rango)}>Aplicar</Button>
+          </div>
+          <div className="mt-5 space-y-4">
+            {Object.entries((datos.calendario || []).reduce((grupos, evento) => {
+              (grupos[evento.fecha] ||= []).push(evento);
+              return grupos;
+            }, {})).map(([fecha, eventos]) => (
+              <div key={fecha}>
+                <h3 className="mb-2 text-sm font-semibold text-slate-700">{fecha}</h3>
+                <ul className="divide-y divide-slate-100 rounded-xl border border-slate-100">
+                  {eventos.map((evento) => (
+                    <li key={evento.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm">
+                      <Badge tono={evento.severidad === "ALTA" ? "danger" : evento.severidad === "MEDIA" ? "warning" : "neutral"}>
+                        {evento.tipo.replaceAll("_", " ")}
+                      </Badge>
+                      <span className="font-medium text-slate-800">{evento.titulo}</span>
+                      <span className="text-slate-500">{evento.placa}</span>
+                      <Estado valor={evento.estado} />
+                      {evento.dias !== null && evento.dias !== undefined && (
+                        <span className="ml-auto text-xs text-slate-500">{evento.dias} día(s)</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            {!(datos.calendario || []).length && (
+              <p className="text-sm text-slate-500">No hay hitos en el periodo seleccionado.</p>
+            )}
+          </div>
+        </SectionCard>
+      )}
+
       {pestana === "documentos" && (
         <SectionCard
           title="Documentos de la flota"
@@ -379,6 +528,16 @@ export default function ModuloMantenimientoPage() {
                 ...(esAdmin ? [{ key: "acciones", header: "Acciones", render: (fila) => (
                   <div className="flex gap-2">
                     <button type="button" aria-label="Editar" onClick={() => abrirEdicion("documentos", fila)}><Pencil size={16} /></button>
+                    <button type="button" aria-label="Adjuntar archivo" onClick={() => abrirAdjunto(fila)}><UploadCloud size={16} /></button>
+                    {fila.archivo_url && (
+                      <button
+                        type="button"
+                        aria-label="Descargar archivo"
+                        onClick={() => descargarArchivoMantenimiento(fila.archivo_url, `${fila.tipo_documento}_${fila.numero}`)}
+                      >
+                        <Download size={16} />
+                      </button>
+                    )}
                     <button type="button" aria-label="Eliminar" onClick={() => borrar("documentos", fila.id)}><Trash2 size={16} /></button>
                   </div>
                 ) }] : []),
@@ -602,7 +761,48 @@ export default function ModuloMantenimientoPage() {
                 ))}
               </div>
             )}
-            <Button variant="secondary" block onClick={() => setModal(null)}>Cerrar</Button>
+            <div className="flex flex-wrap gap-2">
+              {esAdmin && (
+                <Button
+                  variant="secondary"
+                  icon={Download}
+                  onClick={() => exportarPdf(datos.ficha.placa)}
+                  disabled={procesando.pdf}
+                >
+                  Descargar PDF
+                </Button>
+              )}
+              <Button variant="secondary" block onClick={() => setModal(null)}>Cerrar</Button>
+            </div>
+          </div>
+        )}
+        {modal === "archivo" && adjunto && (
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold">Adjunto de {adjunto.tipo_documento}</h2>
+            <p className="text-sm text-slate-500">
+              {adjunto.placa} · {adjunto.numero} · Imagen JPG, PNG, WEBP o PDF (máx. configurado en el servidor).
+            </p>
+            <Input
+              label="Archivo"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              onChange={(evento) => setArchivo(evento.target.files?.[0] || null)}
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button icon={UploadCloud} onClick={subirAdjunto} disabled={procesando.archivo}>
+                {procesando.archivo ? "Subiendo…" : "Guardar archivo"}
+              </Button>
+              {adjunto.archivo_url && (
+                <Button
+                  variant="secondary"
+                  icon={Download}
+                  onClick={() => descargarArchivoMantenimiento(adjunto.archivo_url, `${adjunto.tipo_documento}_${adjunto.numero}`)}
+                >
+                  Descargar actual
+                </Button>
+              )}
+              <Button variant="ghost" onClick={() => setModal(null)}>Cancelar</Button>
+            </div>
           </div>
         )}
         {FORMULARIOS[modal] && (

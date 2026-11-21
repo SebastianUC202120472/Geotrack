@@ -791,3 +791,78 @@ export const eliminarCargaCombustible = (id) =>
 
 // Costos y rendimiento de la flota. Sin parametros.
 export const obtenerCostosFlotaMantenimiento = () => request(`${RUTA_MANTENIMIENTO}/costos`);
+
+// --- Semana 15: tablero, calendario, reportes, recordatorios y archivos ---
+
+// Indicadores operativos del dia. Sin parametros.
+export const obtenerTableroMantenimiento = () => request(`${RUTA_MANTENIMIENTO}/tablero`);
+
+// Hitos del calendario. Recibe filtros { desde, hasta }.
+export const listarCalendarioMantenimiento = (filtros = {}) =>
+  request(`${RUTA_MANTENIMIENTO}/calendario${consultaMantenimiento(filtros)}`);
+
+// Descarga autenticada reutilizable. Recibe ruta, nombre y mensaje de error.
+async function descargarArchivo(ruta, nombre, mensajeError) {
+  const token = getToken();
+  const respuesta = await fetch(`${API_URL}${ruta}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (respuesta.status === 401) {
+    borrarToken();
+    if (window.location.pathname !== "/panel/login") window.location.href = "/panel/login";
+    throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");
+  }
+  if (!respuesta.ok) throw new Error(mensajeError);
+  const blob = await respuesta.blob();
+  const url = URL.createObjectURL(blob);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombre;
+  document.body.appendChild(enlace);
+  enlace.click();
+  enlace.remove();
+  URL.revokeObjectURL(url);
+}
+
+// Ficha de una unidad en PDF. Recibe la placa.
+export const descargarFichaMantenimientoPdf = (placa) =>
+  descargarArchivo(
+    `${RUTA_MANTENIMIENTO}/flota/${encodeURIComponent(placa)}/pdf`,
+    `ficha_${placa}.pdf`,
+    "No se pudo descargar el PDF de la ficha"
+  );
+
+// Reporte de mantenimiento en Excel. Recibe filtros opcionales.
+export const descargarReporteMantenimientoExcel = (filtros = {}) =>
+  descargarArchivo(
+    `${RUTA_MANTENIMIENTO}/reporte/excel${consultaMantenimiento(filtros)}`,
+    "reporte_mantenimiento.xlsx",
+    "No se pudo descargar el reporte en Excel"
+  );
+
+// Descarga un archivo privado de un documento. Recibe la_url guardada y el nombre.
+export const descargarArchivoMantenimiento = (archivoUrl, nombre = "archivo") => {
+  const texto = String(archivoUrl || "");
+  const clave = texto.startsWith("/media/")
+    ? texto.slice("/media/".length).split("?")[0]
+    : "";
+  return descargarArchivo(
+    `${RUTA_MANTENIMIENTO}/archivos/${clave.split("/").map(encodeURIComponent).join("/")}`,
+    nombre,
+    "No se pudo descargar el archivo"
+  );
+};
+
+// Envia el resumen de alertas al correo del administrador (solo admin).
+export const enviarRecordatorioMantenimiento = (datos = {}) =>
+  request(`${RUTA_MANTENIMIENTO}/recordatorio`, { method: "POST", body: datos });
+
+// Sube un archivo privado adjunto a un documento (solo admin).
+export const subirArchivoDocumentoMantenimiento = (documentoId, archivo) => {
+  const datos = new FormData();
+  datos.append("file", archivo);
+  return request(`${RUTA_MANTENIMIENTO}/documentos/${documentoId}/archivo`, {
+    method: "POST",
+    body: datos,
+  });
+};
