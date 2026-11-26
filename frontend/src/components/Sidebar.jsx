@@ -15,6 +15,7 @@ import {
   AlertOctagon,
   Scale,
   ChevronRight,
+  ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -24,6 +25,7 @@ import ConfirmDialog from "./ui/ConfirmDialog";
 import CampanaNotificaciones from "./CampanaNotificaciones";
 import IconoAsistente from "../modulos/asistente/IconoAsistente";
 import { useAsistenteDisponible } from "../modulos/asistente/estadoServicio";
+import { useAuditoriaDisponible } from "../modulos/auditoria/estadoServicio";
 
 // Secciones de navegacion agrupadas por rol. El resumen (Dashboard) se abre con el logo; la
 // capacidad vive en Flota de Vehiculos, el seguimiento en Conductores, los parametros en el resumen,
@@ -55,6 +57,7 @@ const secciones = [
       { icon: ClipboardList, label: "Reportes de pedido", path: "/panel/reportes" },
       { icon: Wrench, label: "Auxilio mecánico", path: "/panel/auxilio" },
       { icon: BookText, label: "Libro de Reclamaciones", path: "/panel/reclamos" },
+      { icon: ShieldCheck, label: "Auditoría de Evidencias", path: "/panel/auditoria", auditoria: true },
     ],
   },
   {
@@ -77,11 +80,17 @@ export default function Sidebar({ onNavigate }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { cerrarSesion, rol } = useAuth();
-  // La entrada del asistente solo aparece si su servicio esta activo (igual que el boton flotante).
+  // La entrada del asistente y de auditoría solo aparecen si sus servicios están activos.
   const asistenteDisponible = useAsistenteDisponible(rol);
+  const auditoriaDisponible = useAuditoriaDisponible(rol);
   const visibles = secciones
     .filter((s) => !s.roles || s.roles.includes(rol))
-    .map((s) => ({ ...s, items: s.items.filter((i) => !i.asistente || asistenteDisponible) }));
+    .map((s) => ({
+      ...s,
+      items: s.items.filter(
+        (i) => (!i.asistente || asistenteDisponible) && (!i.auditoria || auditoriaDisponible)
+      ),
+    }));
   const [confirmandoSalida, setConfirmandoSalida] = useState(false);
 
   // Cierra la sesion tras confirmarla en el dialogo (C05-01). Sin input.
