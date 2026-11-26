@@ -35,6 +35,8 @@ const Landing = lazy(() => import("./pages/landing/Landing"));
 const Portal = lazy(() => import("./pages/portal/Portal"));
 // Vista completa del asistente con IA (modulo aparte, carga diferida).
 const PaginaAsistente = lazy(() => import("./modulos/asistente/PaginaAsistente"));
+// Auditoria inteligente de evidencias con IA (modulo aparte, carga diferida).
+const PaginaAuditoria = lazy(() => import("./modulos/auditoria/PaginaAuditoria"));
 
 // Capacidad de vehículos: el admin la ve como pestaña de Flota; almacén la consulta aquí
 // (solo lectura), porque no tiene acceso a Flota. Sin props.
@@ -111,6 +113,14 @@ export default function App() {
           element={
             <Suspense fallback={null}>
               <PaginaAsistente />
+            </Suspense>
+          }
+        />
+        <Route
+          path="auditoria"
+          element={
+            <Suspense fallback={null}>
+              <PaginaAuditoria />
             </Suspense>
           }
         />
