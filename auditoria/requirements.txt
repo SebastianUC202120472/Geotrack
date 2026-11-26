@@ -1,0 +1,15 @@
+# Dependencias del servicio de Auditoría Inteligente de Evidencias (GeoTrack)
+# Versiones fijadas para estabilidad y prevención de vulnerabilidades (OWASP A06).
+fastapi==0.143.0
+uvicorn==0.54.0
+httpx==0.28.1
+sqlalchemy==2.1.4
+psycopg2-binary==2.9.13
+pydantic-settings==2.15.0
+python-multipart==0.0.32
+pillow==11.3.0
+imagehash==4.3.2
+numpy==2.2.3
+scipy==1.15.2
+tzdata==2025.2
+pytest==8.3.4
